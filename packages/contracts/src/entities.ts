@@ -349,6 +349,24 @@ export const proposedChangeSchema = z.object({
   baseRevisionId: idSchema.nullable(),
   newRevisionId: idSchema,
   kind: z.enum(['baseline_update', 'new_artifact', 'component_selection', 'bom_edit', 'archive']),
+  /** For component_selection: artifact being replaced. */
+  replacesArtifactId: idSchema.optional(),
+  /** For bom_edit / component_selection: BOM lines to apply. */
+  bomLines: z
+    .array(
+      z.object({
+        componentArtifactId: idSchema,
+        componentRevisionId: idSchema,
+        subsystem: z.string().nullable(),
+        quantity: z.number().positive(),
+        offerId: idSchema.nullable(),
+        location: z.string().nullable(),
+        notes: z.string().default(''),
+      }),
+    )
+    .optional(),
+  /** For bom_edit: line ids to remove. */
+  removeBomLineIds: z.array(idSchema).optional(),
 });
 export type ProposedChange = z.infer<typeof proposedChangeSchema>;
 

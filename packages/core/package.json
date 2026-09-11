@@ -1,0 +1,17 @@
+{
+  "name": "@stark/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts"
+  },
+  "dependencies": {
+    "@stark/contracts": "workspace:*",
+    "@stark/storage": "workspace:*",
+    "fflate": "^0.8.2"
+  }
+}
