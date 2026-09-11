@@ -1,11 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 export const idSchema = z.string().uuid();
 export type Id = string;
 
 export function newId(): Id {
-  return randomUUID();
+  // crypto.randomUUID is a global in Node ≥19, Electron, and browsers.
+  return crypto.randomUUID();
 }
 
 /** Reference to an exact artifact revision. */

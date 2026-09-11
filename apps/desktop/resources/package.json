@@ -1,0 +1,11 @@
+{
+  "name": "stark-runtime",
+  "private": true,
+  "dependencies": {
+    "better-sqlite3": "*",
+    "node-pty": "*",
+    "mathjs": "*",
+    "ajv": "*",
+    "ajv-formats": "*"
+  }
+}
