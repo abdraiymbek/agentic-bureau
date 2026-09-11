@@ -8,11 +8,9 @@ import {
   Menu,
   protocol,
   utilityProcess,
-  net,
 } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import { pathToFileURL } from 'node:url';
 // @ts-expect-error no published types for squirrel-startup
 import started from 'electron-squirrel-startup';
 import { IPC, MAX_EXTRACT_CHARS } from '@stark/contracts';
@@ -20,6 +18,16 @@ import { ResearchSurface } from './research.js';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
+
+// Register the app scheme as a standard+secure scheme BEFORE app ready so
+// 'self' in the page CSP covers stark-app:// subresources (opaque-origin
+// schemes break script-src 'self').
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'stark-app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
 
 if (started) app.quit();
 
@@ -357,7 +365,27 @@ app.whenReady().then(() => {
       // stark-app://main_window/index.html → .vite/renderer/main_window/index.html
       const rel = `${url.hostname}${url.pathname}`;
       const file = path.join(__dirname, '..', 'renderer', rel);
-      return net.fetch(pathToFileURL(file).toString());
+      // fs is asar-aware; net.fetch(file://) is not — the network service
+      // can't read inside app.asar, which left the window blank.
+      try {
+        const body = fs.readFileSync(file);
+        const ext = path.extname(file).toLowerCase();
+        const type =
+          {
+            '.html': 'text/html',
+            '.js': 'text/javascript',
+            '.mjs': 'text/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.svg': 'image/svg+xml',
+            '.png': 'image/png',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+          }[ext] ?? 'application/octet-stream';
+        return new Response(new Uint8Array(body), { headers: { 'content-type': type } });
+      } catch {
+        return new Response('not found', { status: 404 });
+      }
     });
   }
   buildMenu();
