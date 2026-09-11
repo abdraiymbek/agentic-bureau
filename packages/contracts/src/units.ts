@@ -19,6 +19,7 @@ export type Dim =
   | 'angle'
   | 'angular_speed'
   | 'speed'
+  | 'acceleration'
   | 'temperature'
   | 'data'
   | 'dimensionless';
@@ -92,6 +93,10 @@ const UNITS: Record<string, UnitDef> = {
   'm/s': { dim: 'speed', scale: 1 },
   'km/h': { dim: 'speed', scale: 1 / 3.6 },
   mph: { dim: 'speed', scale: 0.44704 },
+
+  'm/s^2': { dim: 'acceleration', scale: 1 },
+  'cm/s^2': { dim: 'acceleration', scale: 0.01 },
+  'ft/s^2': { dim: 'acceleration', scale: 0.3048 },
 
   K: { dim: 'temperature', scale: 1 },
   degC: { dim: 'temperature', scale: 1, offset: 273.15, aliases: ['°C', 'Celsius'] },

@@ -16,7 +16,10 @@ import { expandArchive, verifyArchive } from './build.js';
 
 /** Terminal/session services provided by agent-host. */
 export interface TerminalHost {
-  start(ctx: ProjectContext, opts: { adapterId: string; executablePath?: string; args?: string[] }): Promise<SessionInfo>;
+  start(
+    ctx: ProjectContext,
+    opts: { adapterId: string; executablePath?: string; args?: string[] },
+  ): Promise<SessionInfo>;
   write(ctx: ProjectContext, data: string): void;
   resize(ctx: ProjectContext, cols: number, rows: number): void;
   interrupt(ctx: ProjectContext): void;
@@ -27,13 +30,30 @@ export interface TerminalHost {
 
 export interface ConnectionHost {
   list(): Promise<AdapterStatus[]>;
-  test(ctx: ProjectContext, adapterId: string): Promise<{ ok: boolean; error?: string; detail?: string }>;
-  configure(adapterId: string, cfg: { executablePath?: string; args?: string[]; env?: Record<string, string> }): Promise<void>;
+  test(
+    ctx: ProjectContext,
+    adapterId: string,
+  ): Promise<{ ok: boolean; error?: string; detail?: string }>;
+  configure(
+    adapterId: string,
+    cfg: { executablePath?: string; args?: string[]; env?: Record<string, string> },
+  ): Promise<void>;
+}
+
+/** Per-adapter persisted settings (executable, args, env, last test result). */
+export interface AdapterSettings {
+  executablePath?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  toolAccess?: 'mcp' | 'cli' | 'none';
+  lastTestAt?: string | null;
+  lastTestOk?: boolean | null;
+  lastError?: string | null;
 }
 
 interface AppSettings {
   recentProjects: string[];
-  adapters: Record<string, { executablePath?: string; args?: string[]; env?: Record<string, string> }>;
+  adapters: Record<string, AdapterSettings>;
   prefs: Record<string, unknown>;
   toolPaths: Record<string, string>;
 }
@@ -62,7 +82,13 @@ export class CoreApp {
 
   private loadSettings(): AppSettings {
     try {
-      return { recentProjects: [], adapters: {}, prefs: {}, toolPaths: {}, ...JSON.parse(fs.readFileSync(this.settingsPath, 'utf8')) };
+      return {
+        recentProjects: [],
+        adapters: {},
+        prefs: {},
+        toolPaths: {},
+        ...JSON.parse(fs.readFileSync(this.settingsPath, 'utf8')),
+      };
     } catch {
       return { recentProjects: [], adapters: {}, prefs: {}, toolPaths: {} };
     }
@@ -73,6 +99,11 @@ export class CoreApp {
   get adapterConfigs(): AppSettings['adapters'] {
     return this.settings.adapters;
   }
+  /** Merge + persist per-adapter config (used by connection.configure/test). */
+  setAdapterConfig(adapterId: string, cfg: AdapterSettings): void {
+    this.settings.adapters[adapterId] = { ...this.settings.adapters[adapterId], ...cfg };
+    this.saveSettings();
+  }
   get toolPaths(): Record<string, string> {
     return this.settings.toolPaths;
   }
@@ -82,7 +113,10 @@ export class CoreApp {
   }
 
   private rememberProject(root: string): void {
-    this.settings.recentProjects = [root, ...this.settings.recentProjects.filter((p) => p !== root)].slice(0, 12);
+    this.settings.recentProjects = [
+      root,
+      ...this.settings.recentProjects.filter((p) => p !== root),
+    ].slice(0, 12);
     this.saveSettings();
   }
 
@@ -119,7 +153,13 @@ export class CoreApp {
   }
 
   /** App-level + project-level op entry. projectId omitted for app ops. */
-  async dispatch(op: string, payload: unknown, origin: Origin, projectId?: string, idempotencyKey?: string): Promise<unknown> {
+  async dispatch(
+    op: string,
+    payload: unknown,
+    origin: Origin,
+    projectId?: string,
+    idempotencyKey?: string,
+  ): Promise<unknown> {
     switch (op) {
       case 'project.create': {
         const p = payload as { name: string; path: string; intent: string };
@@ -164,7 +204,10 @@ export class CoreApp {
           fs.writeFileSync(pfPath, JSON.stringify(pf, null, 2));
           const handle = openProject(p.destDir);
           handle.repo.db.prepare(`UPDATE project SET id=?, name=?`).run(pf.id, pf.name);
-          handle.repo.appendEvent('project.imported', 'user', { from: manifest.projectId, copy: true });
+          handle.repo.appendEvent('project.imported', 'user', {
+            from: manifest.projectId,
+            copy: true,
+          });
           const ctx = this.register(handle);
           return { project: handle.project, projectId: ctx.projectId };
         }
@@ -185,7 +228,9 @@ export class CoreApp {
         const key = (payload as { key?: string }).key;
         if (!key) return { settings: this.settings };
         const [a, b] = key.split('.');
-        return { value: (this.settings as unknown as Record<string, Record<string, unknown>>)[a!]?.[b!] };
+        return {
+          value: (this.settings as unknown as Record<string, Record<string, unknown>>)[a!]?.[b!],
+        };
       }
       case 'settings.set': {
         const { key, value } = payload as { key: string; value: unknown };
@@ -220,12 +265,19 @@ export class CoreApp {
         return { adapters: (await this.connectionHost?.list()) ?? [] };
       case 'connection.test': {
         const p = payload as { adapterId: string };
-        if (!this.connectionHost) throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
+        if (!this.connectionHost)
+          throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.test(this.contextFor(projectId!), p.adapterId);
       }
       case 'connection.configure': {
-        const p = payload as { adapterId: string; executablePath?: string; args?: string[]; env?: Record<string, string> };
-        if (!this.connectionHost) throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
+        const p = payload as {
+          adapterId: string;
+          executablePath?: string;
+          args?: string[];
+          env?: Record<string, string>;
+        };
+        if (!this.connectionHost)
+          throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.configure(p.adapterId, p);
       }
       default: {

@@ -90,12 +90,18 @@ const artifactApplyEdit = z.object({
   baseRevisionId: idSchema,
   title: z.string().optional(),
   payload: z.unknown().optional(),
+  /** Shallow-merged into payload (convenience for single-field edits). */
+  payloadPatch: z.record(z.unknown()).optional(),
+  /** File writes merged onto the parent's file list by path. */
+  fileWrites: z.array(z.object({ path: z.string(), contentBase64: z.string() })).optional(),
   rationale: z.string().default(''),
   ...idem,
 });
 const artifactRevert = z.object({ artifactId: idSchema, toRevisionId: idSchema, rationale: z.string().default(''), ...idem });
 const artifactArchive = z.object({ artifactId: idSchema, archived: z.boolean(), ...idem });
 const artifactReveal = z.object({ artifactId: idSchema });
+/** Read a file that belongs to an artifact revision (project-scoped). */
+const artifactReadFile = z.object({ artifactId: idSchema, path: z.string().min(1), revisionId: idSchema.optional() });
 const artifactSetSubsystem = z.object({ artifactId: idSchema, subsystem: z.string().nullable(), ...idem });
 
 /* ------------------------------- graph --------------------------------- */
@@ -387,6 +393,7 @@ export const OPS: OpDef[] = [
   def('artifact.revert', artifactRevert, 'user', true, 'Revert baseline to a historical revision'),
   def('artifact.archive', artifactArchive, 'user', true, 'Archive/unarchive an artifact'),
   def('artifact.reveal', artifactReveal, 'user', false, 'Reveal artifact files in OS file manager'),
+  def('artifact.read_file', artifactReadFile, 'both', false, 'Read an artifact file (base64) by project-relative path'),
   def('artifact.set_subsystem', artifactSetSubsystem, 'user', true, 'Move artifact between subsystems'),
 
   def('graph.neighbors', graphNeighbors, 'both', false, 'Bounded graph neighborhood'),

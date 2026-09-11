@@ -252,6 +252,8 @@ export function applyUserEdit(ctx: ProjectContext, input: {
   baseRevisionId: string;
   title?: string;
   payload?: unknown;
+  payloadPatch?: Record<string, unknown>;
+  fileWrites?: { path: string; contentBase64: string }[];
   rationale: string;
 }) {
   ctx.assertWritable();
@@ -262,13 +264,36 @@ export function applyUserEdit(ctx: ProjectContext, input: {
     });
   }
   const parent = ctx.requireRevision(input.baseRevisionId);
+  let payload = input.payload;
+  if (input.payloadPatch) {
+    payload = { ...(parent.payload as Record<string, unknown>), ...input.payloadPatch };
+  }
+  let files: DraftFileInput[] | undefined;
+  if (input.fileWrites?.length) {
+    const writes = new Map(input.fileWrites.map((w) => [w.path, w.contentBase64]));
+    files = [
+      ...parent.files.filter((f) => !writes.has(f.path)).map((f) => ({ path: f.path, sourcePath: undefined as string | undefined })),
+      ...input.fileWrites.map((w) => ({ path: w.path, contentBase64: w.contentBase64 })),
+    ];
+    // Parent files without content were stored in the object store — re-ingest by sha.
+    files = files.map((f) => {
+      if (f.sourcePath === undefined && f.contentBase64 === undefined) {
+        const pf = parent.files.find((x) => x.path === f.path);
+        if (pf?.sha256 && ctx.objects.has(pf.sha256)) {
+          return { path: f.path, contentBase64: ctx.objects.read(pf.sha256).toString('base64') };
+        }
+      }
+      return f;
+    });
+  }
   const draft = updateDraft(
     ctx,
     {
       artifactId: artifact.id,
       baseRevisionId: input.baseRevisionId,
       title: input.title,
-      payload: input.payload,
+      payload,
+      files,
       rationale: input.rationale,
     },
     { kind: 'user' },

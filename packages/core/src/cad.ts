@@ -110,6 +110,9 @@ export async function cadRender(ctx: ProjectContext, input: {
   }
   Object.assign(params, input.params ?? {});
 
+  // Cancellation reaches the adapter (SIGTERM→SIGKILL escalation inside).
+  ctx.jobCancels.set(job.id, () => cad.cancel(job.id));
+
   // Run async; dispatch returns the job now.
   void (async () => {
     ctx.jobStatus(job.id, 'running');
@@ -194,6 +197,7 @@ export async function cadRender(ctx: ProjectContext, input: {
         ? { code: ErrorCodes.INPUT_CHANGED, message: 'Recorded inputs changed during render; output kept as draft, not current evidence', details: { draftRevisionId: newRev.id } }
         : undefined,
     });
+    ctx.jobCancels.delete(job.id);
   })();
 
   return { job };
