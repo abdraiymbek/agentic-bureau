@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@stark/contracts": ["./packages/contracts/src/index.ts"],
+      "@stark/storage": ["./packages/storage/src/index.ts"],
+      "@stark/core": ["./packages/core/src/index.ts"],
+      "@stark/agent-host": ["./packages/agent-host/src/index.ts"],
+      "@stark/mcp-server": ["./packages/mcp-server/src/index.ts"],
+      "@stark/engineering": ["./packages/engineering/src/index.ts"],
+      "@stark/ui": ["./packages/ui/src/index.ts"]
+    }
+  }
+}
