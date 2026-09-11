@@ -57,7 +57,7 @@ const H: Record<string, Handler> = {
       : a.selectedRevisionId
         ? c.repo.getRevision(a.selectedRevisionId)
         : c.repo.listRevisions(a.id).at(-1) ?? null;
-    return { view: c.artifactView(a), revision: rev };
+    return { view: c.artifactView(a), revision: rev, drafts: c.repo.listDrafts(a.id) };
   },
   'artifact.history': (c, i: { artifactId: string }) => ({
     revisions: c.repo.listRevisions(i.artifactId),
@@ -95,6 +95,23 @@ const H: Record<string, Handler> = {
     c.assertWritable();
     c.repo.updateArtifactSubsystem(i.artifactId, i.subsystem);
     return { ok: true };
+  },
+  'artifact.read_file': (c, i: { artifactId: string; path: string; revisionId?: string }) => {
+    const a = c.requireArtifact(i.artifactId);
+    const rev = i.revisionId
+      ? c.requireRevision(i.revisionId)
+      : a.selectedRevisionId
+        ? c.repo.getRevision(a.selectedRevisionId)
+        : c.repo.listRevisions(a.id).at(-1);
+    const f = rev?.files.find((x) => x.path === i.path);
+    if (!f) throw new StarkError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
+    // Object store is authoritative; fall back to working file.
+    if (f.sha256 && c.objects.has(f.sha256)) {
+      return { contentBase64: c.objects.read(f.sha256).toString('base64'), sha256: f.sha256 };
+    }
+    const abs = c.resolvePath(i.path);
+    if (!fs.existsSync(abs)) throw new StarkError(ErrorCodes.NOT_FOUND, `File missing: ${i.path}`);
+    return { contentBase64: fs.readFileSync(abs).toString('base64') };
   },
 
   /* graph */

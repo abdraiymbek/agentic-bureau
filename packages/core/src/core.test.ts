@@ -35,7 +35,7 @@ const fakeCalc: CalcEngine = {
       limitations: ['ignores wiring'],
     },
   ],
-  evaluate: (_expr, inputs) => {
+  evaluate: async (_expr, inputs) => {
     const first = inputs[0];
     const sum = inputs.reduce((n, i) => (i.quantity && 'value' in i.quantity ? n + i.quantity.value : n), 0);
     return { value: sum, unit: first && 'value' in (first.quantity as object) ? (first.quantity as { unit: string }).unit : 'kg' };

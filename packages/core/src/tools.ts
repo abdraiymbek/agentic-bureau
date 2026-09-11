@@ -61,7 +61,8 @@ export interface CalcEngine {
   evaluate(
     expression: string,
     inputs: { name: string; quantity: MaybeQuantity }[],
-  ): { value: number; unit: string };
+    outputUnit?: string,
+  ): Promise<{ value: number; unit: string }>;
 }
 
 export interface WiringFinding {

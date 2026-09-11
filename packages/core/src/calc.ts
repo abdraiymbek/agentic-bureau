@@ -32,7 +32,7 @@ export function listTemplates(ctx: ProjectContext): CalcTemplate[] {
  * If the artifact already has a baseline and submitForReview, the result
  * revision is wrapped in a proposal.
  */
-export function runCalculation(ctx: ProjectContext, input: {
+export async function runCalculation(ctx: ProjectContext, input: {
   artifactId?: string;
   templateId?: string;
   expression?: string;
@@ -69,7 +69,11 @@ export function runCalculation(ctx: ProjectContext, input: {
       throw new StarkError(ErrorCodes.INVALID_UNITS, `Input '${i.name}' is unknown (${(i.quantity as { reason?: string }).reason ?? 'no value'})`);
     }
   }
-  const result = calc.evaluate(expression, input.inputs);
+  const firstUnit = (() => {
+    const q = input.inputs[0]?.quantity;
+    return q && !isUnknown(q) ? (q as { unit: string }).unit : undefined;
+  })();
+  const result = await calc.evaluate(expression, input.inputs, template?.outputUnit ?? firstUnit);
 
   const payload: CalculationPayload = {
     templateId: input.templateId,
