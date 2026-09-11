@@ -1,4 +1,5 @@
 import tseslint from '@typescript-eslint/eslint-plugin';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tsparser from '@typescript-eslint/parser';
 
 export default [
@@ -9,6 +10,7 @@ export default [
       '**/.vite/**',
       '**/out/**',
       '**/coverage/**',
+      '**/resources/**',
       'native/**/target/**',
       '**/*.config.*',
     ],
@@ -19,12 +21,14 @@ export default [
       parser: tsparser,
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    plugins: { '@typescript-eslint': tseslint },
+    plugins: { '@typescript-eslint': tseslint, 'react-hooks': reactHooks },
     rules: {
       ...tseslint.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       'no-console': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 ];

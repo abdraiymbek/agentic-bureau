@@ -9,7 +9,22 @@ export function canonicalize(p: string): string {
   try {
     return fs.realpathSync(abs);
   } catch {
-    return abs;
+    // Path doesn't exist yet — canonicalize the deepest existing ancestor and
+    // re-append the missing tail so symlinked parents (e.g. /var → /private/var
+    // on macOS) don't make valid children look like escapes.
+    const missing: string[] = [];
+    let cur = abs;
+    while (!fs.existsSync(cur)) {
+      missing.unshift(path.basename(cur));
+      const parent = path.dirname(cur);
+      if (parent === cur) break;
+      cur = parent;
+    }
+    try {
+      return missing.reduce((p2, seg) => path.join(p2, seg), fs.realpathSync(cur));
+    } catch {
+      return abs;
+    }
   }
 }
 

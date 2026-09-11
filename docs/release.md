@@ -2,10 +2,10 @@
 
 ## Artifacts
 
-| Target | File | Notes |
-| --- | --- | --- |
-| macOS arm64 | `STARK-<version>-mac-arm64.dmg` | Apple Silicon |
-| macOS x64 | `STARK-<version>-mac-x64.dmg` | Intel |
+| Target      | File                                | Notes                       |
+| ----------- | ----------------------------------- | --------------------------- |
+| macOS arm64 | `STARK-<version>-mac-arm64.dmg`     | Apple Silicon               |
+| macOS x64   | `STARK-<version>-mac-x64.dmg`       | Intel                       |
 | Windows x64 | `STARK-<version>-win-x64-Setup.exe` | Per-user Squirrel installer |
 
 Baselines: macOS 14+, Windows 11 x64. Linux `.deb`/`.rpm` kept portable, not

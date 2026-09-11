@@ -122,7 +122,13 @@ export function evaluateInputs(ctx: ProjectContext, artifactId: string): StaleFi
   const rev = ctx.repo.getRevision(artifact.selectedRevisionId);
   if (!rev) return [];
   const findings: StaleFinding[] = [];
+  const seenUpstream = new Set<string>();
   for (const input of rev.inputs) {
+    // Several named inputs may reference the same upstream artifact (e.g.
+    // voltage and capacity from one battery revision) — the stale table keys
+    // on (artifact, upstream), so keep the first finding per upstream.
+    if (seenUpstream.has(input.artifactId)) continue;
+    seenUpstream.add(input.artifactId);
     const up = ctx.repo.getArtifact(input.artifactId);
     const actual = up?.selectedRevisionId ?? null;
     if (!up || up.archived || !actual) {
@@ -322,9 +328,6 @@ export function impactReport(ctx: ProjectContext, refs: RevisionRef[]): ImpactRe
   return { changedRefs: refs, affected: details, unaffectedSelectedComponentIds: [] };
 }
 
-export function staleToRecord(
-  f: StaleFinding[],
-  sinceEventSeq: number,
-): StaleRecord[] {
+export function staleToRecord(f: StaleFinding[], sinceEventSeq: number): StaleRecord[] {
   return f.map((x) => ({ ...x, sinceEventSeq }));
 }

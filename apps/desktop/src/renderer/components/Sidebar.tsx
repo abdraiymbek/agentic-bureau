@@ -34,7 +34,15 @@ export function Sidebar() {
   const group = (label: string, views: typeof mech) =>
     views.length > 0 && (
       <div style={{ marginTop: 12 }}>
-        <div className="faint" style={{ fontSize: 11, padding: '0 8px 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div
+          className="faint"
+          style={{
+            fontSize: 11,
+            padding: '0 8px 4px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}
+        >
           {label}
         </div>
         {views.map((v) => (
@@ -114,7 +122,9 @@ function NavRow(props: {
       }}
     >
       {props.icon}
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{props.label}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {props.label}
+      </span>
       {props.stale && <span className="warn">●</span>}
       {props.badge !== undefined && (
         <span

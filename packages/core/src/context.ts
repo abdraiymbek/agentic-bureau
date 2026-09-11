@@ -14,14 +14,29 @@ import {
   ErrorCodes,
   newId,
 } from '@stark/contracts';
-import { ObjectStore, ProjectHandle, Repo, resolveProjectPath, sha256Hex, toProjectRelative } from '@stark/storage';
+import {
+  ObjectStore,
+  ProjectHandle,
+  Repo,
+  resolveProjectPath,
+  sha256Hex,
+  toProjectRelative,
+} from '@stark/storage';
 
 /** Services the host process (Electron main, or a test stub) provides to core. */
 export interface HostServices {
   /** Open/read the isolated research browser surface. */
   researchOpen(url: string): Promise<{ ok: boolean; error?: string }>;
-  researchReadPage(): Promise<{ url: string; title: string; text: string; links: { text: string; url: string }[] }>;
-  researchFollowLink(sel: { selector?: string; url?: string }): Promise<{ ok: boolean; error?: string }>;
+  researchReadPage(): Promise<{
+    url: string;
+    title: string;
+    text: string;
+    links: { text: string; url: string }[];
+  }>;
+  researchFollowLink(sel: {
+    selector?: string;
+    url?: string;
+  }): Promise<{ ok: boolean; error?: string }>;
   researchScreenshot(): Promise<{ pngBase64: string }>;
   /** OS integration. */
   revealPath(absPath: string): Promise<void>;
@@ -93,9 +108,13 @@ export class ProjectContext {
 
   assertWritable(): void {
     if (this.readOnly) {
-      throw new StarkError(ErrorCodes.READ_ONLY, 'Project opened read-only (newer schema version)', {
-        repair: 'Export the project and update STARK to edit it.',
-      });
+      throw new StarkError(
+        ErrorCodes.READ_ONLY,
+        'Project opened read-only (newer schema version)',
+        {
+          repair: 'Export the project and update STARK to edit it.',
+        },
+      );
     }
   }
 
@@ -111,10 +130,14 @@ export class ProjectContext {
   }
 
   /** Freshness for one artifact: current / stale / missing_input. */
-  freshnessOf(artifactId: string): { freshness: Freshness; reasons: import('@stark/contracts').StaleRecord[] } {
+  freshnessOf(artifactId: string): {
+    freshness: Freshness;
+    reasons: import('@stark/contracts').StaleRecord[];
+  } {
     const reasons = this.repo.staleFor(artifactId);
     if (reasons.length === 0) return { freshness: 'current', reasons };
-    if (reasons.some((r) => r.reason === 'missing_input')) return { freshness: 'missing_input', reasons };
+    if (reasons.some((r) => r.reason === 'missing_input'))
+      return { freshness: 'missing_input', reasons };
     return { freshness: 'stale', reasons };
   }
 
@@ -221,14 +244,20 @@ export class ProjectContext {
     this.repo.appendJobLog(jobId, chunk, MAX_JOB_LOG_CHARS);
   }
 
-  jobStatus(jobId: string, status: JobStatus, extra?: { error?: unknown; outputHashes?: Record<string, string> }): void {
+  jobStatus(
+    jobId: string,
+    status: JobStatus,
+    extra?: { error?: unknown; outputHashes?: Record<string, string> },
+  ): void {
     const now = new Date().toISOString();
     this.repo.updateJob(jobId, {
       status,
       error: extra?.error === undefined ? undefined : extra.error,
       outputHashes: extra?.outputHashes,
       startedAt: status === 'running' ? now : undefined,
-      finishedAt: ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(status) ? now : undefined,
+      finishedAt: ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(status)
+        ? now
+        : undefined,
     });
     const job = this.repo.getJob(jobId);
     if (job) this.emit('job.updated', 'system', { jobId, status, kind: job.kind, tool: job.tool });

@@ -36,7 +36,8 @@ export function buildPreview(ctx: ProjectContext) {
     const issues: string[] = [];
     if (!rev) issues.push('no baseline revision');
     const { freshness, reasons } = ctx.freshnessOf(a.id);
-    if (freshness !== 'current') issues.push(`${freshness}: ${reasons.map((r) => r.reason).join(', ')}`);
+    if (freshness !== 'current')
+      issues.push(`${freshness}: ${reasons.map((r) => r.reason).join(', ')}`);
     if (rev) {
       for (const f of rev.files) {
         const abs = ctx.resolvePath(f.path);
@@ -75,11 +76,15 @@ export function buildPreview(ctx: ProjectContext) {
  * software + manifest.json. Explicit `Draft` label when unresolved issues
  * exist and the user opts in.
  */
-export async function exportBuildPackage(ctx: ProjectContext, input: {
-  destPath: string;
-  includeDrafts: boolean;
-  label?: string;
-}, origin: Origin): Promise<{ path: string; files: number; status: string; issues: number }> {
+export async function exportBuildPackage(
+  ctx: ProjectContext,
+  input: {
+    destPath: string;
+    includeDrafts: boolean;
+    label?: string;
+  },
+  origin: Origin,
+): Promise<{ path: string; files: number; status: string; issues: number }> {
   const preview = buildPreview(ctx);
   const issueCount = preview.items.reduce((n, i) => n + i.issues.length, 0);
   const status = issueCount === 0 ? 'baseline' : 'draft';
@@ -102,7 +107,10 @@ export async function exportBuildPackage(ctx: ProjectContext, input: {
     exportedBy: origin.kind,
     artifacts: [] as unknown[],
     sources: [] as unknown[],
-    toolVersions: ctx.repo.listJobs(200).filter((j) => j.toolVersion).map((j) => ({ tool: j.tool, version: j.toolVersion })),
+    toolVersions: ctx.repo
+      .listJobs(200)
+      .filter((j) => j.toolVersion)
+      .map((j) => ({ tool: j.tool, version: j.toolVersion })),
     issues: preview.items.filter((i) => i.issues.length > 0),
   };
 
@@ -124,12 +132,20 @@ export async function exportBuildPackage(ctx: ProjectContext, input: {
       // Record source provenance entries.
       if (a.type === 'source') {
         const sp = rev.payload as { url?: string; retrievedAt?: string; title?: string };
-        (manifest.sources as unknown[]).push({ url: sp.url, retrievedAt: sp.retrievedAt, title: sp.title });
+        (manifest.sources as unknown[]).push({
+          url: sp.url,
+          retrievedAt: sp.retrievedAt,
+          title: sp.title,
+        });
       }
     }
     if (a.type === 'source') {
       const sp = rev.payload as { url?: string; retrievedAt?: string; title?: string };
-      (manifest.sources as unknown[]).push({ url: sp.url, retrievedAt: sp.retrievedAt, title: sp.title });
+      (manifest.sources as unknown[]).push({
+        url: sp.url,
+        retrievedAt: sp.retrievedAt,
+        title: sp.title,
+      });
     }
   }
 
@@ -138,7 +154,9 @@ export async function exportBuildPackage(ctx: ProjectContext, input: {
   const assembly = ctx.repo.listArtifacts({ type: 'assembly' })[0];
   if (assembly?.selectedRevisionId) {
     const rev = ctx.repo.getRevision(assembly.selectedRevisionId)!;
-    const steps = ((rev.payload as { steps?: { order: number; instruction: string }[] }).steps ?? [])
+    const steps = (
+      (rev.payload as { steps?: { order: number; instruction: string }[] }).steps ?? []
+    )
       .map((s) => `${s.order}. ${s.instruction}`)
       .join('\n');
     files.set('docs/ASSEMBLY.md', strToU8(`# Assembly\n\n${steps}\n`));
@@ -181,7 +199,10 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
   files.set('.stark/state.sqlite', fs.readFileSync(tmpDb));
   fs.unlinkSync(tmpDb);
 
-  files.set('stark.project.json', strToU8(fs.readFileSync(path.join(ctx.root, 'stark.project.json'), 'utf8')));
+  files.set(
+    'stark.project.json',
+    strToU8(fs.readFileSync(path.join(ctx.root, 'stark.project.json'), 'utf8')),
+  );
   const readme = path.join(ctx.root, 'README.md');
   if (fs.existsSync(readme)) files.set('README.md', fs.readFileSync(readme));
 
@@ -203,7 +224,11 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walkObj(p);
-      else files.set(`.stark/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`, fs.readFileSync(p));
+      else
+        files.set(
+          `.stark/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`,
+          fs.readFileSync(p),
+        );
     }
   };
   if (fs.existsSync(objRoot)) walkObj(objRoot);
@@ -214,7 +239,9 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
     version: 1,
     project,
     artifacts: ctx.repo.listArtifacts({ includeArchived: true }),
-    revisions: ctx.repo.listArtifacts({ includeArchived: true }).flatMap((a) => ctx.repo.listRevisions(a.id)),
+    revisions: ctx.repo
+      .listArtifacts({ includeArchived: true })
+      .flatMap((a) => ctx.repo.listRevisions(a.id)),
     edges: ctx.repo.allEdges(),
     proposals: ctx.repo.listProposals(),
     decisions: ctx.repo.listDecisions(10000),
@@ -261,7 +288,10 @@ export function verifyArchive(archivePath: string): {
     throw new StarkError(ErrorCodes.ARCHIVE_INVALID, `Bad format: ${manifest.format}`);
   }
   if (manifest.version > 1) {
-    throw new StarkError(ErrorCodes.UNSUPPORTED_SCHEMA, `Archive version ${manifest.version} unsupported`);
+    throw new StarkError(
+      ErrorCodes.UNSUPPORTED_SCHEMA,
+      `Archive version ${manifest.version} unsupported`,
+    );
   }
   return { manifest, fileCount: Object.keys(entries).length };
 }

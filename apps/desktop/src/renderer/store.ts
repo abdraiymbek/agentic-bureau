@@ -93,7 +93,11 @@ export const useStore = create<State>((set, get) => ({
   refreshArtifacts: async () => {
     const { projectId } = get();
     if (!projectId) return;
-    const r = await cmd<{ artifacts: ArtifactView[] }>('artifact.list', { includeArchived: false, limit: 500 }, { projectId });
+    const r = await cmd<{ artifacts: ArtifactView[] }>(
+      'artifact.list',
+      { includeArchived: false, limit: 500 },
+      { projectId },
+    );
     const stale: Record<string, StaleRecord[]> = {};
     for (const v of r.artifacts) stale[v.artifact.id] = v.staleReasons;
     set({ artifacts: r.artifacts, stale });
@@ -107,7 +111,11 @@ export const useStore = create<State>((set, get) => ({
   refreshEvents: async () => {
     const { projectId } = get();
     if (!projectId) return;
-    const r = await cmd<{ events: ProjectEvent[] }>('project.changes_since', { seq: 0 }, { projectId });
+    const r = await cmd<{ events: ProjectEvent[] }>(
+      'project.changes_since',
+      { seq: 0 },
+      { projectId },
+    );
     set({ events: r.events.slice(-300) });
   },
   refreshJobs: async () => {
@@ -137,7 +145,15 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ events: [...s.events.slice(-299), e] }));
     const s = get();
     // Refresh derived state on domain events.
-    if (['revision.committed', 'baseline.changed', 'impact.propagated', 'file.external_edit', 'bom.changed'].includes(e.type)) {
+    if (
+      [
+        'revision.committed',
+        'baseline.changed',
+        'impact.propagated',
+        'file.external_edit',
+        'bom.changed',
+      ].includes(e.type)
+    ) {
       void s.refreshArtifacts();
     }
     if (['proposal.submitted', 'proposal.resolved'].includes(e.type)) {

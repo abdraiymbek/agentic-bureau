@@ -13,7 +13,8 @@ const COVERAGE =
 
 /** Name heuristics for pins whose declared type is 'unknown' / undeclared. */
 const GROUND_NAMES = /^(gnd|ground|vss|v-|0v|agnd|dgnd|pgnd|chassis)$/i;
-const POWER_NAMES = /^(vcc|vdd|vcc_?\d.*|v\+|vin|vs|vbat|vbatt|pwr|power|\+?\d+v.*|5v|3v3?|12v|24v)$/i;
+const POWER_NAMES =
+  /^(vcc|vdd|vcc_?\d.*|v\+|vin|vs|vbat|vbatt|pwr|power|\+?\d+v.*|5v|3v3?|12v|24v)$/i;
 
 function effectivePinType(pin: Pin | undefined, pinName: string): Pin['type'] {
   if (pin && pin.type !== 'unknown') return pin.type;
@@ -161,7 +162,8 @@ export class WiringAnalyzer implements WiringAnalyzerContract {
     diagramSvg: string;
   } {
     const label = (end: WiringConnection['from']) => {
-      const title = resolveTitle(end.componentArtifactId)?.title ?? end.componentArtifactId.slice(0, 8);
+      const title =
+        resolveTitle(end.componentArtifactId)?.title ?? end.componentArtifactId.slice(0, 8);
       return `${title}.${end.pin}`;
     };
     const table = (payload.connections ?? []).map((c) => ({
@@ -217,21 +219,37 @@ function buildDiagram(
   // For self-connections both ends live on the right side.
   const rightPorts = new Map<string, { y: number; conn: WiringConnection; pin: string }[]>();
   const leftPorts = new Map<string, { y: number; conn: WiringConnection; pin: string }[]>();
-  const push = (m: Map<string, { y: number; conn: WiringConnection; pin: string }[]>, id: string, conn: WiringConnection, pin: string) => {
+  const push = (
+    m: Map<string, { y: number; conn: WiringConnection; pin: string }[]>,
+    id: string,
+    conn: WiringConnection,
+    pin: string,
+  ) => {
     const l = m.get(id) ?? [];
     l.push({ y: 0, conn, pin });
     m.set(id, l);
   };
   for (const c of conns) {
     const sameBox = c.from.componentArtifactId === c.to.componentArtifactId;
-    const reverse = !sameBox && xOf.get(c.from.componentArtifactId)! > xOf.get(c.to.componentArtifactId)!;
+    const reverse =
+      !sameBox && xOf.get(c.from.componentArtifactId)! > xOf.get(c.to.componentArtifactId)!;
     if (sameBox) {
       // Both ends of a self-connection live on the right side of the box.
       push(rightPorts, c.from.componentArtifactId, c, c.from.pin);
       push(rightPorts, c.from.componentArtifactId, c, c.to.pin);
     } else {
-      push(rightPorts, reverse ? c.to.componentArtifactId : c.from.componentArtifactId, c, reverse ? c.to.pin : c.from.pin);
-      push(leftPorts, reverse ? c.from.componentArtifactId : c.to.componentArtifactId, c, reverse ? c.from.pin : c.to.pin);
+      push(
+        rightPorts,
+        reverse ? c.to.componentArtifactId : c.from.componentArtifactId,
+        c,
+        reverse ? c.to.pin : c.from.pin,
+      );
+      push(
+        leftPorts,
+        reverse ? c.from.componentArtifactId : c.to.componentArtifactId,
+        c,
+        reverse ? c.from.pin : c.to.pin,
+      );
     }
   }
 
@@ -260,11 +278,17 @@ function buildDiagram(
     const x = xOf.get(id)!;
     const h = boxH.get(id)!;
     const title = resolveTitle(id)?.title ?? `${id.slice(0, 8)}…`;
-    parts.push(`<rect x="${x}" y="${BOX_TOP}" width="${BOX_W}" height="${h}" fill="none" stroke="${STROKE}" stroke-width="1.2" rx="4"/>`);
-    parts.push(`<text x="${x + BOX_W / 2}" y="${BOX_TOP + 17}" fill="${TEXT}" text-anchor="middle">${escXml(title)}</text>`);
+    parts.push(
+      `<rect x="${x}" y="${BOX_TOP}" width="${BOX_W}" height="${h}" fill="none" stroke="${STROKE}" stroke-width="1.2" rx="4"/>`,
+    );
+    parts.push(
+      `<text x="${x + BOX_W / 2}" y="${BOX_TOP + 17}" fill="${TEXT}" text-anchor="middle">${escXml(title)}</text>`,
+    );
     for (const p of rightPorts.get(id) ?? []) {
       parts.push(`<circle cx="${x + BOX_W}" cy="${p.y}" r="2.5" fill="${STROKE}"/>`);
-      parts.push(`<text x="${x + BOX_W - 8}" y="${p.y - 5}" fill="${TEXT}" text-anchor="end">${escXml(p.pin)}</text>`);
+      parts.push(
+        `<text x="${x + BOX_W - 8}" y="${p.y - 5}" fill="${TEXT}" text-anchor="end">${escXml(p.pin)}</text>`,
+      );
     }
     for (const p of leftPorts.get(id) ?? []) {
       parts.push(`<circle cx="${x}" cy="${p.y}" r="2.5" fill="${STROKE}"/>`);
@@ -275,7 +299,8 @@ function buildDiagram(
   // Connection lines.
   for (const c of conns) {
     const sameBox = c.from.componentArtifactId === c.to.componentArtifactId;
-    const reverse = !sameBox && xOf.get(c.from.componentArtifactId)! > xOf.get(c.to.componentArtifactId)!;
+    const reverse =
+      !sameBox && xOf.get(c.from.componentArtifactId)! > xOf.get(c.to.componentArtifactId)!;
     const fromId = reverse ? c.to.componentArtifactId : c.from.componentArtifactId;
     const toId = reverse ? c.from.componentArtifactId : c.to.componentArtifactId;
     const fromPin = reverse ? c.to.pin : c.from.pin;
@@ -290,8 +315,12 @@ function buildDiagram(
       const y1 = ps[0]?.y ?? BOX_TOP + PORT_TOP;
       const y2 = ps[1]?.y ?? y1 + PORT_H;
       const r = 26;
-      parts.push(`<path d="M ${x} ${y1} C ${x + r} ${y1}, ${x + r} ${y2}, ${x} ${y2}" fill="none" stroke="${STROKE}" stroke-width="1.2"/>`);
-      parts.push(`<text x="${x + r + 4}" y="${(y1 + y2) / 2 + 4}" fill="${TEXT}">${escXml(label)}</text>`);
+      parts.push(
+        `<path d="M ${x} ${y1} C ${x + r} ${y1}, ${x + r} ${y2}, ${x} ${y2}" fill="none" stroke="${STROKE}" stroke-width="1.2"/>`,
+      );
+      parts.push(
+        `<text x="${x + r + 4}" y="${(y1 + y2) / 2 + 4}" fill="${TEXT}">${escXml(label)}</text>`,
+      );
       continue;
     }
     if (!fp || !lp) continue;
@@ -300,8 +329,12 @@ function buildDiagram(
     const x2 = xOf.get(toId)!;
     const y2 = lp.y;
     const midX = (x1 + x2) / 2;
-    parts.push(`<path d="M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}" fill="none" stroke="${STROKE}" stroke-width="1.2"/>`);
-    parts.push(`<text x="${midX}" y="${(y1 + y2) / 2 - 4}" fill="${TEXT}" text-anchor="middle">${escXml(label)}</text>`);
+    parts.push(
+      `<path d="M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}" fill="none" stroke="${STROKE}" stroke-width="1.2"/>`,
+    );
+    parts.push(
+      `<text x="${midX}" y="${(y1 + y2) / 2 - 4}" fill="${TEXT}" text-anchor="middle">${escXml(label)}</text>`,
+    );
   }
 
   parts.push('</svg>');

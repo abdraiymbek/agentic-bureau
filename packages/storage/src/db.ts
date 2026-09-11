@@ -25,8 +25,7 @@ export class ProjectDb {
   private currentVersion(): number {
     try {
       const row = this.db.prepare(`SELECT value FROM meta WHERE key='schema_version'`).get() as
-        | { value: string }
-        | undefined;
+        { value: string } | undefined;
       return row ? Number(row.value) : 0;
     } catch {
       return 0;
@@ -49,7 +48,9 @@ export class ProjectDb {
       this.db.transaction(() => {
         this.db.exec(m.sql);
         this.db
-          .prepare(`INSERT INTO meta(key, value) VALUES('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
+          .prepare(
+            `INSERT INTO meta(key, value) VALUES('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+          )
           .run(String(m.version));
       })();
       version = m.version;
@@ -57,10 +58,14 @@ export class ProjectDb {
     return false;
   }
 
-  /** Consistent snapshot via the SQLite backup API (WAL-safe). */
+  /**
+   * Consistent snapshot of the main database. better-sqlite3 v13's
+   * `db.backup()` is async-only, so use `serialize()` — project databases
+   * are small enough to hold in memory.
+   */
   backupTo(destPath: string): void {
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    this.db.backup(destPath);
+    fs.writeFileSync(destPath, this.db.serialize());
   }
 
   tx<T>(fn: () => T): T {

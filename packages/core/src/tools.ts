@@ -76,7 +76,10 @@ export interface WiringAnalyzer {
     payload: WiringPayload,
     resolveComponent: (artifactId: string) => Record<string, unknown> | undefined,
   ): { findings: WiringFinding[]; coverage: string };
-  render(payload: WiringPayload, resolveComponent: (artifactId: string) => { title: string } | undefined): {
+  render(
+    payload: WiringPayload,
+    resolveComponent: (artifactId: string) => { title: string } | undefined,
+  ): {
     table: { connection: WiringConnection; fromLabel: string; toLabel: string }[];
     diagramSvg: string;
   };

@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { cmd, CommandError } from '../api';
 import { useStore } from '../store';
-import type { ArtifactView, RequirementPayload, AssumptionPayload, MaybeQuantity } from '@stark/contracts';
+import type {
+  ArtifactView,
+  RequirementPayload,
+  AssumptionPayload,
+  MaybeQuantity,
+} from '@stark/contracts';
 import { isUnknown, formatQty } from '@stark/contracts';
 import { EmptyBlock } from './OverviewView';
 
@@ -14,15 +19,40 @@ export function RequirementsView() {
 
   return (
     <div style={{ display: 'flex', height: '100%' }}>
-      <div style={{ width: 260, borderRight: '1px solid var(--border)', overflowY: 'auto', padding: 8 }}>
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>Requirements</div>
-        {reqs.length === 0 && <div className="faint" style={{ padding: '4px 8px', fontSize: 12 }}>None yet</div>}
+      <div
+        style={{
+          width: 260,
+          borderRight: '1px solid var(--border)',
+          overflowY: 'auto',
+          padding: 8,
+        }}
+      >
+        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>
+          Requirements
+        </div>
+        {reqs.length === 0 && (
+          <div className="faint" style={{ padding: '4px 8px', fontSize: 12 }}>
+            None yet
+          </div>
+        )}
         {reqs.map((v) => (
-          <ListRow key={v.artifact.id} v={v} active={selectedArtifactId === v.artifact.id} onClick={() => selectArtifact(v.artifact.id)} />
+          <ListRow
+            key={v.artifact.id}
+            v={v}
+            active={selectedArtifactId === v.artifact.id}
+            onClick={() => selectArtifact(v.artifact.id)}
+          />
         ))}
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '12px 8px 4px' }}>Assumptions</div>
+        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '12px 8px 4px' }}>
+          Assumptions
+        </div>
         {asms.map((v) => (
-          <ListRow key={v.artifact.id} v={v} active={selectedArtifactId === v.artifact.id} onClick={() => selectArtifact(v.artifact.id)} />
+          <ListRow
+            key={v.artifact.id}
+            v={v}
+            active={selectedArtifactId === v.artifact.id}
+            onClick={() => selectArtifact(v.artifact.id)}
+          />
         ))}
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
@@ -33,7 +63,10 @@ export function RequirementsView() {
             <AssumptionEditor view={selected} onSaved={refreshArtifacts} toast={toast} />
           )
         ) : (
-          <EmptyBlock title="No selection" body="Pick a requirement or assumption on the left to inspect and edit it." />
+          <EmptyBlock
+            title="No selection"
+            body="Pick a requirement or assumption on the left to inspect and edit it."
+          />
         )}
       </div>
     </div>
@@ -58,15 +91,24 @@ function ListRow(props: { v: ArtifactView; active: boolean; onClick: () => void 
         fontSize: 13,
       }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.artifact.title}</span>
-      <span className={`pill ${v.freshness === 'stale' ? 'stale' : v.freshness === 'missing_input' ? 'missing' : 'current'}`} style={{ height: 18, fontSize: 11 }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {v.artifact.title}
+      </span>
+      <span
+        className={`pill ${v.freshness === 'stale' ? 'stale' : v.freshness === 'missing_input' ? 'missing' : 'current'}`}
+        style={{ height: 18, fontSize: 11 }}
+      >
         {v.freshness}
       </span>
     </div>
   );
 }
 
-function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<void>; toast: (k: 'ok' | 'error', t: string) => void }) {
+function RequirementEditor(props: {
+  view: ArtifactView;
+  onSaved: () => Promise<void>;
+  toast: (k: 'ok' | 'error', t: string) => void;
+}) {
   const { view } = props;
   const p = (view.revision?.payload ?? {}) as RequirementPayload;
   const [statement, setStatement] = useState(p.statement ?? '');
@@ -75,7 +117,9 @@ function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<v
   const [targetUnit, setTargetUnit] = useState(t0 && !('unknown' in t0) ? t0.unit : 'g');
   const [acceptance, setAcceptance] = useState(p.acceptanceCriterion ?? '');
   const [priority, setPriority] = useState(p.priority ?? 'should');
-  const [impact, setImpact] = useState<{ affected: { title: string; reason: string }[] } | null>(null);
+  const [impact, setImpact] = useState<{ affected: { title: string; reason: string }[] } | null>(
+    null,
+  );
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -93,17 +137,30 @@ function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<v
   const save = async () => {
     if (!view.revision) return;
     try {
-      const target = targetValue.trim() ? { value: Number(targetValue), unit: targetUnit } : undefined;
+      const target = targetValue.trim()
+        ? { value: Number(targetValue), unit: targetUnit }
+        : undefined;
       await cmd('artifact.apply_edit', {
         artifactId: view.artifact.id,
         baseRevisionId: view.revision.id,
-        payload: { statement, target, acceptanceCriterion: acceptance, priority, sourceId: p.sourceId, verification: p.verification },
+        payload: {
+          statement,
+          target,
+          acceptanceCriterion: acceptance,
+          priority,
+          sourceId: p.sourceId,
+          verification: p.verification,
+        },
         rationale: 'edit requirement',
       });
       props.toast('ok', 'Saved — impact propagated');
       await props.onSaved();
     } catch (e) {
-      props.toast('error', (e as CommandError).message + (((e as CommandError).repair) ? ` — ${(e as CommandError).repair}` : ''));
+      props.toast(
+        'error',
+        (e as CommandError).message +
+          ((e as CommandError).repair ? ` — ${(e as CommandError).repair}` : ''),
+      );
     }
   };
 
@@ -119,21 +176,72 @@ function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<v
     <div style={{ maxWidth: 640 }}>
       <h3 style={{ margin: '0 0 12px' }}>{view.artifact.title}</h3>
       <Field label="Statement">
-        <textarea rows={3} value={statement} onChange={(e) => { setStatement(e.target.value); setDirty(true); }} style={{ width: '100%' }} />
+        <textarea
+          rows={3}
+          value={statement}
+          onChange={(e) => {
+            setStatement(e.target.value);
+            setDirty(true);
+          }}
+          style={{ width: '100%' }}
+        />
       </Field>
       <div className="row" style={{ gap: 8 }}>
         <Field label="Target value">
-          <input value={targetValue} onChange={(e) => { setTargetValue(e.target.value); setDirty(true); }} className="num" style={{ width: 120 }} />
+          <input
+            value={targetValue}
+            onChange={(e) => {
+              setTargetValue(e.target.value);
+              setDirty(true);
+            }}
+            className="num"
+            style={{ width: 120 }}
+          />
         </Field>
         <Field label="Unit">
-          <select value={targetUnit} onChange={(e) => { setTargetUnit(e.target.value); setDirty(true); }}>
-            {['g', 'kg', 'mm', 'cm', 'm', 'V', 'A', 'mA', 'W', 'Wh', 'mAh', 's', 'min', 'h', 'N', 'N*m', 'rpm', 'deg', '1', '%'].map((u) => (
-              <option key={u} value={u}>{u}</option>
+          <select
+            value={targetUnit}
+            onChange={(e) => {
+              setTargetUnit(e.target.value);
+              setDirty(true);
+            }}
+          >
+            {[
+              'g',
+              'kg',
+              'mm',
+              'cm',
+              'm',
+              'V',
+              'A',
+              'mA',
+              'W',
+              'Wh',
+              'mAh',
+              's',
+              'min',
+              'h',
+              'N',
+              'N*m',
+              'rpm',
+              'deg',
+              '1',
+              '%',
+            ].map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
             ))}
           </select>
         </Field>
         <Field label="Priority">
-          <select value={priority} onChange={(e) => { setPriority(e.target.value as never); setDirty(true); }}>
+          <select
+            value={priority}
+            onChange={(e) => {
+              setPriority(e.target.value as never);
+              setDirty(true);
+            }}
+          >
             <option value="must">must</option>
             <option value="should">should</option>
             <option value="could">could</option>
@@ -141,15 +249,29 @@ function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<v
         </Field>
       </div>
       <Field label="Acceptance criterion">
-        <textarea rows={2} value={acceptance} onChange={(e) => { setAcceptance(e.target.value); setDirty(true); }} style={{ width: '100%' }} />
+        <textarea
+          rows={2}
+          value={acceptance}
+          onChange={(e) => {
+            setAcceptance(e.target.value);
+            setDirty(true);
+          }}
+          style={{ width: '100%' }}
+        />
       </Field>
       <div className="row" style={{ marginTop: 8 }}>
-        <button className="primary" onClick={save} disabled={!dirty}>Save</button>
+        <button className="primary" onClick={save} disabled={!dirty}>
+          Save
+        </button>
         <button onClick={previewImpact}>Preview impact</button>
       </div>
       {impact && (
-        <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
-          <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>Downstream impact</div>
+        <div
+          style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}
+        >
+          <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>
+            Downstream impact
+          </div>
           {impact.affected.length === 0 && <div className="faint">No recorded dependents</div>}
           {impact.affected.map((a, i) => (
             <div key={i} style={{ padding: '2px 0', fontSize: 12 }}>
@@ -162,7 +284,11 @@ function RequirementEditor(props: { view: ArtifactView; onSaved: () => Promise<v
   );
 }
 
-function AssumptionEditor(props: { view: ArtifactView; onSaved: () => Promise<void>; toast: (k: 'ok' | 'error', t: string) => void }) {
+function AssumptionEditor(props: {
+  view: ArtifactView;
+  onSaved: () => Promise<void>;
+  toast: (k: 'ok' | 'error', t: string) => void;
+}) {
   const { view } = props;
   const p = (view.revision?.payload ?? {}) as AssumptionPayload;
   const [statement, setStatement] = useState(p.statement ?? '');
@@ -186,7 +312,14 @@ function AssumptionEditor(props: { view: ArtifactView; onSaved: () => Promise<vo
       await cmd('artifact.apply_edit', {
         artifactId: view.artifact.id,
         baseRevisionId: view.revision.id,
-        payload: { statement, reason, owner, needsValidation, value: p.value, uncertainty: p.uncertainty },
+        payload: {
+          statement,
+          reason,
+          owner,
+          needsValidation,
+          value: p.value,
+          uncertainty: p.uncertainty,
+        },
         rationale: 'edit assumption',
       });
       props.toast('ok', 'Saved');
@@ -200,23 +333,52 @@ function AssumptionEditor(props: { view: ArtifactView; onSaved: () => Promise<vo
     <div style={{ maxWidth: 640 }}>
       <h3 style={{ margin: '0 0 12px' }}>{view.artifact.title}</h3>
       <Field label="Assumption">
-        <textarea rows={3} value={statement} onChange={(e) => { setStatement(e.target.value); setDirty(true); }} style={{ width: '100%' }} />
+        <textarea
+          rows={3}
+          value={statement}
+          onChange={(e) => {
+            setStatement(e.target.value);
+            setDirty(true);
+          }}
+          style={{ width: '100%' }}
+        />
       </Field>
       <Field label="Reason">
-        <input value={reason} onChange={(e) => { setReason(e.target.value); setDirty(true); }} style={{ width: '100%' }} />
+        <input
+          value={reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setDirty(true);
+          }}
+          style={{ width: '100%' }}
+        />
       </Field>
       <div className="row">
         <Field label="Owner">
-          <input value={owner} onChange={(e) => { setOwner(e.target.value); setDirty(true); }} />
+          <input
+            value={owner}
+            onChange={(e) => {
+              setOwner(e.target.value);
+              setDirty(true);
+            }}
+          />
         </Field>
         <Field label="Needs validation">
-          <select value={needsValidation ? 'yes' : 'no'} onChange={(e) => { setNeedsValidation(e.target.value === 'yes'); setDirty(true); }}>
+          <select
+            value={needsValidation ? 'yes' : 'no'}
+            onChange={(e) => {
+              setNeedsValidation(e.target.value === 'yes');
+              setDirty(true);
+            }}
+          >
             <option value="yes">yes</option>
             <option value="no">no</option>
           </select>
         </Field>
       </div>
-      <button className="primary" onClick={save} disabled={!dirty} style={{ marginTop: 8 }}>Save</button>
+      <button className="primary" onClick={save} disabled={!dirty} style={{ marginTop: 8 }}>
+        Save
+      </button>
     </div>
   );
 }
@@ -224,7 +386,9 @@ function AssumptionEditor(props: { view: ArtifactView; onSaved: () => Promise<vo
 export function Field(props: { label: string; children: React.ReactNode }) {
   return (
     <div className="col" style={{ gap: 4, marginBottom: 10, flex: 1 }}>
-      <label className="dim" style={{ fontSize: 12 }}>{props.label}</label>
+      <label className="dim" style={{ fontSize: 12 }}>
+        {props.label}
+      </label>
       {props.children}
     </div>
   );

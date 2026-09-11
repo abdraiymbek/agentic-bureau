@@ -72,7 +72,12 @@ export class ResearchSurface {
     }
   }
 
-  async readPage(): Promise<{ url: string; title: string; text: string; links: { text: string; url: string }[] }> {
+  async readPage(): Promise<{
+    url: string;
+    title: string;
+    text: string;
+    links: { text: string; url: string }[];
+  }> {
     const v = this.ensure();
     return v.webContents.executeJavaScript(`(() => ({
       url: location.href,
@@ -82,7 +87,10 @@ export class ResearchSurface {
     }))()`);
   }
 
-  async followLink(sel: { selector?: string; url?: string }): Promise<{ ok: boolean; error?: string }> {
+  async followLink(sel: {
+    selector?: string;
+    url?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
     const v = this.ensure();
     try {
       if (sel.url) {

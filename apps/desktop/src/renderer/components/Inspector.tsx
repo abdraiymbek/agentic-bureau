@@ -11,7 +11,9 @@ export function Inspector() {
   const { selectedArtifactId, artifacts, stale, selectArtifact, navigate } = useStore();
   const view = artifacts.find((v) => v.artifact.id === selectedArtifactId);
   const [revision, setRevision] = useState<Revision | null>(null);
-  const [neighbors, setNeighbors] = useState<{ artifacts: { id: string; title: string; type: string }[] } | null>(null);
+  const [neighbors, setNeighbors] = useState<{
+    artifacts: { id: string; title: string; type: string }[];
+  } | null>(null);
 
   useEffect(() => {
     if (!selectedArtifactId) {
@@ -19,14 +21,23 @@ export function Inspector() {
       setNeighbors(null);
       return;
     }
-    void cmd<{ revision: Revision | null }>('artifact.read', { artifactId: selectedArtifactId }).then((r) => setRevision(r.revision));
-    void cmd<{ artifacts: { id: string; title: string; type: string }[] }>('graph.neighbors', { artifactId: selectedArtifactId, depth: 1 }).then(setNeighbors);
+    void cmd<{ revision: Revision | null }>('artifact.read', {
+      artifactId: selectedArtifactId,
+    }).then((r) => setRevision(r.revision));
+    void cmd<{ artifacts: { id: string; title: string; type: string }[] }>('graph.neighbors', {
+      artifactId: selectedArtifactId,
+      depth: 1,
+    }).then(setNeighbors);
   }, [selectedArtifactId, artifacts]);
 
   if (!view) {
     return (
       <div style={{ padding: 12, fontSize: 12 }} className="faint">
-        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}>Inspector</div>
+        <div
+          style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}
+        >
+          Inspector
+        </div>
         Select an artifact to inspect its revision, inputs, and impact.
       </div>
     );
@@ -36,10 +47,26 @@ export function Inspector() {
   const payload = (revision?.payload ?? {}) as Record<string, unknown>;
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: 12, fontSize: 12, background: 'var(--bg-app)', borderLeft: '1px solid var(--border)' }}>
-      <div className="dim" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Inspector</div>
+    <div
+      style={{
+        height: '100%',
+        overflowY: 'auto',
+        padding: 12,
+        fontSize: 12,
+        background: 'var(--bg-app)',
+        borderLeft: '1px solid var(--border)',
+      }}
+    >
+      <div
+        className="dim"
+        style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+      >
+        Inspector
+      </div>
       <div style={{ fontWeight: 600, fontSize: 14, margin: '6px 0 2px' }}>{a.title}</div>
-      <div className="faint mono" style={{ fontSize: 11 }}>{a.id.slice(0, 8)}…</div>
+      <div className="faint mono" style={{ fontSize: 11 }}>
+        {a.id.slice(0, 8)}…
+      </div>
 
       <Section title="Revision">
         <Row k="Selected" v={revision ? `#${revision.seq}` : 'none'} />
@@ -111,7 +138,12 @@ export function Inspector() {
           {(() => {
             const b = payload.bounds as { min: number[]; max: number[] };
             return ['x', 'y', 'z'].map((axis, i) => (
-              <Row key={axis} k={axis.toUpperCase()} v={`${(b.max[i]! - b.min[i]!).toFixed(2)} ${(payload.modelUnit as string) ?? 'mm'}`} mono />
+              <Row
+                key={axis}
+                k={axis.toUpperCase()}
+                v={`${(b.max[i]! - b.min[i]!).toFixed(2)} ${(payload.modelUnit as string) ?? 'mm'}`}
+                mono
+              />
             ));
           })()}
         </Section>
@@ -119,11 +151,22 @@ export function Inspector() {
 
       {Object.keys(payload).includes('properties') && (
         <Section title="Properties">
-          {Object.entries((payload.properties as Record<string, { quantity?: { value?: number; unit?: string; unknown?: boolean; reason?: string } }>) ?? {}).map(([k, v]) => (
+          {Object.entries(
+            (payload.properties as Record<
+              string,
+              { quantity?: { value?: number; unit?: string; unknown?: boolean; reason?: string } }
+            >) ?? {},
+          ).map(([k, v]) => (
             <Row
               key={k}
               k={k}
-              v={v.quantity && 'value' in v.quantity ? `${v.quantity.value} ${v.quantity.unit}` : v.quantity?.reason ? `unknown (${v.quantity.reason})` : 'unknown'}
+              v={
+                v.quantity && 'value' in v.quantity
+                  ? `${v.quantity.value} ${v.quantity.unit}`
+                  : v.quantity?.reason
+                    ? `unknown (${v.quantity.reason})`
+                    : 'unknown'
+              }
               mono
             />
           ))}
@@ -134,7 +177,10 @@ export function Inspector() {
         <button
           style={{ height: 26, fontSize: 12 }}
           onClick={() => {
-            void cmd('ui.suggest_action', { title: `Review ${a.title}`, detail: `artifact ${a.id}` });
+            void cmd('ui.suggest_action', {
+              title: `Review ${a.title}`,
+              detail: `artifact ${a.id}`,
+            });
             window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
           }}
         >
@@ -158,7 +204,15 @@ export function Inspector() {
 function Section(props: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <div className="dim" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+      <div
+        className="dim"
+        style={{
+          fontSize: 11,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginBottom: 4,
+        }}
+      >
         {props.title}
       </div>
       {props.children}

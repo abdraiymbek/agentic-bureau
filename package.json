@@ -21,13 +21,20 @@
     "package": "pnpm --filter @stark/desktop package",
     "make": "pnpm --filter @stark/desktop make",
     "smoke:bridge": "tsx scripts/bridge-smoke.ts",
-    "smoke:packaged": "node scripts/packaged-smoke.mjs"
+    "smoke:packaged": "node scripts/packaged-smoke.mjs",
+    "fixture:rover": "tsx fixtures/build.ts rover",
+    "fixture:drone": "tsx fixtures/build.ts drone"
   },
   "devDependencies": {
+    "@stark/contracts": "workspace:^",
+    "@stark/core": "workspace:^",
+    "@stark/engineering": "workspace:^",
+    "@stark/storage": "workspace:^",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^9.17.0",
+    "eslint-plugin-react-hooks": "5.2.0",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

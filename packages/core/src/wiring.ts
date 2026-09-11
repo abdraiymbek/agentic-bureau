@@ -25,7 +25,11 @@ function resolveComponent(ctx: ProjectContext) {
   };
 }
 
-function wiringPayloadOf(ctx: ProjectContext, artifactId: string, revisionId?: string): WiringPayload {
+function wiringPayloadOf(
+  ctx: ProjectContext,
+  artifactId: string,
+  revisionId?: string,
+): WiringPayload {
   const a = ctx.requireArtifact(artifactId);
   if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const rev = revisionId
@@ -51,11 +55,15 @@ export function wiringRender(ctx: ProjectContext, artifactId: string, revisionId
   return wiringTool(ctx).render(payload, resolveTitle);
 }
 
-export function wiringSetPins(ctx: ProjectContext, input: {
-  artifactId: string;
-  pins: Pin[];
-  baseRevisionId?: string;
-}, origin: Origin) {
+export function wiringSetPins(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    pins: Pin[];
+    baseRevisionId?: string;
+  },
+  origin: Origin,
+) {
   const a = ctx.requireArtifact(input.artifactId);
   if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const cur = input.baseRevisionId
@@ -77,11 +85,15 @@ export function wiringSetPins(ctx: ProjectContext, input: {
   });
 }
 
-export function wiringSetConnections(ctx: ProjectContext, input: {
-  artifactId: string;
-  connections: WiringConnection[];
-  baseRevisionId?: string;
-}, origin: Origin) {
+export function wiringSetConnections(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    connections: WiringConnection[];
+    baseRevisionId?: string;
+  },
+  origin: Origin,
+) {
   const a = ctx.requireArtifact(input.artifactId);
   if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const cur = input.baseRevisionId
@@ -95,8 +107,18 @@ export function wiringSetConnections(ctx: ProjectContext, input: {
   const inputs = [...(cur.inputs ?? [])];
   for (const c of input.connections) {
     for (const end of [c.from, c.to]) {
-      if (!inputs.some((i) => i.artifactId === end.componentArtifactId && i.revisionId === end.componentRevisionId)) {
-        inputs.push({ artifactId: end.componentArtifactId, revisionId: end.componentRevisionId, relationship: 'depends_on', label: 'pinout source' });
+      if (
+        !inputs.some(
+          (i) =>
+            i.artifactId === end.componentArtifactId && i.revisionId === end.componentRevisionId,
+        )
+      ) {
+        inputs.push({
+          artifactId: end.componentArtifactId,
+          revisionId: end.componentRevisionId,
+          relationship: 'depends_on',
+          label: 'pinout source',
+        });
       }
     }
   }

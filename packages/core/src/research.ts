@@ -17,7 +17,10 @@ function assertPublicHttpUrl(url: string): void {
     throw new StarkError(ErrorCodes.VALIDATION, `Bad URL: ${url}`);
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw new StarkError(ErrorCodes.VALIDATION, `Only http(s) research URLs allowed: ${u.protocol}`);
+    throw new StarkError(
+      ErrorCodes.VALIDATION,
+      `Only http(s) research URLs allowed: ${u.protocol}`,
+    );
   }
   const host = u.hostname;
   if (
@@ -30,7 +33,10 @@ function assertPublicHttpUrl(url: string): void {
     /^169\.254\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   ) {
-    throw new StarkError(ErrorCodes.CONNECTION_DENIED, `Private network destination blocked: ${host}`);
+    throw new StarkError(
+      ErrorCodes.CONNECTION_DENIED,
+      `Private network destination blocked: ${host}`,
+    );
   }
 }
 
@@ -53,7 +59,10 @@ export async function browserRead(ctx: ProjectContext) {
   return ctx.host.researchReadPage();
 }
 
-export async function browserFollowLink(ctx: ProjectContext, sel: { selector?: string; url?: string }) {
+export async function browserFollowLink(
+  ctx: ProjectContext,
+  sel: { selector?: string; url?: string },
+) {
   if (sel.url) assertPublicHttpUrl(sel.url);
   const res = await ctx.host.researchFollowLink(sel);
   if (!res.ok) throw new StarkError(ErrorCodes.INTERNAL, res.error ?? 'follow_link failed');
@@ -64,7 +73,11 @@ export async function browserScreenshot(ctx: ProjectContext) {
   return ctx.host.researchScreenshot();
 }
 
-export async function browserCapture(ctx: ProjectContext, input: { title?: string; excerpt?: string }, origin: Origin) {
+export async function browserCapture(
+  ctx: ProjectContext,
+  input: { title?: string; excerpt?: string },
+  origin: Origin,
+) {
   const page = await ctx.host.researchReadPage();
   if (!page.url) throw new StarkError(ErrorCodes.VALIDATION, 'No research page loaded');
   return captureSource(

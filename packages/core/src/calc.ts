@@ -32,29 +32,43 @@ export function listTemplates(ctx: ProjectContext): CalcTemplate[] {
  * If the artifact already has a baseline and submitForReview, the result
  * revision is wrapped in a proposal.
  */
-export async function runCalculation(ctx: ProjectContext, input: {
-  artifactId?: string;
-  templateId?: string;
-  expression?: string;
-  inputs: { name: string; quantity: MaybeQuantity; sourceRef?: { artifactId: string; revisionId: string }; literal?: boolean }[];
-  assumptions: string[];
-  title?: string;
-  submitForReview: boolean;
-}, origin: Origin) {
+export async function runCalculation(
+  ctx: ProjectContext,
+  input: {
+    artifactId?: string;
+    templateId?: string;
+    expression?: string;
+    inputs: {
+      name: string;
+      quantity: MaybeQuantity;
+      sourceRef?: { artifactId: string; revisionId: string };
+      literal?: boolean;
+    }[];
+    assumptions: string[];
+    title?: string;
+    submitForReview: boolean;
+  },
+  origin: Origin,
+) {
   const calc = calcTool(ctx);
   let expression = input.expression;
   let template: CalcTemplate | undefined;
   if (input.templateId) {
     template = calc.templates().find((t) => t.id === input.templateId);
-    if (!template) throw new StarkError(ErrorCodes.NOT_FOUND, `Unknown template: ${input.templateId}`);
+    if (!template)
+      throw new StarkError(ErrorCodes.NOT_FOUND, `Unknown template: ${input.templateId}`);
     expression = template.expression;
     // Validate required template inputs are present.
     for (const req of template.inputs.filter((i) => i.required)) {
       const provided = input.inputs.find((i) => i.name === req.name);
       if (!provided || isUnknown(provided.quantity)) {
-        throw new StarkError(ErrorCodes.INVALID_UNITS, `Missing required input '${req.name}' (${req.unit})`, {
-          repair: `Supply ${req.name} in ${req.unit}.`,
-        });
+        throw new StarkError(
+          ErrorCodes.INVALID_UNITS,
+          `Missing required input '${req.name}' (${req.unit})`,
+          {
+            repair: `Supply ${req.name} in ${req.unit}.`,
+          },
+        );
       }
       // Dimension check against template declaration.
       const q = provided.quantity;
@@ -66,7 +80,10 @@ export async function runCalculation(ctx: ProjectContext, input: {
   }
   for (const i of input.inputs) {
     if (isUnknown(i.quantity)) {
-      throw new StarkError(ErrorCodes.INVALID_UNITS, `Input '${i.name}' is unknown (${(i.quantity as { reason?: string }).reason ?? 'no value'})`);
+      throw new StarkError(
+        ErrorCodes.INVALID_UNITS,
+        `Input '${i.name}' is unknown (${(i.quantity as { reason?: string }).reason ?? 'no value'})`,
+      );
     }
   }
   const firstUnit = (() => {
@@ -156,7 +173,9 @@ export async function runCalculation(ctx: ProjectContext, input: {
 
 export function explainInputs(ctx: ProjectContext, artifactId: string) {
   const artifact = ctx.requireArtifact(artifactId);
-  const rev = artifact.selectedRevisionId ? ctx.repo.getRevision(artifact.selectedRevisionId) : ctx.repo.listRevisions(artifact.id).at(-1);
+  const rev = artifact.selectedRevisionId
+    ? ctx.repo.getRevision(artifact.selectedRevisionId)
+    : ctx.repo.listRevisions(artifact.id).at(-1);
   if (!rev) throw new StarkError(ErrorCodes.VALIDATION, 'No revision on calculation');
   const payload = rev.payload as CalculationPayload;
   return {

@@ -81,7 +81,9 @@ export default function App() {
               <Panel minSize={30}>
                 <PanelGroup direction="horizontal" autoSaveId="stark-center">
                   <Panel minSize={40}>
-                    <div style={{ height: '100%', background: 'var(--bg-main)', overflow: 'hidden' }}>
+                    <div
+                      style={{ height: '100%', background: 'var(--bg-main)', overflow: 'hidden' }}
+                    >
                       <Surface nav={nav} />
                     </div>
                   </Panel>
@@ -92,7 +94,12 @@ export default function App() {
                 </PanelGroup>
               </Panel>
               <PanelResizeHandle className="resize-handle-h" />
-              <Panel defaultSize={terminalExpanded ? 55 : 32} minSize={15} collapsible data-terminal-region>
+              <Panel
+                defaultSize={terminalExpanded ? 55 : 32}
+                minSize={15}
+                collapsible
+                data-terminal-region
+              >
                 <div data-terminal-region style={{ height: '100%' }}>
                   <TerminalPane />
                 </div>
@@ -115,21 +122,40 @@ export default function App() {
 
 function Surface({ nav }: { nav: string }) {
   switch (nav) {
-    case 'overview': return <OverviewView />;
-    case 'requirements': return <RequirementsView />;
-    case 'components': return <ComponentsView />;
-    case 'artifacts': return <ArtifactsView />;
-    case 'reviews': return <ReviewsView />;
-    case 'history': return <HistoryView />;
-    case 'files': return <FilesView />;
-    case 'connections': return <ConnectionsView />;
-    default: return <OverviewView />;
+    case 'overview':
+      return <OverviewView />;
+    case 'requirements':
+      return <RequirementsView />;
+    case 'components':
+      return <ComponentsView />;
+    case 'artifacts':
+      return <ArtifactsView />;
+    case 'reviews':
+      return <ReviewsView />;
+    case 'history':
+      return <HistoryView />;
+    case 'files':
+      return <FilesView />;
+    case 'connections':
+      return <ConnectionsView />;
+    default:
+      return <OverviewView />;
   }
 }
 
 function Toasts({ items }: { items: { id: number; kind: string; text: string }[] }) {
   return (
-    <div style={{ position: 'fixed', bottom: 40, right: 16, zIndex: 60, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 40,
+        right: 16,
+        zIndex: 60,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
       {items.map((t) => (
         <div
           key={t.id}

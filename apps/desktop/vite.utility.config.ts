@@ -17,7 +17,10 @@ function copyHelpers(): Plugin {
     writeBundle() {
       const out = path.join(root, 'resources', 'core');
       const pairs: [string, string][] = [
-        [path.join(root, '..', '..', 'packages', 'engineering', 'src', 'calc-worker.mjs'), 'calc-worker.mjs'],
+        [
+          path.join(root, '..', '..', 'packages', 'engineering', 'src', 'calc-worker.mjs'),
+          'calc-worker.mjs',
+        ],
         [path.join(root, '..', '..', 'packages', 'agent-host', 'bin', 'stark.mjs'), 'stark'],
       ];
       for (const [src, name] of pairs) {

@@ -2,12 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  ErrorCodes,
-  Origin,
-  StarkError,
-  qty,
-} from '@stark/contracts';
+import { ErrorCodes, Origin, StarkError, qty } from '@stark/contracts';
 import { openProject } from '@stark/storage';
 import { CoreApp, nullHost } from './index.js';
 import { dispatch } from './dispatch.js';
@@ -37,8 +32,17 @@ const fakeCalc: CalcEngine = {
   ],
   evaluate: async (_expr, inputs) => {
     const first = inputs[0];
-    const sum = inputs.reduce((n, i) => (i.quantity && 'value' in i.quantity ? n + i.quantity.value : n), 0);
-    return { value: sum, unit: first && 'value' in (first.quantity as object) ? (first.quantity as { unit: string }).unit : 'kg' };
+    const sum = inputs.reduce(
+      (n, i) => (i.quantity && 'value' in i.quantity ? n + i.quantity.value : n),
+      0,
+    );
+    return {
+      value: sum,
+      unit:
+        first && 'value' in (first.quantity as object)
+          ? (first.quantity as { unit: string }).unit
+          : 'kg',
+    };
   },
 };
 
@@ -79,7 +83,10 @@ const fakeCad: CadAdapter = {
       triangles: facets,
       bytes: buf.byteLength,
       format: 'ascii' as const,
-      bounds: { min: [0, 0, 0] as [number, number, number], max: [10, 10, 0] as [number, number, number] },
+      bounds: {
+        min: [0, 0, 0] as [number, number, number],
+        max: [10, 10, 0] as [number, number, number],
+      },
       plausible: facets > 0,
     };
   },
@@ -90,7 +97,11 @@ async function setup(): Promise<{ app: CoreApp; ctx: ProjectContext; dir: string
   const app = new CoreApp(path.join(dir, '.appdata'), nullHost);
   apps.push(app);
   app.engineTools = { calc: fakeCalc, cad: fakeCad };
-  const res = (await app.dispatch('project.create', { name: 'Rover', path: path.join(dir, 'rover'), intent: 'inspection rover' }, USER)) as { projectId: string };
+  const res = (await app.dispatch(
+    'project.create',
+    { name: 'Rover', path: path.join(dir, 'rover'), intent: 'inspection rover' },
+    USER,
+  )) as { projectId: string };
   const ctx = app.contextFor(res.projectId);
   ctx.tools = app.engineTools;
   return { app, ctx, dir: path.join(dir, 'rover') };
@@ -118,16 +129,31 @@ describe('revisions and proposals', () => {
     const { artifact, revision } = (await agentCall(ctx, 'artifact.create_draft', {
       type: 'requirement',
       title: 'Payload capacity',
-      payload: { statement: 'Carry the inspection payload', target: qty(0.3, 'kg'), acceptanceCriterion: 'rover carries payload', priority: 'must' },
+      payload: {
+        statement: 'Carry the inspection payload',
+        target: qty(0.3, 'kg'),
+        acceptanceCriterion: 'rover carries payload',
+        priority: 'must',
+      },
       files: [],
       inputs: [],
       rationale: 'initial',
     })) as never as { artifact: { id: string }; revision: { id: string } };
     const p = (await agentCall(ctx, 'proposal.submit', {
-      changes: [{ artifactId: artifact.id, baseRevisionId: null, newRevisionId: revision.id, kind: 'new_artifact' }],
+      changes: [
+        {
+          artifactId: artifact.id,
+          baseRevisionId: null,
+          newRevisionId: revision.id,
+          kind: 'new_artifact',
+        },
+      ],
       reason: 'accept requirement',
     })) as never as { id: string };
-    const approved = (await userCall(ctx, 'proposal.approve', { proposalId: p.id, rationale: 'ok' })) as never as { state: string };
+    const approved = (await userCall(ctx, 'proposal.approve', {
+      proposalId: p.id,
+      rationale: 'ok',
+    })) as never as { state: string };
     expect(approved.state).toBe('accepted');
     const a = ctx.repo.getArtifact(artifact.id)!;
     expect(a.selectedRevisionId).toBe(revision.id);
@@ -145,43 +171,92 @@ describe('revisions and proposals', () => {
       rationale: '',
     })) as never as { artifact: { id: string }; revision: { id: string } };
     const p = (await agentCall(ctx, 'proposal.submit', {
-      changes: [{ artifactId: artifact.id, baseRevisionId: null, newRevisionId: revision.id, kind: 'new_artifact' }],
+      changes: [
+        {
+          artifactId: artifact.id,
+          baseRevisionId: null,
+          newRevisionId: revision.id,
+          kind: 'new_artifact',
+        },
+      ],
       reason: 'r',
     })) as never as { id: string };
-    await expect(agentCall(ctx, 'proposal.approve', { proposalId: p.id })).rejects.toMatchObject({ code: ErrorCodes.CAPABILITY_DENIED });
+    await expect(agentCall(ctx, 'proposal.approve', { proposalId: p.id })).rejects.toMatchObject({
+      code: ErrorCodes.CAPABILITY_DENIED,
+    });
     await expect(
-      agentCall(ctx, 'artifact.apply_edit', { artifactId: artifact.id, baseRevisionId: revision.id, payload: {} }),
+      agentCall(ctx, 'artifact.apply_edit', {
+        artifactId: artifact.id,
+        baseRevisionId: revision.id,
+        payload: {},
+      }),
     ).rejects.toMatchObject({ code: ErrorCodes.APPROVAL_REQUIRED });
   });
 
   it('rejects approval when the base moved (REVISION_CONFLICT)', async () => {
     const { artifact, revision } = (await agentCall(ctx, 'artifact.create_draft', {
-      type: 'requirement', title: 'R', payload: { statement: 'a', acceptanceCriterion: 'c', priority: 'must' }, files: [], inputs: [], rationale: '',
+      type: 'requirement',
+      title: 'R',
+      payload: { statement: 'a', acceptanceCriterion: 'c', priority: 'must' },
+      files: [],
+      inputs: [],
+      rationale: '',
     })) as never as { artifact: { id: string }; revision: { id: string } };
-    await userCall(ctx, 'artifact.accept_draft', { artifactId: artifact.id, draftRevisionId: revision.id, rationale: 'baseline' });
+    await userCall(ctx, 'artifact.accept_draft', {
+      artifactId: artifact.id,
+      draftRevisionId: revision.id,
+      rationale: 'baseline',
+    });
     // Agent drafts v2 and proposes.
     const d2 = (await agentCall(ctx, 'artifact.update_draft', {
-      artifactId: artifact.id, payload: { statement: 'b', acceptanceCriterion: 'c', priority: 'must' }, rationale: 'v2',
+      artifactId: artifact.id,
+      payload: { statement: 'b', acceptanceCriterion: 'c', priority: 'must' },
+      rationale: 'v2',
     })) as never as { revision: { id: string } };
     const p = (await agentCall(ctx, 'proposal.submit', {
-      changes: [{ artifactId: artifact.id, baseRevisionId: revision.id, newRevisionId: d2.revision.id, kind: 'baseline_update' }],
+      changes: [
+        {
+          artifactId: artifact.id,
+          baseRevisionId: revision.id,
+          newRevisionId: d2.revision.id,
+          kind: 'baseline_update',
+        },
+      ],
       reason: 'v2',
     })) as never as { id: string };
     // User edits baseline directly → proposal base stale.
     await userCall(ctx, 'artifact.apply_edit', {
-      artifactId: artifact.id, baseRevisionId: revision.id,
-      payload: { statement: 'c', acceptanceCriterion: 'c', priority: 'must' }, rationale: 'user edit',
+      artifactId: artifact.id,
+      baseRevisionId: revision.id,
+      payload: { statement: 'c', acceptanceCriterion: 'c', priority: 'must' },
+      rationale: 'user edit',
     });
-    await expect(userCall(ctx, 'proposal.approve', { proposalId: p.id })).rejects.toMatchObject({ code: ErrorCodes.REVISION_CONFLICT });
+    await expect(userCall(ctx, 'proposal.approve', { proposalId: p.id })).rejects.toMatchObject({
+      code: ErrorCodes.REVISION_CONFLICT,
+    });
   });
 
   it('idempotent mutation returns the stored response', async () => {
-    const payload = { type: 'note', title: 'Idem', payload: { markdown: 'm' }, files: [], inputs: [], rationale: '' };
-    const r1 = (await agentCall(ctx, 'artifact.create_draft', payload, 'k1')) as never as { artifact: { id: string } };
-    const r2 = (await agentCall(ctx, 'artifact.create_draft', payload, 'k1')) as never as { artifact: { id: string }; idempotent?: boolean };
+    const payload = {
+      type: 'note',
+      title: 'Idem',
+      payload: { markdown: 'm' },
+      files: [],
+      inputs: [],
+      rationale: '',
+    };
+    const r1 = (await agentCall(ctx, 'artifact.create_draft', payload, 'k1')) as never as {
+      artifact: { id: string };
+    };
+    const r2 = (await agentCall(ctx, 'artifact.create_draft', payload, 'k1')) as never as {
+      artifact: { id: string };
+      idempotent?: boolean;
+    };
     expect(r2.idempotent).toBe(true);
     expect(r2.artifact.id).toBe(r1.artifact.id);
-    await expect(agentCall(ctx, 'artifact.create_draft', { ...payload, title: 'different' }, 'k1')).rejects.toMatchObject({ code: ErrorCodes.VALIDATION });
+    await expect(
+      agentCall(ctx, 'artifact.create_draft', { ...payload, title: 'different' }, 'k1'),
+    ).rejects.toMatchObject({ code: ErrorCodes.VALIDATION });
   });
 });
 
@@ -191,21 +266,43 @@ describe('dependency graph + staleness (300g → 500g)', () => {
 
     // Requirement: payload 300 g.
     const req = (await userCall(ctx, 'artifact.create_draft', {
-      type: 'requirement', title: 'Payload',
-      payload: { statement: 'carry payload', target: qty(300, 'g'), acceptanceCriterion: 'carries it', priority: 'must' },
-      files: [], inputs: [], rationale: '',
+      type: 'requirement',
+      title: 'Payload',
+      payload: {
+        statement: 'carry payload',
+        target: qty(300, 'g'),
+        acceptanceCriterion: 'carries it',
+        priority: 'must',
+      },
+      files: [],
+      inputs: [],
+      rationale: '',
     })) as never as { artifact: { id: string }; revision: { id: string } };
-    await userCall(ctx, 'artifact.accept_draft', { artifactId: req.artifact.id, draftRevisionId: req.revision.id, rationale: '' });
+    await userCall(ctx, 'artifact.accept_draft', {
+      artifactId: req.artifact.id,
+      draftRevisionId: req.revision.id,
+      rationale: '',
+    });
 
     // Mass budget calculation consuming the requirement.
     const calcRes = (await agentCall(ctx, 'calculation.run', {
       templateId: 'mass_budget',
-      inputs: [{ name: 'payload', quantity: qty(300, 'g'), sourceRef: { artifactId: req.artifact.id, revisionId: req.revision.id } }],
+      inputs: [
+        {
+          name: 'payload',
+          quantity: qty(300, 'g'),
+          sourceRef: { artifactId: req.artifact.id, revisionId: req.revision.id },
+        },
+      ],
       assumptions: [],
       title: 'Mass budget',
       submitForReview: false,
     })) as never as { artifactId: string; revision: { id: string } };
-    await userCall(ctx, 'artifact.accept_draft', { artifactId: calcRes.artifactId, draftRevisionId: calcRes.revision.id, rationale: '' });
+    await userCall(ctx, 'artifact.accept_draft', {
+      artifactId: calcRes.artifactId,
+      draftRevisionId: calcRes.revision.id,
+      rationale: '',
+    });
     expect(ctx.freshnessOf(calcRes.artifactId).freshness).toBe('current');
 
     // Change requirement 300 g → 500 g as the user.
@@ -237,20 +334,52 @@ describe('dependency graph + staleness (300g → 500g)', () => {
   it('rejects depends_on cycles with the path', async () => {
     const { ctx } = await setup();
     const mk = async (t: string) => {
-      const r = (await userCall(ctx, 'artifact.create_draft', { type: 'note', title: t, payload: { markdown: '' }, files: [], inputs: [], rationale: '' })) as never as { artifact: { id: string }; revision: { id: string } };
-      await userCall(ctx, 'artifact.accept_draft', { artifactId: r.artifact.id, draftRevisionId: r.revision.id, rationale: '' });
+      const r = (await userCall(ctx, 'artifact.create_draft', {
+        type: 'note',
+        title: t,
+        payload: { markdown: '' },
+        files: [],
+        inputs: [],
+        rationale: '',
+      })) as never as { artifact: { id: string }; revision: { id: string } };
+      await userCall(ctx, 'artifact.accept_draft', {
+        artifactId: r.artifact.id,
+        draftRevisionId: r.revision.id,
+        rationale: '',
+      });
       return r.artifact.id;
     };
     const a = await mk('A');
     const b = await mk('B');
     const c = await mk('C');
-    await userCall(ctx, 'graph.propose_edges', { edges: [{ upstreamArtifactId: a, downstreamArtifactId: b, relationship: 'depends_on', label: '' }] });
-    await userCall(ctx, 'graph.propose_edges', { edges: [{ upstreamArtifactId: b, downstreamArtifactId: c, relationship: 'depends_on', label: '' }] });
+    await userCall(ctx, 'graph.propose_edges', {
+      edges: [
+        { upstreamArtifactId: a, downstreamArtifactId: b, relationship: 'depends_on', label: '' },
+      ],
+    });
+    await userCall(ctx, 'graph.propose_edges', {
+      edges: [
+        { upstreamArtifactId: b, downstreamArtifactId: c, relationship: 'depends_on', label: '' },
+      ],
+    });
     await expect(
-      userCall(ctx, 'graph.propose_edges', { edges: [{ upstreamArtifactId: c, downstreamArtifactId: a, relationship: 'depends_on', label: '' }] }),
+      userCall(ctx, 'graph.propose_edges', {
+        edges: [
+          { upstreamArtifactId: c, downstreamArtifactId: a, relationship: 'depends_on', label: '' },
+        ],
+      }),
     ).rejects.toMatchObject({ code: ErrorCodes.CYCLE_DETECTED });
     // connects_to cycles are permitted.
-    await userCall(ctx, 'graph.propose_edges', { edges: [{ upstreamArtifactId: c, downstreamArtifactId: a, relationship: 'connects_to', label: 'feedback' }] });
+    await userCall(ctx, 'graph.propose_edges', {
+      edges: [
+        {
+          upstreamArtifactId: c,
+          downstreamArtifactId: a,
+          relationship: 'connects_to',
+          label: 'feedback',
+        },
+      ],
+    });
   });
 });
 
@@ -259,22 +388,41 @@ describe('components and BOM', () => {
     const { ctx } = await setup();
     // Source required for a real component.
     const src = (await agentCall(ctx, 'source.capture', {
-      url: 'https://vendor.example/motor', title: 'Motor product page', sourceKind: 'manufacturer',
+      url: 'https://vendor.example/motor',
+      title: 'Motor product page',
+      sourceKind: 'manufacturer',
     })) as never as { artifact: { id: string } };
     const cand = (await agentCall(ctx, 'component.add_candidate', {
-      title: 'Drive motor', manufacturer: 'Acme', partNumber: 'MTR-100',
-      properties: { mass: { quantity: qty(45, 'g'), sourceId: src.artifact.id }, voltage: { quantity: qty(12, 'V'), sourceId: src.artifact.id } },
+      title: 'Drive motor',
+      manufacturer: 'Acme',
+      partNumber: 'MTR-100',
+      properties: {
+        mass: { quantity: qty(45, 'g'), sourceId: src.artifact.id },
+        voltage: { quantity: qty(12, 'V'), sourceId: src.artifact.id },
+      },
       attributes: {},
-      offer: { seller: 'VendorCo', url: 'https://vendor.example/motor', price: { amount: '12.50', currency: 'USD' }, quantityBasis: 1, sourceId: src.artifact.id },
+      offer: {
+        seller: 'VendorCo',
+        url: 'https://vendor.example/motor',
+        price: { amount: '12.50', currency: 'USD' },
+        quantityBasis: 1,
+        sourceId: src.artifact.id,
+      },
       sourceId: src.artifact.id,
     })) as never as { artifact: { id: string }; revision: { id: string } };
     const prop = (await agentCall(ctx, 'component.propose_selection', {
-      artifactId: cand.artifact.id, revisionId: cand.revision.id,
-      bomLines: [{ subsystem: 'drive', quantity: 4, offerId: null, location: 'corners', notes: '' }],
+      artifactId: cand.artifact.id,
+      revisionId: cand.revision.id,
+      bomLines: [
+        { subsystem: 'drive', quantity: 4, offerId: null, location: 'corners', notes: '' },
+      ],
       reason: 'meets torque',
     })) as never as { proposal: { id: string } };
     await userCall(ctx, 'proposal.approve', { proposalId: prop.proposal.id, rationale: 'ok' });
-    const bom = (await userCall(ctx, 'bom.read', {})) as never as { lines: unknown[]; totals: { missingPriceCount: number; knownMass: { value: number; unit: string } | null } };
+    const bom = (await userCall(ctx, 'bom.read', {})) as never as {
+      lines: unknown[];
+      totals: { missingPriceCount: number; knownMass: { value: number; unit: string } | null };
+    };
     expect(bom.lines.length).toBe(1);
     expect(bom.totals.knownMass?.unit).toBe('g');
     expect(Math.round(bom.totals.knownMass!.value)).toBe(180);
@@ -282,13 +430,23 @@ describe('components and BOM', () => {
 
   it('missing price stays unknown, never zero', async () => {
     const { ctx } = await setup();
-    const src = (await agentCall(ctx, 'source.capture', { url: 'https://x.example/p', title: 'p', sourceKind: 'supplier' })) as never as { artifact: { id: string } };
+    const src = (await agentCall(ctx, 'source.capture', {
+      url: 'https://x.example/p',
+      title: 'p',
+      sourceKind: 'supplier',
+    })) as never as { artifact: { id: string } };
     await agentCall(ctx, 'component.add_candidate', {
-      title: 'Wheel', vendor: 'Shop', partNumber: 'W-1', properties: {}, attributes: {},
+      title: 'Wheel',
+      vendor: 'Shop',
+      partNumber: 'W-1',
+      properties: {},
+      attributes: {},
       offer: { seller: 'Shop', url: 'https://x.example/p', price: null, quantityBasis: 1 },
       sourceId: src.artifact.id,
     });
-    const bom = (await userCall(ctx, 'bom.read', {})) as never as { totals: { missingPriceCount: number } };
+    const bom = (await userCall(ctx, 'bom.read', {})) as never as {
+      totals: { missingPriceCount: number };
+    };
     expect(bom.totals.missingPriceCount).toBe(0); // no lines yet — candidates don't enter BOM until selected
   });
 });
@@ -298,12 +456,17 @@ describe('CAD job path (fake adapter, real pipeline)', () => {
     const { ctx } = await setup();
     const scadB64 = Buffer.from('cube([10,10,2]);').toString('base64');
     const { artifact } = (await agentCall(ctx, 'artifact.create_draft', {
-      type: 'mechanical', title: 'Tray',
+      type: 'mechanical',
+      title: 'Tray',
       payload: { params: { length: { value: 100, unit: 'mm' } }, modelUnit: 'mm' },
       files: [{ path: 'artifacts/mechanical/tray.scad', contentBase64: scadB64 }],
-      inputs: [], rationale: 'v1',
+      inputs: [],
+      rationale: 'v1',
     })) as never as { artifact: { id: string } };
-    const { job } = (await agentCall(ctx, 'cad.render', { artifactId: artifact.id, timeoutMs: 5000 })) as never as { job: { id: string } };
+    const { job } = (await agentCall(ctx, 'cad.render', {
+      artifactId: artifact.id,
+      timeoutMs: 5000,
+    })) as never as { job: { id: string } };
     // Wait for async job.
     for (let i = 0; i < 50; i++) {
       const j = ctx.repo.getJob(job.id)!;
@@ -326,9 +489,18 @@ describe('project summary budget', () => {
     const { ctx } = await setup();
     for (let i = 0; i < 30; i++) {
       const r = (await agentCall(ctx, 'artifact.create_draft', {
-        type: 'requirement', title: `R${i}`, payload: { statement: `req ${i}`, acceptanceCriterion: 'x', priority: 'should' }, files: [], inputs: [], rationale: '',
+        type: 'requirement',
+        title: `R${i}`,
+        payload: { statement: `req ${i}`, acceptanceCriterion: 'x', priority: 'should' },
+        files: [],
+        inputs: [],
+        rationale: '',
       })) as never as { artifact: { id: string }; revision: { id: string } };
-      await userCall(ctx, 'artifact.accept_draft', { artifactId: r.artifact.id, draftRevisionId: r.revision.id, rationale: '' });
+      await userCall(ctx, 'artifact.accept_draft', {
+        artifactId: r.artifact.id,
+        draftRevisionId: r.revision.id,
+        rationale: '',
+      });
     }
     const s = (await agentCall(ctx, 'project.summary', { budget: 2000 })) as object;
     expect(JSON.stringify(s).length).toBeLessThanOrEqual(2100);

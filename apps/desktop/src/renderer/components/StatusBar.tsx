@@ -19,10 +19,16 @@ export function StatusBar() {
       }}
     >
       <span>Saved locally</span>
-      {pending > 0 && <span className="warn">{pending} artifact{pending > 1 ? 's' : ''} need review</span>}
+      {pending > 0 && (
+        <span className="warn">
+          {pending} artifact{pending > 1 ? 's' : ''} need review
+        </span>
+      )}
       {staleCount > 0 && <span className="warn">{staleCount} stale</span>}
       <span style={{ flex: 1 }} />
-      <span className="faint mono" style={{ fontSize: 11 }}>{projectPath ?? ''}</span>
+      <span className="faint mono" style={{ fontSize: 11 }}>
+        {projectPath ?? ''}
+      </span>
     </div>
   );
 }

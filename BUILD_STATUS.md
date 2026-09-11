@@ -41,7 +41,7 @@ state of the repository, not the plan.
   unix socket (named pipe on Windows), grant/token auth, `stark` Node
   CLI shim (`call`, `mcp`, `cap` commands).
 - `packages/mcp-server`: MCP SDK server riding bridge frames — tools/list
-  + tools/call mapped onto core ops with capability checks.
+  - tools/call mapped onto core ops with capability checks.
 - `apps/desktop`: Electron Forge + Vite; main process (windows, window-state
   persistence, IPC relay, research WebContentsView, security policy,
   single-instance lock), preload (narrow contextBridge, typed API),
@@ -63,6 +63,26 @@ state of the repository, not the plan.
 - Boot smoke: packaged app launches, utility forks, better-sqlite3 loads
   (Electron ABI), bridge socket binds, `ready` reaches main.
   Evidence: `boot.log` under userData + `[core] ready` on stdout.
+- Packaged smoke (`scripts/packaged-smoke.mjs`, `pnpm smoke:packaged`):
+  launches the packaged app with `STARK_APP_DATA` + `STARK_SMOKE=1`,
+  waits for `run/bridge.sock` + the gated `run/smoke.json` grant, runs a
+  real `stark call artifact.list` and `project.summary` roundtrip through
+  the packaged shim, and exits deterministically. Verified locally on
+  darwin-arm64.
+
+## CI
+
+`.github/workflows/ci.yml`:
+
+- Ubuntu: install, `pnpm rebuild:node`, typecheck, eslint, prettier check,
+  vitest.
+- macOS 14 (arm64): install, package, `pnpm smoke:packaged`, artifact
+  upload.
+- Windows: install + package + artifact upload; smoke step runs but is
+  `continue-on-error` until verified on win32.
+- `native/stark-bridge`: `cargo fmt --check` + `clippy -D warnings` on
+  stable (toolchain pinned via `rust-toolchain.toml`).
+- Node pinned to 24 (`.nvmrc`), pnpm to 9.15.9 (`packageManager`).
 
 ## Unresolved implementation problems
 
@@ -90,13 +110,23 @@ state of the repository, not the plan.
 
 ## Golden-path status
 
-Domain level proven: draft→proposal→approve→baseline→propagation all work
-in vitest. Not yet exercised inside the running Electron app or with a
-live agent CLI.
+Domain level proven and now exercised end-to-end via fixtures:
+`tests/golden-path.test.ts` builds the rover fixture through
+`CoreApp.dispatch` (requirements → sources → component candidates +
+compare → proposal-approved selections → BOM → mechanical artifact with
+real `.scad` → mathjs calculations with recorded inputs → wiring →
+test procedure → assembly), then changes the payload requirement
+300 g → 500 g and asserts stale propagation to the mass/torque calcs,
+CAD artifact, and test — with prior results preserved. Covers agent
+proposal gating (agent drafts do not touch baseline until a human
+approves), reopen persistence, and archive export→import roundtrip
+including the `.scad` file payload. `fixtures/drone-dependencies` adds
+the payload→propulsion→endurance impact chain. Not yet exercised with a
+live agent CLI inside the running Electron app.
 
 ## Failing tests
 
-None.
+None. `pnpm test`: 13 files, 95 passed, 1 skipped (OpenSCAD e2e).
 
 ## Platform verification
 
@@ -115,5 +145,10 @@ None.
 
 ## Next highest-leverage work
 
-- Finish agent-host + MCP integration, then run the real Codex golden path
-  in the packaged app; then fixtures/tests; then packaging + hardening.
+- Live agent-CLI golden path in the packaged app (Codex/Claude installed
+  and credentialed): adapter launch → PTY → bridge call → proposal →
+  human approve.
+- Real OpenSCAD render e2e where the tool is installed
+  (`STARK_OPENSCAD_E2E`); tray STL bound to the mechanical artifact.
+- Windows smoke verification (drop `continue-on-error` once green).
+- Playwright Electron UI coverage for the review queue and terminal.

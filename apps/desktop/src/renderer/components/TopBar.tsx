@@ -57,7 +57,10 @@ export function TopBar() {
         >
           <PlugsConnected size={13} /> {connected || ''}
         </button>
-        <span className={`pill ${session?.state === 'running' ? 'current' : ''}`} style={{ height: 22 }}>
+        <span
+          className={`pill ${session?.state === 'running' ? 'current' : ''}`}
+          style={{ height: 22 }}
+        >
           {session ? `Agent: ${session.adapterId}` : 'No agent'}
         </span>
         <Command size={14} className="faint" />

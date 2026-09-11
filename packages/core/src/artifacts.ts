@@ -79,7 +79,9 @@ function inputsToEdges(
       // Pin the edge to the consumed revision.
       const e = ctx.repo
         .edgesFrom(input.artifactId)
-        .find((e) => e.downstreamArtifactId === artifactId && e.relationship === input.relationship)!;
+        .find(
+          (e) => e.downstreamArtifactId === artifactId && e.relationship === input.relationship,
+        )!;
       e.requiredUpstreamRevisionId = input.revisionId;
       ctx.repo.deleteEdge(e.id);
       ctx.repo.insertEdge(e);
@@ -141,15 +143,24 @@ export function commitRevision(
   return rev;
 }
 
-export function createDraft(ctx: ProjectContext, input: {
-  type: ArtifactType;
-  title: string;
-  subsystem?: string | null;
-  payload: unknown;
-  files: DraftFileInput[];
-  inputs: { artifactId: string; revisionId?: string; relationship?: RecordedInput['relationship']; label?: string }[];
-  rationale: string;
-}, origin: Origin) {
+export function createDraft(
+  ctx: ProjectContext,
+  input: {
+    type: ArtifactType;
+    title: string;
+    subsystem?: string | null;
+    payload: unknown;
+    files: DraftFileInput[];
+    inputs: {
+      artifactId: string;
+      revisionId?: string;
+      relationship?: RecordedInput['relationship'];
+      label?: string;
+    }[];
+    rationale: string;
+  },
+  origin: Origin,
+) {
   ctx.assertWritable();
   const files = ingestFiles(ctx, input.files);
   const inputs: RecordedInput[] = input.inputs.map((i) => ({
@@ -186,16 +197,25 @@ export function createDraft(ctx: ProjectContext, input: {
   return { artifact: artifact!, revision };
 }
 
-export function updateDraft(ctx: ProjectContext, input: {
-  artifactId: string;
-  baseRevisionId?: string;
-  draftRevisionId?: string;
-  title?: string;
-  payload?: unknown;
-  files?: DraftFileInput[];
-  inputs?: { artifactId: string; revisionId?: string; relationship?: RecordedInput['relationship']; label?: string }[];
-  rationale?: string;
-}, origin: Origin) {
+export function updateDraft(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    baseRevisionId?: string;
+    draftRevisionId?: string;
+    title?: string;
+    payload?: unknown;
+    files?: DraftFileInput[];
+    inputs?: {
+      artifactId: string;
+      revisionId?: string;
+      relationship?: RecordedInput['relationship'];
+      label?: string;
+    }[];
+    rationale?: string;
+  },
+  origin: Origin,
+) {
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(input.artifactId);
 
@@ -206,14 +226,18 @@ export function updateDraft(ctx: ProjectContext, input: {
       : artifact.selectedRevisionId
         ? ctx.requireRevision(artifact.selectedRevisionId)
         : null;
-  if (input.baseRevisionId && artifact.selectedRevisionId && input.baseRevisionId !== artifact.selectedRevisionId) {
+  if (
+    input.baseRevisionId &&
+    artifact.selectedRevisionId &&
+    input.baseRevisionId !== artifact.selectedRevisionId
+  ) {
     throw new StarkError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
       repair: 'Refresh the artifact and rebuild the draft on the current baseline.',
       details: { selected: artifact.selectedRevisionId, requested: input.baseRevisionId },
     });
   }
 
-  const payload = input.payload !== undefined ? input.payload : parent?.payload ?? {};
+  const payload = input.payload !== undefined ? input.payload : (parent?.payload ?? {});
   const files = input.files ? ingestFiles(ctx, input.files) : (parent?.files ?? []);
   const inputs: RecordedInput[] = input.inputs
     ? input.inputs.map((i) => ({
@@ -247,15 +271,18 @@ export function updateDraft(ctx: ProjectContext, input: {
  * the baseline, writes a decision, and propagates impact. Human only; the
  * dispatcher blocks agents from reaching this handler.
  */
-export function applyUserEdit(ctx: ProjectContext, input: {
-  artifactId: string;
-  baseRevisionId: string;
-  title?: string;
-  payload?: unknown;
-  payloadPatch?: Record<string, unknown>;
-  fileWrites?: { path: string; contentBase64: string }[];
-  rationale: string;
-}) {
+export function applyUserEdit(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    baseRevisionId: string;
+    title?: string;
+    payload?: unknown;
+    payloadPatch?: Record<string, unknown>;
+    fileWrites?: { path: string; contentBase64: string }[];
+    rationale: string;
+  },
+) {
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.selectedRevisionId !== input.baseRevisionId) {
@@ -272,7 +299,9 @@ export function applyUserEdit(ctx: ProjectContext, input: {
   if (input.fileWrites?.length) {
     const writes = new Map(input.fileWrites.map((w) => [w.path, w.contentBase64]));
     files = [
-      ...parent.files.filter((f) => !writes.has(f.path)).map((f) => ({ path: f.path, sourcePath: undefined as string | undefined })),
+      ...parent.files
+        .filter((f) => !writes.has(f.path))
+        .map((f) => ({ path: f.path, sourcePath: undefined as string | undefined })),
       ...input.fileWrites.map((w) => ({ path: w.path, contentBase64: w.contentBase64 })),
     ];
     // Parent files without content were stored in the object store — re-ingest by sha.
@@ -359,7 +388,10 @@ function graphFns() {
 }
 
 /** User accepts an existing draft revision as the baseline. */
-export function acceptDraft(ctx: ProjectContext, input: { artifactId: string; draftRevisionId: string; rationale: string }) {
+export function acceptDraft(
+  ctx: ProjectContext,
+  input: { artifactId: string; draftRevisionId: string; rationale: string },
+) {
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(input.artifactId);
   const rev = ctx.requireRevision(input.draftRevisionId);
@@ -388,13 +420,21 @@ export function acceptDraft(ctx: ProjectContext, input: { artifactId: string; dr
       eventSeq: seq,
     });
     const affected = propagateFrom(ctx, [artifact.id], seq);
-    ctx.emit('impact.propagated', 'user', { changed: [{ artifactId: artifact.id, revisionId: rev.id }], affected });
+    ctx.emit('impact.propagated', 'user', {
+      changed: [{ artifactId: artifact.id, revisionId: rev.id }],
+      affected,
+    });
   });
   materializeReadableView(ctx, artifact, rev);
   return { artifact: ctx.requireArtifact(artifact.id), revision: rev };
 }
 
-export function revertArtifact(ctx: ProjectContext, artifactId: string, toRevisionId: string, rationale: string) {
+export function revertArtifact(
+  ctx: ProjectContext,
+  artifactId: string,
+  toRevisionId: string,
+  rationale: string,
+) {
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(artifactId);
   const target = ctx.requireRevision(toRevisionId);
@@ -418,7 +458,11 @@ export function revertArtifact(ctx: ProjectContext, artifactId: string, toRevisi
   ctx.repo.tx(() => {
     ctx.repo.setSelectedRevision(artifactId, rev.id);
     ctx.repo.clearStale(artifactId);
-    const seq = ctx.emit('baseline.changed', 'user', { artifactId, newRevisionId: rev.id, reverted: true });
+    const seq = ctx.emit('baseline.changed', 'user', {
+      artifactId,
+      newRevisionId: rev.id,
+      reverted: true,
+    });
     ctx.repo.insertDecision({
       id: newId(),
       proposalId: null,
@@ -431,7 +475,10 @@ export function revertArtifact(ctx: ProjectContext, artifactId: string, toRevisi
       eventSeq: seq,
     });
     const affected = propagateFrom(ctx, [artifactId], seq);
-    ctx.emit('impact.propagated', 'user', { changed: [{ artifactId, revisionId: rev.id }], affected });
+    ctx.emit('impact.propagated', 'user', {
+      changed: [{ artifactId, revisionId: rev.id }],
+      affected,
+    });
   });
   return { artifact: ctx.requireArtifact(artifactId), revision: rev };
 }
@@ -458,7 +505,11 @@ const TYPE_DIRS: Record<ArtifactType, string> = {
 };
 
 /** Render a readable view for an artifact revision into artifacts/. */
-export function materializeReadableView(ctx: ProjectContext, artifact: Artifact, revision: Revision): void {
+export function materializeReadableView(
+  ctx: ProjectContext,
+  artifact: Artifact,
+  revision: Revision,
+): void {
   const dir = TYPE_DIRS[artifact.type];
   const base = `artifacts/${dir}/${slugify(artifact.title)}`;
   try {
@@ -471,7 +522,10 @@ export function materializeReadableView(ctx: ProjectContext, artifact: Artifact,
   }
 }
 
-function renderView(artifact: Artifact, revision: Revision): { ext: string; content: string } | null {
+function renderView(
+  artifact: Artifact,
+  revision: Revision,
+): { ext: string; content: string } | null {
   const p = revision.payload as Record<string, unknown>;
   const header = `# ${artifact.title}\n\n<!-- stark:artifact=${artifact.id} revision=${revision.id} -->\n\n`;
   switch (artifact.type) {
@@ -483,12 +537,25 @@ function renderView(artifact: Artifact, revision: Revision): { ext: string; cont
       };
     }
     case 'assumption':
-      return { ext: 'md', content: `${header}${p.statement}\n\n**Reason:** ${p.reason}\n\n**Owner:** ${p.owner}\n` };
+      return {
+        ext: 'md',
+        content: `${header}${p.statement}\n\n**Reason:** ${p.reason}\n\n**Owner:** ${p.owner}\n`,
+      };
     case 'component':
-      return { ext: 'json', content: JSON.stringify({ ...p, artifactId: artifact.id, revisionId: revision.id }, null, 2) + '\n' };
+      return {
+        ext: 'json',
+        content:
+          JSON.stringify({ ...p, artifactId: artifact.id, revisionId: revision.id }, null, 2) +
+          '\n',
+      };
     case 'mechanical':
       // .scad/.stl materialize via revision.files; view is a small json card.
-      return { ext: 'json', content: JSON.stringify({ params: p.params, modelUnit: p.modelUnit, bounds: p.bounds }, null, 2) + '\n' };
+      return {
+        ext: 'json',
+        content:
+          JSON.stringify({ params: p.params, modelUnit: p.modelUnit, bounds: p.bounds }, null, 2) +
+          '\n',
+      };
     case 'calculation':
       return {
         ext: 'md',
@@ -518,7 +585,12 @@ function renderView(artifact: Artifact, revision: Revision): { ext: string; cont
 /* Compare                                                              */
 /* ------------------------------------------------------------------ */
 
-export function compareRevisions(ctx: ProjectContext, artifactId: string, fromId: string, toId: string) {
+export function compareRevisions(
+  ctx: ProjectContext,
+  artifactId: string,
+  fromId: string,
+  toId: string,
+) {
   const a = ctx.requireArtifact(artifactId);
   const from = ctx.requireRevision(fromId);
   const to = ctx.requireRevision(toId);
@@ -526,8 +598,12 @@ export function compareRevisions(ctx: ProjectContext, artifactId: string, fromId
     throw new StarkError(ErrorCodes.VALIDATION, 'Revisions do not belong to artifact');
   }
   const fileDiff = {
-    added: to.files.filter((f) => !from.files.some((g) => g.path === f.path && g.sha256 === f.sha256)),
-    removed: from.files.filter((f) => !to.files.some((g) => g.path === f.path && g.sha256 === f.sha256)),
+    added: to.files.filter(
+      (f) => !from.files.some((g) => g.path === f.path && g.sha256 === f.sha256),
+    ),
+    removed: from.files.filter(
+      (f) => !to.files.some((g) => g.path === f.path && g.sha256 === f.sha256),
+    ),
   };
   return {
     artifact: a,
@@ -536,8 +612,14 @@ export function compareRevisions(ctx: ProjectContext, artifactId: string, fromId
     payloadDiff: diffPayloads(from.payload, to.payload),
     fileDiff,
     inputDiff: {
-      added: to.inputs.filter((i) => !from.inputs.some((j) => j.artifactId === i.artifactId && j.revisionId === i.revisionId)),
-      removed: from.inputs.filter((i) => !to.inputs.some((j) => j.artifactId === i.artifactId && j.revisionId === i.revisionId)),
+      added: to.inputs.filter(
+        (i) =>
+          !from.inputs.some((j) => j.artifactId === i.artifactId && j.revisionId === i.revisionId),
+      ),
+      removed: from.inputs.filter(
+        (i) =>
+          !to.inputs.some((j) => j.artifactId === i.artifactId && j.revisionId === i.revisionId),
+      ),
     },
   };
 }

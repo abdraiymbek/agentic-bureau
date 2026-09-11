@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { artifactTypeSchema, connectionSchema, evidenceKindSchema, pinSchema, proposedChangeSchema, relationshipSchema, reviewStateSchema } from './entities.js';
+import {
+  artifactTypeSchema,
+  connectionSchema,
+  evidenceKindSchema,
+  pinSchema,
+  proposedChangeSchema,
+  relationshipSchema,
+  reviewStateSchema,
+} from './entities.js';
 import { idSchema, revisionRefSchema } from './ids.js';
 import { maybeQuantitySchema, moneySchema, quantitySchema } from './units.js';
 
@@ -22,14 +30,25 @@ const idem = { idempotencyKey: z.string().optional() };
 
 /* ------------------------------- project ------------------------------- */
 
-const projectCreate = z.object({ name: z.string().min(1), path: z.string().min(1), intent: z.string().default('') });
+const projectCreate = z.object({
+  name: z.string().min(1),
+  path: z.string().min(1),
+  intent: z.string().default(''),
+});
 const projectOpen = z.object({ path: z.string().min(1) });
 const projectRename = z.object({ name: z.string().min(1) });
 const projectSummary = z.object({ budget: z.number().int().positive().default(6000) });
-const projectSearch = z.object({ query: z.string().min(1), limit: z.number().int().positive().max(100).default(20) });
+const projectSearch = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().positive().max(100).default(20),
+});
 const projectChangesSince = z.object({ seq: z.number().int().nonnegative() });
 const projectExportArchive = z.object({ destPath: z.string().min(1) });
-const projectImportArchive = z.object({ archivePath: z.string().min(1), destDir: z.string().min(1), newIdentity: z.boolean().default(false) });
+const projectImportArchive = z.object({
+  archivePath: z.string().min(1),
+  destDir: z.string().min(1),
+  newIdentity: z.boolean().default(false),
+});
 const projectUpdateIntent = z.object({ intent: z.string() });
 
 /* ------------------------------- artifact ------------------------------ */
@@ -43,17 +62,34 @@ const artifactList = z.object({
 });
 const artifactRead = z.object({ artifactId: idSchema, revisionId: idSchema.optional() });
 const artifactHistory = z.object({ artifactId: idSchema });
-const artifactCompare = z.object({ artifactId: idSchema, fromRevisionId: idSchema, toRevisionId: idSchema });
+const artifactCompare = z.object({
+  artifactId: idSchema,
+  fromRevisionId: idSchema,
+  toRevisionId: idSchema,
+});
 const artifactCreateDraft = z.object({
   type: artifactTypeSchema,
   title: z.string().min(1),
   subsystem: z.string().nullable().optional(),
   payload: z.unknown(),
   files: z
-    .array(z.object({ path: z.string(), contentBase64: z.string().optional(), sourcePath: z.string().optional() }))
+    .array(
+      z.object({
+        path: z.string(),
+        contentBase64: z.string().optional(),
+        sourcePath: z.string().optional(),
+      }),
+    )
     .default([]),
   inputs: z
-    .array(z.object({ artifactId: idSchema, revisionId: idSchema.optional(), relationship: relationshipSchema.optional(), label: z.string().optional() }))
+    .array(
+      z.object({
+        artifactId: idSchema,
+        revisionId: idSchema.optional(),
+        relationship: relationshipSchema.optional(),
+        label: z.string().optional(),
+      }),
+    )
     .default([]),
   rationale: z.string().default(''),
   ...idem,
@@ -66,10 +102,23 @@ const artifactUpdateDraft = z.object({
   title: z.string().optional(),
   payload: z.unknown().optional(),
   files: z
-    .array(z.object({ path: z.string(), contentBase64: z.string().optional(), sourcePath: z.string().optional() }))
+    .array(
+      z.object({
+        path: z.string(),
+        contentBase64: z.string().optional(),
+        sourcePath: z.string().optional(),
+      }),
+    )
     .optional(),
   inputs: z
-    .array(z.object({ artifactId: idSchema, revisionId: idSchema.optional(), relationship: relationshipSchema.optional(), label: z.string().optional() }))
+    .array(
+      z.object({
+        artifactId: idSchema,
+        revisionId: idSchema.optional(),
+        relationship: relationshipSchema.optional(),
+        label: z.string().optional(),
+      }),
+    )
     .optional(),
   rationale: z.string().optional(),
   ...idem,
@@ -83,7 +132,12 @@ const artifactImportFile = z.object({
   ...idem,
 });
 /** User-only: accept an existing draft revision as baseline (implicit approve). */
-const artifactAcceptDraft = z.object({ artifactId: idSchema, draftRevisionId: idSchema, rationale: z.string().default(''), ...idem });
+const artifactAcceptDraft = z.object({
+  artifactId: idSchema,
+  draftRevisionId: idSchema,
+  rationale: z.string().default(''),
+  ...idem,
+});
 /** User-only direct baseline edit. Agents receive APPROVAL_REQUIRED. */
 const artifactApplyEdit = z.object({
   artifactId: idSchema,
@@ -97,12 +151,25 @@ const artifactApplyEdit = z.object({
   rationale: z.string().default(''),
   ...idem,
 });
-const artifactRevert = z.object({ artifactId: idSchema, toRevisionId: idSchema, rationale: z.string().default(''), ...idem });
+const artifactRevert = z.object({
+  artifactId: idSchema,
+  toRevisionId: idSchema,
+  rationale: z.string().default(''),
+  ...idem,
+});
 const artifactArchive = z.object({ artifactId: idSchema, archived: z.boolean(), ...idem });
 const artifactReveal = z.object({ artifactId: idSchema });
 /** Read a file that belongs to an artifact revision (project-scoped). */
-const artifactReadFile = z.object({ artifactId: idSchema, path: z.string().min(1), revisionId: idSchema.optional() });
-const artifactSetSubsystem = z.object({ artifactId: idSchema, subsystem: z.string().nullable(), ...idem });
+const artifactReadFile = z.object({
+  artifactId: idSchema,
+  path: z.string().min(1),
+  revisionId: idSchema.optional(),
+});
+const artifactSetSubsystem = z.object({
+  artifactId: idSchema,
+  subsystem: z.string().nullable(),
+  ...idem,
+});
 
 /* ------------------------------- graph --------------------------------- */
 
@@ -137,7 +204,9 @@ const sourceCapture = z.object({
   publisher: z.string().optional(),
   locator: z.string().optional(),
   excerpt: z.string().optional(),
-  sourceKind: z.enum(['manufacturer', 'supplier', 'datasheet', 'article', 'user_import', 'note', 'other']).default('other'),
+  sourceKind: z
+    .enum(['manufacturer', 'supplier', 'datasheet', 'article', 'user_import', 'note', 'other'])
+    .default('other'),
   ...idem,
 });
 const sourceRead = z.object({ sourceId: idSchema });
@@ -158,9 +227,26 @@ const componentAddCandidate = z.object({
   partNumber: z.string().min(1),
   description: z.string().optional(),
   properties: z
-    .record(z.string(), z.object({ quantity: maybeQuantitySchema, sourceId: idSchema.optional(), locator: z.string().optional(), observedAt: z.string().optional() }))
+    .record(
+      z.string(),
+      z.object({
+        quantity: maybeQuantitySchema,
+        sourceId: idSchema.optional(),
+        locator: z.string().optional(),
+        observedAt: z.string().optional(),
+      }),
+    )
     .default({}),
-  attributes: z.record(z.string(), z.object({ value: z.string(), sourceId: idSchema.optional(), locator: z.string().optional() })).default({}),
+  attributes: z
+    .record(
+      z.string(),
+      z.object({
+        value: z.string(),
+        sourceId: idSchema.optional(),
+        locator: z.string().optional(),
+      }),
+    )
+    .default({}),
   offer: z
     .object({
       seller: z.string(),
@@ -180,7 +266,15 @@ const componentProposeSelection = z.object({
   artifactId: idSchema,
   revisionId: idSchema,
   bomLines: z
-    .array(z.object({ subsystem: z.string().nullable().default(null), quantity: z.number().positive(), offerId: idSchema.nullable().default(null), location: z.string().nullable().default(null), notes: z.string().default('') }))
+    .array(
+      z.object({
+        subsystem: z.string().nullable().default(null),
+        quantity: z.number().positive(),
+        offerId: idSchema.nullable().default(null),
+        location: z.string().nullable().default(null),
+        notes: z.string().default(''),
+      }),
+    )
     .min(1),
   replacesArtifactId: idSchema.optional(),
   reason: z.string(),
@@ -232,12 +326,18 @@ const cadValidateSource = z.object({ artifactId: idSchema, revisionId: idSchema.
 const cadRender = z.object({
   artifactId: idSchema,
   revisionId: idSchema.optional(),
-  params: z.record(z.string(), z.union([quantitySchema, z.number(), z.string(), z.boolean()])).optional(),
+  params: z
+    .record(z.string(), z.union([quantitySchema, z.number(), z.string(), z.boolean()]))
+    .optional(),
   timeoutMs: z.number().int().positive().max(600_000).default(120_000),
   ...idem,
 });
 const cadInspect = z.object({ artifactId: idSchema, revisionId: idSchema.optional() });
-const cadExport = z.object({ artifactId: idSchema, destPath: z.string().min(1), format: z.enum(['stl', 'scad']).default('stl') });
+const cadExport = z.object({
+  artifactId: idSchema,
+  destPath: z.string().min(1),
+  format: z.enum(['stl', 'scad']).default('stl'),
+});
 
 /* ------------------------------- calculation --------------------------- */
 
@@ -246,7 +346,14 @@ const calculationRun = z.object({
   templateId: z.string().optional(),
   expression: z.string().optional(),
   inputs: z
-    .array(z.object({ name: z.string(), quantity: maybeQuantitySchema, sourceRef: revisionRefSchema.optional(), literal: z.boolean().default(false) }))
+    .array(
+      z.object({
+        name: z.string(),
+        quantity: maybeQuantitySchema,
+        sourceRef: revisionRefSchema.optional(),
+        literal: z.boolean().default(false),
+      }),
+    )
     .default([]),
   assumptions: z.array(z.string()).default([]),
   title: z.string().optional(),
@@ -286,16 +393,35 @@ const proposalWait = z.object({
   timeoutMs: z.number().int().positive().max(600_000).default(60_000),
   cursor: z.number().int().nonnegative().optional(),
 });
-const proposalList = z.object({ state: z.enum(['pending', 'accepted', 'rejected', 'changes_requested', 'conflicted', 'cancelled']).optional() });
-const proposalApprove = z.object({ proposalId: idSchema, rationale: z.string().default(''), ...idem });
-const proposalReject = z.object({ proposalId: idSchema, rationale: z.string().default(''), ...idem });
-const proposalRequestChanges = z.object({ proposalId: idSchema, rationale: z.string().default(''), ...idem });
+const proposalList = z.object({
+  state: z
+    .enum(['pending', 'accepted', 'rejected', 'changes_requested', 'conflicted', 'cancelled'])
+    .optional(),
+});
+const proposalApprove = z.object({
+  proposalId: idSchema,
+  rationale: z.string().default(''),
+  ...idem,
+});
+const proposalReject = z.object({
+  proposalId: idSchema,
+  rationale: z.string().default(''),
+  ...idem,
+});
+const proposalRequestChanges = z.object({
+  proposalId: idSchema,
+  rationale: z.string().default(''),
+  ...idem,
+});
 
 /* ------------------------------- jobs / tools -------------------------- */
 
 const jobRead = z.object({ jobId: idSchema });
 const jobCancel = z.object({ jobId: idSchema });
-const jobList = z.object({ status: z.string().optional(), limit: z.number().int().positive().max(200).default(50) });
+const jobList = z.object({
+  status: z.string().optional(),
+  limit: z.number().int().positive().max(200).default(50),
+});
 const toolList = z.object({});
 const toolDoctor = z.object({ toolId: z.string().optional() });
 
@@ -303,7 +429,15 @@ const toolDoctor = z.object({ toolId: z.string().optional() });
 
 const testCreateDraft = z.object({
   title: z.string().min(1),
-  procedure: z.array(z.object({ step: z.number().int(), instruction: z.string(), expected: z.string().optional() })).min(1),
+  procedure: z
+    .array(
+      z.object({
+        step: z.number().int(),
+        instruction: z.string(),
+        expected: z.string().optional(),
+      }),
+    )
+    .min(1),
   requirementRefs: z.array(revisionRefSchema).default([]),
   conditions: z.string().optional(),
   ...idem,
@@ -315,7 +449,15 @@ const testRecordResult = z.object({
   observation: z.string(),
   result: z.enum(['planned', 'not_run', 'passed', 'failed', 'inconclusive']),
   conditions: z.string().optional(),
-  attachments: z.array(z.object({ path: z.string(), sourcePath: z.string().optional(), contentBase64: z.string().optional() })).default([]),
+  attachments: z
+    .array(
+      z.object({
+        path: z.string(),
+        sourcePath: z.string().optional(),
+        contentBase64: z.string().optional(),
+      }),
+    )
+    .default([]),
   measurementOrigin: z.string().optional(),
   ...idem,
 });
@@ -323,7 +465,12 @@ const testRecordResult = z.object({
 /* ------------------------------- build --------------------------------- */
 
 const buildPreview = z.object({});
-const buildExport = z.object({ destPath: z.string().min(1), includeDrafts: z.boolean().default(false), label: z.string().optional(), ...idem });
+const buildExport = z.object({
+  destPath: z.string().min(1),
+  includeDrafts: z.boolean().default(false),
+  label: z.string().optional(),
+  ...idem,
+});
 
 /* ------------------------------- ui ------------------------------------ */
 
@@ -340,7 +487,10 @@ const terminalStart = z.object({
   args: z.array(z.string()).optional(),
 });
 const terminalWrite = z.object({ data: z.string() });
-const terminalResize = z.object({ cols: z.number().int().positive(), rows: z.number().int().positive() });
+const terminalResize = z.object({
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+});
 const terminalInterrupt = z.object({});
 const terminalStop = z.object({});
 const terminalRestart = z.object({});
@@ -348,7 +498,12 @@ const terminalState = z.object({});
 
 const connectionList = z.object({});
 const connectionTest = z.object({ adapterId: z.string() });
-const connectionConfigure = z.object({ adapterId: z.string(), executablePath: z.string().optional(), args: z.array(z.string()).optional(), env: z.record(z.string(), z.string()).optional() });
+const connectionConfigure = z.object({
+  adapterId: z.string(),
+  executablePath: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
 
 const settingsGet = z.object({ key: z.string().optional() });
 const settingsSet = z.object({ key: z.string(), value: z.unknown() });
@@ -375,8 +530,20 @@ export const OPS: OpDef[] = [
   def('project.update_intent', projectUpdateIntent, 'user', true, 'Update project intent'),
   def('project.summary', projectSummary, 'both', false, 'Bounded structured project summary'),
   def('project.search', projectSearch, 'both', false, 'Full-text search over project records'),
-  def('project.changes_since', projectChangesSince, 'both', false, 'Events after a sequence cursor'),
-  def('project.export_archive', projectExportArchive, 'user', false, 'Lossless project archive export'),
+  def(
+    'project.changes_since',
+    projectChangesSince,
+    'both',
+    false,
+    'Events after a sequence cursor',
+  ),
+  def(
+    'project.export_archive',
+    projectExportArchive,
+    'user',
+    false,
+    'Lossless project archive export',
+  ),
   def('project.import_archive', projectImportArchive, 'user', true, 'Import a project archive'),
   def('app.recent_projects', appRecentProjects, 'user', false, 'List recent project folders'),
   def('app.diagnostics', appDiagnostics, 'user', false, 'Previewable diagnostic bundle'),
@@ -385,16 +552,58 @@ export const OPS: OpDef[] = [
   def('artifact.read', artifactRead, 'both', false, 'Read an artifact revision'),
   def('artifact.history', artifactHistory, 'both', false, 'Revision history'),
   def('artifact.compare', artifactCompare, 'both', false, 'Compare two revisions'),
-  def('artifact.create_draft', artifactCreateDraft, 'both', true, 'Create artifact + first draft revision'),
-  def('artifact.update_draft', artifactUpdateDraft, 'both', true, 'Create a draft revision on an artifact'),
-  def('artifact.import_file', artifactImportFile, 'both', true, 'Import an external file as a draft'),
-  def('artifact.apply_edit', artifactApplyEdit, 'user', true, 'User direct baseline edit (decision + propagation)'),
-  def('artifact.accept_draft', artifactAcceptDraft, 'user', true, 'Accept a draft revision as the baseline'),
+  def(
+    'artifact.create_draft',
+    artifactCreateDraft,
+    'both',
+    true,
+    'Create artifact + first draft revision',
+  ),
+  def(
+    'artifact.update_draft',
+    artifactUpdateDraft,
+    'both',
+    true,
+    'Create a draft revision on an artifact',
+  ),
+  def(
+    'artifact.import_file',
+    artifactImportFile,
+    'both',
+    true,
+    'Import an external file as a draft',
+  ),
+  def(
+    'artifact.apply_edit',
+    artifactApplyEdit,
+    'user',
+    true,
+    'User direct baseline edit (decision + propagation)',
+  ),
+  def(
+    'artifact.accept_draft',
+    artifactAcceptDraft,
+    'user',
+    true,
+    'Accept a draft revision as the baseline',
+  ),
   def('artifact.revert', artifactRevert, 'user', true, 'Revert baseline to a historical revision'),
   def('artifact.archive', artifactArchive, 'user', true, 'Archive/unarchive an artifact'),
   def('artifact.reveal', artifactReveal, 'user', false, 'Reveal artifact files in OS file manager'),
-  def('artifact.read_file', artifactReadFile, 'both', false, 'Read an artifact file (base64) by project-relative path'),
-  def('artifact.set_subsystem', artifactSetSubsystem, 'user', true, 'Move artifact between subsystems'),
+  def(
+    'artifact.read_file',
+    artifactReadFile,
+    'both',
+    false,
+    'Read an artifact file (base64) by project-relative path',
+  ),
+  def(
+    'artifact.set_subsystem',
+    artifactSetSubsystem,
+    'user',
+    true,
+    'Move artifact between subsystems',
+  ),
 
   def('graph.neighbors', graphNeighbors, 'both', false, 'Bounded graph neighborhood'),
   def('graph.impact', graphImpact, 'both', false, 'Impact report for changed revisions'),
@@ -403,17 +612,41 @@ export const OPS: OpDef[] = [
 
   def('source.capture', sourceCapture, 'both', true, 'Capture a URL/file as a source'),
   def('source.read', sourceRead, 'both', false, 'Read a source record'),
-  def('research.search', researchSearch, 'both', false, 'Navigate research browser to a search query'),
-  def('research.read_page', researchReadPage, 'both', false, 'Read current research page text/links'),
+  def(
+    'research.search',
+    researchSearch,
+    'both',
+    false,
+    'Navigate research browser to a search query',
+  ),
+  def(
+    'research.read_page',
+    researchReadPage,
+    'both',
+    false,
+    'Read current research page text/links',
+  ),
   def('browser.open', browserOpen, 'both', false, 'Open URL in the isolated research browser'),
   def('browser.read', browserRead, 'both', false, 'Read current page text'),
   def('browser.follow_link', browserFollowLink, 'both', false, 'Follow a link on the current page'),
   def('browser.capture', browserCapture, 'both', true, 'Capture current page as a source'),
   def('browser.screenshot', browserScreenshot, 'both', false, 'Screenshot current page'),
 
-  def('component.add_candidate', componentAddCandidate, 'both', true, 'Add a sourced component candidate'),
+  def(
+    'component.add_candidate',
+    componentAddCandidate,
+    'both',
+    true,
+    'Add a sourced component candidate',
+  ),
   def('component.compare', componentCompare, 'both', false, 'Side-by-side property comparison'),
-  def('component.propose_selection', componentProposeSelection, 'both', true, 'Propose selecting a component'),
+  def(
+    'component.propose_selection',
+    componentProposeSelection,
+    'both',
+    true,
+    'Propose selecting a component',
+  ),
   def('component.add_offer', componentAddOffer, 'both', true, 'Add a seller offer observation'),
   def('bom.read', bomRead, 'both', false, 'Read live BOM with totals'),
   def('bom.propose_edit', bomProposeEdit, 'both', true, 'Propose BOM line changes'),
@@ -428,13 +661,25 @@ export const OPS: OpDef[] = [
   def('cad.export', cadExport, 'user', false, 'Export STL/SCAD file to a chosen path'),
 
   def('calculation.run', calculationRun, 'both', true, 'Run a unit-aware calculation'),
-  def('calculation.explain_inputs', calculationExplainInputs, 'both', false, 'Explain inputs and their provenance'),
+  def(
+    'calculation.explain_inputs',
+    calculationExplainInputs,
+    'both',
+    false,
+    'Explain inputs and their provenance',
+  ),
   def('calculation.templates', calculationTemplates, 'both', false, 'List calculation templates'),
 
   def('wiring.validate', wiringValidate, 'both', false, 'Run wiring checks'),
   def('wiring.render', wiringRender, 'both', false, 'Derived wiring table + diagram'),
   def('wiring.set_pins', wiringSetPins, 'both', true, 'Set component pins on a wiring draft'),
-  def('wiring.set_connections', wiringSetConnections, 'both', true, 'Set connections on a wiring draft'),
+  def(
+    'wiring.set_connections',
+    wiringSetConnections,
+    'both',
+    true,
+    'Set connections on a wiring draft',
+  ),
 
   def('proposal.submit', proposalSubmit, 'both', true, 'Submit an immutable proposal'),
   def('proposal.read', proposalRead, 'both', false, 'Read a proposal'),
@@ -442,7 +687,13 @@ export const OPS: OpDef[] = [
   def('proposal.list', proposalList, 'both', false, 'List proposals'),
   def('proposal.approve', proposalApprove, 'user', true, 'Approve a proposal (human only)'),
   def('proposal.reject', proposalReject, 'user', true, 'Reject a proposal (human only)'),
-  def('proposal.request_changes', proposalRequestChanges, 'user', true, 'Request changes on a proposal'),
+  def(
+    'proposal.request_changes',
+    proposalRequestChanges,
+    'user',
+    true,
+    'Request changes on a proposal',
+  ),
 
   def('job.read', jobRead, 'both', false, 'Read job status/log'),
   def('job.cancel', jobCancel, 'both', true, 'Cancel an owned job'),
@@ -471,7 +722,13 @@ export const OPS: OpDef[] = [
 
   def('connection.list', connectionList, 'user', false, 'List adapter/tool connection status'),
   def('connection.test', connectionTest, 'user', true, 'Run a live bridge connection test'),
-  def('connection.configure', connectionConfigure, 'user', true, 'Configure adapter executable/args/env'),
+  def(
+    'connection.configure',
+    connectionConfigure,
+    'user',
+    true,
+    'Configure adapter executable/args/env',
+  ),
 
   def('settings.get', settingsGet, 'user', false, 'Read application settings'),
   def('settings.set', settingsSet, 'user', true, 'Write an application setting'),

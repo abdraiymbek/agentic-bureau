@@ -24,8 +24,13 @@ fs.mkdirSync(vendorDir, { recursive: true });
 fs.writeFileSync(
   path.join(root, 'resources', 'package.json'),
   JSON.stringify(
-    { name: 'stark-runtime', private: true, dependencies: Object.fromEntries(roots.map((m) => [m, '*'])) },
-    null, 2,
+    {
+      name: 'stark-runtime',
+      private: true,
+      dependencies: Object.fromEntries(roots.map((m) => [m, '*'])),
+    },
+    null,
+    2,
   ),
 );
 
@@ -34,7 +39,10 @@ const queue = roots.map((name) => ({ name, from: appRequire }));
 const seen = new Set();
 while (queue.length) {
   const { name, from } = queue.shift();
-  const top = name.split('/').slice(0, name.startsWith('@') ? 2 : 1).join('/');
+  const top = name
+    .split('/')
+    .slice(0, name.startsWith('@') ? 2 : 1)
+    .join('/');
   if (seen.has(top)) continue;
   let pkgJsonPath;
   try {
@@ -63,9 +71,12 @@ execFileSync(
   [
     path.join(path.dirname(rebuildMain), 'cli.js'),
     '--force',
-    '--module-dir', path.join(root, 'resources'),
-    '--only', natives.join(','),
-    '--version', electronPkg.version,
+    '--module-dir',
+    path.join(root, 'resources'),
+    '--only',
+    natives.join(','),
+    '--version',
+    electronPkg.version,
   ],
   { stdio: 'inherit', cwd: root },
 );

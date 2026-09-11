@@ -44,7 +44,10 @@ export class OpenScadAdapter implements CadAdapter {
   private readonly opts: OpenScadOptions;
   /** Lazily cached login-shell PATH lookup (Finder-launched apps lack PATH). */
   private loginShellPath: string | null | undefined;
-  private readonly jobs = new Map<string, { child: ChildProcess; state: 'running' | 'cancelling' }>();
+  private readonly jobs = new Map<
+    string,
+    { child: ChildProcess; state: 'running' | 'cancelling' }
+  >();
 
   constructor(opts?: OpenScadOptions) {
     this.opts = opts ?? {};
@@ -191,7 +194,12 @@ export class OpenScadAdapter implements CadAdapter {
       let stdout = '';
       let stderr = '';
       let done = false;
-      const finish = (r: { code: number | null; stdout: string; stderr: string; error?: string }) => {
+      const finish = (r: {
+        code: number | null;
+        stdout: string;
+        stderr: string;
+        error?: string;
+      }) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
@@ -262,14 +270,14 @@ export class OpenScadAdapter implements CadAdapter {
       const stl = path.join(dir, 'probe.stl');
       fs.writeFileSync(scad, 'cube(1);\n');
       const r = await this.runCapture(exe, ['-o', stl, scad], PROBE_RENDER_TIMEOUT_MS);
-      const ok =
-        r.code === 0 && fs.existsSync(stl) && fs.statSync(stl).size > 0;
+      const ok = r.code === 0 && fs.existsSync(stl) && fs.statSync(stl).size > 0;
       if (!ok) {
         return {
           available: false,
           executablePath: exe.display,
           version,
-          error: r.error ?? `probe render failed (exit ${r.code}): ${r.stderr.trim().slice(0, 200)}`,
+          error:
+            r.error ?? `probe render failed (exit ${r.code}): ${r.stderr.trim().slice(0, 200)}`,
         };
       }
       return { available: true, executablePath: exe.display, version };
@@ -301,9 +309,13 @@ export class OpenScadAdapter implements CadAdapter {
     const args = [...exe.argsPrefix, '-o', spec.outPath];
     for (const [k, v] of Object.entries(spec.params ?? {})) {
       const val =
-        typeof v === 'boolean' ? (v ? 'true' : 'false')
-        : typeof v === 'number' ? String(v)
-        : `"${String(v).replace(/(["\\])/g, '\\$1')}"`;
+        typeof v === 'boolean'
+          ? v
+            ? 'true'
+            : 'false'
+          : typeof v === 'number'
+            ? String(v)
+            : `"${String(v).replace(/(["\\])/g, '\\$1')}"`;
       args.push('-D', `${k}=${val}`);
     }
     args.push(spec.scadPath);

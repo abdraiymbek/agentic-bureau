@@ -12,10 +12,15 @@ export function WelcomeView() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void cmd<{ projects: string[] }>('app.recent_projects').then((r) => setRecents(r.projects)).catch(() => {});
+    void cmd<{ projects: string[] }>('app.recent_projects')
+      .then((r) => setRecents(r.projects))
+      .catch(() => {});
   }, []);
 
-  const afterOpen = async (r: { project: Project; projectId: string; readOnly?: boolean }, path: string) => {
+  const afterOpen = async (
+    r: { project: Project; projectId: string; readOnly?: boolean },
+    path: string,
+  ) => {
     set({ project: r.project, projectPath: path, readOnly: !!r.readOnly });
     setActive(r.projectId);
     await useStore.getState().refreshArtifacts();
@@ -30,7 +35,11 @@ export function WelcomeView() {
     if (!dir) return;
     setBusy(true);
     try {
-      const r = await cmd<{ project: Project; projectId: string }>('project.create', { name, path: dir, intent });
+      const r = await cmd<{ project: Project; projectId: string }>('project.create', {
+        name,
+        path: dir,
+        intent,
+      });
       await afterOpen({ ...r }, dir);
     } catch (e) {
       toast('error', (e as Error).message);
@@ -44,7 +53,10 @@ export function WelcomeView() {
     if (!p) return;
     setBusy(true);
     try {
-      const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>('project.open', { path: p });
+      const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>(
+        'project.open',
+        { path: p },
+      );
       await afterOpen(r, p);
     } catch (e) {
       toast('error', (e as Error).message);
@@ -57,11 +69,26 @@ export function WelcomeView() {
     <div style={{ maxWidth: 560, margin: '10vh auto', padding: 24 }}>
       <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>STARK</h1>
       <p className="dim" style={{ marginBottom: 24 }}>
-        Local engineering workspace. Bring your agent CLI — STARK supplies the project, tools, and review boundary.
+        Local engineering workspace. Bring your agent CLI — STARK supplies the project, tools, and
+        review boundary.
       </p>
 
-      <div className="col" style={{ gap: 12, background: 'var(--bg-main)', padding: 16, borderRadius: 6, border: '1px solid var(--border)' }}>
-        <div className="dim" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>New project</div>
+      <div
+        className="col"
+        style={{
+          gap: 12,
+          background: 'var(--bg-main)',
+          padding: 16,
+          borderRadius: 6,
+          border: '1px solid var(--border)',
+        }}
+      >
+        <div
+          className="dim"
+          style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+        >
+          New project
+        </div>
         <input placeholder="Project name" value={name} onChange={(e) => setName(e.target.value)} />
         <textarea
           placeholder="What are you building? (intent)"
@@ -80,7 +107,15 @@ export function WelcomeView() {
         </button>
         {recents.length > 0 && (
           <>
-            <div className="dim" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 8 }}>
+            <div
+              className="dim"
+              style={{
+                fontSize: 12,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginTop: 8,
+              }}
+            >
               Recent
             </div>
             {recents.map((r) => (

@@ -185,10 +185,7 @@ export function compatible(a: Quantity, b: Quantity): boolean {
 
 export function assertCompatible(a: Quantity, b: Quantity): void {
   if (!compatible(a, b)) {
-    throw new StarkError(
-      ErrorCodes.INVALID_UNITS,
-      `Incompatible units: ${a.unit} vs ${b.unit}`,
-    );
+    throw new StarkError(ErrorCodes.INVALID_UNITS, `Incompatible units: ${a.unit} vs ${b.unit}`);
   }
 }
 

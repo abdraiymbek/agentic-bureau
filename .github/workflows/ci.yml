@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: typecheck + lint + vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # better-sqlite3 / node-pty must be built for the Node ABI for vitest.
+      - run: pnpm rebuild:node
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+
+  package-macos:
+    name: package + packaged smoke (macOS arm64)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm rebuild:node
+      - run: pnpm package
+      - run: pnpm smoke:packaged
+      - name: Upload packaged app
+        uses: actions/upload-artifact@v4
+        with:
+          name: stark-macos-arm64
+          path: apps/desktop/out/
+          if-no-files-found: error
+
+  package-windows:
+    name: package (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      # The packaged smoke uses POSIX paths in a few places — run it as a
+      # signal check but don't gate the build on it until verified on win32.
+      - run: pnpm smoke:packaged
+        continue-on-error: true
+      - name: Upload packaged app
+        uses: actions/upload-artifact@v4
+        with:
+          name: stark-win32-x64
+          path: apps/desktop/out/
+          if-no-files-found: error
+
+  rust-bridge:
+    name: rust fmt + clippy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native/stark-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings

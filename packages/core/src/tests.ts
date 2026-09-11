@@ -4,12 +4,16 @@ import { commitRevision, createDraft, ingestFiles } from './artifacts.js';
 import { addEdge } from './graph.js';
 
 /** Tests: procedures + independently-typed results (assumed/measured/…). */
-export function createTestDraft(ctx: ProjectContext, input: {
-  title: string;
-  procedure: { step: number; instruction: string; expected?: string }[];
-  requirementRefs: { artifactId: string; revisionId: string }[];
-  conditions?: string;
-}, origin: Origin) {
+export function createTestDraft(
+  ctx: ProjectContext,
+  input: {
+    title: string;
+    procedure: { step: number; instruction: string; expected?: string }[];
+    requirementRefs: { artifactId: string; revisionId: string }[];
+    conditions?: string;
+  },
+  origin: Origin,
+) {
   const { artifact, revision } = createDraft(
     ctx,
     {
@@ -33,16 +37,20 @@ export function createTestDraft(ctx: ProjectContext, input: {
   return { artifact, revision };
 }
 
-export function recordResult(ctx: ProjectContext, input: {
-  artifactId: string;
-  requirementRef?: { artifactId: string; revisionId: string };
-  evidenceKind: TestResult['evidenceKind'];
-  observation: string;
-  result: TestResult['result'];
-  conditions?: string;
-  attachments: { path: string; sourcePath?: string; contentBase64?: string }[];
-  measurementOrigin?: string;
-}, origin: Origin) {
+export function recordResult(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    requirementRef?: { artifactId: string; revisionId: string };
+    evidenceKind: TestResult['evidenceKind'];
+    observation: string;
+    result: TestResult['result'];
+    conditions?: string;
+    attachments: { path: string; sourcePath?: string; contentBase64?: string }[];
+    measurementOrigin?: string;
+  },
+  origin: Origin,
+) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'test') {
     throw new StarkError(ErrorCodes.VALIDATION, 'Results attach to test artifacts');
@@ -51,7 +59,11 @@ export function recordResult(ctx: ProjectContext, input: {
     ? ctx.repo.getRevision(artifact.selectedRevisionId)
     : ctx.repo.listRevisions(artifact.id).at(-1);
   if (!cur) throw new StarkError(ErrorCodes.VALIDATION, 'Test has no revision');
-  const payload = cur.payload as { procedure: unknown[]; conditions?: string; results: TestResult[] };
+  const payload = cur.payload as {
+    procedure: unknown[];
+    conditions?: string;
+    results: TestResult[];
+  };
   const files = ingestFiles(ctx, input.attachments);
   const result: TestResult = {
     id: newId(),

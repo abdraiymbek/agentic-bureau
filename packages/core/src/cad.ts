@@ -43,7 +43,11 @@ function mechPayload(ctx: ProjectContext, artifactId: string, revisionId?: strin
   return { artifact, rev, payload: rev.payload as MechanicalPayload };
 }
 
-export async function cadValidateSource(ctx: ProjectContext, artifactId: string, revisionId?: string) {
+export async function cadValidateSource(
+  ctx: ProjectContext,
+  artifactId: string,
+  revisionId?: string,
+) {
   const { rev, payload } = mechPayload(ctx, artifactId, revisionId);
   const scad = payload.scad ?? rev.files.find((f) => f.path.endsWith('.scad'));
   if (!scad) throw new StarkError(ErrorCodes.VALIDATION, 'No .scad source on revision');
@@ -66,12 +70,16 @@ export async function cadValidateSource(ctx: ProjectContext, artifactId: string,
  * Returns the job immediately; completion commits a draft revision with the
  * mesh — flagged INPUT_CHANGED if upstream revisions moved mid-run.
  */
-export async function cadRender(ctx: ProjectContext, input: {
-  artifactId: string;
-  revisionId?: string;
-  params?: Record<string, number | string | boolean>;
-  timeoutMs: number;
-}, origin: Origin): Promise<{ job: Job }> {
+export async function cadRender(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    revisionId?: string;
+    params?: Record<string, number | string | boolean>;
+    timeoutMs: number;
+  },
+  origin: Origin,
+): Promise<{ job: Job }> {
   ctx.assertWritable();
   const cad = cadTool(ctx);
   const { artifact, rev, payload } = mechPayload(ctx, input.artifactId, input.revisionId);
@@ -127,7 +135,10 @@ export async function cadRender(ctx: ProjectContext, input: {
       });
       return;
     }
-    ctx.repo.updateJob(job.id, { toolVersion: probe.version, command: `${probe.executablePath} -o output.stl input.scad` });
+    ctx.repo.updateJob(job.id, {
+      toolVersion: probe.version,
+      command: `${probe.executablePath} -o output.stl input.scad`,
+    });
     const res = await cad.render(
       { jobId: job.id, scadPath: scadSrc, outPath, params, timeoutMs: input.timeoutMs, workDir },
       (chunk) => ctx.jobLog(job.id, chunk),
@@ -135,13 +146,17 @@ export async function cadRender(ctx: ProjectContext, input: {
     if (!res.ok) {
       const cancelled = res.error === 'cancelled';
       ctx.jobStatus(job.id, cancelled ? 'cancelled' : 'failed', {
-        error: cancelled ? { code: ErrorCodes.CANCELLED, message: 'Render cancelled' } : { code: ErrorCodes.VALIDATION, message: res.error ?? 'render failed' },
+        error: cancelled
+          ? { code: ErrorCodes.CANCELLED, message: 'Render cancelled' }
+          : { code: ErrorCodes.VALIDATION, message: res.error ?? 'render failed' },
       });
       return;
     }
     // Validate output: exists, parses, nonempty, plausible bounds.
     if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
-      ctx.jobStatus(job.id, 'failed', { error: { code: ErrorCodes.VALIDATION, message: 'OpenSCAD produced no output' } });
+      ctx.jobStatus(job.id, 'failed', {
+        error: { code: ErrorCodes.VALIDATION, message: 'OpenSCAD produced no output' },
+      });
       return;
     }
     const stlBuf = fs.readFileSync(outPath);
@@ -149,11 +164,18 @@ export async function cadRender(ctx: ProjectContext, input: {
     try {
       inspect = cad.inspectStl(stlBuf);
     } catch (e) {
-      ctx.jobStatus(job.id, 'failed', { error: { code: ErrorCodes.VALIDATION, message: `Invalid STL output: ${(e as Error).message}` } });
+      ctx.jobStatus(job.id, 'failed', {
+        error: {
+          code: ErrorCodes.VALIDATION,
+          message: `Invalid STL output: ${(e as Error).message}`,
+        },
+      });
       return;
     }
     if (!inspect.plausible || inspect.triangles === 0) {
-      ctx.jobStatus(job.id, 'failed', { error: { code: ErrorCodes.VALIDATION, message: 'STL has no geometry' } });
+      ctx.jobStatus(job.id, 'failed', {
+        error: { code: ErrorCodes.VALIDATION, message: 'STL has no geometry' },
+      });
       return;
     }
     const stlHash = ctx.objects.put(stlBuf);
@@ -179,10 +201,7 @@ export async function cadRender(ctx: ProjectContext, input: {
       parentId: rev.id,
       origin,
       payload: newPayload,
-      files: [
-        ...(scad ? [scad] : []),
-        { path: stlRel, sha256: stlHash, role: 'output' },
-      ],
+      files: [...(scad ? [scad] : []), { path: stlRel, sha256: stlHash, role: 'output' }],
       inputs: captured,
       rationale: inputChanged
         ? 'render output — inputs changed during run (not current evidence)'
@@ -194,7 +213,12 @@ export async function cadRender(ctx: ProjectContext, input: {
     ctx.jobStatus(job.id, inputChanged ? 'failed' : 'succeeded', {
       outputHashes: { stl: stlHash },
       error: inputChanged
-        ? { code: ErrorCodes.INPUT_CHANGED, message: 'Recorded inputs changed during render; output kept as draft, not current evidence', details: { draftRevisionId: newRev.id } }
+        ? {
+            code: ErrorCodes.INPUT_CHANGED,
+            message:
+              'Recorded inputs changed during render; output kept as draft, not current evidence',
+            details: { draftRevisionId: newRev.id },
+          }
         : undefined,
     });
     ctx.jobCancels.delete(job.id);

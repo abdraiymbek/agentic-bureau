@@ -27,7 +27,10 @@ export function submitProposal(
     const artifact = ctx.requireArtifact(c.artifactId);
     const rev = ctx.requireRevision(c.newRevisionId);
     if (rev.artifactId !== artifact.id) {
-      throw new StarkError(ErrorCodes.VALIDATION, `Revision ${c.newRevisionId} not on artifact ${c.artifactId}`);
+      throw new StarkError(
+        ErrorCodes.VALIDATION,
+        `Revision ${c.newRevisionId} not on artifact ${c.artifactId}`,
+      );
     }
     if (rev.reviewState !== 'draft' && rev.reviewState !== 'proposed') {
       throw new StarkError(
@@ -37,20 +40,30 @@ export function submitProposal(
     }
     const cur = artifact.selectedRevisionId;
     if (c.baseRevisionId !== (cur ?? null) && c.kind !== 'new_artifact') {
-      throw new StarkError(ErrorCodes.REVISION_CONFLICT, `Proposal base does not match selected revision`, {
-        repair: 'Rebuild the proposal against the current baseline.',
-        details: { artifactId: c.artifactId, selected: cur, proposed: c.baseRevisionId },
-      });
+      throw new StarkError(
+        ErrorCodes.REVISION_CONFLICT,
+        `Proposal base does not match selected revision`,
+        {
+          repair: 'Rebuild the proposal against the current baseline.',
+          details: { artifactId: c.artifactId, selected: cur, proposed: c.baseRevisionId },
+        },
+      );
     }
     ctx.repo.setRevisionState(rev.id, 'proposed');
   }
-  const refs: RevisionRef[] = input.changes.map((c) => ({ artifactId: c.artifactId, revisionId: c.newRevisionId }));
+  const refs: RevisionRef[] = input.changes.map((c) => ({
+    artifactId: c.artifactId,
+    revisionId: c.newRevisionId,
+  }));
   const impact = impactReport(ctx, refs);
   const proposal: Proposal = {
     id: newId(),
     changes: input.changes,
     reason: input.reason,
-    impact: { affectedArtifactIds: impact.affected.map((a) => a.artifactId), summary: `${impact.affected.length} downstream artifact(s) may be affected` },
+    impact: {
+      affectedArtifactIds: impact.affected.map((a) => a.artifactId),
+      summary: `${impact.affected.length} downstream artifact(s) may be affected`,
+    },
     state: 'pending',
     createdBy: origin.kind,
     createdBySession: origin.kind === 'agent' ? origin.sessionId : null,
@@ -121,7 +134,11 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
     const selected = artifact.selectedRevisionId ?? null;
     if (c.kind === 'new_artifact') continue;
     if (c.baseRevisionId !== selected) {
-      ctx.repo.updateProposalState(p.id, 'conflicted', 'Base revision changed after proposal was prepared');
+      ctx.repo.updateProposalState(
+        p.id,
+        'conflicted',
+        'Base revision changed after proposal was prepared',
+      );
       throw new StarkError(ErrorCodes.REVISION_CONFLICT, 'Proposal base is stale', {
         repair: 'Refresh the comparison and resubmit.',
         details: { proposalId: p.id, artifactId: c.artifactId, selected, base: c.baseRevisionId },

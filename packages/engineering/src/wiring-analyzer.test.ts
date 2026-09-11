@@ -17,7 +17,12 @@ const pin = (comp: string, p: string, type: Pin['type'], v?: [number, number, st
   voltageRange: v ? { min: qty(v[0], v[2]), max: qty(v[1], v[2]) } : undefined,
 });
 
-const conn = (id: string, fromPin: string, toPin: string, voltage?: ReturnType<typeof qty>): WiringConnection => ({
+const conn = (
+  id: string,
+  fromPin: string,
+  toPin: string,
+  voltage?: ReturnType<typeof qty>,
+): WiringConnection => ({
   id,
   from: { componentArtifactId: A, componentRevisionId: RA, pin: fromPin },
   to: { componentArtifactId: B, componentRevisionId: RB, pin: toPin },
@@ -26,7 +31,9 @@ const conn = (id: string, fromPin: string, toPin: string, voltage?: ReturnType<t
 });
 
 const codes = (payload: WiringPayload, resolve = ok) =>
-  analyzer().validate(payload, resolve).findings.map((f) => f.code);
+  analyzer()
+    .validate(payload, resolve)
+    .findings.map((f) => f.code);
 
 describe('WiringAnalyzer.validate', () => {
   it('clean payload produces no findings', () => {
@@ -37,10 +44,7 @@ describe('WiringAnalyzer.validate', () => {
         pin(B, 'VIN', 'power', [4.5, 14, 'V']),
         pin(B, 'GND', 'ground'),
       ],
-      connections: [
-        conn('c1', 'VCC', 'VIN', qty(12, 'V')),
-        conn('c2', 'GND', 'GND', qty(0, 'V')),
-      ],
+      connections: [conn('c1', 'VCC', 'VIN', qty(12, 'V')), conn('c2', 'GND', 'GND', qty(0, 'V'))],
     };
     const { findings, coverage } = analyzer().validate(payload, ok);
     expect(findings.filter((f) => f.severity === 'error')).toEqual([]);
@@ -57,17 +61,29 @@ describe('WiringAnalyzer.validate', () => {
 
   it('CONNECTION_UNKNOWN_PIN for undeclared pin names', () => {
     const payload: WiringPayload = {
-      pins: [pin(A, 'VCC', 'power'), pin(B, 'VIN', 'power'), pin(B, 'GND', 'ground'), pin(A, 'GND', 'ground')],
+      pins: [
+        pin(A, 'VCC', 'power'),
+        pin(B, 'VIN', 'power'),
+        pin(B, 'GND', 'ground'),
+        pin(A, 'GND', 'ground'),
+      ],
       connections: [conn('c1', 'VCC', 'VIN'), conn('c2', 'GND', 'GND'), conn('c3', 'X9', 'GND')],
     };
     const f = analyzer().validate(payload, ok).findings;
-    expect(f.some((x) => x.code === 'CONNECTION_UNKNOWN_PIN' && x.connectionId === 'c3')).toBe(true);
+    expect(f.some((x) => x.code === 'CONNECTION_UNKNOWN_PIN' && x.connectionId === 'c3')).toBe(
+      true,
+    );
     expect(f.find((x) => x.code === 'CONNECTION_UNKNOWN_PIN')!.severity).toBe('warning');
   });
 
   it('VOLTAGE_INCOMPATIBLE when connection voltage is outside a pin range', () => {
     const payload: WiringPayload = {
-      pins: [pin(A, 'VCC', 'power', [4.5, 5.5, 'V']), pin(B, 'VIN', 'power'), pin(A, 'GND', 'ground'), pin(B, 'GND', 'ground')],
+      pins: [
+        pin(A, 'VCC', 'power', [4.5, 5.5, 'V']),
+        pin(B, 'VIN', 'power'),
+        pin(A, 'GND', 'ground'),
+        pin(B, 'GND', 'ground'),
+      ],
       connections: [conn('c1', 'VCC', 'VIN', qty(12, 'V')), conn('c2', 'GND', 'GND')],
     };
     const f = analyzer().validate(payload, ok).findings;
@@ -78,7 +94,12 @@ describe('WiringAnalyzer.validate', () => {
 
   it('VOLTAGE_INCOMPATIBLE converts across compatible units', () => {
     const payload: WiringPayload = {
-      pins: [pin(A, 'VCC', 'power', [3000, 3600, 'mV']), pin(B, 'VIN', 'power'), pin(A, 'GND', 'ground'), pin(B, 'GND', 'ground')],
+      pins: [
+        pin(A, 'VCC', 'power', [3000, 3600, 'mV']),
+        pin(B, 'VIN', 'power'),
+        pin(A, 'GND', 'ground'),
+        pin(B, 'GND', 'ground'),
+      ],
       connections: [conn('c1', 'VCC', 'VIN', qty(3.3, 'V')), conn('c2', 'GND', 'GND')],
     };
     expect(codes(payload)).not.toContain('VOLTAGE_INCOMPATIBLE');
@@ -97,11 +118,13 @@ describe('WiringAnalyzer.validate', () => {
 
   it('DUPLICATE_EXCLUSIVE when a pin is used by multiple connections', () => {
     const payload: WiringPayload = {
-      pins: [pin(A, 'VCC', 'power'), pin(B, 'VIN', 'power'), pin(A, 'GND', 'ground'), pin(B, 'GND', 'ground')],
-      connections: [
-        conn('c1', 'VCC', 'VIN'),
-        conn('c2', 'VCC', 'GND'),
+      pins: [
+        pin(A, 'VCC', 'power'),
+        pin(B, 'VIN', 'power'),
+        pin(A, 'GND', 'ground'),
+        pin(B, 'GND', 'ground'),
       ],
+      connections: [conn('c1', 'VCC', 'VIN'), conn('c2', 'VCC', 'GND')],
     };
     const f = analyzer().validate(payload, ok).findings;
     const d = f.find((x) => x.code === 'DUPLICATE_EXCLUSIVE');
@@ -111,7 +134,12 @@ describe('WiringAnalyzer.validate', () => {
 
   it('CHANGED_COMPONENT when the component no longer resolves', () => {
     const payload: WiringPayload = {
-      pins: [pin(A, 'VCC', 'power'), pin(B, 'VIN', 'power'), pin(A, 'GND', 'ground'), pin(B, 'GND', 'ground')],
+      pins: [
+        pin(A, 'VCC', 'power'),
+        pin(B, 'VIN', 'power'),
+        pin(A, 'GND', 'ground'),
+        pin(B, 'GND', 'ground'),
+      ],
       connections: [conn('c1', 'VCC', 'VIN'), conn('c2', 'GND', 'GND')],
     };
     const resolve = (id: string) => (id === A ? { title: 'A' } : undefined);
@@ -125,10 +153,16 @@ describe('WiringAnalyzer.validate', () => {
 
 describe('WiringAnalyzer.render', () => {
   const payload: WiringPayload = {
-    pins: [pin(A, 'VCC', 'power'), pin(B, 'VIN', 'power'), pin(A, 'GND', 'ground'), pin(B, 'GND', 'ground')],
+    pins: [
+      pin(A, 'VCC', 'power'),
+      pin(B, 'VIN', 'power'),
+      pin(A, 'GND', 'ground'),
+      pin(B, 'GND', 'ground'),
+    ],
     connections: [conn('c1', 'VCC', 'VIN', qty(12, 'V')), conn('c2', 'GND', 'GND')],
   };
-  const titles = (id: string) => (id === A ? { title: 'ESP32 <Board>' } : { title: 'Motor & Driver' });
+  const titles = (id: string) =>
+    id === A ? { title: 'ESP32 <Board>' } : { title: 'Motor & Driver' };
 
   it('produces a labeled table', () => {
     const { table } = analyzer().render(payload, titles);

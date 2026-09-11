@@ -87,7 +87,11 @@ function run(job) {
   let v;
   if (typeof result === 'number') {
     v = result;
-  } else if (result && typeof result.valueOf === 'function' && typeof result.valueOf() === 'number') {
+  } else if (
+    result &&
+    typeof result.valueOf === 'function' &&
+    typeof result.valueOf() === 'number'
+  ) {
     v = Number(result.valueOf());
   } else {
     return fail('VALIDATION', `Unsupported expression result type: ${math.typeOf(result)}`);

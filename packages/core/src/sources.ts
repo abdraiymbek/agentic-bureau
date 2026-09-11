@@ -8,15 +8,19 @@ import { createDraft } from './artifacts.js';
  * Sources: captured URLs and imported files with provenance.
  * Unknown metadata stays absent; retrieval time is always recorded.
  */
-export function captureSource(ctx: ProjectContext, input: {
-  url?: string;
-  filePath?: string;
-  title: string;
-  publisher?: string;
-  locator?: string;
-  excerpt?: string;
-  sourceKind: SourcePayload['sourceKind'];
-}, origin: Origin) {
+export function captureSource(
+  ctx: ProjectContext,
+  input: {
+    url?: string;
+    filePath?: string;
+    title: string;
+    publisher?: string;
+    locator?: string;
+    excerpt?: string;
+    sourceKind: SourcePayload['sourceKind'];
+  },
+  origin: Origin,
+) {
   if (!input.url && !input.filePath) {
     throw new StarkError(ErrorCodes.VALIDATION, 'Source needs a url or filePath');
   }
@@ -41,7 +45,14 @@ export function captureSource(ctx: ProjectContext, input: {
   };
   return createDraft(
     ctx,
-    { type: 'source', title: input.title, payload, files: [], inputs: [], rationale: 'source capture' },
+    {
+      type: 'source',
+      title: input.title,
+      payload,
+      files: [],
+      inputs: [],
+      rationale: 'source capture',
+    },
     origin,
   );
 }
@@ -49,6 +60,8 @@ export function captureSource(ctx: ProjectContext, input: {
 export function readSource(ctx: ProjectContext, sourceId: string) {
   const a = ctx.requireArtifact(sourceId);
   if (a.type !== 'source') throw new StarkError(ErrorCodes.VALIDATION, 'Not a source artifact');
-  const rev = a.selectedRevisionId ? ctx.repo.getRevision(a.selectedRevisionId) : ctx.repo.listRevisions(a.id).at(-1);
+  const rev = a.selectedRevisionId
+    ? ctx.repo.getRevision(a.selectedRevisionId)
+    : ctx.repo.listRevisions(a.id).at(-1);
   return { artifact: a, revision: rev, payload: rev?.payload as SourcePayload | undefined };
 }

@@ -147,7 +147,10 @@ export class MathJsCalcEngine implements CalcEngine {
       const q = i.quantity as { value: number; unit: string };
       const def = unitDef(q.unit);
       if (!def) {
-        throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown unit '${q.unit}' for input '${i.name}'`);
+        throw new StarkError(
+          ErrorCodes.INVALID_UNITS,
+          `Unknown unit '${q.unit}' for input '${i.name}'`,
+        );
       }
       marshalled.push({
         name: i.name,
@@ -167,7 +170,8 @@ export class MathJsCalcEngine implements CalcEngine {
 
     const reply = await this.runWorker({ expression, inputs: marshalled, outputUnit: out });
     if (!reply.ok) {
-      const code = reply.code === 'INVALID_UNITS' ? ErrorCodes.INVALID_UNITS : ErrorCodes.VALIDATION;
+      const code =
+        reply.code === 'INVALID_UNITS' ? ErrorCodes.INVALID_UNITS : ErrorCodes.VALIDATION;
       throw new StarkError(code, reply.error ?? 'calculation failed');
     }
     const value = reply.value!;
@@ -274,7 +278,8 @@ const TEMPLATES: CalcTemplate[] = [
   {
     id: 'torque_load',
     title: 'Torque load (incline + acceleration)',
-    description: 'Wheel torque needed to hold on an incline while accelerating: m·g·(sin θ + a/g)·r.',
+    description:
+      'Wheel torque needed to hold on an incline while accelerating: m·g·(sin θ + a/g)·r.',
     expression: 'mass * g * (sin(incline) + accel / g) * wheel_radius',
     inputs: [
       { name: 'mass', unit: 'kg', required: true, description: 'Total vehicle mass' },

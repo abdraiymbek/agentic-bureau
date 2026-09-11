@@ -80,10 +80,18 @@ describe('MathJsCalcEngine.evaluate', () => {
 
   it('rejects unknown and bad-unit inputs', async () => {
     await expect(
-      engine().evaluate('a', [{ name: 'a', quantity: { unknown: true, reason: 'no datasheet' } }], '1'),
+      engine().evaluate(
+        'a',
+        [{ name: 'a', quantity: { unknown: true, reason: 'no datasheet' } }],
+        '1',
+      ),
     ).rejects.toMatchObject({ code: ErrorCodes.INVALID_UNITS });
     await expect(
-      engine().evaluate('a', [{ name: 'a', quantity: { value: 1, unit: 'furlong' } as never }], '1'),
+      engine().evaluate(
+        'a',
+        [{ name: 'a', quantity: { value: 1, unit: 'furlong' } as never }],
+        '1',
+      ),
     ).rejects.toMatchObject({ code: ErrorCodes.INVALID_UNITS });
   });
 

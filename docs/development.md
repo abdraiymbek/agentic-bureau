@@ -9,16 +9,16 @@
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm install` | Install workspace deps (hoisted linker for Electron packaging) |
-| `pnpm test` | Domain tests under Node ABI (`vitest run`) |
-| `pnpm rebuild:node` | Rebuild better-sqlite3/node-pty for Node ABI |
-| `pnpm rebuild:electron` | Rebuild natives for the Electron ABI |
-| `pnpm dev` | Run the desktop app (Electron Forge + Vite) |
-| `pnpm package` | Unsigned packaged app under `apps/desktop/out` |
-| `pnpm make` | Platform installers (dmg on macOS, Squirrel on Windows) |
-| `pnpm typecheck` / `pnpm lint` | Static checks |
+| Command                        | Purpose                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| `pnpm install`                 | Install workspace deps (hoisted linker for Electron packaging) |
+| `pnpm test`                    | Domain tests under Node ABI (`vitest run`)                     |
+| `pnpm rebuild:node`            | Rebuild better-sqlite3/node-pty for Node ABI                   |
+| `pnpm rebuild:electron`        | Rebuild natives for the Electron ABI                           |
+| `pnpm dev`                     | Run the desktop app (Electron Forge + Vite)                    |
+| `pnpm package`                 | Unsigned packaged app under `apps/desktop/out`                 |
+| `pnpm make`                    | Platform installers (dmg on macOS, Squirrel on Windows)        |
+| `pnpm typecheck` / `pnpm lint` | Static checks                                                  |
 
 ## Native module ABI
 

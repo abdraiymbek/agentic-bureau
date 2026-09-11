@@ -92,7 +92,11 @@ export function StlViewport(props: {
     const ro = new ResizeObserver(setSize);
     ro.observe(mount.current);
     setSize();
-    (mount.current as HTMLDivElement & { _mkCam?: (o: boolean) => THREE.PerspectiveCamera | THREE.OrthographicCamera })._mkCam = mkCam;
+    (
+      mount.current as HTMLDivElement & {
+        _mkCam?: (o: boolean) => THREE.PerspectiveCamera | THREE.OrthographicCamera;
+      }
+    )._mkCam = mkCam;
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
@@ -105,7 +109,13 @@ export function StlViewport(props: {
 
   // Swap camera on ortho toggle.
   useEffect(() => {
-    const mk = (mount.current as HTMLDivElement & { _mkCam?: (o: boolean) => THREE.PerspectiveCamera | THREE.OrthographicCamera } | null)?._mkCam;
+    const mk = (
+      mount.current as
+        | (HTMLDivElement & {
+            _mkCam?: (o: boolean) => THREE.PerspectiveCamera | THREE.OrthographicCamera;
+          })
+        | null
+    )?._mkCam;
     if (!mk) return;
     const old = cameraRef.current;
     const cam = mk(ortho);
@@ -146,7 +156,12 @@ export function StlViewport(props: {
     const loader = new STLLoader();
     const geo = loader.parse(props.stlData);
     geo.computeBoundingBox();
-    const mat = new THREE.MeshStandardMaterial({ color: '#8b93a0', roughness: 0.75, metalness: 0.05, wireframe });
+    const mat = new THREE.MeshStandardMaterial({
+      color: '#8b93a0',
+      roughness: 0.75,
+      metalness: 0.05,
+      wireframe,
+    });
     const mesh = new THREE.Mesh(geo, mat);
     meshRef.current = mesh;
     scene.add(mesh);
@@ -154,7 +169,12 @@ export function StlViewport(props: {
     setDims([bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z]);
     if (props.compareData) {
       const cg = loader.parse(props.compareData);
-      const cm = new THREE.MeshStandardMaterial({ color: '#87afc7', transparent: true, opacity: 0.45, wireframe });
+      const cm = new THREE.MeshStandardMaterial({
+        color: '#87afc7',
+        transparent: true,
+        opacity: 0.45,
+        wireframe,
+      });
       const cmesh = new THREE.Mesh(cg, cm);
       compareRef.current = cmesh;
       scene.add(cmesh);
@@ -182,7 +202,10 @@ export function StlViewport(props: {
 
   return (
     <div style={{ position: 'relative', height: '100%', minHeight: 240 }}>
-      <div ref={mount} style={{ position: 'absolute', inset: 0 }} tabIndex={0}
+      <div
+        ref={mount}
+        style={{ position: 'absolute', inset: 0 }}
+        tabIndex={0}
         onKeyDown={(e) => {
           // Keyboard 3D nav alternative.
           const cam = cameraRef.current;
@@ -204,12 +227,28 @@ export function StlViewport(props: {
         <Btn onClick={() => setOrtho((o) => !o)}>{ortho ? 'Ortho' : 'Persp'}</Btn>
         <Btn onClick={() => setWireframe((w) => !w)}>{wireframe ? 'Solid' : 'Wire'}</Btn>
         <Btn onClick={() => setGridOn((g) => !g)}>Grid</Btn>
-        <Btn onClick={() => { cameraRef.current?.position.set(80, 60, 80); controlsRef.current?.target.set(0, 0, 0); controlsRef.current?.update(); }}>Reset</Btn>
+        <Btn
+          onClick={() => {
+            cameraRef.current?.position.set(80, 60, 80);
+            controlsRef.current?.target.set(0, 0, 0);
+            controlsRef.current?.update();
+          }}
+        >
+          Reset
+        </Btn>
       </div>
       {dims && (
         <div
           className="mono dim"
-          style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 12, background: 'rgba(20,22,26,0.8)', padding: '2px 8px', borderRadius: 4 }}
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            fontSize: 12,
+            background: 'rgba(20,22,26,0.8)',
+            padding: '2px 8px',
+            borderRadius: 4,
+          }}
         >
           {dims.map((d) => d.toFixed(2)).join(' × ')} {props.modelUnit}
         </div>

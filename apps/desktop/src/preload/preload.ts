@@ -7,7 +7,12 @@ import { IPC } from '@stark/contracts';
  */
 const api = {
   command: (op: string, payload: unknown, opts?: { projectId?: string; idempotencyKey?: string }) =>
-    ipcRenderer.invoke(IPC.command, { op, payload, projectId: opts?.projectId, idempotencyKey: opts?.idempotencyKey }),
+    ipcRenderer.invoke(IPC.command, {
+      op,
+      payload,
+      projectId: opts?.projectId,
+      idempotencyKey: opts?.idempotencyKey,
+    }),
 
   setActiveProject: (id: string | null) => ipcRenderer.invoke('stark:set-active-project', id),
 

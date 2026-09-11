@@ -12,12 +12,16 @@ export function HistoryView() {
   const [tab, setTab] = useState<'graph' | 'log'>('graph');
 
   useEffect(() => {
-    void cmd<{ edges: GraphEdge[] }>('graph.list', {}).then((r) => setEdges(r.edges)).catch(() => {});
+    void cmd<{ edges: GraphEdge[] }>('graph.list', {})
+      .then((r) => setEdges(r.edges))
+      .catch(() => {});
   }, [artifacts.length]);
 
   const { nodes, rfEdges } = useMemo(() => {
-    const title = (id: string) => artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
-    const type = (id: string) => artifacts.find((v) => v.artifact.id === id)?.artifact.type ?? 'note';
+    const title = (id: string) =>
+      artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
+    const type = (id: string) =>
+      artifacts.find((v) => v.artifact.id === id)?.artifact.type ?? 'note';
     const ids = new Set<string>();
     for (const e of edges) {
       ids.add(e.upstreamArtifactId);
@@ -30,7 +34,9 @@ export function HistoryView() {
       if (depth.has(id)) return depth.get(id)!;
       if (visiting.has(id)) return 0;
       visiting.add(id);
-      const ups = edges.filter((e) => e.downstreamArtifactId === id && e.relationship !== 'connects_to');
+      const ups = edges.filter(
+        (e) => e.downstreamArtifactId === id && e.relationship !== 'connects_to',
+      );
       const d = ups.length ? Math.max(...ups.map((e) => compute(e.upstreamArtifactId) + 1)) : 0;
       visiting.delete(id);
       depth.set(id, d);
@@ -71,7 +77,15 @@ export function HistoryView() {
 
   const decisions = useMemo(() => {
     return events
-      .filter((e) => ['proposal.resolved', 'baseline.changed', 'impact.propagated', 'revision.committed', 'project.created'].includes(e.type))
+      .filter((e) =>
+        [
+          'proposal.resolved',
+          'baseline.changed',
+          'impact.propagated',
+          'revision.committed',
+          'project.created',
+        ].includes(e.type),
+      )
       .slice(-60)
       .reverse();
   }, [events]);
@@ -79,13 +93,27 @@ export function HistoryView() {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div className="row" style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-        <button style={{ height: 26, fontSize: 12 }} onClick={() => setTab('graph')} className={tab === 'graph' ? 'primary' : ''}>Dependency graph</button>
-        <button style={{ height: 26, fontSize: 12 }} onClick={() => setTab('log')} className={tab === 'log' ? 'primary' : ''}>Change log</button>
+        <button
+          style={{ height: 26, fontSize: 12 }}
+          onClick={() => setTab('graph')}
+          className={tab === 'graph' ? 'primary' : ''}
+        >
+          Dependency graph
+        </button>
+        <button
+          style={{ height: 26, fontSize: 12 }}
+          onClick={() => setTab('log')}
+          className={tab === 'log' ? 'primary' : ''}
+        >
+          Change log
+        </button>
       </div>
       {tab === 'graph' ? (
         <div style={{ flex: 1 }}>
           {nodes.length === 0 ? (
-            <div className="faint" style={{ padding: 24, fontSize: 13 }}>No graph edges yet — agents wire dependencies as artifacts land.</div>
+            <div className="faint" style={{ padding: 24, fontSize: 13 }}>
+              No graph edges yet — agents wire dependencies as artifacts land.
+            </div>
           ) : (
             <ReactFlow
               nodes={nodes}
@@ -107,7 +135,9 @@ export function HistoryView() {
           {decisions.map((e) => (
             <div key={e.id} style={{ padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
               <span className="faint mono">{e.ts.slice(0, 19).replace('T', ' ')}</span>
-              <span className="dim" style={{ margin: '0 8px' }}>{e.type}</span>
+              <span className="dim" style={{ margin: '0 8px' }}>
+                {e.type}
+              </span>
               <span>{summ(e.data)}</span>
             </div>
           ))}

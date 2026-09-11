@@ -43,7 +43,16 @@ const H: Record<string, Handler> = {
   'project.export_archive': (c, i: { destPath: string }) => build.exportArchive(c, i.destPath),
 
   /* artifacts */
-  'artifact.list': (c, i: { type?: string; subsystem?: string; includeArchived: boolean; limit: number; offset: number }) => {
+  'artifact.list': (
+    c,
+    i: {
+      type?: string;
+      subsystem?: string;
+      includeArchived: boolean;
+      limit: number;
+      offset: number;
+    },
+  ) => {
     const list = c.repo
       .listArtifacts({ type: i.type, subsystem: i.subsystem, includeArchived: i.includeArchived })
       .slice(i.offset, i.offset + i.limit)
@@ -56,23 +65,49 @@ const H: Record<string, Handler> = {
       ? c.requireRevision(i.revisionId)
       : a.selectedRevisionId
         ? c.repo.getRevision(a.selectedRevisionId)
-        : c.repo.listRevisions(a.id).at(-1) ?? null;
+        : (c.repo.listRevisions(a.id).at(-1) ?? null);
     return { view: c.artifactView(a), revision: rev, drafts: c.repo.listDrafts(a.id) };
   },
   'artifact.history': (c, i: { artifactId: string }) => ({
     revisions: c.repo.listRevisions(i.artifactId),
   }),
-  'artifact.compare': (c, i: { artifactId: string; fromRevisionId: string; toRevisionId: string }) =>
-    artifacts.compareRevisions(c, i.artifactId, i.fromRevisionId, i.toRevisionId),
+  'artifact.compare': (
+    c,
+    i: { artifactId: string; fromRevisionId: string; toRevisionId: string },
+  ) => artifacts.compareRevisions(c, i.artifactId, i.fromRevisionId, i.toRevisionId),
   'artifact.create_draft': (c, i: never, o) => artifacts.createDraft(c, i as never, o),
   'artifact.update_draft': (c, i: never, o) => artifacts.updateDraft(c, i as never, o),
-  'artifact.import_file': (c, i: { artifactId?: string; type?: string; title?: string; path: string; rationale: string }, o) => {
+  'artifact.import_file': (
+    c,
+    i: { artifactId?: string; type?: string; title?: string; path: string; rationale: string },
+    o,
+  ) => {
     const abs = c.resolvePath(i.path);
     if (i.artifactId) {
-      return artifacts.updateDraft(c, { artifactId: i.artifactId, files: [{ path: i.path, sourcePath: abs }], rationale: i.rationale }, o);
+      return artifacts.updateDraft(
+        c,
+        {
+          artifactId: i.artifactId,
+          files: [{ path: i.path, sourcePath: abs }],
+          rationale: i.rationale,
+        },
+        o,
+      );
     }
-    if (!i.type || !i.title) throw new StarkError(ErrorCodes.VALIDATION, 'import_file needs type+title for new artifacts');
-    return artifacts.createDraft(c, { type: i.type as never, title: i.title, payload: {}, files: [{ path: i.path, sourcePath: abs }], inputs: [], rationale: i.rationale }, o);
+    if (!i.type || !i.title)
+      throw new StarkError(ErrorCodes.VALIDATION, 'import_file needs type+title for new artifacts');
+    return artifacts.createDraft(
+      c,
+      {
+        type: i.type as never,
+        title: i.title,
+        payload: {},
+        files: [{ path: i.path, sourcePath: abs }],
+        inputs: [],
+        rationale: i.rationale,
+      },
+      o,
+    );
   },
   'artifact.apply_edit': (c, i: never) => artifacts.applyUserEdit(c, i as never),
   'artifact.accept_draft': (c, i: never) => artifacts.acceptDraft(c, i as never),
@@ -115,19 +150,49 @@ const H: Record<string, Handler> = {
   },
 
   /* graph */
-  'graph.neighbors': (c, i: { artifactId: string; direction: 'upstream' | 'downstream' | 'both'; depth: number; relationship?: never }) =>
-    graph.neighbors(c, i.artifactId, i.direction, i.depth, i.relationship),
+  'graph.neighbors': (
+    c,
+    i: {
+      artifactId: string;
+      direction: 'upstream' | 'downstream' | 'both';
+      depth: number;
+      relationship?: never;
+    },
+  ) => graph.neighbors(c, i.artifactId, i.direction, i.depth, i.relationship),
   'graph.impact': (c, i: { refs: never }) => graph.impactReport(c, i.refs),
-  'graph.propose_edges': (c, i: { edges: { upstreamArtifactId: string; downstreamArtifactId: string; relationship: never; label: string }[] }, o) => {
+  'graph.propose_edges': (
+    c,
+    i: {
+      edges: {
+        upstreamArtifactId: string;
+        downstreamArtifactId: string;
+        relationship: never;
+        label: string;
+      }[];
+    },
+    o,
+  ) => {
     c.assertWritable();
-    return { edges: i.edges.map((e) => graph.addEdge(c, e.upstreamArtifactId, e.downstreamArtifactId, e.relationship, e.label, o.kind)) };
+    return {
+      edges: i.edges.map((e) =>
+        graph.addEdge(
+          c,
+          e.upstreamArtifactId,
+          e.downstreamArtifactId,
+          e.relationship,
+          e.label,
+          o.kind,
+        ),
+      ),
+    };
   },
   'graph.list': (c) => ({ edges: c.repo.allEdges() }),
 
   /* sources + research + browser */
   'source.capture': (c, i: never, o) => sources.captureSource(c, i as never, o),
   'source.read': (c, i: { sourceId: string }) => sources.readSource(c, i.sourceId),
-  'research.search': (c, i: { query: string; engine?: string }) => research.researchSearch(c, i.query, i.engine),
+  'research.search': (c, i: { query: string; engine?: string }) =>
+    research.researchSearch(c, i.query, i.engine),
   'research.read_page': (c, i: { url: string }) => research.researchReadPage(c, i.url),
   'browser.open': (c, i: { url: string }) => research.browserOpen(c, i.url),
   'browser.read': (c) => research.browserRead(c),
@@ -137,15 +202,32 @@ const H: Record<string, Handler> = {
 
   /* components + bom */
   'component.add_candidate': (c, i: never, o) => components.addCandidate(c, i as never, o),
-  'component.compare': (c, i: { artifactIds: string[] }) => components.compareComponents(c, i.artifactIds),
+  'component.compare': (c, i: { artifactIds: string[] }) =>
+    components.compareComponents(c, i.artifactIds),
   'component.propose_selection': (c, i: never, o) => components.proposeSelection(c, i as never, o),
   'component.add_offer': (c, i: never) => components.addOffer(c, i as never),
   'bom.read': (c) => components.readBom(c),
-  'bom.propose_edit': (c, i: { lines: { componentArtifactId: string; componentRevisionId?: string; subsystem: string | null; quantity: number; offerId: string | null; location: string | null; notes: string }[]; reason: string }, o) => {
+  'bom.propose_edit': (
+    c,
+    i: {
+      lines: {
+        componentArtifactId: string;
+        componentRevisionId?: string;
+        subsystem: string | null;
+        quantity: number;
+        offerId: string | null;
+        location: string | null;
+        notes: string;
+      }[];
+      reason: string;
+    },
+    o,
+  ) => {
     // Represent BOM edits as a proposal carrying line sets.
     const lines = i.lines.map((l) => ({
       componentArtifactId: l.componentArtifactId,
-      componentRevisionId: l.componentRevisionId ?? c.requireArtifact(l.componentArtifactId).selectedRevisionId!,
+      componentRevisionId:
+        l.componentRevisionId ?? c.requireArtifact(l.componentArtifactId).selectedRevisionId!,
       subsystem: l.subsystem,
       quantity: l.quantity,
       offerId: l.offerId,
@@ -168,12 +250,33 @@ const H: Record<string, Handler> = {
       rationale: i.reason,
       reviewState: 'draft',
     });
-    return proposals.submitProposal(c, {
-      changes: [{ artifactId: comp.id, baseRevisionId: rev.id, newRevisionId: draft.id, kind: 'bom_edit', bomLines: lines }],
-      reason: i.reason,
-    }, o);
+    return proposals.submitProposal(
+      c,
+      {
+        changes: [
+          {
+            artifactId: comp.id,
+            baseRevisionId: rev.id,
+            newRevisionId: draft.id,
+            kind: 'bom_edit',
+            bomLines: lines,
+          },
+        ],
+        reason: i.reason,
+      },
+      o,
+    );
   },
-  'bom.update_line': (c, i: { lineId: string; quantity?: number; offerId?: string | null; location?: string | null; notes?: string }) => {
+  'bom.update_line': (
+    c,
+    i: {
+      lineId: string;
+      quantity?: number;
+      offerId?: string | null;
+      location?: string | null;
+      notes?: string;
+    },
+  ) => {
     c.assertWritable();
     c.repo.updateBomLine(i.lineId, i);
     c.emit('bom.changed', 'user', { lineId: i.lineId });
@@ -190,9 +293,11 @@ const H: Record<string, Handler> = {
 
   /* cad */
   'cad.probe': (c) => cad.cadProbe(c),
-  'cad.validate_source': (c, i: { artifactId: string; revisionId?: string }) => cad.cadValidateSource(c, i.artifactId, i.revisionId),
+  'cad.validate_source': (c, i: { artifactId: string; revisionId?: string }) =>
+    cad.cadValidateSource(c, i.artifactId, i.revisionId),
   'cad.render': (c, i: never, o) => cad.cadRender(c, i as never, o),
-  'cad.inspect': (c, i: { artifactId: string; revisionId?: string }) => cad.cadInspect(c, i.artifactId, i.revisionId),
+  'cad.inspect': (c, i: { artifactId: string; revisionId?: string }) =>
+    cad.cadInspect(c, i.artifactId, i.revisionId),
   'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }) => {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
@@ -205,12 +310,15 @@ const H: Record<string, Handler> = {
 
   /* calculation */
   'calculation.run': (c, i: never, o) => calc.runCalculation(c, i as never, o),
-  'calculation.explain_inputs': (c, i: { artifactId: string }) => calc.explainInputs(c, i.artifactId),
+  'calculation.explain_inputs': (c, i: { artifactId: string }) =>
+    calc.explainInputs(c, i.artifactId),
   'calculation.templates': (c) => ({ templates: calc.listTemplates(c) }),
 
   /* wiring */
-  'wiring.validate': (c, i: { artifactId: string; revisionId?: string }) => wiring.wiringValidate(c, i.artifactId, i.revisionId),
-  'wiring.render': (c, i: { artifactId: string; revisionId?: string }) => wiring.wiringRender(c, i.artifactId, i.revisionId),
+  'wiring.validate': (c, i: { artifactId: string; revisionId?: string }) =>
+    wiring.wiringValidate(c, i.artifactId, i.revisionId),
+  'wiring.render': (c, i: { artifactId: string; revisionId?: string }) =>
+    wiring.wiringRender(c, i.artifactId, i.revisionId),
   'wiring.set_pins': (c, i: never, o) => wiring.wiringSetPins(c, i as never, o),
   'wiring.set_connections': (c, i: never, o) => wiring.wiringSetConnections(c, i as never, o),
 
@@ -220,9 +328,12 @@ const H: Record<string, Handler> = {
   'proposal.wait': (c, i: { proposalId: string; timeoutMs: number; cursor?: number }) =>
     proposals.waitProposal(c, i.proposalId, i.timeoutMs, i.cursor),
   'proposal.list': (c, i: { state?: string }) => ({ proposals: c.repo.listProposals(i.state) }),
-  'proposal.approve': (c, i: { proposalId: string; rationale: string }) => proposals.approveProposal(c, i.proposalId, i.rationale),
-  'proposal.reject': (c, i: { proposalId: string; rationale: string }) => proposals.rejectProposal(c, i.proposalId, i.rationale),
-  'proposal.request_changes': (c, i: { proposalId: string; rationale: string }) => proposals.requestChangesProposal(c, i.proposalId, i.rationale),
+  'proposal.approve': (c, i: { proposalId: string; rationale: string }) =>
+    proposals.approveProposal(c, i.proposalId, i.rationale),
+  'proposal.reject': (c, i: { proposalId: string; rationale: string }) =>
+    proposals.rejectProposal(c, i.proposalId, i.rationale),
+  'proposal.request_changes': (c, i: { proposalId: string; rationale: string }) =>
+    proposals.requestChangesProposal(c, i.proposalId, i.rationale),
 
   /* jobs + tools */
   'job.read': (c, i: { jobId: string }) => {
@@ -240,10 +351,18 @@ const H: Record<string, Handler> = {
     }
     return { job: c.repo.getJob(i.jobId) };
   },
-  'job.list': (c, i: { status?: string; limit: number }) => ({ jobs: c.repo.listJobs(i.limit, i.status) }),
+  'job.list': (c, i: { status?: string; limit: number }) => ({
+    jobs: c.repo.listJobs(i.limit, i.status),
+  }),
   'tool.list': (c) => {
-    const tools: { toolId: string; kind: string; available: boolean | null; version: string | null }[] = [];
-    if (c.tools.cad) tools.push({ toolId: 'openscad', kind: 'cad', available: null, version: null });
+    const tools: {
+      toolId: string;
+      kind: string;
+      available: boolean | null;
+      version: string | null;
+    }[] = [];
+    if (c.tools.cad)
+      tools.push({ toolId: 'openscad', kind: 'cad', available: null, version: null });
     return { tools, note: 'Probe individual tools for live availability.' };
   },
   'tool.doctor': async (c, i: { toolId?: string }) => {
@@ -293,7 +412,10 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
   const op = OPS_BY_NAME.get(req.op);
   if (!op) throw new StarkError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
   if (req.origin.kind === 'agent' && op.capability === 'user') {
-    const code = req.op === 'artifact.apply_edit' ? ErrorCodes.APPROVAL_REQUIRED : ErrorCodes.CAPABILITY_DENIED;
+    const code =
+      req.op === 'artifact.apply_edit'
+        ? ErrorCodes.APPROVAL_REQUIRED
+        : ErrorCodes.CAPABILITY_DENIED;
     throw new StarkError(code, `Agents cannot call ${req.op}`, {
       repair: req.op === 'artifact.apply_edit' ? 'Submit a proposal instead.' : undefined,
     });
@@ -306,7 +428,10 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     const prior = ctx.repo.getIdempotent(req.idempotencyKey);
     if (prior) {
       if (prior.requestHash !== requestHash(req.op, req.payload)) {
-        throw new StarkError(ErrorCodes.VALIDATION, `Idempotency key reused with different payload: ${req.idempotencyKey}`);
+        throw new StarkError(
+          ErrorCodes.VALIDATION,
+          `Idempotency key reused with different payload: ${req.idempotencyKey}`,
+        );
       }
       return { ...(prior.response as object), idempotent: true };
     }

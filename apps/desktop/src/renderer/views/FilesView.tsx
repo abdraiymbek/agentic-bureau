@@ -13,7 +13,9 @@ export function FilesView() {
     if (!dest) return;
     setBusy(true);
     try {
-      const r = await cmd<{ path: string; files: number }>('project.export_archive', { destPath: dest });
+      const r = await cmd<{ path: string; files: number }>('project.export_archive', {
+        destPath: dest,
+      });
       toast('ok', `Exported ${r.files} files`);
     } catch (e) {
       toast('error', (e as Error).message);
@@ -27,7 +29,10 @@ export function FilesView() {
     if (!dest) return;
     setBusy(true);
     try {
-      const r = await cmd<{ path: string; files: number; status: string; issues: number }>('build.export', { destPath: dest, includeDrafts });
+      const r = await cmd<{ path: string; files: number; status: string; issues: number }>(
+        'build.export',
+        { destPath: dest, includeDrafts },
+      );
       toast('ok', `Exported ${r.status} package (${r.files} files, ${r.issues} issues)`);
     } catch (e) {
       toast('error', (e as Error).message);
@@ -41,26 +46,42 @@ export function FilesView() {
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>Files & export</h3>
         <div className="row">
-          <button style={{ height: 26, fontSize: 12 }} onClick={exportArchive} disabled={busy}>Export project archive…</button>
-          <button className="primary" style={{ height: 26, fontSize: 12 }} onClick={() => exportBuild(true)} disabled={busy}>Export build package…</button>
+          <button style={{ height: 26, fontSize: 12 }} onClick={exportArchive} disabled={busy}>
+            Export project archive…
+          </button>
+          <button
+            className="primary"
+            style={{ height: 26, fontSize: 12 }}
+            onClick={() => exportBuild(true)}
+            disabled={busy}
+          >
+            Export build package…
+          </button>
         </div>
       </div>
       <div className="faint" style={{ fontSize: 12, marginBottom: 12 }}>
-        Project root: <span className="mono">{projectPath}</span> — archives carry DB snapshot + objects + readable tree; credentials and machine settings are never exported.
+        Project root: <span className="mono">{projectPath}</span> — archives carry DB snapshot +
+        objects + readable tree; credentials and machine settings are never exported.
       </div>
-      {artifacts.length === 0 && <EmptyBlock title="No files" body="Artifacts materialize files under artifacts/." />}
+      {artifacts.length === 0 && (
+        <EmptyBlock title="No files" body="Artifacts materialize files under artifacts/." />
+      )}
       {artifacts.map((v) => {
         const files = v.revision?.files ?? [];
         if (files.length === 0) return null;
         return (
           <div key={v.artifact.id} style={{ marginBottom: 10 }}>
-            <div className="dim" style={{ fontSize: 12, fontWeight: 600 }}>{v.artifact.title}</div>
+            <div className="dim" style={{ fontSize: 12, fontWeight: 600 }}>
+              {v.artifact.title}
+            </div>
             {files.map((f, i) => (
               <div key={i} className="row mono" style={{ fontSize: 12, padding: '3px 0' }}>
                 <span style={{ flex: 1 }}>{f.path}</span>
                 <button
                   style={{ height: 20, fontSize: 11 }}
-                  onClick={() => void cmd('artifact.reveal', { artifactId: v.artifact.id }).catch(() => {})}
+                  onClick={() =>
+                    void cmd('artifact.reveal', { artifactId: v.artifact.id }).catch(() => {})
+                  }
                 >
                   Reveal
                 </button>

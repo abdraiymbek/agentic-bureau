@@ -1,4 +1,15 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, Notification, Menu, protocol, utilityProcess, net } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  Notification,
+  Menu,
+  protocol,
+  utilityProcess,
+  net,
+} from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -32,7 +43,14 @@ function callCore<T>(op: string, payload: unknown, idempotencyKey?: string): Pro
   const requestId = `req-${++reqSeq}`;
   return new Promise<T>((resolve, reject) => {
     pending.set(requestId, { resolve: resolve as never, reject });
-    sendToCore({ type: 'command', requestId, op, payload, projectId: activeProjectId, idempotencyKey });
+    sendToCore({
+      type: 'command',
+      requestId,
+      op,
+      payload,
+      projectId: activeProjectId,
+      idempotencyKey,
+    });
     setTimeout(() => {
       if (pending.delete(requestId)) reject(new Error(`core call timeout: ${op}`));
     }, 300_000);
@@ -43,19 +61,31 @@ function startCore(): void {
   const utilityPath = app.isPackaged
     ? path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'core', 'utility.js')
     : path.join(__dirname, '..', '..', 'resources', 'core', 'utility.js');
-  fs.writeFileSync(path.join(app.getPath('userData'), 'boot.log'), `main fork ${utilityPath} exists=${fs.existsSync(utilityPath)}\n`);
+  fs.writeFileSync(
+    path.join(app.getPath('userData'), 'boot.log'),
+    `main fork ${utilityPath} exists=${fs.existsSync(utilityPath)}\n`,
+  );
   coreProc = utilityProcess.fork(utilityPath, [], {
     serviceName: 'stark-core',
     // utilityProcess.fork requires stdin to be 'ignore'.
     stdio: ['ignore', 'pipe', 'inherit'],
-    env: { STARK_APP_DATA: app.getPath('userData') },
+    env: {
+      // Test hooks may redirect app data (packaged-smoke); default is userData.
+      STARK_APP_DATA: process.env.STARK_APP_DATA ?? app.getPath('userData'),
+      ...(process.env.STARK_SMOKE ? { STARK_SMOKE: process.env.STARK_SMOKE } : {}),
+    },
   });
   coreProc.on('message', (msg: Record<string, unknown>) => {
     if (msg.type === 'result') {
       const p = pending.get(msg.requestId as string);
       pending.delete(msg.requestId as string);
       if (msg.ok) p?.resolve(msg.result);
-      else p?.reject(Object.assign(new Error((msg.error as { message?: string })?.message ?? 'error'), { body: msg.error }));
+      else
+        p?.reject(
+          Object.assign(new Error((msg.error as { message?: string })?.message ?? 'error'), {
+            body: msg.error,
+          }),
+        );
       return;
     }
     if (msg.type === 'event' && mainWindow) {
@@ -102,11 +132,22 @@ async function handleHostCall(id: string, method: string, args: unknown[]): Prom
     if (!research) research = new ResearchSurface(() => mainWindow);
     let result: unknown;
     switch (method) {
-      case 'researchOpen': result = await research.open(args[0] as string); break;
-      case 'researchReadPage': result = await research.readPage(); break;
-      case 'researchFollowLink': result = await research.followLink(args[0] as { selector?: string; url?: string }); break;
-      case 'researchScreenshot': result = await research.screenshot(); break;
-      case 'revealPath': shell.showItemInFolder(args[0] as string); result = null; break;
+      case 'researchOpen':
+        result = await research.open(args[0] as string);
+        break;
+      case 'researchReadPage':
+        result = await research.readPage();
+        break;
+      case 'researchFollowLink':
+        result = await research.followLink(args[0] as { selector?: string; url?: string });
+        break;
+      case 'researchScreenshot':
+        result = await research.screenshot();
+        break;
+      case 'revealPath':
+        shell.showItemInFolder(args[0] as string);
+        result = null;
+        break;
       case 'openExternal': {
         const url = args[0] as string;
         if (/^https?:\/\//.test(url)) await shell.openExternal(url);
@@ -114,7 +155,8 @@ async function handleHostCall(id: string, method: string, args: unknown[]): Prom
         break;
       }
       case 'notify': {
-        if (Notification.isSupported()) new Notification({ title: args[0] as string, body: args[1] as string }).show();
+        if (Notification.isSupported())
+          new Notification({ title: args[0] as string, body: args[1] as string }).show();
         result = null;
         break;
       }
@@ -123,7 +165,11 @@ async function handleHostCall(id: string, method: string, args: unknown[]): Prom
     }
     sendToCore({ type: 'hostResult', id, result });
   } catch (e) {
-    sendToCore({ type: 'hostResult', id, error: { code: 'INTERNAL', message: (e as Error).message } });
+    sendToCore({
+      type: 'hostResult',
+      id,
+      error: { code: 'INTERNAL', message: (e as Error).message },
+    });
   }
 }
 
@@ -188,9 +234,7 @@ function createWindow(): void {
 
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === 'darwin'
-      ? [{ role: 'appMenu' as const }]
-      : []),
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu' as const }] : []),
     { role: 'fileMenu' },
     { role: 'editMenu' }, // required for terminal copy/paste
     {
@@ -216,26 +260,42 @@ function buildMenu(): void {
 /* ------------------------------------------------------------------ */
 
 function wireIpc(): void {
-  ipcMain.handle(IPC.command, async (_e, body: { op: string; payload: unknown; projectId?: string; idempotencyKey?: string }) => {
-    // projectId in the body wins (renderer knows its project); fall back to active.
-    const pid = body.projectId ?? activeProjectId ?? undefined;
-    const requestId = `req-${++reqSeq}`;
-    return new Promise((resolve) => {
-      pending.set(requestId, {
-        resolve: (v) => resolve({ ok: true, result: v }),
-        reject: (e) => {
-          const err = e as { body?: { code: string; message: string }; message?: string };
-          resolve({ ok: false, error: err.body ?? { code: 'INTERNAL', message: err.message ?? 'error' } });
-        },
+  ipcMain.handle(
+    IPC.command,
+    async (
+      _e,
+      body: { op: string; payload: unknown; projectId?: string; idempotencyKey?: string },
+    ) => {
+      // projectId in the body wins (renderer knows its project); fall back to active.
+      const pid = body.projectId ?? activeProjectId ?? undefined;
+      const requestId = `req-${++reqSeq}`;
+      return new Promise((resolve) => {
+        pending.set(requestId, {
+          resolve: (v) => resolve({ ok: true, result: v }),
+          reject: (e) => {
+            const err = e as { body?: { code: string; message: string }; message?: string };
+            resolve({
+              ok: false,
+              error: err.body ?? { code: 'INTERNAL', message: err.message ?? 'error' },
+            });
+          },
+        });
+        sendToCore({
+          type: 'command',
+          requestId,
+          op: body.op,
+          payload: body.payload,
+          projectId: pid,
+          idempotencyKey: body.idempotencyKey,
+        });
+        setTimeout(() => {
+          if (pending.delete(requestId)) {
+            resolve({ ok: false, error: { code: 'INTERNAL', message: `timeout: ${body.op}` } });
+          }
+        }, 300_000);
       });
-      sendToCore({ type: 'command', requestId, op: body.op, payload: body.payload, projectId: pid, idempotencyKey: body.idempotencyKey });
-      setTimeout(() => {
-        if (pending.delete(requestId)) {
-          resolve({ ok: false, error: { code: 'INTERNAL', message: `timeout: ${body.op}` } });
-        }
-      }, 300_000);
-    });
-  });
+    },
+  );
 
   ipcMain.handle('stark:set-active-project', (_e, id: string | null) => {
     activeProjectId = id;
@@ -249,23 +309,32 @@ function wireIpc(): void {
     });
     return r.canceled ? null : r.filePaths[0];
   });
-  ipcMain.handle(IPC.pickFile, async (_e, opts?: { title?: string; filters?: { name: string; extensions: string[] }[] }) => {
-    if (!mainWindow) return null;
-    const r = await dialog.showOpenDialog(mainWindow, {
-      title: opts?.title ?? 'Choose file',
-      properties: ['openFile'],
-      filters: opts?.filters,
-    });
-    return r.canceled ? null : r.filePaths[0];
-  });
-  ipcMain.handle(IPC.saveFile, async (_e, opts?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => {
-    if (!mainWindow) return null;
-    const r = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: opts?.defaultPath,
-      filters: opts?.filters,
-    });
-    return r.canceled ? null : r.filePath;
-  });
+  ipcMain.handle(
+    IPC.pickFile,
+    async (_e, opts?: { title?: string; filters?: { name: string; extensions: string[] }[] }) => {
+      if (!mainWindow) return null;
+      const r = await dialog.showOpenDialog(mainWindow, {
+        title: opts?.title ?? 'Choose file',
+        properties: ['openFile'],
+        filters: opts?.filters,
+      });
+      return r.canceled ? null : r.filePaths[0];
+    },
+  );
+  ipcMain.handle(
+    IPC.saveFile,
+    async (
+      _e,
+      opts?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] },
+    ) => {
+      if (!mainWindow) return null;
+      const r = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: opts?.defaultPath,
+        filters: opts?.filters,
+      });
+      return r.canceled ? null : r.filePath;
+    },
+  );
   ipcMain.handle(IPC.openExternal, async (_e, url: string) => {
     if (/^https?:\/\//.test(url)) await shell.openExternal(url);
   });

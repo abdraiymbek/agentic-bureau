@@ -15,7 +15,8 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
     .filter((a) => a.type === 'requirement')
     .map((a) => {
       const rev = a.selectedRevisionId ? ctx.repo.getRevision(a.selectedRevisionId) : null;
-      const p = rev?.payload as { statement?: string; target?: MaybeQuantity; priority?: string } | undefined;
+      const p = rev?.payload as
+        { statement?: string; target?: MaybeQuantity; priority?: string } | undefined;
       return {
         id: a.id,
         title: a.title,
@@ -31,10 +32,17 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
     .map((a) => {
       const rev = a.selectedRevisionId ? ctx.repo.getRevision(a.selectedRevisionId) : null;
       const p = rev?.payload as { statement?: string; needsValidation?: boolean } | undefined;
-      return { id: a.id, title: a.title, statement: p?.statement ?? '', needsValidation: p?.needsValidation ?? true };
+      return {
+        id: a.id,
+        title: a.title,
+        statement: p?.statement ?? '',
+        needsValidation: p?.needsValidation ?? true,
+      };
     });
 
-  const pending = ctx.repo.listProposals('pending').map((p) => ({ id: p.id, reason: p.reason, changes: p.changes.length }));
+  const pending = ctx.repo
+    .listProposals('pending')
+    .map((p) => ({ id: p.id, reason: p.reason, changes: p.changes.length }));
   const stale = ctx.repo.allStale().map((s) => ({
     artifactId: s.artifactId,
     reason: s.reason,

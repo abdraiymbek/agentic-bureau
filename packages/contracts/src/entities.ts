@@ -126,7 +126,14 @@ export const componentPayload = z.object({
   properties: z.record(z.string(), sourcedQuantity).default({}),
   /** Free-form sourced facts (interface, protocol, mounting pattern…). */
   attributes: z
-    .record(z.string(), z.object({ value: z.string(), sourceId: idSchema.optional(), locator: z.string().optional() }))
+    .record(
+      z.string(),
+      z.object({
+        value: z.string(),
+        sourceId: idSchema.optional(),
+        locator: z.string().optional(),
+      }),
+    )
     .default({}),
   status: z.enum(['candidate', 'selected', 'rejected', 'superseded']).default('candidate'),
   missingFields: z.array(z.string()).default([]),
@@ -151,9 +158,17 @@ export type SourcePayload = z.infer<typeof sourcePayload>;
 export const mechanicalPayload = z.object({
   scad: fileRefSchema.optional(),
   stl: fileRefSchema.optional(),
-  params: z.record(z.string(), z.union([quantitySchema, z.number(), z.string(), z.boolean()])).default({}),
+  params: z
+    .record(z.string(), z.union([quantitySchema, z.number(), z.string(), z.boolean()]))
+    .default({}),
   paramManifest: z
-    .array(z.object({ name: z.string(), unit: z.string().optional(), description: z.string().optional() }))
+    .array(
+      z.object({
+        name: z.string(),
+        unit: z.string().optional(),
+        description: z.string().optional(),
+      }),
+    )
     .default([]),
   modelUnit: z.string().default('mm'),
   bounds: z
@@ -174,9 +189,7 @@ export const pinSchema = z.object({
   pin: z.string(),
   name: z.string().optional(),
   type: z.enum(['power', 'ground', 'signal', 'data', 'mechanical', 'unknown']).default('unknown'),
-  voltageRange: z
-    .object({ min: quantitySchema, max: quantitySchema })
-    .optional(),
+  voltageRange: z.object({ min: quantitySchema, max: quantitySchema }).optional(),
 });
 export type Pin = z.infer<typeof pinSchema>;
 
@@ -272,7 +285,15 @@ export const testResultSchema = z.object({
 export type TestResult = z.infer<typeof testResultSchema>;
 
 export const testPayload = z.object({
-  procedure: z.array(z.object({ step: z.number().int(), instruction: z.string(), expected: z.string().optional() })).default([]),
+  procedure: z
+    .array(
+      z.object({
+        step: z.number().int(),
+        instruction: z.string(),
+        expected: z.string().optional(),
+      }),
+    )
+    .default([]),
   conditions: z.string().optional(),
   results: z.array(testResultSchema).default([]),
 });
@@ -380,7 +401,14 @@ export const proposalSchema = z.object({
       summary: z.string(),
     })
     .optional(),
-  state: z.enum(['pending', 'accepted', 'rejected', 'changes_requested', 'conflicted', 'cancelled']),
+  state: z.enum([
+    'pending',
+    'accepted',
+    'rejected',
+    'changes_requested',
+    'conflicted',
+    'cancelled',
+  ]),
   createdBy: z.enum(['user', 'agent', 'system']),
   createdBySession: idSchema.nullable(),
   createdAt: z.string(),

@@ -47,8 +47,16 @@ describe('OpenScadAdapter.inspectStl', () => {
 
   it('parses binary STL: triangle count and bounds', () => {
     const buf = makeBinaryStl([
-      [[0, 0, 0], [10, 0, 0], [0, 10, 0]],
-      [[0, 0, -2], [10, 0, 0], [0, 10, 0]],
+      [
+        [0, 0, 0],
+        [10, 0, 0],
+        [0, 10, 0],
+      ],
+      [
+        [0, 0, -2],
+        [10, 0, 0],
+        [0, 10, 0],
+      ],
     ]);
     const r = adapter().inspectStl(buf);
     expect(r.format).toBe('binary');
@@ -103,7 +111,14 @@ describe('OpenScadAdapter e2e (requires real OpenSCAD)', () => {
 
     const logs: string[] = [];
     const res = await a.render(
-      { jobId: 'e2e', scadPath: scad, outPath: out, params: { size: 8 }, timeoutMs: 60_000, workDir: dir },
+      {
+        jobId: 'e2e',
+        scadPath: scad,
+        outPath: out,
+        params: { size: 8 },
+        timeoutMs: 60_000,
+        workDir: dir,
+      },
       (c) => logs.push(c),
     );
     expect(res.ok).toBe(true);

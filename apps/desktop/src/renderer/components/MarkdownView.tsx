@@ -30,7 +30,10 @@ export function MarkdownView({ view }: { view: ArtifactView }) {
   const save = async () => {
     if (!rev) return;
     const p = { ...(rev.payload as Record<string, unknown>) };
-    const key = ['markdown', 'statement', 'description', 'body', 'notes'].find((k) => typeof p[k] === 'string') ?? 'markdown';
+    const key =
+      ['markdown', 'statement', 'description', 'body', 'notes'].find(
+        (k) => typeof p[k] === 'string',
+      ) ?? 'markdown';
     p[key] = text;
     try {
       await cmd('artifact.apply_edit', {
@@ -71,12 +74,18 @@ export function MarkdownView({ view }: { view: ArtifactView }) {
         <div
           className="md"
           style={{ fontSize: 13, lineHeight: 1.6 }}
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(current || '_No content_', { async: false }) as string) }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(
+              marked.parse(current || '_No content_', { async: false }) as string,
+            ),
+          }}
         />
       )}
       {rev && rev.files.length > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>Files</div>
+          <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>
+            Files
+          </div>
           {rev.files.map((f) => (
             <div key={f.path} className="mono dim" style={{ fontSize: 12, padding: '2px 0' }}>
               {f.path}

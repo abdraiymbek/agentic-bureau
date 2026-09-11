@@ -17,7 +17,16 @@ export function TerminalPane() {
   const search = useRef<SearchAddon | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
-  const { session, refreshSession, adapters, refreshAdapters, terminalExpanded, set, toast, projectId } = useStore();
+  const {
+    session,
+    refreshSession,
+    adapters,
+    refreshAdapters,
+    terminalExpanded,
+    set,
+    toast,
+    projectId,
+  } = useStore();
   const [adapterId, setAdapterId] = useState('codex');
   const restored = useRef(false);
 
@@ -69,7 +78,9 @@ export function TerminalPane() {
       try {
         f.fit();
         if (term.current) {
-          void cmd('terminal.resize', { cols: term.current.cols, rows: term.current.rows }).catch(() => {});
+          void cmd('terminal.resize', { cols: term.current.cols, rows: term.current.rows }).catch(
+            () => {},
+          );
         }
       } catch {
         /* hidden */
@@ -130,10 +141,23 @@ export function TerminalPane() {
   };
 
   const running = session?.state === 'running' || session?.state === 'starting';
-  const adapterOptions = adapters.length ? adapters : [{ adapterId: 'codex', label: 'Codex CLI' }, { adapterId: 'claude-code', label: 'Claude Code' }, { adapterId: 'custom', label: 'Custom CLI' }] as never[];
+  const adapterOptions = adapters.length
+    ? adapters
+    : ([
+        { adapterId: 'codex', label: 'Codex CLI' },
+        { adapterId: 'claude-code', label: 'Claude Code' },
+        { adapterId: 'custom', label: 'Custom CLI' },
+      ] as never[]);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-inset)' }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--bg-inset)',
+      }}
+    >
       <div
         style={{
           height: 34,
@@ -161,7 +185,9 @@ export function TerminalPane() {
             </option>
           ))}
         </select>
-        <span className={`pill ${running ? 'current' : session?.state === 'failed' ? 'missing' : ''}`}>
+        <span
+          className={`pill ${running ? 'current' : session?.state === 'failed' ? 'missing' : ''}`}
+        >
           {session?.state ?? 'stopped'}
         </span>
         <span style={{ flex: 1 }} />
@@ -184,7 +210,10 @@ export function TerminalPane() {
         <button style={{ height: 24, fontSize: 12 }} onClick={() => setFindOpen((v) => !v)}>
           Find
         </button>
-        <button style={{ height: 24, fontSize: 12 }} onClick={() => set({ terminalExpanded: !terminalExpanded })}>
+        <button
+          style={{ height: 24, fontSize: 12 }}
+          onClick={() => set({ terminalExpanded: !terminalExpanded })}
+        >
           {terminalExpanded ? 'Shrink' : 'Expand'}
         </button>
         {running ? (

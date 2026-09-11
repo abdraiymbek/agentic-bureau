@@ -193,7 +193,9 @@ export class Repo {
 
   insertProject(p: Project): void {
     this.db
-      .prepare(`INSERT INTO project(id,name,intent,units_pref,currency_pref,schema_version,created_at) VALUES(?,?,?,?,?,?,?)`)
+      .prepare(
+        `INSERT INTO project(id,name,intent,units_pref,currency_pref,schema_version,created_at) VALUES(?,?,?,?,?,?,?)`,
+      )
       .run(p.id, p.name, p.intent, p.unitsPref, p.currencyPref, p.schemaVersion, p.createdAt);
   }
   getProject(): Project | null {
@@ -203,11 +205,9 @@ export class Repo {
   updateProject(fields: { name?: string; intent?: string }): void {
     const p = this.getProject();
     if (!p) return;
-    this.db.prepare(`UPDATE project SET name=?, intent=? WHERE id=?`).run(
-      fields.name ?? p.name,
-      fields.intent ?? p.intent,
-      p.id,
-    );
+    this.db
+      .prepare(`UPDATE project SET name=?, intent=? WHERE id=?`)
+      .run(fields.name ?? p.name, fields.intent ?? p.intent, p.id);
   }
   meta(key: string): string | null {
     const r = this.db.prepare(`SELECT value FROM meta WHERE key=?`).get(key) as Row | undefined;
@@ -215,7 +215,9 @@ export class Repo {
   }
   setMeta(key: string, value: string): void {
     this.db
-      .prepare(`INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`)
+      .prepare(
+        `INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      )
       .run(key, value);
   }
 
@@ -223,8 +225,18 @@ export class Repo {
 
   insertArtifact(a: Artifact): void {
     this.db
-      .prepare(`INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?,?,?,?,?,?,?)`)
-      .run(a.id, a.type, a.title, a.subsystem, a.selectedRevisionId, a.archived ? 1 : 0, a.createdAt);
+      .prepare(
+        `INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?,?,?,?,?,?,?)`,
+      )
+      .run(
+        a.id,
+        a.type,
+        a.title,
+        a.subsystem,
+        a.selectedRevisionId,
+        a.archived ? 1 : 0,
+        a.createdAt,
+      );
   }
   getArtifact(id: string): Artifact | null {
     const r = this.db.prepare(`SELECT * FROM artifact WHERE id=?`).get(id) as Row | undefined;
@@ -240,13 +252,25 @@ export class Repo {
     this.db.prepare(`UPDATE artifact SET archived=? WHERE id=?`).run(archived ? 1 : 0, id);
   }
   setSelectedRevision(artifactId: string, revisionId: string | null): void {
-    this.db.prepare(`UPDATE artifact SET selected_revision_id=? WHERE id=?`).run(revisionId, artifactId);
+    this.db
+      .prepare(`UPDATE artifact SET selected_revision_id=? WHERE id=?`)
+      .run(revisionId, artifactId);
   }
-  listArtifacts(opts?: { type?: string; subsystem?: string; includeArchived?: boolean }): Artifact[] {
+  listArtifacts(opts?: {
+    type?: string;
+    subsystem?: string;
+    includeArchived?: boolean;
+  }): Artifact[] {
     let sql = `SELECT * FROM artifact WHERE 1=1`;
     const args: unknown[] = [];
-    if (opts?.type) { sql += ` AND type=?`; args.push(opts.type); }
-    if (opts?.subsystem) { sql += ` AND subsystem=?`; args.push(opts.subsystem); }
+    if (opts?.type) {
+      sql += ` AND type=?`;
+      args.push(opts.type);
+    }
+    if (opts?.subsystem) {
+      sql += ` AND subsystem=?`;
+      args.push(opts.subsystem);
+    }
     if (!opts?.includeArchived) sql += ` AND archived=0`;
     sql += ` ORDER BY created_at`;
     return (this.db.prepare(sql).all(...args) as Row[]).map(toArtifact);
@@ -261,8 +285,19 @@ export class Repo {
          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .run(
-        r.id, r.artifactId, r.parentId, r.seq, r.origin, r.originDetail, r.createdAt,
-        J(r.payload), r.contentHash, J(r.files), J(r.inputs), r.rationale, r.reviewState,
+        r.id,
+        r.artifactId,
+        r.parentId,
+        r.seq,
+        r.origin,
+        r.originDetail,
+        r.createdAt,
+        J(r.payload),
+        r.contentHash,
+        J(r.files),
+        J(r.inputs),
+        r.rationale,
+        r.reviewState,
       );
   }
   getRevision(id: string): Revision | null {
@@ -270,11 +305,17 @@ export class Repo {
     return r ? toRevision(r) : null;
   }
   nextRevisionSeq(artifactId: string): number {
-    const r = this.db.prepare(`SELECT COALESCE(MAX(seq),0)+1 AS s FROM revision WHERE artifact_id=?`).get(artifactId) as Row;
+    const r = this.db
+      .prepare(`SELECT COALESCE(MAX(seq),0)+1 AS s FROM revision WHERE artifact_id=?`)
+      .get(artifactId) as Row;
     return r.s as number;
   }
   listRevisions(artifactId: string): Revision[] {
-    return (this.db.prepare(`SELECT * FROM revision WHERE artifact_id=? ORDER BY seq`).all(artifactId) as Row[]).map(toRevision);
+    return (
+      this.db
+        .prepare(`SELECT * FROM revision WHERE artifact_id=? ORDER BY seq`)
+        .all(artifactId) as Row[]
+    ).map(toRevision);
   }
   listDrafts(artifactId?: string): Revision[] {
     const sql = artifactId
@@ -293,17 +334,32 @@ export class Repo {
 
   insertEdge(e: Edge): void {
     this.db
-      .prepare(`INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)`)
-      .run(e.id, e.upstreamArtifactId, e.downstreamArtifactId, e.relationship, e.requiredUpstreamRevisionId, e.label, e.createdBy, e.createdAt);
+      .prepare(
+        `INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        e.id,
+        e.upstreamArtifactId,
+        e.downstreamArtifactId,
+        e.relationship,
+        e.requiredUpstreamRevisionId,
+        e.label,
+        e.createdBy,
+        e.createdAt,
+      );
   }
   deleteEdge(id: string): void {
     this.db.prepare(`DELETE FROM edge WHERE id=?`).run(id);
   }
   edgesFrom(artifactId: string): Edge[] {
-    return (this.db.prepare(`SELECT * FROM edge WHERE upstream_artifact_id=?`).all(artifactId) as Row[]).map(toEdge);
+    return (
+      this.db.prepare(`SELECT * FROM edge WHERE upstream_artifact_id=?`).all(artifactId) as Row[]
+    ).map(toEdge);
   }
   edgesTo(artifactId: string): Edge[] {
-    return (this.db.prepare(`SELECT * FROM edge WHERE downstream_artifact_id=?`).all(artifactId) as Row[]).map(toEdge);
+    return (
+      this.db.prepare(`SELECT * FROM edge WHERE downstream_artifact_id=?`).all(artifactId) as Row[]
+    ).map(toEdge);
   }
   allEdges(): Edge[] {
     return (this.db.prepare(`SELECT * FROM edge`).all() as Row[]).map(toEdge);
@@ -313,8 +369,19 @@ export class Repo {
 
   insertProposal(p: Proposal): void {
     this.db
-      .prepare(`INSERT INTO proposal(id,changes,reason,impact,state,created_by,created_by_session,created_at) VALUES(?,?,?,?,?,?,?,?)`)
-      .run(p.id, J(p.changes), p.reason, J(p.impact ?? null), p.state, p.createdBy, p.createdBySession, p.createdAt);
+      .prepare(
+        `INSERT INTO proposal(id,changes,reason,impact,state,created_by,created_by_session,created_at) VALUES(?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        p.id,
+        J(p.changes),
+        p.reason,
+        J(p.impact ?? null),
+        p.state,
+        p.createdBy,
+        p.createdBySession,
+        p.createdAt,
+      );
   }
   getProposal(id: string): Proposal | null {
     const r = this.db.prepare(`SELECT * FROM proposal WHERE id=?`).get(id) as Row | undefined;
@@ -327,7 +394,9 @@ export class Repo {
   }
   listProposals(state?: string): Proposal[] {
     const rows = state
-      ? (this.db.prepare(`SELECT * FROM proposal WHERE state=? ORDER BY created_at DESC`).all(state) as Row[])
+      ? (this.db
+          .prepare(`SELECT * FROM proposal WHERE state=? ORDER BY created_at DESC`)
+          .all(state) as Row[])
       : (this.db.prepare(`SELECT * FROM proposal ORDER BY created_at DESC`).all() as Row[]);
     return rows.map(toProposal);
   }
@@ -342,31 +411,65 @@ export class Repo {
 
   insertDecision(d: Decision): void {
     this.db
-      .prepare(`INSERT INTO decision(id,proposal_id,action,actor,ts,rationale,prior_baseline,new_baseline,event_seq) VALUES(?,?,?,?,?,?,?,?,?)`)
-      .run(d.id, d.proposalId, d.action, d.actor, d.ts, d.rationale, J(d.priorBaseline), J(d.newBaseline), d.eventSeq);
+      .prepare(
+        `INSERT INTO decision(id,proposal_id,action,actor,ts,rationale,prior_baseline,new_baseline,event_seq) VALUES(?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        d.id,
+        d.proposalId,
+        d.action,
+        d.actor,
+        d.ts,
+        d.rationale,
+        J(d.priorBaseline),
+        J(d.newBaseline),
+        d.eventSeq,
+      );
   }
   listDecisions(limit = 200): Decision[] {
-    return (this.db.prepare(`SELECT * FROM decision ORDER BY ts DESC LIMIT ?`).all(limit) as Row[]).map(toDecision);
+    return (
+      this.db.prepare(`SELECT * FROM decision ORDER BY ts DESC LIMIT ?`).all(limit) as Row[]
+    ).map(toDecision);
   }
 
   /* ------------------------------ bom / offers ------------------------- */
 
   insertBomLine(l: BomLine): void {
     this.db
-      .prepare(`INSERT INTO bom_line(id,component_artifact_id,component_revision_id,subsystem,quantity,offer_id,location,notes) VALUES(?,?,?,?,?,?,?,?)`)
-      .run(l.id, l.componentArtifactId, l.componentRevisionId, l.subsystem, l.quantity, l.offerId, l.location, l.notes);
+      .prepare(
+        `INSERT INTO bom_line(id,component_artifact_id,component_revision_id,subsystem,quantity,offer_id,location,notes) VALUES(?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        l.id,
+        l.componentArtifactId,
+        l.componentRevisionId,
+        l.subsystem,
+        l.quantity,
+        l.offerId,
+        l.location,
+        l.notes,
+      );
   }
-  updateBomLine(id: string, fields: Partial<Pick<BomLine, 'quantity' | 'offerId' | 'location' | 'notes' | 'componentRevisionId'>>): void {
+  updateBomLine(
+    id: string,
+    fields: Partial<
+      Pick<BomLine, 'quantity' | 'offerId' | 'location' | 'notes' | 'componentRevisionId'>
+    >,
+  ): void {
     const cur = this.getBomLine(id);
     if (!cur) return;
-    this.db.prepare(`UPDATE bom_line SET quantity=?, offer_id=?, location=?, notes=?, component_revision_id=? WHERE id=?`).run(
-      fields.quantity ?? cur.quantity,
-      fields.offerId !== undefined ? fields.offerId : cur.offerId,
-      fields.location !== undefined ? fields.location : cur.location,
-      fields.notes ?? cur.notes,
-      fields.componentRevisionId ?? cur.componentRevisionId,
-      id,
-    );
+    this.db
+      .prepare(
+        `UPDATE bom_line SET quantity=?, offer_id=?, location=?, notes=?, component_revision_id=? WHERE id=?`,
+      )
+      .run(
+        fields.quantity ?? cur.quantity,
+        fields.offerId !== undefined ? fields.offerId : cur.offerId,
+        fields.location !== undefined ? fields.location : cur.location,
+        fields.notes ?? cur.notes,
+        fields.componentRevisionId ?? cur.componentRevisionId,
+        id,
+      );
   }
   deleteBomLine(id: string): void {
     this.db.prepare(`DELETE FROM bom_line WHERE id=?`).run(id);
@@ -376,37 +479,93 @@ export class Repo {
     return r ? toBomLine(r) : null;
   }
   listBomLines(): BomLine[] {
-    return (this.db.prepare(`SELECT * FROM bom_line ORDER BY subsystem, id`).all() as Row[]).map(toBomLine);
+    return (this.db.prepare(`SELECT * FROM bom_line ORDER BY subsystem, id`).all() as Row[]).map(
+      toBomLine,
+    );
   }
   bomLinesForComponent(componentArtifactId: string): BomLine[] {
-    return (this.db.prepare(`SELECT * FROM bom_line WHERE component_artifact_id=?`).all(componentArtifactId) as Row[]).map(toBomLine);
+    return (
+      this.db
+        .prepare(`SELECT * FROM bom_line WHERE component_artifact_id=?`)
+        .all(componentArtifactId) as Row[]
+    ).map(toBomLine);
   }
 
   insertOffer(o: Offer, componentArtifactId: string): void {
     this.db
-      .prepare(`INSERT INTO offer(id,component_artifact_id,seller,url,price_amount,price_currency,quantity_basis,availability_text,observed_at,source_id) VALUES(?,?,?,?,?,?,?,?,?,?)`)
-      .run(o.id, componentArtifactId, o.seller, o.url ?? null, o.price?.amount ?? null, o.price?.currency ?? null, o.quantityBasis, o.availabilityText ?? null, o.observedAt, o.sourceId ?? null);
+      .prepare(
+        `INSERT INTO offer(id,component_artifact_id,seller,url,price_amount,price_currency,quantity_basis,availability_text,observed_at,source_id) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        o.id,
+        componentArtifactId,
+        o.seller,
+        o.url ?? null,
+        o.price?.amount ?? null,
+        o.price?.currency ?? null,
+        o.quantityBasis,
+        o.availabilityText ?? null,
+        o.observedAt,
+        o.sourceId ?? null,
+      );
   }
   getOffer(id: string): (Offer & { componentArtifactId: string }) | null {
     const r = this.db.prepare(`SELECT * FROM offer WHERE id=?`).get(id) as Row | undefined;
     return r ? { ...toOffer(r), componentArtifactId: r.component_artifact_id as string } : null;
   }
   offersForComponent(componentArtifactId: string): Offer[] {
-    return (this.db.prepare(`SELECT * FROM offer WHERE component_artifact_id=? ORDER BY observed_at DESC`).all(componentArtifactId) as Row[]).map(toOffer);
+    return (
+      this.db
+        .prepare(`SELECT * FROM offer WHERE component_artifact_id=? ORDER BY observed_at DESC`)
+        .all(componentArtifactId) as Row[]
+    ).map(toOffer);
   }
 
   /* ------------------------------ jobs --------------------------------- */
 
   insertJob(j: Job): void {
     this.db
-      .prepare(`INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(j.id, j.kind, j.tool, j.toolVersion, J(j.inputs), J(j.inputHashes), j.command, j.status, j.log, J(j.outputHashes), J(j.error), j.sessionId, j.createdAt);
+      .prepare(
+        `INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      )
+      .run(
+        j.id,
+        j.kind,
+        j.tool,
+        j.toolVersion,
+        J(j.inputs),
+        J(j.inputHashes),
+        j.command,
+        j.status,
+        j.log,
+        J(j.outputHashes),
+        J(j.error),
+        j.sessionId,
+        j.createdAt,
+      );
   }
-  updateJob(id: string, fields: Partial<Pick<Job, 'status' | 'log' | 'outputHashes' | 'error' | 'startedAt' | 'finishedAt' | 'toolVersion' | 'command'>>): void {
+  updateJob(
+    id: string,
+    fields: Partial<
+      Pick<
+        Job,
+        | 'status'
+        | 'log'
+        | 'outputHashes'
+        | 'error'
+        | 'startedAt'
+        | 'finishedAt'
+        | 'toolVersion'
+        | 'command'
+      >
+    >,
+  ): void {
     const cur = this.getJob(id);
     if (!cur) return;
     this.db
-      .prepare(`UPDATE job SET status=?, log=?, output_hashes=?, error=?, started_at=?, finished_at=?, tool_version=?, command=? WHERE id=?`)
+      .prepare(
+        `UPDATE job SET status=?, log=?, output_hashes=?, error=?, started_at=?, finished_at=?, tool_version=?, command=? WHERE id=?`,
+      )
       .run(
         fields.status ?? cur.status,
         fields.log ?? cur.log,
@@ -420,7 +579,9 @@ export class Repo {
       );
   }
   appendJobLog(id: string, chunk: string, maxChars: number): void {
-    this.db.prepare(`UPDATE job SET log = substr(log || ?, -?) WHERE id=?`).run(chunk, maxChars, id);
+    this.db
+      .prepare(`UPDATE job SET log = substr(log || ?, -?) WHERE id=?`)
+      .run(chunk, maxChars, id);
   }
   getJob(id: string): Job | null {
     const r = this.db.prepare(`SELECT * FROM job WHERE id=?`).get(id) as Row | undefined;
@@ -428,7 +589,9 @@ export class Repo {
   }
   listJobs(limit = 50, status?: string): Job[] {
     const rows = status
-      ? (this.db.prepare(`SELECT * FROM job WHERE status=? ORDER BY created_at DESC LIMIT ?`).all(status, limit) as Row[])
+      ? (this.db
+          .prepare(`SELECT * FROM job WHERE status=? ORDER BY created_at DESC LIMIT ?`)
+          .all(status, limit) as Row[])
       : (this.db.prepare(`SELECT * FROM job ORDER BY created_at DESC LIMIT ?`).all(limit) as Row[]);
     return rows.map(toJob);
   }
@@ -436,21 +599,32 @@ export class Repo {
   /* ------------------------------ events ------------------------------- */
 
   /** Append an event inside the current transaction; returns its seq. */
-  appendEvent(type: string, origin: 'user' | 'agent' | 'system', data: unknown, id?: string): number {
+  appendEvent(
+    type: string,
+    origin: 'user' | 'agent' | 'system',
+    data: unknown,
+    id?: string,
+  ): number {
     const r = this.db
       .prepare(`INSERT INTO event(id,type,origin,ts,data) VALUES(?,?,?,?,?)`)
       .run(id ?? newId(), type, origin, new Date().toISOString(), J(data));
     return Number(r.lastInsertRowid);
   }
   eventsSince(seq: number, limit = 500): ProjectEvent[] {
-    return (this.db.prepare(`SELECT * FROM event WHERE seq>? ORDER BY seq LIMIT ?`).all(seq, limit) as Row[]).map(toEvent);
+    return (
+      this.db
+        .prepare(`SELECT * FROM event WHERE seq>? ORDER BY seq LIMIT ?`)
+        .all(seq, limit) as Row[]
+    ).map(toEvent);
   }
   latestEventSeq(): number {
     const r = this.db.prepare(`SELECT COALESCE(MAX(seq),0) AS s FROM event`).get() as Row;
     return r.s as number;
   }
   listEvents(limit = 200): ProjectEvent[] {
-    return (this.db.prepare(`SELECT * FROM event ORDER BY seq DESC LIMIT ?`).all(limit) as Row[]).map(toEvent);
+    return (
+      this.db.prepare(`SELECT * FROM event ORDER BY seq DESC LIMIT ?`).all(limit) as Row[]
+    ).map(toEvent);
   }
 
   /* ------------------------------ stale -------------------------------- */
@@ -461,14 +635,24 @@ export class Repo {
       `INSERT INTO stale(artifact_id,upstream_artifact_id,expected_revision_id,actual_revision_id,path,reason,since_event_seq) VALUES(?,?,?,?,?,?,?)`,
     );
     for (const s of records) {
-      ins.run(s.artifactId, s.upstreamArtifactId, s.expectedRevisionId, s.actualRevisionId, J(s.path), s.reason, s.sinceEventSeq);
+      ins.run(
+        s.artifactId,
+        s.upstreamArtifactId,
+        s.expectedRevisionId,
+        s.actualRevisionId,
+        J(s.path),
+        s.reason,
+        s.sinceEventSeq,
+      );
     }
   }
   clearStale(artifactId: string): void {
     this.db.prepare(`DELETE FROM stale WHERE artifact_id=?`).run(artifactId);
   }
   staleFor(artifactId: string): StaleRecord[] {
-    return (this.db.prepare(`SELECT * FROM stale WHERE artifact_id=?`).all(artifactId) as Row[]).map(toStale);
+    return (
+      this.db.prepare(`SELECT * FROM stale WHERE artifact_id=?`).all(artifactId) as Row[]
+    ).map(toStale);
   }
   allStale(): StaleRecord[] {
     return (this.db.prepare(`SELECT * FROM stale`).all() as Row[]).map(toStale);
@@ -479,15 +663,24 @@ export class Repo {
   addMaterialization(path: string, sha256: string | null, revisionId: string | null): string {
     const id = newId();
     this.db
-      .prepare(`INSERT INTO materialization(id,path,sha256,revision_id,state,created_at) VALUES(?,?,?,?,'pending',?)`)
+      .prepare(
+        `INSERT INTO materialization(id,path,sha256,revision_id,state,created_at) VALUES(?,?,?,?,'pending',?)`,
+      )
       .run(id, path, sha256, revisionId, new Date().toISOString());
     return id;
   }
   completeMaterialization(id: string): void {
     this.db.prepare(`UPDATE materialization SET state='done' WHERE id=?`).run(id);
   }
-  pendingMaterializations(): { id: string; path: string; sha256: string | null; revisionId: string | null }[] {
-    return (this.db.prepare(`SELECT * FROM materialization WHERE state='pending'`).all() as Row[]).map((r) => ({
+  pendingMaterializations(): {
+    id: string;
+    path: string;
+    sha256: string | null;
+    revisionId: string | null;
+  }[] {
+    return (
+      this.db.prepare(`SELECT * FROM materialization WHERE state='pending'`).all() as Row[]
+    ).map((r) => ({
       id: r.id as string,
       path: r.path as string,
       sha256: (r.sha256 as string) ?? null,
@@ -503,7 +696,9 @@ export class Repo {
   }
   putIdempotent(key: string, requestHash: string, response: unknown): void {
     this.db
-      .prepare(`INSERT OR IGNORE INTO idempotency(key,request_hash,response,created_at) VALUES(?,?,?,?)`)
+      .prepare(
+        `INSERT OR IGNORE INTO idempotency(key,request_hash,response,created_at) VALUES(?,?,?,?)`,
+      )
       .run(key, requestHash, J(response), new Date().toISOString());
   }
 
@@ -516,23 +711,40 @@ export class Repo {
          VALUES(?,?,?,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET state=excluded.state, pid=excluded.pid, exit_code=excluded.exit_code, started_at=excluded.started_at, ended_at=excluded.ended_at, last_error=excluded.last_error`,
       )
-      .run(s.id, s.adapterId, s.executablePath, s.state, s.pid, s.exitCode, s.startedAt, s.endedAt, s.lastError);
+      .run(
+        s.id,
+        s.adapterId,
+        s.executablePath,
+        s.state,
+        s.pid,
+        s.exitCode,
+        s.startedAt,
+        s.endedAt,
+        s.lastError,
+      );
   }
   getSession(id: string): SessionInfo | null {
     const r = this.db.prepare(`SELECT * FROM session WHERE id=?`).get(id) as Row | undefined;
     return r ? toSession(r) : null;
   }
   sessionsByState(state: string): SessionInfo[] {
-    return (this.db.prepare(`SELECT * FROM session WHERE state=?`).all(state) as Row[]).map(toSession);
+    return (this.db.prepare(`SELECT * FROM session WHERE state=?`).all(state) as Row[]).map(
+      toSession,
+    );
   }
 
   /* ------------------------------ fts ---------------------------------- */
 
   ftsIndex(artifactId: string, revisionId: string, title: string, text: string): void {
     this.db.prepare(`DELETE FROM artifact_fts WHERE artifact_id=?`).run(artifactId);
-    this.db.prepare(`INSERT INTO artifact_fts(artifact_id,revision_id,title,text) VALUES(?,?,?,?)`).run(artifactId, revisionId, title, text);
+    this.db
+      .prepare(`INSERT INTO artifact_fts(artifact_id,revision_id,title,text) VALUES(?,?,?,?)`)
+      .run(artifactId, revisionId, title, text);
   }
-  ftsSearch(query: string, limit = 20): { artifactId: string; revisionId: string; title: string; snippet: string }[] {
+  ftsSearch(
+    query: string,
+    limit = 20,
+  ): { artifactId: string; revisionId: string; title: string; snippet: string }[] {
     const rows = this.db
       .prepare(
         `SELECT artifact_id, revision_id, title, snippet(artifact_fts, 3, '«', '»', '…', 12) AS snip
