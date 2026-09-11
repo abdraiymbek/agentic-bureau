@@ -1,0 +1,36 @@
+{
+  "name": "stark",
+  "version": "0.1.0",
+  "private": true,
+  "description": "STARK — local desktop engineering workspace for bring-your-own agent CLIs",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @stark/desktop start",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "rebuild:electron": "node scripts/rebuild-natives.mjs electron",
+    "rebuild:node": "node scripts/rebuild-natives.mjs node",
+    "package": "pnpm --filter @stark/desktop package",
+    "make": "pnpm --filter @stark/desktop make",
+    "smoke:bridge": "tsx scripts/bridge-smoke.ts",
+    "smoke:packaged": "node scripts/packaged-smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

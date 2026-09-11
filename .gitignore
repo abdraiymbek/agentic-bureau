@@ -9,3 +9,8 @@ __pycache__/
 *.pyc
 .venv/
 target/
+.vite/
+out/
+*.tsbuildinfo
+coverage/
+.stark-dev/
