@@ -29,7 +29,7 @@ const projectSummary = z.object({ budget: z.number().int().positive().default(60
 const projectSearch = z.object({ query: z.string().min(1), limit: z.number().int().positive().max(100).default(20) });
 const projectChangesSince = z.object({ seq: z.number().int().nonnegative() });
 const projectExportArchive = z.object({ destPath: z.string().min(1) });
-const projectImportArchive = z.object({ archivePath: z.string().min(1), destDir: z.string().min(1) });
+const projectImportArchive = z.object({ archivePath: z.string().min(1), destDir: z.string().min(1), newIdentity: z.boolean().default(false) });
 const projectUpdateIntent = z.object({ intent: z.string() });
 
 /* ------------------------------- artifact ------------------------------ */
@@ -82,6 +82,8 @@ const artifactImportFile = z.object({
   rationale: z.string().default(''),
   ...idem,
 });
+/** User-only: accept an existing draft revision as baseline (implicit approve). */
+const artifactAcceptDraft = z.object({ artifactId: idSchema, draftRevisionId: idSchema, rationale: z.string().default(''), ...idem });
 /** User-only direct baseline edit. Agents receive APPROVAL_REQUIRED. */
 const artifactApplyEdit = z.object({
   artifactId: idSchema,
@@ -381,6 +383,7 @@ export const OPS: OpDef[] = [
   def('artifact.update_draft', artifactUpdateDraft, 'both', true, 'Create a draft revision on an artifact'),
   def('artifact.import_file', artifactImportFile, 'both', true, 'Import an external file as a draft'),
   def('artifact.apply_edit', artifactApplyEdit, 'user', true, 'User direct baseline edit (decision + propagation)'),
+  def('artifact.accept_draft', artifactAcceptDraft, 'user', true, 'Accept a draft revision as the baseline'),
   def('artifact.revert', artifactRevert, 'user', true, 'Revert baseline to a historical revision'),
   def('artifact.archive', artifactArchive, 'user', true, 'Archive/unarchive an artifact'),
   def('artifact.reveal', artifactReveal, 'user', false, 'Reveal artifact files in OS file manager'),
