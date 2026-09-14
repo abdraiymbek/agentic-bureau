@@ -60,7 +60,6 @@ export default function App() {
   if (!projectId) {
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ height: 40, WebkitAppRegion: 'drag' } as React.CSSProperties} />
         <WelcomeView />
         <Toasts items={toasts} />
       </div>
