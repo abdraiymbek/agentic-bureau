@@ -114,8 +114,8 @@ export function OverviewView() {
       <Section title="Recent changes">
         {(summary?.recentDecisions ?? []).slice(0, 8).map((d, i) => (
           <div key={i} style={{ padding: '3px 0', fontSize: 12 }}>
-            <span className="dim">{d.ts.slice(0, 16).replace('T', ' ')}</span> — {d.action} —{' '}
-            {d.rationale}
+            <span className="dim">{d.ts.slice(0, 16).replace('T', ' ')}</span> — {d.action}
+            {d.rationale ? ` — ${d.rationale}` : ''}
           </div>
         ))}
       </Section>

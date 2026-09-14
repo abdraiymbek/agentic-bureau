@@ -113,9 +113,18 @@ export class CoreApp {
   }
 
   private rememberProject(root: string): void {
+    // Canonicalize so /tmp/x and /private/tmp/x don't duplicate on macOS.
+    const canon = (p: string) => {
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return p;
+      }
+    };
+    const key = canon(root);
     this.settings.recentProjects = [
-      root,
-      ...this.settings.recentProjects.filter((p) => p !== root),
+      key,
+      ...this.settings.recentProjects.filter((p) => canon(p) !== key),
     ].slice(0, 12);
     this.saveSettings();
   }
@@ -185,6 +194,25 @@ export class CoreApp {
         const ctx = this.contextFor(projectId!);
         ctx.repo.updateProject({ intent: (payload as { intent: string }).intent });
         return { project: ctx.repo.getProject() };
+      }
+      case 'project.list_open': {
+        return {
+          projects: [...this.contexts.values()].map((c) => ({
+            id: c.projectId,
+            name: c.handle.project.name,
+            root: c.handle.root,
+          })),
+        };
+      }
+      case 'project.close': {
+        const ctx = this.contextFor(projectId!);
+        try {
+          await this.terminalHost?.stop(ctx);
+        } catch {
+          /* best-effort: closing must not fail on a wedged session */
+        }
+        this.closeProject(projectId!);
+        return { ok: true };
       }
       case 'project.import_archive': {
         const p = payload as { archivePath: string; destDir: string; newIdentity: boolean };

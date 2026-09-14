@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import type { ArtifactView, Revision } from '@stark/contracts';
 
@@ -46,7 +46,7 @@ export function MarkdownView({ view }: { view: ArtifactView }) {
       setEditing(false);
       toast('ok', 'Saved');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 

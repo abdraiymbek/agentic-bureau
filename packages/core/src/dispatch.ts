@@ -420,7 +420,21 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
       repair: req.op === 'artifact.apply_edit' ? 'Submit a proposal instead.' : undefined,
     });
   }
-  const input = op.input.parse(req.payload ?? {}) as never;
+  let input: never;
+  try {
+    input = op.input.parse(req.payload ?? {}) as never;
+  } catch (e) {
+    // Humanize Zod failures — raw issue JSON is unreadable in toasts.
+    const issues = (e as { issues?: { path: (string | number)[]; message: string }[] }).issues;
+    if (issues?.length) {
+      const first = issues[0]!;
+      const where = first.path.length ? `${first.path.join('.')}: ` : '';
+      throw new StarkError(ErrorCodes.VALIDATION, `Invalid input — ${where}${first.message}`, {
+        details: { issues: issues.map((i) => `${i.path.join('.')}: ${i.message}`) },
+      });
+    }
+    throw e;
+  }
   if (op.mutating) ctx.assertWritable();
 
   // Idempotency: same key + same request hash returns the stored response.

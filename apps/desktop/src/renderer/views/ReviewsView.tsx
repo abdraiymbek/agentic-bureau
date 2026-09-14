@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import type { Proposal, Revision, Artifact, ProposedChange } from '@stark/contracts';
 import { formatQty, isUnknown } from '@stark/contracts';
@@ -45,7 +45,7 @@ export function ReviewsView() {
       setDetail(null);
       setRationale('');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -248,6 +248,9 @@ function summarize(payload: unknown): string {
   const p = payload as Record<string, unknown>;
   if (p.statement) return String(p.statement).slice(0, 160);
   if (p.partNumber) return `${p.partNumber} (${p.manufacturer ?? p.vendor ?? ''})`;
+  if (typeof p.markdown === 'string') return p.markdown.slice(0, 160);
+  if (typeof p.text === 'string') return p.text.slice(0, 160);
+  if (p.url) return String(p.url).slice(0, 160);
   return JSON.stringify(payload).slice(0, 160);
 }
 

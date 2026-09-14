@@ -45,6 +45,13 @@ export class CommandError extends Error {
   }
 }
 
+/** Error text for toasts: appends the repair hint when the op provided one. */
+export function errMsg(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const repair = e instanceof CommandError ? e.repair : undefined;
+  return repair ? `${msg} — ${repair}` : msg;
+}
+
 /** Invoke a core op; throws CommandError with stable code on failure. */
 export async function cmd<T = unknown>(
   op: string,

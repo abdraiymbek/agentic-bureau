@@ -545,6 +545,8 @@ export const OPS: OpDef[] = [
     'Lossless project archive export',
   ),
   def('project.import_archive', projectImportArchive, 'user', true, 'Import a project archive'),
+  def('project.list_open', z.object({}), 'user', false, 'List open projects'),
+  def('project.close', z.object({}), 'user', true, 'Close an open project'),
   def('app.recent_projects', appRecentProjects, 'user', false, 'List recent project folders'),
   def('app.diagnostics', appDiagnostics, 'user', false, 'Previewable diagnostic bundle'),
 

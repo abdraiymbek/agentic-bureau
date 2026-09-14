@@ -138,7 +138,18 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
 
   /* ------------------------------------------------ sources ------------ */
 
-  const srcPololu100 = await call('source.capture', {
+  // Captured sources land as drafts; accept each so dependents don't see
+  // missing_input.
+  const capture = (input: Record<string, unknown>) =>
+    call('source.capture', input).then(async (r) => {
+      await call('artifact.accept_draft', {
+        artifactId: r.artifact.id,
+        draftRevisionId: r.revision.id,
+      });
+      return r;
+    });
+
+  const srcPololu100 = await capture({
     url: 'https://www.pololu.com/product/2212',
     title: 'Pololu Micro Metal Gearmotor HP 6V, 100:1',
     publisher: 'Pololu',
@@ -147,7 +158,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
       '[fixture-recorded] 100:1 HP, 6 V, ~320 RPM free-run, stall torque ≈1.6 kg·cm, mass ≈9.5 g.',
     sourceKind: 'manufacturer',
   });
-  const srcPololu50 = await call('source.capture', {
+  const srcPololu50 = await capture({
     url: 'https://www.pololu.com/product/2204',
     title: 'Pololu Micro Metal Gearmotor HP 6V, 50:1',
     publisher: 'Pololu',
@@ -156,7 +167,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
       '[fixture-recorded] 50:1 HP, 6 V, ~625 RPM free-run, stall torque ≈0.8 kg·cm, mass ≈9.5 g.',
     sourceKind: 'manufacturer',
   });
-  const srcDrv = await call('source.capture', {
+  const srcDrv = await capture({
     url: 'https://www.pololu.com/product/2135',
     title: 'Pololu DRV8835 dual motor driver carrier',
     publisher: 'Pololu',
@@ -165,7 +176,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
       '[fixture-recorded] Dual H-bridge, 2–11 V motor supply, 1.2 A per channel, mass ≈1.2 g.',
     sourceKind: 'manufacturer',
   });
-  const srcPi = await call('source.capture', {
+  const srcPi = await capture({
     url: 'https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/',
     title: 'Raspberry Pi Zero 2 W',
     publisher: 'Raspberry Pi',
@@ -174,7 +185,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
       '[fixture-recorded] Quad-core 1 GHz, 512 MB, 2.4 GHz Wi-Fi, mass ≈11 g, 5 V via USB or GPIO.',
     sourceKind: 'manufacturer',
   });
-  const srcCam = await call('source.capture', {
+  const srcCam = await capture({
     url: 'https://www.raspberrypi.com/products/camera-module-3/',
     title: 'Raspberry Pi Camera Module 3 Wide',
     publisher: 'Raspberry Pi',
@@ -182,7 +193,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
     excerpt: '[fixture-recorded] 12 MP, 120° FOV (Wide), CSI-2, mass ≈4 g.',
     sourceKind: 'manufacturer',
   });
-  const srcBatt = await call('source.capture', {
+  const srcBatt = await capture({
     url: 'https://www.pololu.com/product/4036',
     title: 'LiPo 2S 450 mAh pack (supplier listing)',
     publisher: 'Pololu',
@@ -190,7 +201,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
     excerpt: '[fixture-recorded] 7.4 V nominal, 450 mAh, 30C, mass ≈40 g.',
     sourceKind: 'supplier',
   });
-  const srcReg = await call('source.capture', {
+  const srcReg = await capture({
     url: 'https://www.pololu.com/product/2858',
     title: 'Pololu D24V22F5 5 V step-down regulator',
     publisher: 'Pololu',

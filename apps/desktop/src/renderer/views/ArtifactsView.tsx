@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { StlViewport } from '../components/StlViewport';
 import { MarkdownView } from '../components/MarkdownView';
@@ -199,7 +199,7 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
       await cmd('cad.render', { artifactId: view.artifact.id });
       toast('ok', 'Render job started');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
       void refreshArtifacts();
@@ -212,7 +212,7 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
       });
       toast(r.ok ? 'ok' : 'error', r.ok ? 'Source valid' : r.errors.join('; ') || 'Invalid');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   const acceptDraft = async () => {
@@ -226,7 +226,7 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
       await refreshArtifacts();
       toast('ok', 'Draft accepted as baseline');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 
@@ -329,7 +329,7 @@ function ParamsTable(props: {
       await refreshArtifacts();
       toast('ok', 'Parameters updated — dependents marked stale');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   return (
@@ -410,7 +410,7 @@ function ScadEditor({ view }: { view: ArtifactView }) {
       await refreshArtifacts();
       toast('ok', 'Source saved — geometry stale until rendered');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 
@@ -467,14 +467,14 @@ function WiringDetail({ view }: { view: ArtifactView }) {
       setFindings(r.findings);
       toast('ok', r.coverage);
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   const render = async () => {
     try {
       setDiagram(await cmd<{ svg: string }>('wiring.render', { artifactId: view.artifact.id }));
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   const title = (id: string) =>
@@ -623,7 +623,7 @@ function CalcDetail({ view }: { view: ArtifactView }) {
       await refreshArtifacts();
       toast('ok', 'Recalculated');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 
@@ -732,7 +732,7 @@ function TestDetail({ view }: { view: ArtifactView }) {
       toast('ok', 'Result recorded');
       setObs('');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   return (

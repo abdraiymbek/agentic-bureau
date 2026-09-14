@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import '@xterm/xterm/css/xterm.css';
 
@@ -29,6 +29,10 @@ export function TerminalPane() {
   } = useStore();
   const [adapterId, setAdapterId] = useState('codex');
   const restored = useRef(false);
+  // Reflect the running session's adapter so the picker doesn't lie.
+  useEffect(() => {
+    if (session?.adapterId) setAdapterId(session.adapterId);
+  }, [session?.adapterId]);
 
   useEffect(() => {
     if (!host.current) return;
@@ -119,13 +123,26 @@ export function TerminalPane() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
+  // New session id (start/restart/project switch) → drop stale scrollback.
+  // Skipped until the mount-time scrollback restore has finished.
+  const lastSessionId = useRef<string | null>(null);
+  useEffect(() => {
+    const id = session?.id ?? null;
+    if (id === lastSessionId.current) return;
+    const seenBefore = lastSessionId.current !== null;
+    lastSessionId.current = id;
+    if (id && seenBefore && restored.current) term.current?.reset();
+  }, [session?.id]);
+
   const start = async () => {
     try {
+      // A fresh session shouldn't inherit a dead session's scrollback.
+      term.current?.reset();
       await cmd('terminal.start', { adapterId });
       await refreshSession();
       term.current?.focus();
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
   const stop = async () => {
@@ -136,6 +153,7 @@ export function TerminalPane() {
     await cmd('terminal.interrupt', {}).catch(() => {});
   };
   const restart = async () => {
+    term.current?.reset();
     await cmd('terminal.restart', {}).catch(() => {});
     await refreshSession();
   };

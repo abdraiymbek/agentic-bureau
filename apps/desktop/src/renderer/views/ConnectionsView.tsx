@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import type { AdapterStatus } from '@stark/contracts';
 
@@ -31,8 +31,8 @@ export function ConnectionsView() {
       setTestResult((s) => ({ ...s, [adapterId]: r }));
       toast(r.ok ? 'ok' : 'error', r.ok ? 'Connection test passed' : (r.error ?? 'failed'));
     } catch (e) {
-      toast('error', (e as Error).message);
-      setTestResult((s) => ({ ...s, [adapterId]: { ok: false, error: (e as Error).message } }));
+      toast('error', errMsg(e));
+      setTestResult((s) => ({ ...s, [adapterId]: { ok: false, error: errMsg(e) } }));
     } finally {
       setTesting(null);
       void refreshAdapters();
@@ -57,7 +57,7 @@ export function ConnectionsView() {
       toast('ok', 'Custom CLI configured');
       void refreshAdapters();
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 
@@ -66,7 +66,7 @@ export function ConnectionsView() {
       await cmd('settings.set', { key: 'toolPaths.openscad', value: scadPath });
       toast('ok', 'OpenSCAD path saved — doctor on next render');
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     }
   };
 

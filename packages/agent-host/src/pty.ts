@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { AGENT_OPS, ErrorCodes, StarkError, newId, type SessionInfo } from '@stark/contracts';
 import type { CoreApp, ProjectContext, TerminalHost } from '@stark/core';
 import type { IPty } from 'node-pty';
 import {
   adapterById,
   createAdapterRegistry,
+  loginShellPath,
   writeBootstrapBrief,
   type AgentAdapter,
 } from './adapters/index.js';
@@ -57,6 +59,8 @@ export class PtySessionManager implements TerminalHost {
   constructor(
     private app: CoreApp,
     private bridge: BridgeServer,
+    /** Directory holding the `stark` bridge CLI; prepended to session PATH. */
+    private cliDir?: string,
   ) {
     this.adapters = createAdapterRegistry((id) => app.adapterConfigs[id] ?? {});
   }
@@ -135,12 +139,23 @@ export class PtySessionManager implements TerminalHost {
 
       const pty = await import('node-pty');
       const [file, args] = spawnTarget(spec.path, spec.args);
+      const env = mergedEnv(spec.env);
+      // Session PATH: stark shim dir, then adapter-specified, then the user's
+      // login-shell PATH (GUI-spawned processes get a stub), then ours.
+      env.PATH = [
+        this.cliDir,
+        env.PATH,
+        loginShellPath(),
+        process.platform === 'win32' ? '' : '/usr/bin:/bin:/usr/sbin:/sbin',
+      ]
+        .filter((s): s is string => !!s)
+        .join(path.delimiter);
       const child = pty.spawn(file, args, {
         name: 'xterm-256color',
         cols: session.info.cols,
         rows: session.info.rows,
         cwd: spec.cwd,
-        env: mergedEnv(spec.env),
+        env,
       });
       session.pty = child;
       session.info.pid = child.pid;

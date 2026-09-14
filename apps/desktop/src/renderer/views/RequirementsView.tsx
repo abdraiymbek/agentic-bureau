@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { cmd, CommandError } from '../api';
+import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
 import type {
   ArtifactView,
@@ -137,6 +137,10 @@ function RequirementEditor(props: {
   const save = async () => {
     if (!view.revision) return;
     try {
+      if (targetValue.trim() && !Number.isFinite(Number(targetValue))) {
+        props.toast('error', `Target value must be a number — got "${targetValue}"`);
+        return;
+      }
       const target = targetValue.trim()
         ? { value: Number(targetValue), unit: targetUnit }
         : undefined;
@@ -325,7 +329,7 @@ function AssumptionEditor(props: {
       props.toast('ok', 'Saved');
       await props.onSaved();
     } catch (e) {
-      props.toast('error', (e as Error).message);
+      props.toast('error', errMsg(e));
     }
   };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { cmd } from '../api';
+import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
 import type { Project } from '@stark/contracts';
 
@@ -42,7 +42,7 @@ export function WelcomeView() {
       });
       await afterOpen({ ...r }, dir);
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -59,7 +59,34 @@ export function WelcomeView() {
       );
       await afterOpen(r, p);
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const importArchive = async () => {
+    const archivePath = await window.stark.pickFile({
+      title: 'Import STARK archive',
+      filters: [{ name: 'STARK archive', extensions: ['zip', 'stark.zip'] }],
+    });
+    if (!archivePath) return;
+    const destDir = await window.stark.pickDirectory('Choose where to extract the project');
+    if (!destDir) return;
+    setBusy(true);
+    try {
+      const input = { archivePath, destDir };
+      let r: { project: Project; projectId: string };
+      try {
+        r = await cmd('project.import_archive', input);
+      } catch (e) {
+        // Same project already open/on disk → import as a copy instead.
+        if (!(e instanceof CommandError) || e.code !== 'VALIDATION') throw e;
+        r = await cmd('project.import_archive', { ...input, newIdentity: true });
+      }
+      await afterOpen({ ...r }, destDir);
+    } catch (e) {
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -104,6 +131,9 @@ export function WelcomeView() {
       <div className="col" style={{ gap: 8, marginTop: 16 }}>
         <button onClick={() => open()} disabled={busy}>
           Open project folder…
+        </button>
+        <button onClick={importArchive} disabled={busy}>
+          Import project archive…
         </button>
         {recents.length > 0 && (
           <>

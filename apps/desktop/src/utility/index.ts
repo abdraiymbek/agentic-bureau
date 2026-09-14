@@ -4,6 +4,7 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { StarkError, toErrorBody, AGENT_OPS } from '@stark/contracts';
 import { CoreApp, HostServices, type ProjectContext } from '@stark/core';
 import { createEngineTools } from '@stark/engineering';
@@ -54,7 +55,9 @@ app.engineTools = createEngineTools({
   onToolPath: (toolId, p) => app.setToolPath(toolId, p),
 });
 const bridge = new BridgeServer(app, appDataDir);
-const ptyHost = new PtySessionManager(app, bridge);
+// `utility.js` is built beside the `stark` CLI shim in resources/core/ — both
+// in dev and inside the packaged app.asar.unpacked tree.
+const ptyHost = new PtySessionManager(app, bridge, path.dirname(fileURLToPath(import.meta.url)));
 app.terminalHost = ptyHost;
 app.connectionHost = new ConnectionManager(app, bridge);
 bridge.onMcpConnection = (sock, grant) => attachMcpToBridge(sock, app, grant);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { EmptyBlock } from './OverviewView';
 
@@ -7,6 +7,28 @@ import { EmptyBlock } from './OverviewView';
 export function FilesView() {
   const { artifacts, projectPath, toast } = useStore();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<{ artifactId: string; path: string } | null>(null);
+  const [content, setContent] = useState<string | null>(null);
+
+  const openFile = async (artifactId: string, p: string) => {
+    if (open?.path === p) {
+      setOpen(null);
+      setContent(null);
+      return;
+    }
+    setOpen({ artifactId, path: p });
+    setContent(null);
+    try {
+      const r = await cmd<{ contentBase64: string }>('artifact.read_file', {
+        artifactId,
+        path: p,
+      });
+      const bytes = Uint8Array.from(atob(r.contentBase64), (c) => c.charCodeAt(0));
+      setContent(new TextDecoder().decode(bytes));
+    } catch (e) {
+      setContent(`(cannot preview: ${errMsg(e)})`);
+    }
+  };
 
   const exportArchive = async () => {
     const dest = await window.stark.saveFile({ defaultPath: 'project.stark.zip' });
@@ -18,7 +40,7 @@ export function FilesView() {
       });
       toast('ok', `Exported ${r.files} files`);
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -35,7 +57,7 @@ export function FilesView() {
       );
       toast('ok', `Exported ${r.status} package (${r.files} files, ${r.issues} issues)`);
     } catch (e) {
-      toast('error', (e as Error).message);
+      toast('error', errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -75,16 +97,51 @@ export function FilesView() {
               {v.artifact.title}
             </div>
             {files.map((f, i) => (
-              <div key={i} className="row mono" style={{ fontSize: 12, padding: '3px 0' }}>
-                <span style={{ flex: 1 }}>{f.path}</span>
-                <button
-                  style={{ height: 20, fontSize: 11 }}
-                  onClick={() =>
-                    void cmd('artifact.reveal', { artifactId: v.artifact.id }).catch(() => {})
-                  }
-                >
-                  Reveal
-                </button>
+              <div key={i}>
+                <div className="row mono" style={{ fontSize: 12, padding: '3px 0' }}>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    style={{
+                      flex: 1,
+                      cursor: 'pointer',
+                      color:
+                        open?.path === f.path ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    }}
+                    onClick={() => void openFile(v.artifact.id, f.path)}
+                    onKeyDown={(e) => e.key === 'Enter' && void openFile(v.artifact.id, f.path)}
+                  >
+                    {f.path}
+                  </span>
+                  <button
+                    style={{ height: 20, fontSize: 11 }}
+                    onClick={() =>
+                      void cmd('artifact.reveal', { artifactId: v.artifact.id }).catch(() => {})
+                    }
+                  >
+                    Reveal
+                  </button>
+                </div>
+                {open?.path === f.path && (
+                  <pre
+                    className="mono"
+                    style={{
+                      fontSize: 11,
+                      margin: '2px 0 8px',
+                      padding: 8,
+                      background: 'var(--bg-inset)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                      overflowX: 'auto',
+                      maxHeight: 320,
+                      overflowY: 'auto',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {content ?? '…'}
+                  </pre>
+                )}
               </div>
             ))}
           </div>

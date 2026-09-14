@@ -7,7 +7,7 @@ import type { Edge as GraphEdge } from '@stark/contracts';
 
 /** History: decision log + event stream + dependency graph. */
 export function HistoryView() {
-  const { events, artifacts, selectArtifact, navigate } = useStore();
+  const { events, artifacts, selectArtifact, navigate, stale } = useStore();
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [tab, setTab] = useState<'graph' | 'log'>('graph');
 
@@ -17,9 +17,11 @@ export function HistoryView() {
       .catch(() => {});
   }, [artifacts.length]);
 
+  const titleOf = (id: string) =>
+    artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
+
   const { nodes, rfEdges } = useMemo(() => {
-    const title = (id: string) =>
-      artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
+    const title = titleOf;
     const type = (id: string) =>
       artifacts.find((v) => v.artifact.id === id)?.artifact.type ?? 'note';
     const ids = new Set<string>();
@@ -48,14 +50,15 @@ export function HistoryView() {
       const d = depth.get(id) ?? 0;
       const idx = rankCount.get(d) ?? 0;
       rankCount.set(d, idx + 1);
+      const isStale = (stale[id] ?? []).length > 0;
       return {
         id,
         position: { x: idx * 200 + 20, y: d * 90 + 20 },
-        data: { label: `${title(id)} · ${type(id)}` },
+        data: { label: `${title(id)} · ${type(id)}${isStale ? ' · stale' : ''}` },
         style: {
           background: '#262a30',
           color: '#e6e9ed',
-          border: '1px solid #343b44',
+          border: `1px solid ${isStale ? '#d7b979' : '#343b44'}`,
           borderRadius: 4,
           fontSize: 12,
           width: 180,
@@ -70,10 +73,12 @@ export function HistoryView() {
       label: e.relationship === 'connects_to' ? 'connects' : e.relationship,
       style: { stroke: e.relationship === 'connects_to' ? '#d7b979' : '#87afc7' },
       labelStyle: { fill: '#a5adb8', fontSize: 10 },
+      labelBgStyle: { fill: '#14161a', fillOpacity: 0.9 },
+      labelBgPadding: [3, 2] as [number, number],
       markerEnd: { type: 'arrowclosed' as never, color: '#87afc7' },
     }));
     return { nodes, rfEdges };
-  }, [edges, artifacts]);
+  }, [edges, artifacts, stale]);
 
   const decisions = useMemo(() => {
     return events
@@ -138,7 +143,7 @@ export function HistoryView() {
               <span className="dim" style={{ margin: '0 8px' }}>
                 {e.type}
               </span>
-              <span>{summ(e.data)}</span>
+              <span>{summ(e.data, (id) => titleOf(id))}</span>
             </div>
           ))}
         </div>
@@ -147,9 +152,10 @@ export function HistoryView() {
   );
 }
 
-function summ(data: unknown): string {
+function summ(data: unknown, titleOf: (id: string) => string): string {
   const d = data as Record<string, unknown>;
-  if (d.artifactId) return `artifact ${String(d.artifactId).slice(0, 8)}`;
+  if (d.proposalId && d.state) return `proposal ${String(d.state)}`;
+  if (d.artifactId) return `artifact ${titleOf(String(d.artifactId))}`;
   if (d.changed) return `impact on ${(d.affected as unknown[])?.length ?? 0} artifact(s)`;
   return JSON.stringify(data).slice(0, 120);
 }

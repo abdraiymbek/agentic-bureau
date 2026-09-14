@@ -4,6 +4,7 @@ import {
   Origin,
   StarkError,
   convert,
+  formatQty,
   isUnknown,
   newId,
   qty,
@@ -162,7 +163,7 @@ export async function runCalculation(
             kind: artifact.selectedRevisionId ? 'baseline_update' : 'new_artifact',
           },
         ],
-        reason: `calculation result: ${result.value} ${result.unit}`,
+        reason: `calculation result: ${formatQty({ value: result.value, unit: result.unit })}`,
       },
       origin,
     );

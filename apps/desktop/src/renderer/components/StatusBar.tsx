@@ -21,7 +21,7 @@ export function StatusBar() {
       <span>Saved locally</span>
       {pending > 0 && (
         <span className="warn">
-          {pending} artifact{pending > 1 ? 's' : ''} need review
+          {pending} artifact{pending > 1 ? 's' : ''} need{pending > 1 ? '' : 's'} review
         </span>
       )}
       {staleCount > 0 && <span className="warn">{staleCount} stale</span>}

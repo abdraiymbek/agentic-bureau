@@ -367,7 +367,7 @@ export type Revision = z.infer<typeof revisionSchema>;
 
 export const proposedChangeSchema = z.object({
   artifactId: idSchema,
-  baseRevisionId: idSchema.nullable(),
+  baseRevisionId: idSchema.nullable().optional(),
   newRevisionId: idSchema,
   kind: z.enum(['baseline_update', 'new_artifact', 'component_selection', 'bom_edit', 'archive']),
   /** For component_selection: artifact being replaced. */
