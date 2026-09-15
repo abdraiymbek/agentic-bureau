@@ -1,0 +1,26 @@
+{
+  "_": [
+    "Per-file budgets for raw HTML controls in ui/src, read by",
+    "scripts/gates/ds_components.py. THIS FILE IS THE ALLOWLIST \u2014 it is the one",
+    "source, and docs/architecture/ui.md 11.6 links here rather than restating it.",
+    "",
+    "budgets is EMPTY, and that is the point: ui/src reaches zero raw controls.",
+    "Every control in the app comes from design-system/. The gate therefore fails",
+    "on any raw control anywhere in ui/src, because no file has a budget.",
+    "",
+    "To add one back you must add an entry here saying why no design-system",
+    "component fits. Prefer extending a component additively \u2014 see the locked",
+    "rule in docs/architecture/ui.md 11.6 \u2014 over claiming an exception.",
+    "",
+    "'bespoke' means a deliberate exception \u2014 no DS component fits.",
+    "'debt' means deferred migration tracked by an issue."
+  ],
+  "controls": [
+    "button",
+    "input",
+    "select",
+    "dialog",
+    "textarea"
+  ],
+  "budgets": {}
+}

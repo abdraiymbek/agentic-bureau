@@ -1,0 +1,409 @@
+import { createMemo, createSignal, For, Show } from 'solid-js';
+import './Gallery.css';
+import CubeMark from '../../components/brand/CubeMark/CubeMark';
+import Icon, { type IconName } from '../../components/graphics/Icon/Icon';
+import Button from '../../components/forms/Button/Button';
+import IconButton from '../../components/forms/IconButton/IconButton';
+import TextInput from '../../components/forms/TextInput/TextInput';
+import Link from '../../components/forms/Link/Link';
+import Select from '../../components/forms/Select/Select';
+import DatePicker from '../../components/forms/DatePicker/DatePicker';
+import Toggle from '../../components/forms/Toggle/Toggle';
+import SegmentedControl from '../../components/forms/SegmentedControl/SegmentedControl';
+import Badge from '../../components/feedback/Badge/Badge';
+import Callout from '../../components/feedback/Callout/Callout';
+import Toast from '../../components/feedback/Toast/Toast';
+import Tooltip from '../../components/feedback/Tooltip/Tooltip';
+import Tag from '../../components/data/Tag/Tag';
+import FileTreeRow from '../../components/data/FileTreeRow/FileTreeRow';
+import FolderTreeRow from '../../components/data/FileTreeRow/FolderTreeRow';
+import BacklinkRow from '../../components/data/BacklinkRow/BacklinkRow';
+import Menu from '../../components/overlay/Menu/Menu';
+import Modal from '../../components/overlay/Modal/Modal';
+import Popover from '../../components/overlay/Popover/Popover';
+import TwoPaneModal from '../../components/overlay/TwoPaneModal/TwoPaneModal';
+import CommandPalette, {
+  type CommandPaletteItem,
+} from '../../components/overlay/CommandPalette/CommandPalette';
+
+const ALL_ICONS: IconName[] = [
+  'plus', 'folder-plus', 'info', 'chevron-right', 'chevron-down',
+  'close', 'edit', 'settings', 'warning', 'sun', 'moon', 'link',
+  'file-text', 'bar-chart', 'palette', 'puzzle', 'library', 'keyboard',
+  'hash', 'command',
+];
+
+const RANKED_SOURCE: { label: string; detail: string; icon: IconName }[] = [
+  { label: 'Release notes', detail: 'notes/release-notes.md', icon: 'file-text' },
+  { label: 'Reading list', detail: 'notes/reading-list.md', icon: 'file-text' },
+  { label: 'research', detail: 'tag', icon: 'hash' },
+  { label: 'Toggle status bar', detail: 'command', icon: 'command' },
+];
+
+const Gallery = () => {
+  const [textInputValue, setTextInputValue] = createSignal('');
+  const [selectValue, setSelectValue] = createSignal('backlinks');
+  const [dateValue, setDateValue] = createSignal('2026-07-19');
+  const [dateTimeValue, setDateTimeValue] = createSignal('2026-07-19T09:30');
+  const [toggleValue, setToggleValue] = createSignal(true);
+  const [segmentValue, setSegmentValue] = createSignal('backlinks');
+  const [showToast, setShowToast] = createSignal(false);
+  const [modalOpen, setModalOpen] = createSignal(false);
+  const [confirmOpen, setConfirmOpen] = createSignal(false);
+  const [paletteOpen, setPaletteOpen] = createSignal(false);
+  const [rankedOpen, setRankedOpen] = createSignal(false);
+  const [rankedQuery, setRankedQuery] = createSignal('');
+  const [rankedIndex, setRankedIndex] = createSignal(0);
+  const rankedItems = createMemo<CommandPaletteItem[]>(() => {
+    const q = rankedQuery().trim().toLowerCase();
+    return RANKED_SOURCE.filter((s) => s.label.toLowerCase().includes(q)).map((s, i) => {
+      const at = q === '' ? -1 : s.label.toLowerCase().indexOf(q);
+      return {
+        id: `ranked-${i}`,
+        label: s.label,
+        detail: s.detail,
+        icon: s.icon,
+        matchedIndices: at < 0 ? [] : Array.from({ length: q.length }, (_, k) => at + k),
+        onRun: () => {},
+      };
+    });
+  });
+  const [popoverOpen, setPopoverOpen] = createSignal(false);
+  const [twoPaneOpen, setTwoPaneOpen] = createSignal(false);
+  const [twoPaneTab, setTwoPaneTab] = createSignal('appearance');
+
+  return (
+    <div class="gallery stack scroll-y">
+      <h1>Component gallery</h1>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Brand — CubeMark</div>
+        <div class="gallery-row row">
+          <CubeMark size={16} />
+          <CubeMark size={24} />
+          <CubeMark size={40} />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — Button</div>
+        <div class="gallery-row row">
+          <Button variant="secondary">Secondary</Button>
+          <Button variant="primary">Primary</Button>
+          <Button variant="ghost">Ghost</Button>
+          <Button variant="secondary" disabled>Disabled</Button>
+        </div>
+        <div class="gallery-row row">
+          <Button variant="secondary" size="sm">Small secondary</Button>
+          <Button variant="primary" size="sm">Small primary</Button>
+        </div>
+        <div class="stack" style={{ width: '240px' }}>
+          <Button variant="ghost" block>
+            <span style={{ 'font-weight': '500' }}>Block ghost row</span>
+            <span style={{ color: 'var(--c-fg-muted)', 'font-size': 'var(--text-xs)' }}>
+              Left-aligned, multi-line content
+            </span>
+          </Button>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — IconButton</div>
+        <div class="gallery-row row">
+          <IconButton label="Resting">⚙</IconButton>
+          <IconButton label="Active" active>⚙</IconButton>
+          <IconButton label="Disabled" disabled>⚙</IconButton>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — TextInput</div>
+        <div class="gallery-row row">
+          <TextInput value={textInputValue()} onInput={setTextInputValue} placeholder="Search notes…" />
+          <TextInput value="" onInput={() => {}} placeholder="Disabled" disabled />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — Link</div>
+        <div class="gallery-row row">
+          <Link size="xs" onClick={() => {}}>Open as raw</Link>
+          <Link size="sm" onClick={() => {}}>Action link</Link>
+          <Link size="md" href="https://example.com">External link</Link>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — Select</div>
+        <div class="gallery-row row">
+          <Select
+            options={[
+              { value: 'backlinks', label: 'Backlinks' },
+              { value: 'mentions', label: 'Mentions' },
+              { value: 'unlinked', label: 'Unlinked mentions' },
+            ]}
+            value={selectValue()}
+            onChange={setSelectValue}
+            ariaLabel="Gallery select — md"
+          />
+          <Select
+            options={[
+              { value: 'backlinks', label: 'Backlinks' },
+              { value: 'mentions', label: 'Mentions' },
+              { value: 'unlinked', label: 'Unlinked mentions' },
+            ]}
+            value={selectValue()}
+            onChange={setSelectValue}
+            size="sm"
+            ariaLabel="Gallery select — sm"
+          />
+          <Select
+            options={[{ value: 'disabled', label: 'Disabled' }]}
+            value="disabled"
+            onChange={() => {}}
+            disabled
+            ariaLabel="Gallery select — disabled"
+          />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — DatePicker</div>
+        <div class="gallery-row row">
+          <DatePicker
+            value={dateValue()}
+            onInput={setDateValue}
+            ariaLabel="Gallery date picker"
+          />
+          <DatePicker
+            type="datetime-local"
+            value={dateTimeValue()}
+            onInput={setDateTimeValue}
+            size="sm"
+            ariaLabel="Gallery datetime picker — sm"
+          />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — Toggle</div>
+        <div class="gallery-row row">
+          <Toggle checked={toggleValue()} onChange={setToggleValue} label="Enable feature" />
+          <Toggle checked={false} onChange={() => {}} disabled label="Disabled" />
+          <Toggle checked={toggleValue()} onChange={setToggleValue} showLabel label={toggleValue() ? 'On' : 'Off'} />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Forms — SegmentedControl</div>
+        <SegmentedControl
+          value={segmentValue()}
+          onChange={setSegmentValue}
+          options={[
+            { label: 'Backlinks', value: 'backlinks' },
+            { label: 'Mentions', value: 'mentions' },
+          ]}
+        />
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Feedback — Badge</div>
+        <div class="gallery-row row">
+          <Badge>Neutral</Badge>
+          <Badge tone="success">Success</Badge>
+          <Badge tone="warning">Warning</Badge>
+          <Badge tone="error">Error</Badge>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Feedback — Callout</div>
+        <div class="stack" style={{ gap: 'var(--space-3)' }}>
+          <Callout title="Note">Neutral callout copy.</Callout>
+          <Callout tone="success" title="Indexed">Vault indexed — 1,204 notes.</Callout>
+          <Callout tone="warning" title="Unresolved link">This note has 2 broken wiki-links.</Callout>
+          <Callout tone="error" title="Write failed">Could not save — disk full.</Callout>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Feedback — Toast</div>
+        <div class="gallery-row row">
+          <Button variant="secondary" onClick={() => setShowToast(true)}>Trigger toast</Button>
+        </div>
+        <Show when={showToast()}>
+          <div class="stack">
+            <Toast message="Vault indexed — 1,204 notes." tone="success" onDismiss={() => setShowToast(false)} />
+            <Toast
+              message="Could not write note.md — permission denied."
+              tone="error"
+              autoDismissMs={null}
+              onDismiss={() => setShowToast(false)}
+            />
+            <Toast
+              message="Moved 3 notes to Trash."
+              autoDismissMs={null}
+              action={{ label: 'Undo', onClick: () => {} }}
+              onDismiss={() => setShowToast(false)}
+            />
+          </div>
+        </Show>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Feedback — Tooltip</div>
+        <div class="gallery-row row">
+          <Tooltip label="Reveal in file tree">
+            <IconButton label="Reveal">⌄</IconButton>
+          </Tooltip>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Data — Tag</div>
+        <div class="gallery-row row">
+          <Tag label="#design" tag />
+          <Tag label="draft" onRemove={() => {}} />
+          <Tag
+            label="#cubical"
+            tag
+            onClick={() => {}}
+            onEdit={() => {}}
+            onRemove={() => {}}
+          />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Data — FileTreeRow / FolderTreeRow</div>
+        <div class="stack" style={{ width: '240px', border: '1px solid var(--c-border-subtle)' }}>
+          <FolderTreeRow name="Projects" depth={0} collapsed={false} />
+          <FileTreeRow name="Design notes" ext="md" depth={1} kind="md" selected focusable role="treeitem" />
+          <FileTreeRow name="Old spec" ext="md" depth={1} kind="broken" invalid focusable role="treeitem" />
+          <FileTreeRow name="diagram" ext="dwg" depth={1} kind="broken" unsupported focusable role="treeitem" />
+          <FileTreeRow name="moodboard.png" depth={1} kind="png" renaming role="treeitem" onRenameCommit={() => {}} onRenameCancel={() => {}} />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Data — BacklinkRow</div>
+        <div class="stack divided-list" style={{ width: '320px', border: '1px solid var(--c-border-subtle)' }}>
+          <BacklinkRow noteTitle="Cubical roadmap" snippet="Design notes cover the accent-as-state rule in depth." matchQuery="accent" />
+          <BacklinkRow noteTitle="2026-07-12" snippet="Reviewed design notes before standup." />
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — Menu</div>
+        <Menu
+          items={[
+            { id: 'rename', label: 'Rename…', shortcut: '⌘R', onSelect: () => {} },
+            { id: 'reveal', label: 'Reveal in file tree', disabled: true, onSelect: () => {} },
+            { id: 'delete', label: 'Delete…', danger: true, onSelect: () => {} },
+          ]}
+        />
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — Modal</div>
+        <div class="gallery-row row">
+          <Button variant="secondary" onClick={() => setModalOpen(true)}>Open modal</Button>
+          <Button variant="secondary" onClick={() => setConfirmOpen(true)}>Open confirm (sm/center)</Button>
+        </div>
+        <Modal open={modalOpen()} onClose={() => setModalOpen(false)} title="Rename note">
+          <div style={{ padding: 'var(--space-4)' }}>Modal body content.</div>
+        </Modal>
+        <Modal
+          open={confirmOpen()}
+          onClose={() => setConfirmOpen(false)}
+          size="sm"
+          placement="center"
+          ariaLabel="Confirm delete"
+        >
+          <div style={{ padding: 'var(--space-4)', display: 'flex', 'flex-direction': 'column', gap: 'var(--space-3)' }}>
+            <p style={{ margin: 0, 'font-size': 'var(--text-sm)' }}>Delete "note.md"?</p>
+            <div style={{ display: 'flex', 'justify-content': 'flex-end', gap: 'var(--space-2)' }}>
+              <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+              <Button variant="danger" onClick={() => setConfirmOpen(false)}>Delete</Button>
+            </div>
+          </div>
+        </Modal>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — Popover</div>
+        <div class="gallery-popover-anchor">
+          <Button variant="secondary" onClick={() => setPopoverOpen((v) => !v)}>
+            Toggle popover
+          </Button>
+          <Popover
+            open={popoverOpen()}
+            onClose={() => setPopoverOpen(false)}
+            ariaLabel="Gallery popover"
+            placement="bottom-start"
+            class="gallery-popover-panel"
+          >
+            <p style={{ margin: 0, 'font-size': 'var(--text-sm)' }}>
+              Anchor-relative panel with a click-through backdrop and Escape to dismiss.
+            </p>
+          </Popover>
+        </div>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — TwoPaneModal</div>
+        <div class="gallery-row row">
+          <Button variant="secondary" onClick={() => setTwoPaneOpen(true)}>
+            Open two-pane modal
+          </Button>
+        </div>
+        <TwoPaneModal
+          open={twoPaneOpen()}
+          onClose={() => setTwoPaneOpen(false)}
+          title="Settings"
+          items={[
+            { id: 'appearance', icon: 'palette', label: 'Appearance' },
+            { id: 'editor', icon: 'file-text', label: 'Editor' },
+            { id: 'keyboard', icon: 'keyboard', label: 'Shortcuts' },
+          ]}
+          activeId={twoPaneTab()}
+          onSelect={(id) => setTwoPaneTab(id)}
+        >
+          <h2>{twoPaneTab()}</h2>
+          <p>Body content for the "{twoPaneTab()}" pane. The consumer owns this slot.</p>
+        </TwoPaneModal>
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — CommandPalette</div>
+        <Button variant="secondary" onClick={() => setPaletteOpen(true)}>Open command palette</Button>
+        <CommandPalette
+          open={paletteOpen()}
+          onClose={() => setPaletteOpen(false)}
+          commands={[
+            { id: 'a', label: 'Open Vault…', onRun: () => {} },
+            { id: 'b', label: 'Toggle theme', onRun: () => {} },
+          ]}
+        />
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Overlay — CommandPalette (ranked)</div>
+        <Button variant="secondary" onClick={() => setRankedOpen(true)}>
+          Open ranked palette
+        </Button>
+        <CommandPalette
+          open={rankedOpen()}
+          onClose={() => setRankedOpen(false)}
+          items={rankedItems()}
+          query={rankedQuery()}
+          onQueryInput={(v) => {
+            setRankedQuery(v);
+            setRankedIndex(0);
+          }}
+          selectedIndex={Math.min(rankedIndex(), Math.max(rankedItems().length - 1, 0))}
+          onSelectedIndexChange={setRankedIndex}
+          placeholder="Jump to a note or tag…"
+          emptyLabel="No notes or tags match"
+          ariaLabel="Quick switcher"
+          inputAriaLabel="Search notes and tags"
+          listAriaLabel="Results"
+          autoFocus
+        />
+      </section>
+      <section class="gallery-section stack">
+        <div class="eyebrow">Graphics — Icon</div>
+        <div class="icon-gallery">
+          <For each={ALL_ICONS}>
+            {(n) => (
+              <div class="icon-gallery__cell">
+                <Icon name={n} size={20} />
+                <code>{n}</code>
+              </div>
+            )}
+          </For>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default Gallery;

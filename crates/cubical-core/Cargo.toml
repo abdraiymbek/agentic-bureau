@@ -1,0 +1,27 @@
+[package]
+name = "cubical-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vault, file watcher, file-type registry, frontmatter I/O. Core building blocks shared by the rest of Cubical, with no Tauri dependency."
+
+[dependencies]
+cubical-ast = { path = "../cubical-ast" }
+cubical-index = { path = "../cubical-index" }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+notify = { workspace = true }
+notify-debouncer-full = { workspace = true }
+walkdir = { workspace = true }
+sha2 = { workspace = true }
+libsql = { workspace = true }
+toml = "1.1"
+
+[dev-dependencies]
+tempfile = "3"

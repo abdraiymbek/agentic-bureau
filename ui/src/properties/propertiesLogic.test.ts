@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+
+import type { PropertyType } from "./typeComments";
+import {
+  buildAnnotations,
+  effectiveCurrency,
+  effectiveFormat,
+  resolveType,
+} from "./propertiesLogic";
+
+describe("resolveType", () => {
+  const map = new Map<string, PropertyType>([["price", { kind: "currency" }]]);
+
+  it("uses the comment type when typed is enabled", () => {
+    expect(resolveType(true, map, "price", 9.99)).toEqual({ kind: "currency" });
+  });
+  it("falls back to inference when no comment", () => {
+    expect(resolveType(true, map, "count", 3)).toEqual({ kind: "int" });
+  });
+  it("ignores comments and infers when typed is disabled", () => {
+    expect(resolveType(false, map, "price", 9.99)).toEqual({ kind: "float" });
+  });
+});
+
+describe("effectiveFormat", () => {
+  it("uses the inline format, else ISO (a format-less date is ISO-shaped)", () => {
+    expect(effectiveFormat({ kind: "date", format: "DD-MM-YY" })).toBe(
+      "DD-MM-YY",
+    );
+    expect(effectiveFormat({ kind: "date" })).toBe("YYYY-MM-DD");
+  });
+});
+
+describe("effectiveCurrency", () => {
+  it("prefers the type's code, then the vault default, then USD", () => {
+    expect(effectiveCurrency({ kind: "currency", currency: "eur" }, "nis")).toBe(
+      "eur",
+    );
+    expect(effectiveCurrency({ kind: "currency" }, "nis")).toBe("nis");
+    expect(effectiveCurrency({ kind: "currency" }, undefined)).toBe("usd");
+    expect(effectiveCurrency({ kind: "currency", currency: "xyz" }, "bad")).toBe(
+      "usd",
+    );
+  });
+});
+
+describe("buildAnnotations", () => {
+  const base = new Map<string, PropertyType>([
+    ["a", { kind: "currency" }],
+    ["b", { kind: "date" }],
+  ]);
+
+  it("copies unchanged when no override is given", () => {
+    const out = buildAnnotations(base);
+    expect(out).toEqual(base);
+    expect(out).not.toBe(base);
+  });
+  it("sets an overridden key", () => {
+    const out = buildAnnotations(base, "a", { kind: "int" });
+    expect(out.get("a")).toEqual({ kind: "int" });
+    expect(out.get("b")).toEqual({ kind: "date" });
+  });
+  it("removes a key when override is null", () => {
+    const out = buildAnnotations(base, "a", null);
+    expect(out.has("a")).toBe(false);
+  });
+});

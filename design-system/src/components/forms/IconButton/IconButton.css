@@ -1,0 +1,45 @@
+/* Carries its own control reset — see Button.css. */
+.icon-btn {
+  font: inherit;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-sm);
+  color: var(--c-fg-secondary);
+  background: transparent;
+  line-height: 1;
+  transition: background var(--duration-state) var(--ease-standard),
+    color var(--duration-state) var(--ease-standard);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--c-bg-tertiary);
+  color: var(--c-fg-primary);
+}
+
+.icon-btn.mono {
+  font-family: var(--font-mono);
+}
+
+.icon-btn.active {
+  background: var(--c-accent);
+  color: var(--c-accent-contrast);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-btn.sm {
+  width: auto;
+  height: auto;
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+  line-height: 1;
+}

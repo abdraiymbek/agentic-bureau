@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""domain-boundary gate — a block cannot drag another block down with it.
+
+Three checks over the census in scripts/domain-boundaries.json, one per place
+a dependency can be written:
+
+  1. Crates. A substrate crate may not depend on a block crate, and a block
+     may not depend on another domain's block.
+  2. cubical-engine command modules. Same rule one level down, because the
+     engine crate is a shell and check 1 cannot see inside it. A module that
+     lives beside `commands/` but belongs to one domain (`engine_support`)
+     counts as that domain's, so moving a block's handle out of `commands/`
+     does not hide the edges to it. A workspace crate such a module names
+     (`cubical_search::…`) is an edge to that crate's census entry, because
+     check 1 sees only the engine's manifest, and the engine is shell.
+  3. ui/src domains. Same rule again on the frontend.
+
+The rule is edges, not sizes. A wide module is not a violation; a module that
+makes an unrelated feature's failure your failure is. `dependency_boundary.py`
+answers "may this layer call down to that one" — this gate answers "may these
+two features know about each other at all", which layering cannot express
+because two blocks sit on the same layer by construction.
+
+Fails on a new edge only. Every pre-existing edge is grandfathered in the
+config with the issue that tracks removing it, so the gate landed green and
+the paydown list is the config diff.
+"""
+import json
+import posixpath
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from _common import ROOT, Gate, main_guard, rel, tracked  # noqa: E402
+
+CONFIG = ROOT / "scripts" / "domain-boundaries.json"
+
+UI_IMPORT = re.compile(
+    r"""(?:^\s*(?:import|export)\s[^;]*?from\s+|^\s*import\s+|\bimport\s*\(\s*)"""
+    r"""["'](\.[^"']+)["']""", re.M)
+ENGINE_USE = re.compile(r"\bcrate::commands::([a-z_]+)")
+ENGINE_SUPPORT_USE = re.compile(r"\bcrate::([a-z_]+)")
+ENGINE_GROUP = re.compile(r"\bcrate::(commands::)?\{")
+CRATE_PATH = re.compile(r"\b(cubical_[a-z_]+)\s*::")
+CRATE_USE = re.compile(r"\buse\s+(cubical_[a-z_]+)\b")
+GROUP_HEAD = re.compile(r"^\s*([a-z_]+)")
+
+
+def production_lines(text: str) -> list[tuple[int, str]]:
+    """Numbered lines outside any `#[cfg(test)]` item.
+
+    Brace-depth tracked rather than "break at the first #[cfg(test)]": that
+    assumed the test module comes last, and commands/graph.rs disproves it with
+    a `#[cfg(test)] fn` inside an impl 124 lines above its `mod tests`. Breaking
+    there stopped scanning the file's real code silently, which is the failure
+    mode a gate must not have.
+
+    Braces inside string literals can skew the depth. An unbalanced one makes
+    the gate include test lines (a visible false positive) or skip a few real
+    ones; it is counted rather than parsed because the alternative is a Rust
+    parser, and the previous heuristic was strictly worse.
+    """
+    out: list[tuple[int, str]] = []
+    depth = 0
+    skip_from: int | None = None
+    opened = False
+    for n, line in enumerate(text.splitlines(), 1):
+        if skip_from is None and line.strip().startswith("#[cfg(test)]"):
+            skip_from = depth
+            opened = "{" in line
+            depth += line.count("{") - line.count("}")
+            item = line.strip()[len("#[cfg(test)]"):]
+            if not opened and ";" in item:
+                skip_from = None
+            continue
+        closed = line.count("}")
+        depth += line.count("{") - closed
+        if skip_from is not None:
+            opened = opened or "{" in line
+            if opened and depth <= skip_from and closed:
+                skip_from = None
+            elif not opened and ";" in line and depth <= skip_from:
+                skip_from = None
+            continue
+        out.append((n, line))
+    return out
+
+
+def production_text(text: str) -> str:
+    """The file with every test-only line blanked, line count preserved.
+
+    Matching the whole text rather than line by line is what lets a `use`
+    group that spans several lines be seen at all.
+    """
+    keep = dict(production_lines(text))
+    return "\n".join(keep.get(n, "")
+                     for n in range(1, len(text.splitlines()) + 1))
+
+
+def braced(text: str, open_pos: int) -> str:
+    """The body of the brace group opening at `open_pos`, nesting respected."""
+    depth = 0
+    for i in range(open_pos, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_pos + 1:i]
+    return text[open_pos + 1:]
+
+
+def top_level_parts(body: str) -> list[str]:
+    """`body` split on the commas that are not inside a nested group."""
+    parts: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(body):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(body[start:i])
+            start = i + 1
+    parts.append(body[start:])
+    return parts
+
+
+def group_targets(body: str, in_commands: bool) -> list[str]:
+    """Module targets named by a `crate::{…}` or `crate::commands::{…}` group.
+
+    A `commands::x` inside a `crate::{…}` group is resolved to the command
+    module rather than read as a module called `commands`: reading only the
+    head of each part is what let `use crate::{commands::graph::X, …}` in a
+    substrate module through while `use crate::commands::graph::X` failed.
+    """
+    out: list[str] = []
+    for part in top_level_parts(body):
+        head = GROUP_HEAD.match(part)
+        if not head or head.group(1) == "self":
+            continue
+        name = head.group(1)
+        if in_commands:
+            out.append("commands::" + name)
+            continue
+        if name != "commands":
+            out.append(name)
+            continue
+        rest = part[head.end():].lstrip()
+        if not rest.startswith("::"):
+            continue
+        rest = rest[2:].lstrip()
+        if rest.startswith("{"):
+            out.extend(group_targets(braced(rest, 0), True))
+        else:
+            sub = GROUP_HEAD.match(rest)
+            if sub and sub.group(1) != "self":
+                out.append("commands::" + sub.group(1))
+    return out
+
+
+def engine_edges(text: str) -> list[tuple[int, str]]:
+    """(line, target) for every engine module or workspace crate a file names.
+
+    A target is `commands::x`, a bare `x` for `crate::x`, or `crate:cubical-x`
+    for a workspace crate named by path (`cubical_x::…`) or by `use cubical_x`.
+    The crate form exists because the crate check reads Cargo manifests, and
+    the engine's manifest is the shell's: a substrate command module writing
+    `use cubical_search::…` compiled against a block and no check saw it.
+    """
+    prod = production_text(text)
+    found: list[tuple[int, str]] = []
+
+    def line_of(pos: int) -> int:
+        return prod.count("\n", 0, pos) + 1
+
+    for m in ENGINE_USE.finditer(prod):
+        found.append((line_of(m.start()), "commands::" + m.group(1)))
+    for m in ENGINE_SUPPORT_USE.finditer(prod):
+        found.append((line_of(m.start()), m.group(1)))
+    for m in ENGINE_GROUP.finditer(prod):
+        body = braced(prod, m.end() - 1)
+        for target in group_targets(body, bool(m.group(1))):
+            found.append((line_of(m.start()), target))
+    for pattern in (CRATE_PATH, CRATE_USE):
+        for m in pattern.finditer(prod):
+            crate = m.group(1).replace("_", "-")
+            found.append((line_of(m.start()), "crate:" + crate))
+    return found
+
+
+def classify(cfg_table: dict, name: str) -> tuple[str, str]:
+    entry = cfg_table.get(name)
+    if entry is None:
+        return ("block", name)
+    return (entry["class"], entry["domain"])
+
+
+def verdict(src: tuple[str, str], dst: tuple[str, str]) -> str | None:
+    """Why this edge is illegal, or None if it is fine."""
+    src_class, src_domain = src
+    dst_class, dst_domain = dst
+    if src_domain == dst_domain:
+        return None
+    if src_class == "shell":
+        return None
+    if dst_class == "substrate":
+        return None
+    if dst_class == "shell":
+        return (f"a {src_class} depends on the shell — the composition root "
+                f"wires features together, it is not a library they call into")
+    if src_class == "substrate":
+        return (f"substrate depends on the {dst_domain} block — substrate is "
+                f"always on, so this makes the block always on too")
+    return (f"the {src_domain} block depends on the {dst_domain} block — "
+            f"either failing now takes the other with it")
+
+
+def check_crates(gate: Gate, cfg: dict) -> None:
+    table = cfg["crates"]
+    allowed = cfg["crate_allowed"]
+    for f in tracked("crates/", suffixes=("Cargo.toml",)):
+        crate = rel(f).split("/")[1]
+        manifest = tomllib.loads(f.read_text(encoding="utf-8"))
+        deps: set[str] = set()
+        for section in ("dependencies", "dev-dependencies"):
+            deps |= set(manifest.get(section, {}))
+        for dep in sorted(d for d in deps if d in table and d != crate):
+            why = verdict(classify(table, crate), classify(table, dep))
+            if why and f"{crate} -> {dep}" not in allowed:
+                gate.fail(f"{rel(f)}: {why}. Declare it in "
+                          f"scripts/domain-boundaries.json with the issue that "
+                          f"tracks removing it, or route it through the shell.")
+
+
+TEST_MOD = re.compile(r"^\s*#\[cfg\(test\)\]\s*\n\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([a-z_0-9]+)\s*;", re.M)
+
+
+def test_only_modules(files: list[Path]) -> set[Path]:
+    """Files declared as `#[cfg(test)] mod x;` in their parent module.
+
+    production_lines only sees a `#[cfg(test)]` item inside the file it reads;
+    a module whose whole file is test-gated at its declaration looks like
+    production code from inside. The principle exempts test code, so the gate
+    has to find these rather than grandfather a fixture as if it shipped.
+    """
+    out: set[Path] = set()
+    for f in files:
+        if f.name not in ("mod.rs",) and f.parent.name != "commands":
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        base = f.parent if f.name == "mod.rs" else f.parent / f.stem
+        for name in TEST_MOD.findall(text):
+            for cand in (base / f"{name}.rs", base / name / "mod.rs"):
+                out.add(cand)
+    return out
+
+
+def check_engine_modules(gate: Gate, cfg: dict) -> None:
+    """Commands and the domain-owned modules beside them, as sources and targets.
+
+    A module outside `commands/` that belongs to one domain is listed in
+    `engine_support`; it is checked as a source too, because the watcher and
+    the scan dispatcher live there and are substrate, and a support module that
+    is only ever a target is one whose own edges nobody reads.
+    """
+    table = cfg["engine_modules"]
+    allowed = cfg["engine_allowed"]
+    crates = cfg["crates"]
+    support = {k: v for k, v in cfg.get("engine_support", {}).items()
+               if k != "_"}
+    root = "crates/cubical-engine/src/"
+    prefix = root + "commands/"
+    files = tracked(prefix, suffixes=(".rs",))
+    test_only = test_only_modules(files)
+    sources: list[tuple[Path, str, tuple[str, str]]] = []
+    for f in files:
+        if f in test_only:
+            continue
+        parts = rel(f)[len(prefix):].split("/")
+        src_name = parts[0] if len(parts) > 1 else parts[0][:-len(".rs")]
+        if src_name == "mod":
+            continue
+        sources.append((f, src_name, classify(table, src_name)))
+    for f in tracked(root, suffixes=(".rs",)):
+        parts = rel(f)[len(root):].split("/")
+        name = parts[0] if len(parts) > 1 else parts[0][:-len(".rs")]
+        if name in support:
+            sources.append((f, name, classify(support, name)))
+    for f, src_name, src in sources:
+        text = f.read_text(encoding="utf-8", errors="replace")
+        seen: set[tuple[int, str]] = set()
+        for n, target in engine_edges(text):
+            if (n, target) in seen:
+                continue
+            seen.add((n, target))
+            via = ""
+            if target.startswith("crate:"):
+                dst_name = target[len("crate:"):]
+                if dst_name not in crates:
+                    continue
+                dst = classify(crates, dst_name)
+                via = f" (names the {dst_name} crate)"
+            elif target.startswith("commands::"):
+                dst_name = target[len("commands::"):]
+                dst = classify(table, dst_name)
+            elif target in support:
+                dst_name = target
+                dst = classify(support, target)
+            else:
+                continue
+            if dst_name == src_name:
+                continue
+            why = verdict(src, dst)
+            if why and f"{src_name} -> {dst_name}" not in allowed:
+                gate.fail(f"{rel(f)}:{n}: {why}{via}.")
+
+
+def ui_domain(path: str, table: dict | None = None) -> str | None:
+    """Census key of a ui/src path.
+
+    A directory is a domain; so is a bare file. A census key containing a
+    slash names a path prefix inside a directory (`editor/math` covers
+    `editor/math.ts` and `editor/mathDollar.ts`), and the longest such prefix
+    wins, so one directory can hold several domains without moving files.
+
+    posixpath, not Path: these are repo-relative keys with forward slashes,
+    and Path would resolve them against the filesystem root on Windows.
+    """
+    if not path.startswith("ui/src/"):
+        return None
+    inner = path[len("ui/src/"):]
+    for suffix in (".tsx", ".ts"):
+        if inner.endswith(suffix):
+            inner = inner[: -len(suffix)]
+    prefixes = [k for k in (table or {}) if "/" in k and inner.startswith(k)]
+    if prefixes:
+        return max(prefixes, key=len)
+    return inner.split("/")[0]
+
+
+def check_ui(gate: Gate, cfg: dict) -> None:
+    table = cfg["ui_domains"]
+    allowed = cfg["ui_allowed"]
+    for f in tracked("ui/src/", suffixes=(".ts", ".tsx")):
+        r = rel(f)
+        if ".test." in r:
+            continue
+        src_name = ui_domain(r, table)
+        src = classify(table, src_name)
+        text = f.read_text(encoding="utf-8", errors="replace")
+        # Whole text, not line by line: a braced import puts `from` several
+        # lines below `import`, so a per-line match sees neither half. The
+        # class is negated rather than dotted precisely so it spans newlines.
+        for m in UI_IMPORT.finditer(text):
+            target = posixpath.normpath(
+                posixpath.join(posixpath.dirname(r), m.group(1)))
+            dst_name = ui_domain(target, table)
+            if dst_name is None or dst_name == src_name:
+                continue
+            why = verdict(src, classify(table, dst_name))
+            if why and f"{src_name} -> {dst_name}" not in allowed:
+                n = text.count("\n", 0, m.start()) + 1
+                gate.fail(f"{r}:{n}: {why}.")
+
+
+def run() -> int:
+    gate = Gate("domain-boundary", "domain-scoped-dependencies.md")
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+    check_crates(gate, cfg)
+    check_engine_modules(gate, cfg)
+    check_ui(gate, cfg)
+    return gate.finish(
+        f"no block depends on another domain's block "
+        f"({len(cfg['crate_allowed'])} crate, {len(cfg['engine_allowed'])} "
+        f"engine, {len(cfg['ui_allowed'])} ui edges grandfathered).")
+
+
+main_guard(run)
