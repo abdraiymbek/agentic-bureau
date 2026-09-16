@@ -113,7 +113,7 @@ queued is not re-derivable, so that queue is journalled to disk separately.
 **There are no pre-built installers yet.** Building from source, below, is
 currently the only way to run Cubical. Signed and notarized downloads for macOS,
 Windows and Linux are being built in
-[#97](https://github.com/TheVaus/Cubical/issues/97); this section becomes a
+[#97](https://github.com/simple-techdev/simple.directory/issues/97); this section becomes a
 download table when they land.
 
 ### Prerequisites
@@ -177,7 +177,4 @@ cargo test --workspace     # Rust
 
 ## License
 
-Cubical is source-available under the [Business Source License 1.1](LICENSE).
-Free for personal use by individuals; use by or on behalf of an organisation
-requires a commercial licence. Each released version converts to the MIT License
-four years after it is published.
+Cubical is open source under the [MIT License](LICENSE).

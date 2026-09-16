@@ -7,7 +7,7 @@ your own machine.
 
 ## Reporting a vulnerability
 
-**[Report a vulnerability](https://github.com/TheVaus/Cubical/security/advisories/new)**
+**[Report a vulnerability](https://github.com/simple-techdev/simple.directory/security/advisories/new)**
 from the Security tab. That opens a private advisory the maintainer can see and
 you can discuss in, before anything is public.
 
