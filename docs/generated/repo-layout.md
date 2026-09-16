@@ -57,6 +57,8 @@ Derived from the git index plus a listed set of gitignored directories — delib
 | `.github/` | tracked | CI workflow (runs `scripts/check.sh`) + Dependabot config. |
 | `.superpowers/` | generated / untracked | Session scaffolding for the superpowers workflow: brainstorm server state and `sdd/` progress/review artifacts. |
 | `.vite/` | generated / untracked | Vite dependency pre-bundling cache. |
+| `EditorAssets/` | tracked | Editor asset pipeline — its own npm package (`build.mjs`, `src/`, `test/`), separate from `ui/`. |
+| `Packaging/` | tracked | macOS app-bundle assets (`Info.plist`, `AppIcon.icns`) for the installable-builds work. |
 | `crates/` | tracked | The Rust workspace — one directory per crate (see the crate table above). |
 | `design-system/` | tracked | `@ds` — SolidJS component library + canonical design tokens; `ui/` borrows from here. |
 | `docs/` | tracked | The documentation tree; start at `docs/README.md`. |

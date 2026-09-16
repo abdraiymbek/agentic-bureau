@@ -13,12 +13,12 @@ planned as a ladder. **v1.0 cuts at the end of Layer 5.**
 
 Beyond L5 there is no ladder. Work that was once numbered L6–L10 now lives as
 unscheduled GitHub issues labelled `idea`, carrying *what* and never *when* —
-[plugins](https://github.com/TheVaus/Cubical/issues/61),
-[sync](https://github.com/TheVaus/Cubical/issues/62),
-[time machine](https://github.com/TheVaus/Cubical/issues/63),
-[graph view](https://github.com/TheVaus/Cubical/issues/64),
-[canvas](https://github.com/TheVaus/Cubical/issues/65),
-[mobile](https://github.com/TheVaus/Cubical/issues/66).
+[plugins](https://github.com/simple-techdev/simple.directory/issues/61),
+[sync](https://github.com/simple-techdev/simple.directory/issues/62),
+[time machine](https://github.com/simple-techdev/simple.directory/issues/63),
+[graph view](https://github.com/simple-techdev/simple.directory/issues/64),
+[canvas](https://github.com/simple-techdev/simple.directory/issues/65),
+[mobile](https://github.com/simple-techdev/simple.directory/issues/66).
 
 That change is deliberate. A numbered ladder implies a commitment to order that
 nobody had made, and an ordering written down is an ordering that gets designed

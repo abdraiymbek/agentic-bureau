@@ -224,7 +224,7 @@ The viewer fetches its own bytes through `read_file_bytes` and owns its size
 caps. Markdown never satisfies `hasViewer`, so the editor keeps sole ownership of
 `.md`. Which extensions have viewers, and the byte and row caps, are owned by
 `viewer/viewerKind.ts`; formats without one are tracked as
-[issues labelled `area:viewers`](https://github.com/TheVaus/Cubical/labels/area%3Aviewers).
+[issues labelled `area:viewers`](https://github.com/simple-techdev/simple.directory/labels/area%3Aviewers).
 
 ### 15.6 Known defects and open questions
 

@@ -409,7 +409,7 @@ This is a docs-only branch; fast-forward or open a PR per the user's preference.
 ```bash
 git checkout main && git merge --no-ff docs/agent-workflow-adoption -m "docs(workflow): adopt agent-workflow doc surfaces (hybrid restructure)"
 ```
-Then push if the user wants it remote: `git push origin main` (origin = TheVaus/Cubical, SSH wired).
+Then push if the user wants it remote: `git push origin main` (origin = simple-techdev/simple.directory, SSH wired).
 
 - [ ] **Step 6: Update the Project state block in `CLAUDE.md`**
 

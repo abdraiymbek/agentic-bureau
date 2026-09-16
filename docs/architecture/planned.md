@@ -13,9 +13,9 @@ week?** If the answer is "only once we build it", it is an issue.
 
 | Was | Now |
 |---|---|
-| §7 Sync (Loro, op logs, WebRTC, asset pipeline) | [#62](https://github.com/TheVaus/Cubical/issues/62) |
-| §8 Plugins (ABI, source languages, permissions, memory, themes) | [#61](https://github.com/TheVaus/Cubical/issues/61) |
-| §10 Time Machine | [#63](https://github.com/TheVaus/Cubical/issues/63) |
+| §7 Sync (Loro, op logs, WebRTC, asset pipeline) | [#62](https://github.com/simple-techdev/simple.directory/issues/62) |
+| §8 Plugins (ABI, source languages, permissions, memory, themes) | [#61](https://github.com/simple-techdev/simple.directory/issues/61) |
+| §10 Time Machine | [#63](https://github.com/simple-techdev/simple.directory/issues/63) |
 | §14 open questions, per topic | the matching issue |
 
 ---
@@ -34,7 +34,7 @@ practice that is one enforceable rule and one habit:
   mobile shell would be a third.
 
 The practical test: a change that makes a non-app crate depend on a
-desktop-only capability has precluded mobile. Detail: [#66](https://github.com/TheVaus/Cubical/issues/66).
+desktop-only capability has precluded mobile. Detail: [#66](https://github.com/simple-techdev/simple.directory/issues/66).
 
 ## 2. Reserve the sanitize seam
 
@@ -67,7 +67,7 @@ partial until there is a CRDT layer to be clean relative to.
 
 The open question this creates for the plugin ABI — what key durable plugin
 state uses before `file_uuid` exists — is the unresolved part of
-[#61](https://github.com/TheVaus/Cubical/issues/61), and it wants an
+[#61](https://github.com/simple-techdev/simple.directory/issues/61), and it wants an
 `arch-review` before ABI design starts, not after.
 
 ## 5. Reserved schema names
@@ -100,7 +100,7 @@ an inline `# type:` comment, which puts app metadata in the `.md` source of
 truth against the non-negotiables. The intended replacement is a vault-level
 type registry in `.cubical/`. **Build the registry before promoting typed
 properties default-on, or letting sort / query / Dataview depend on type
-storage** — issue [#19](https://github.com/TheVaus/Cubical/issues/19).
+storage** — issue [#19](https://github.com/simple-techdev/simple.directory/issues/19).
 
 **Property-reference interpolation** is shipped and default-on
 (`plugins.property_refs_enabled`). Inline, read-only, display-time

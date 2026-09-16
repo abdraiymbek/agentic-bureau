@@ -83,7 +83,7 @@ name and the deadline already disagreed. That span crosses an `await` on a
 runtime shared with the rest of the suite, so it measured the machine — it
 passed on a developer's Mac and failed on a loaded CI runner. The remaining
 `timeout` is a **liveness** bound set far clear of scheduling noise: if it fires,
-cancellation genuinely hung. See [#52](https://github.com/TheVaus/Cubical/issues/52).
+cancellation genuinely hung. See [#52](https://github.com/simple-techdev/simple.directory/issues/52).
 
 ## Vault-relative paths
 
