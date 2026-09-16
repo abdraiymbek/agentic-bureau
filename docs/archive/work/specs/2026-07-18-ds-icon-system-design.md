@@ -27,7 +27,7 @@ design-language doc (a small slice of which lands here — see §8).
 
 - One typed `Icon` component that renders any icon in the set at any size, in
   `currentColor`, on the 16px grid.
-- A unified icon set whose visual language matches Cubical's brand — sourced from
+- A unified icon set whose visual language matches simple.directory's brand — sourced from
   Lucide, not hand-drawn one-by-one.
 - Every genuine UI-affordance glyph in `ui/src` replaced by an `Icon`.
 - Self-containment preserved: no runtime icon dependency, no CDN, no asset

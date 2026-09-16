@@ -43,7 +43,7 @@ Each is one `COMMAND_DEFAULTS` row in [`core/commands.ts`](../../../ui/src/core/
 - **`view.toggleSidebar`** — wires to the existing `toggleLeftSidebar` (App.tsx:371).
 - **`file.new`** — wires to the existing `handleNewFile` (App.tsx:1118).
 
-**Defaults source:** matched to Obsidian's defaults. Cubical stores one binding in `Mod-` notation (`Mod` = ⌘ on macOS / Ctrl on Windows), so `Mod-Shift-l` = Obsidian's ⌘/Ctrl+Shift+L, `Mod-n` = ⌘/Ctrl+N, and `Alt-Enter` = Obsidian's Alt+Enter.
+**Defaults source:** matched to Obsidian's defaults. simple.directory stores one binding in `Mod-` notation (`Mod` = ⌘ on macOS / Ctrl on Windows), so `Mod-Shift-l` = Obsidian's ⌘/Ctrl+Shift+L, `Mod-n` = ⌘/Ctrl+N, and `Alt-Enter` = Obsidian's Alt+Enter.
 
 **Conflict check:** none of the three collide with the existing `Mod-k` / `Mod-e` / `Mod-Shift-b`, nor with #4's nav keys (verified against `findDuplicateBindings` semantics in `commands.ts`).
 
@@ -98,6 +98,6 @@ Each is one `COMMAND_DEFAULTS` row in [`core/commands.ts`](../../../ui/src/core/
 
 ## Cross-cutting notes
 
-- **No architecture impact** beyond the explicit non-goal for #3 (global store deferred). No new IPC commands. No changes to the `.md` source of truth or `.cubical/` layout.
+- **No architecture impact** beyond the explicit non-goal for #3 (global store deferred). No new IPC commands. No changes to the `.md` source of truth or `.simple-directory/` layout.
 - **One commit per feature**, in the build order above.
 - **Verification:** `scripts/check.sh` (fmt/clippy/test, tsc, vitest, build, docs) green, plus operator smoke of each UI surface (tree labels, each shortcut firing, back/forward buttons + keys, switcher popup open/dismiss/open-folder, settings popovers).

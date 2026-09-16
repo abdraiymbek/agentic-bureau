@@ -22,24 +22,24 @@
   ],
 
   "crates": {
-    "cubical-ast":    { "class": "substrate", "domain": "document" },
-    "cubical-index":  { "class": "substrate", "domain": "index" },
-    "cubical-core":   { "class": "substrate", "domain": "vault" },
-    "cubical-search": { "class": "block",     "domain": "search" },
-    "cubical-graph":  { "class": "block",     "domain": "graph" },
-    "cubical-query":  { "class": "block",     "domain": "dataview" },
-    "cubical-table":  { "class": "block",     "domain": "dataview" },
-    "cubical-sync":   { "class": "block",     "domain": "sync" },
-    "cubical-engine": { "class": "shell",     "domain": "engine" },
-    "cubical-ipc":    { "class": "shell",     "domain": "engine" },
-    "cubical-app":    { "class": "shell",     "domain": "app" },
-    "cubical-cli":    { "class": "shell",     "domain": "app" }
+    "simple-directory-ast":    { "class": "substrate", "domain": "document" },
+    "simple-directory-index":  { "class": "substrate", "domain": "index" },
+    "simple-directory-core":   { "class": "substrate", "domain": "vault" },
+    "simple-directory-search": { "class": "block",     "domain": "search" },
+    "simple-directory-graph":  { "class": "block",     "domain": "graph" },
+    "simple-directory-query":  { "class": "block",     "domain": "dataview" },
+    "simple-directory-table":  { "class": "block",     "domain": "dataview" },
+    "simple-directory-sync":   { "class": "block",     "domain": "sync" },
+    "simple-directory-engine": { "class": "shell",     "domain": "engine" },
+    "simple-directory-ipc":    { "class": "shell",     "domain": "engine" },
+    "simple-directory-app":    { "class": "shell",     "domain": "app" },
+    "simple-directory-cli":    { "class": "shell",     "domain": "app" }
   },
 
   "crate_allowed": {},
 
   "engine_modules": {
-    "_": "crates/cubical-engine/src/commands/*. Anything not listed is shell.",
+    "_": "crates/simple-directory-engine/src/commands/*. Anything not listed is shell.",
     "open":        { "class": "substrate", "domain": "vault" },
     "paths":       { "class": "substrate", "domain": "vault" },
     "vault":       { "class": "substrate", "domain": "vault" },
@@ -62,7 +62,7 @@
 
   "engine_support": {
     "_": [
-      "crates/cubical-engine/src/* modules outside commands/ that belong to",
+      "crates/simple-directory-engine/src/* modules outside commands/ that belong to",
       "one domain, checked both as sources and as targets. The engine crate",
       "is shell, so without this a block's handle moved beside commands/, or",
       "substrate such as the watcher living in events.rs, would be invisible.",

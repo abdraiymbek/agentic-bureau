@@ -8,17 +8,17 @@
 
 ## Problem
 
-The vault-switcher we shipped is memory-less: "Switch vault" → a popup whose only action is "Open folder…" → the OS file navigator. That's one extra click to reach the same OS dialog, delivering nothing over the old direct button. The original #3 goal was to *replace* OS-navigator reliance with an in-app window. To do that the app must remember which vaults exist across sessions — Cubical's first piece of **global, non-vault state**.
+The vault-switcher we shipped is memory-less: "Switch vault" → a popup whose only action is "Open folder…" → the OS file navigator. That's one extra click to reach the same OS dialog, delivering nothing over the old direct button. The original #3 goal was to *replace* OS-navigator reliance with an in-app window. To do that the app must remember which vaults exist across sessions — simple.directory's first piece of **global, non-vault state**.
 
 ## Non-goals / constraints
 
-- This is **machine-local app-shell state**, not vault content and not portable config. It never touches any `.md` file or a vault's `.cubical/`. It does not violate the pristine-vault non-negotiables.
-- It lives in the **`cubical-app` Tauri layer**, not `cubical-engine` — the engine stays vault-focused (per [[project_engine_transport_decoupling]]). A future CLI frontend, if it wants recents, gets its own equivalent; we don't build for that now (YAGNI).
+- This is **machine-local app-shell state**, not vault content and not portable config. It never touches any `.md` file or a vault's `.simple-directory/`. It does not violate the pristine-vault non-negotiables.
+- It lives in the **`simple-directory-app` Tauri layer**, not `simple-directory-engine` — the engine stays vault-focused (per [[project_engine_transport_decoupling]]). A future CLI frontend, if it wants recents, gets its own equivalent; we don't build for that now (YAGNI).
 - No new Tauri plugin: Rust reaches the OS app-config dir via Tauri's core `path()`.
 
-## 1. Storage (Rust, `cubical-app`)
+## 1. Storage (Rust, `simple-directory-app`)
 
-A new module `crates/cubical-app/src/recent_vaults.rs` owns a JSON file `recent_vaults.json` in the **OS app-config dir** (`app.path().app_config_dir()`).
+A new module `crates/simple-directory-app/src/recent_vaults.rs` owns a JSON file `recent_vaults.json` in the **OS app-config dir** (`app.path().app_config_dir()`).
 
 - **On-disk schema:** a JSON array of `{ "path": String, "last_opened_unix": i64 }`, ordered most-recent-first, **capped at 10** (LRU: the 11th push evicts the oldest).
 - **Module API** (pure over an injected file path — unit-testable with a temp file, no Tauri):
@@ -26,7 +26,7 @@ A new module `crates/cubical-app/src/recent_vaults.rs` owns a JSON file `recent_
   - `record(path: &Path, vault_path: &str, now_unix: i64)` — dedupe by `vault_path` (an existing entry moves to the top and updates its timestamp rather than duplicating), then truncate to 10, then atomic-write.
   - `remove(path: &Path, vault_path: &str)` — drop the matching entry, atomic-write.
   - `list_with_existence(path: &Path) -> Vec<RecentVault>` — `load` + stamp each entry with `exists: bool` (a `std::path::Path::exists()` check on `vault_path`). Does not mutate the file (a temporarily-missing vault is not auto-pruned — see error handling).
-- **Atomic writes** reuse the temp-file + rename discipline of [`cubical-core/src/vault/atomic.rs`](../../../crates/cubical-core/src/vault/atomic.rs) (`atomic_write`), so a crash mid-write can't corrupt the list.
+- **Atomic writes** reuse the temp-file + rename discipline of [`simple-directory-core/src/vault/atomic.rs`](../../../crates/simple-directory-core/src/vault/atomic.rs) (`atomic_write`), so a crash mid-write can't corrupt the list.
 - **Corruption policy:** a malformed `recent_vaults.json` is treated as empty on load and silently overwritten on the next `record`/`remove`. No crash, no user-facing error — this is disposable state.
 
 ### IPC surface
@@ -39,12 +39,12 @@ ListRecentVaultsResponse { vaults: Vec<RecentVault> }   // most-recent first
 RemoveRecentVaultRequest { path: String }
 ```
 
-Two new Tauri command shims in `cubical-app/src/lib.rs`:
+Two new Tauri command shims in `simple-directory-app/src/lib.rs`:
 
 - `list_recent_vaults() -> ListRecentVaultsResponse` — resolves the app-config dir, calls `recent_vaults::list_with_existence`.
 - `remove_recent_vault(RemoveRecentVaultRequest)` — calls `recent_vaults::remove`.
 
-**Recording folds into the existing `open_vault` shim** (`cubical-app/src/lib.rs:134`, which already takes `app: AppHandle` and `req: OpenVaultRequest`): after `commands::vault::open_vault(...)` returns `Ok`, call `recent_vaults::record(app_config_dir, &req.path, now)`. A failed open records nothing. This is the single source of truth — the frontend never calls an "add" command, so it can't forget.
+**Recording folds into the existing `open_vault` shim** (`simple-directory-app/src/lib.rs:134`, which already takes `app: AppHandle` and `req: OpenVaultRequest`): after `commands::vault::open_vault(...)` returns `Ok`, call `recent_vaults::record(app_config_dir, &req.path, now)`. A failed open records nothing. This is the single source of truth — the frontend never calls an "add" command, so it can't forget.
 
 ## 2. Frontend data flow
 
@@ -84,8 +84,8 @@ Today `handleOpen` (App.tsx:1470) couples the OS dialog to the open-and-reset lo
 
 ## 6. Files touched
 
-- Create: `crates/cubical-app/src/recent_vaults.rs` (+ tests) and register the module.
-- Modify: `crates/cubical-app/src/lib.rs` — 2 new command shims, register both in the handler list, fold recording into the `open_vault` shim.
+- Create: `crates/simple-directory-app/src/recent_vaults.rs` (+ tests) and register the module.
+- Modify: `crates/simple-directory-app/src/lib.rs` — 2 new command shims, register both in the handler list, fold recording into the `open_vault` shim.
 - Modify: the shared ipc DTO surface (Rust `api` types + the TS `api/ipc.ts` bindings) — add `RecentVault`, `ListRecentVaultsResponse`, `RemoveRecentVaultRequest` and the two command wrappers.
 - Modify: `ui/src/App.tsx` — `openVaultByPath` extraction, launch auto-open, switcher/landing list wiring + refresh.
 - Modify: `ui/src/VaultSwitcher.tsx` — render a populated list (switch + greyed-missing + × prune).
@@ -93,6 +93,6 @@ Today `handleOpen` (App.tsx:1470) couples the OS dialog to the open-and-reset lo
 
 ## 7. Cross-cutting notes
 
-- No `.md` / `.cubical/` touch; no engine change; no new plugin.
+- No `.md` / `.simple-directory/` touch; no engine change; no new plugin.
 - One cohesive feature → one implementation plan.
 - **Verification:** `scripts/check.sh` green (this feature adds Rust, so the Rust gate matters again), plus operator smoke: launch auto-opens last vault; switcher lists recents and switches on click; a missing vault greys and prunes; "Open folder…" still adds; landing shows recents when auto-open finds nothing.

@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Rust↔TS parity is load-bearing.** Every tokenizer/AST/normalize change lands in both `crates/cubical-ast/src/*.rs` and `ui/src/ast/*.ts` in the same task, and the parity harness (`crates/cubical-ast/tests/fixtures/parity.json`) must stay green.
+- **Rust↔TS parity is load-bearing.** Every tokenizer/AST/normalize change lands in both `crates/simple-directory-ast/src/*.rs` and `ui/src/ast/*.ts` in the same task, and the parity harness (`crates/simple-directory-ast/tests/fixtures/parity.json`) must stay green.
 - **Display-time only.** Never write the resolved value into the `.md`. The source keeps the literal `[[…]]` token byte-for-byte.
 - **No type-registry dependency.** v1 renders the raw frontmatter scalar as text. Do not import or block on typed-properties code.
 - **Top-level keys only.** Split the target at the **first** dot; the property is the remainder, looked up as a single top-level frontmatter key.
@@ -25,7 +25,7 @@
 ### Task 1: Tokenizer — property-ref branch (Rust + TS)
 
 **Files:**
-- Modify: `crates/cubical-ast/src/wikilink.rs`
+- Modify: `crates/simple-directory-ast/src/wikilink.rs`
 - Modify: `ui/src/ast/wikilink.ts`
 - Test: inline `#[cfg(test)]` in `wikilink.rs`; `ui/src/ast/wikilink.test.ts`
 
@@ -36,7 +36,7 @@
 
 - [ ] **Step 1: Write failing Rust tests**
 
-Add to the `tests` module in `crates/cubical-ast/src/wikilink.rs`:
+Add to the `tests` module in `crates/simple-directory-ast/src/wikilink.rs`:
 
 ```rust
 fn pref(note: Option<&str>, property: &str) -> TokenizedRun {
@@ -80,12 +80,12 @@ fn dotted_target_with_anchor_stays_wikilink() {
 
 - [ ] **Step 2: Run, verify they fail to compile / fail**
 
-Run: `cargo test -p cubical-ast wikilink`
+Run: `cargo test -p simple-directory-ast wikilink`
 Expected: FAIL — `PropertyRef` variant does not exist.
 
 - [ ] **Step 3: Add the Rust variant + branch**
 
-In `crates/cubical-ast/src/wikilink.rs`, add to the `TokenizedRun` enum:
+In `crates/simple-directory-ast/src/wikilink.rs`, add to the `TokenizedRun` enum:
 
 ```rust
     /// A frontmatter property reference: `[[note.prop]]` (cross-file) or
@@ -135,7 +135,7 @@ Replace the tail of `parse_body` (from `let target = target_raw.trim();` onward)
 
 - [ ] **Step 4: Run Rust tests, verify pass**
 
-Run: `cargo test -p cubical-ast wikilink`
+Run: `cargo test -p simple-directory-ast wikilink`
 Expected: PASS (all, including the new five).
 
 - [ ] **Step 5: Write failing TS tests**
@@ -219,7 +219,7 @@ Expected: PASS.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add crates/cubical-ast/src/wikilink.rs ui/src/ast/wikilink.ts ui/src/ast/wikilink.test.ts
+git add crates/simple-directory-ast/src/wikilink.rs ui/src/ast/wikilink.ts ui/src/ast/wikilink.test.ts
 git commit -m "feat(ast): tokenize [[note.prop]] / [[.prop]] as property refs"
 ```
 
@@ -228,8 +228,8 @@ git commit -m "feat(ast): tokenize [[note.prop]] / [[.prop]] as property refs"
 ### Task 2: Canonical AST node + normalize mapping (Rust + TS)
 
 **Files:**
-- Modify: `crates/cubical-ast/src/types.rs` (add `Inline::PropertyRef`)
-- Modify: `crates/cubical-ast/src/normalize.rs` (`split_inlines` mapping + the test's exhaustive match)
+- Modify: `crates/simple-directory-ast/src/types.rs` (add `Inline::PropertyRef`)
+- Modify: `crates/simple-directory-ast/src/normalize.rs` (`split_inlines` mapping + the test's exhaustive match)
 - Modify: `ui/src/ast/types.ts` (add `property_ref` to `Inline` union)
 - Modify: `ui/src/ast/normalize.ts` (`splitInlines` mapping)
 - Test: inline Rust test in `normalize.rs`; `ui/src/ast/normalize.test.ts`
@@ -241,7 +241,7 @@ git commit -m "feat(ast): tokenize [[note.prop]] / [[.prop]] as property refs"
 
 - [ ] **Step 1: Write failing Rust test**
 
-Add to the `tests` module in `crates/cubical-ast/src/normalize.rs`:
+Add to the `tests` module in `crates/simple-directory-ast/src/normalize.rs`:
 
 ```rust
 #[test]
@@ -265,12 +265,12 @@ fn property_refs_become_inline_nodes() {
 
 - [ ] **Step 2: Run, verify fail to compile**
 
-Run: `cargo test -p cubical-ast property_refs_become_inline_nodes`
+Run: `cargo test -p simple-directory-ast property_refs_become_inline_nodes`
 Expected: FAIL — `Inline::PropertyRef` does not exist; the existing `kinds` match in `emph_strong_link_image_inlines_round_trip` will also need an arm (compiler will flag).
 
 - [ ] **Step 3: Add the Rust `Inline` variant**
 
-In `crates/cubical-ast/src/types.rs`, add to the `Inline` enum (after `WikiLink`):
+In `crates/simple-directory-ast/src/types.rs`, add to the `Inline` enum (after `WikiLink`):
 
 ```rust
     /// `[[note.prop]]` / `[[.prop]]` — a read-only frontmatter value
@@ -287,7 +287,7 @@ In `crates/cubical-ast/src/types.rs`, add to the `Inline` enum (after `WikiLink`
 
 - [ ] **Step 4: Map the run in `split_inlines` (Rust)**
 
-In `crates/cubical-ast/src/normalize.rs`, inside `split_inlines`, add an arm to the `match run` over `WikiRun`:
+In `crates/simple-directory-ast/src/normalize.rs`, inside `split_inlines`, add an arm to the `match run` over `WikiRun`:
 
 ```rust
                         WikiRun::PropertyRef { note, property } => {
@@ -303,8 +303,8 @@ Also add the missing arm to the test helper match in `emph_strong_link_image_inl
 
 - [ ] **Step 5: Run Rust tests, verify pass**
 
-Run: `cargo test -p cubical-ast`
-Expected: PASS. If the compiler flags other exhaustive `match` over `Inline` elsewhere in `cubical-ast`, add a `PropertyRef` arm mirroring the `WikiLink` arm's behavior.
+Run: `cargo test -p simple-directory-ast`
+Expected: PASS. If the compiler flags other exhaustive `match` over `Inline` elsewhere in `simple-directory-ast`, add a `PropertyRef` arm mirroring the `WikiLink` arm's behavior.
 
 - [ ] **Step 6: Write failing TS test**
 
@@ -360,7 +360,7 @@ Expected: PASS. Run `cd ui && npx tsc --noEmit` and fix any exhaustive-union err
 - [ ] **Step 10: Commit**
 
 ```bash
-git add crates/cubical-ast/src/types.rs crates/cubical-ast/src/normalize.rs ui/src/ast/types.ts ui/src/ast/normalize.ts ui/src/ast/normalize.test.ts
+git add crates/simple-directory-ast/src/types.rs crates/simple-directory-ast/src/normalize.rs ui/src/ast/types.ts ui/src/ast/normalize.ts ui/src/ast/normalize.test.ts
 git commit -m "feat(ast): add Inline::PropertyRef and normalize mapping"
 ```
 
@@ -369,14 +369,14 @@ git commit -m "feat(ast): add Inline::PropertyRef and normalize mapping"
 ### Task 3: Cross-language parity fixtures
 
 **Files:**
-- Modify: `crates/cubical-ast/tests/fixtures/parity.json`
-- Test: the existing parity harness (`cargo test -p cubical-ast` parity test + the TS parity test that reads the same fixtures — locate via `rg -l parity.json ui/`).
+- Modify: `crates/simple-directory-ast/tests/fixtures/parity.json`
+- Test: the existing parity harness (`cargo test -p simple-directory-ast` parity test + the TS parity test that reads the same fixtures — locate via `rg -l parity.json ui/`).
 
 **Interfaces:** Consumes the AST shape from Tasks 1–2. No new code.
 
 - [ ] **Step 1: Inspect the fixture format**
 
-Run: `rg -n "property_ref|wiki_link" crates/cubical-ast/tests/fixtures/parity.json | head` and open the file to copy the exact entry shape (each fixture is a source string the harness parses on both sides and compares).
+Run: `rg -n "property_ref|wiki_link" crates/simple-directory-ast/tests/fixtures/parity.json | head` and open the file to copy the exact entry shape (each fixture is a source string the harness parses on both sides and compares).
 
 - [ ] **Step 2: Add fixture source strings**
 
@@ -390,13 +390,13 @@ Append these source strings as new fixture entries (matching the file's existing
 
 - [ ] **Step 3: Run the parity harness (Rust + TS), verify pass**
 
-Run: `cargo test -p cubical-ast` and `cd ui && npx vitest run` (parity test file).
+Run: `cargo test -p simple-directory-ast` and `cd ui && npx vitest run` (parity test file).
 Expected: PASS — identical AST from both normalizers for every new fixture.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-ast/tests/fixtures/parity.json
+git add crates/simple-directory-ast/tests/fixtures/parity.json
 git commit -m "test(ast): parity fixtures for property refs"
 ```
 
@@ -405,25 +405,25 @@ git commit -m "test(ast): parity fixtures for property refs"
 ### Task 4: Backend `get_property` IPC handler
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/property_ref.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs` (register the module)
-- Modify: `crates/cubical-app/src/api/types.rs` (request/response types)
+- Create: `crates/simple-directory-app/src/commands/property_ref.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs` (register the module)
+- Modify: `crates/simple-directory-app/src/api/types.rs` (request/response types)
 - Test: inline `#[cfg(test)]` in `property_ref.rs` (mirror `embeds.rs` test harness)
 
 **Interfaces:**
-- Produces: `pub async fn get_property(state: &AppState, req: GetPropertyRequest) -> Result<GetPropertyResponse, CubicalError>`.
+- Produces: `pub async fn get_property(state: &AppState, req: GetPropertyRequest) -> Result<GetPropertyResponse, SimpleDirectoryError>`.
 - Types (in `api/types.rs`):
 ```rust
 GetPropertyRequest  { vault_id: String, note_raw: String, property: String }
 GetPropertyResponse { kind: PropertyRefKind, value: Option<String> }
 enum PropertyRefKind { Resolved, NoteUnresolved, PropertyMissing }  // serde snake_case
 ```
-- Consumes: `resolve_target`, `read_source_off_executor`, `materialize_on_read` (same imports as `embeds.rs`); `cubical_ast::parse` for frontmatter.
+- Consumes: `resolve_target`, `read_source_off_executor`, `materialize_on_read` (same imports as `embeds.rs`); `simple_directory_ast::parse` for frontmatter.
 - Note: **cross-file only** — `note_raw` is always a concrete note name; self-refs (`note == None`) never reach IPC (resolved on the frontend in Task 8).
 
 - [ ] **Step 1: Add the API types**
 
-In `crates/cubical-app/src/api/types.rs`, mirroring `GetEmbedRequest`/`GetEmbedResponse`/`EmbedKind` (same derives + serde attrs):
+In `crates/simple-directory-app/src/api/types.rs`, mirroring `GetEmbedRequest`/`GetEmbedResponse`/`EmbedKind` (same derives + serde attrs):
 
 ```rust
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -451,7 +451,7 @@ pub struct GetPropertyResponse {
 
 - [ ] **Step 2: Write the failing handler test**
 
-Create `crates/cubical-app/src/commands/property_ref.rs` with the test module first (copy the `state_with_vault_at` + `scan` helpers from `embeds.rs`):
+Create `crates/simple-directory-app/src/commands/property_ref.rs` with the test module first (copy the `state_with_vault_at` + `scan` helpers from `embeds.rs`):
 
 ```rust
 #[tokio::test]
@@ -493,7 +493,7 @@ async fn get_property_unresolved_note() {
 
 - [ ] **Step 3: Run, verify fail to compile**
 
-Run: `cargo test -p cubical-app get_property`
+Run: `cargo test -p simple-directory-app get_property`
 Expected: FAIL — `get_property` undefined.
 
 - [ ] **Step 4: Implement the handler**
@@ -506,22 +506,22 @@ Above the test module in `property_ref.rs` (file-doc + imports mirror `embeds.rs
 //! string. Self-refs (`[[.prop]]`) are resolved on the frontend and never
 //! reach this command.
 
-use cubical_ast::parse;
-use cubical_core::vault::links::{read_source_off_executor, resolve_target};
-use cubical_core::vault::pending::materialize_on_read;
+use simple_directory_ast::parse;
+use simple_directory_core::vault::links::{read_source_off_executor, resolve_target};
+use simple_directory_core::vault::pending::materialize_on_read;
 
 use crate::api::types::{GetPropertyRequest, GetPropertyResponse, PropertyRefKind};
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 pub async fn get_property(
     state: &AppState,
     req: GetPropertyRequest,
-) -> Result<GetPropertyResponse, CubicalError> {
+) -> Result<GetPropertyResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
     let vault = open.vault.clone();
     drop(guard);
 
@@ -572,7 +572,7 @@ fn scalar_to_display(v: &serde_json::Value) -> Option<String> {
 }
 ```
 
-Register the module in `crates/cubical-app/src/commands/mod.rs`:
+Register the module in `crates/simple-directory-app/src/commands/mod.rs`:
 
 ```rust
 pub mod property_ref;
@@ -580,13 +580,13 @@ pub mod property_ref;
 
 - [ ] **Step 5: Run, verify pass**
 
-Run: `cargo test -p cubical-app get_property`
+Run: `cargo test -p simple-directory-app get_property`
 Expected: PASS (all three).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/property_ref.rs crates/cubical-app/src/commands/mod.rs crates/cubical-app/src/api/types.rs
+git add crates/simple-directory-app/src/commands/property_ref.rs crates/simple-directory-app/src/commands/mod.rs crates/simple-directory-app/src/api/types.rs
 git commit -m "feat(ipc): get_property handler for cross-file property refs"
 ```
 
@@ -595,7 +595,7 @@ git commit -m "feat(ipc): get_property handler for cross-file property refs"
 ### Task 5: Register the Tauri command + TS binding
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs` (the `#[tauri::command]` wrapper + `invoke_handler` list — follow the `get_embed` registration exactly; `rg -n "get_embed" crates/cubical-app/src/lib.rs`)
+- Modify: `crates/simple-directory-app/src/lib.rs` (the `#[tauri::command]` wrapper + `invoke_handler` list — follow the `get_embed` registration exactly; `rg -n "get_embed" crates/simple-directory-app/src/lib.rs`)
 - Modify: `ui/src/api/ipc.ts` (add `getProperty` + request/response types, mirroring `getEmbed`)
 - Test: `ui/src/api/property_ref.test.ts` (smoke, mirror `ui/src/api/dataview.test.ts`)
 
@@ -606,7 +606,7 @@ git commit -m "feat(ipc): get_property handler for cross-file property refs"
 
 - [ ] **Step 1: Register the Rust command**
 
-In `crates/cubical-app/src/lib.rs`, add a `#[tauri::command]` wrapper next to the `get_embed` one (same async/state-extraction shape), e.g.:
+In `crates/simple-directory-app/src/lib.rs`, add a `#[tauri::command]` wrapper next to the `get_embed` one (same async/state-extraction shape), e.g.:
 
 ```rust
 #[tauri::command]
@@ -680,7 +680,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs ui/src/api/ipc.ts ui/src/api/property_ref.test.ts
+git add crates/simple-directory-app/src/lib.rs ui/src/api/ipc.ts ui/src/api/property_ref.test.ts
 git commit -m "feat(ipc): register get_property command + TS binding"
 ```
 
@@ -1122,7 +1122,7 @@ In `Editor.tsx`, where the dataview extension is conditionally included based on
 
 - [ ] **Step 4: Verify**
 
-Run: `cd ui && npx tsc --noEmit && npx vitest run` and `cargo test -p cubical-app settings`
+Run: `cd ui && npx tsc --noEmit && npx vitest run` and `cargo test -p simple-directory-app settings`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1139,7 +1139,7 @@ git commit -m "feat(settings): property-refs core-plugin toggle"
 **Files:**
 - Create: `ui/src/vault/noteName.ts` — `isValidNoteName(name: string): boolean` (rejects a `.` before the `.md` extension) + `noteNameError(name)` message.
 - Modify: the note **create** flow (locate: `rg -n "create.*[Nn]ote|new note|createFile" ui/src`) to reject invalid names with the message.
-- Modify: the **rename** flow (`crates/cubical-app/src/commands/rename.rs` consumer in the UI — `rg -n "rename" ui/src`) to reject invalid target names.
+- Modify: the **rename** flow (`crates/simple-directory-app/src/commands/rename.rs` consumer in the UI — `rg -n "rename" ui/src`) to reject invalid target names.
 - Flag existing dotted notes in the file tree (locate the tree item component; add a small badge/title when `name` contains a dot before `.md`).
 - Test: `ui/src/vault/noteName.test.ts`.
 

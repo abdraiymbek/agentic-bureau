@@ -4,7 +4,7 @@
 
 **Date:** 2026-07-02
 **Status:** Design — approved, pre-implementation
-**Surface:** Left sidebar file tree in `ui/src/App.tsx`; new backend command in `crates/cubical-engine`
+**Surface:** Left sidebar file tree in `ui/src/App.tsx`; new backend command in `crates/simple-directory-engine`
 
 ## Problem
 
@@ -22,14 +22,14 @@ folder) to delete it, with confirmation, to the OS trash.
 
 ## Backend
 
-New command `delete_path` in `crates/cubical-engine/src/commands/vault.rs`,
+New command `delete_path` in `crates/simple-directory-engine/src/commands/vault.rs`,
 alongside `create_file`/`create_folder`/`rename_file`. Takes a vault-relative
 path, resolves it under the vault root, and calls the `trash` crate's
 `delete()` — a new workspace dependency (`workspace.dependencies` in the root
 `Cargo.toml`). `trash::delete` moves a directory and its full contents to the
 OS trash/recycle bin in one call, so no manual recursion is needed on our side.
 
-Register the command in `crates/cubical-app/src/lib.rs`'s `generate_handler!`
+Register the command in `crates/simple-directory-app/src/lib.rs`'s `generate_handler!`
 list, same as the other vault commands. No new event plumbing: the existing
 file-watcher already detects the removal and drives the tree/index update, the
 same path that already handles external deletes (e.g. via Finder) while the
@@ -53,7 +53,7 @@ only) to also fire on:
 
 ### Folder rename is out of scope
 
-`rename_file` (`crates/cubical-engine/src/commands/rename.rs`) only operates
+`rename_file` (`crates/simple-directory-engine/src/commands/rename.rs`) only operates
 on rows in the `files` table and rejects with `FileNotFound` for anything
 else — there is no backend support for renaming a folder today. A real
 `rename_folder` would need to cascade the path-prefix change across every

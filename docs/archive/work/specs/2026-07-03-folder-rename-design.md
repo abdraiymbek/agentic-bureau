@@ -4,7 +4,7 @@
 
 **Date:** 2026-07-03
 **Status:** Design — approved, pre-implementation
-**Surface:** New engine command in `crates/cubical-engine`; sidebar context menu in `ui/src/App.tsx`
+**Surface:** New engine command in `crates/simple-directory-engine`; sidebar context menu in `ui/src/App.tsx`
 
 ## Problem
 
@@ -30,7 +30,7 @@ already has (deferred rewrite queue, journal, broken-link repair).
 (`links.source_path`/`target_path`, `tags.file_path`, `blocks.file_path`,
 `block_refs.source_file_path`/`target_file_path`, `frontmatter.file_path`)
 and update its `files.path` — gets extracted from
-`crates/cubical-engine/src/commands/rename.rs` into a standalone function
+`crates/simple-directory-engine/src/commands/rename.rs` into a standalone function
 taking an open transaction, a `from` path, and a `to` path. `rename_file`
 calls it once inside its existing transaction; `rename_folder` calls it once
 per file under the old prefix, inside **one new transaction covering the
@@ -43,7 +43,7 @@ unchanged after the extraction.
 
 ### `rename_folder(vault_id, from_path, to_path)`
 
-New command in `crates/cubical-engine/src/commands/rename.rs`, alongside
+New command in `crates/simple-directory-engine/src/commands/rename.rs`, alongside
 `rename_file`.
 
 1. **Validate**: `from_path` is a tracked row in the `folders` table
@@ -70,7 +70,7 @@ New command in `crates/cubical-engine/src/commands/rename.rs`, alongside
    at the new path (these tables are keyed by path, so a stale extraction
    would point at the old location); sync the search index (delete old
    path's Tantivy doc, re-add at the new path); append one
-   `.cubical/renames.jsonl` entry (reusing the existing `"file"` journal
+   `.simple-directory/renames.jsonl` entry (reusing the existing `"file"` journal
    kind — no new kind, no changes to the replay/prune logic); run broken-link
    repair if `wikilinks.rewrite_broken_links_on_rename` is on.
 
@@ -81,7 +81,7 @@ triggers. No new flush timing logic.
 
 ### Error cases
 
-`Result<(), CubicalError>` (no response payload, matching `rename_file`'s
+`Result<(), SimpleDirectoryError>` (no response payload, matching `rename_file`'s
 sibling shape where applicable) — `InvalidRequest` for validation failures
 (untracked folder, destination collision, invalid path segments),
 propagating the same error variants `rename_file` uses elsewhere in the

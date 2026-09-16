@@ -8,7 +8,7 @@
 
 **Architecture:** Backend adds one handler (`block_id_autocomplete`) that resolves `target_raw` like `resolve_link` and returns the file's block ids via the existing `blocks_for_file`. Frontend adds a pure `detectBlockTrigger` + `blockInsertion`, a `blockCompletionSource` mirroring `linkCompletionSource`, an injected provider method, and one entry in the editor's `autocompletion({override})` array. No new index helpers; no new tables.
 
-**Tech Stack:** Rust (`cubical-app` handler, Tauri shim), SolidJS / TypeScript / CodeMirror 6 (`@codemirror/autocomplete`), Vitest. Reuses `cubical_index::blocks_for_file` (L3 Session G) and `cubical_core::vault::links::resolve_target`.
+**Tech Stack:** Rust (`simple-directory-app` handler, Tauri shim), SolidJS / TypeScript / CodeMirror 6 (`@codemirror/autocomplete`), Vitest. Reuses `simple_directory_index::blocks_for_file` (L3 Session G) and `simple_directory_core::vault::links::resolve_target`.
 
 **Branch:** Work on a new branch `l3-blockid-autocomplete` cut from `main` (single-checkout workflow — no worktrees).
 
@@ -20,9 +20,9 @@
 
 You have no prior context. Read this and the referenced files before starting.
 
-- **`blocks_for_file(conn, file_path) -> Vec<BlockRow>`** is already exported from `cubical-index` (Session G). It returns block ids ordered by `position_hint`. We just consume it.
-- **`resolve_link` (`crates/cubical-app/src/commands/links.rs:24`)** is the template for resolving a wiki-link target: snapshot `SELECT path FROM files ORDER BY path` → call `cubical_core::vault::links::resolve_target(target_raw, &known)` → `Option<String>` path. Public function; nothing new to export.
-- **Autocomplete handler patterns (`crates/cubical-app/src/commands/autocomplete.rs`).** `AUTOCOMPLETE_LIMIT: u32 = 50`. Handler signature: `pub async fn name(state: &AppState, req) -> Result<Resp, CubicalError>` with `state.vaults().read().await.get(&req.vault_id).ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?`. Test helpers `fresh_state_with_vault` + `seed_file(vault, rel, type_id)` (with `inode NULL` column — see lines 95–108).
+- **`blocks_for_file(conn, file_path) -> Vec<BlockRow>`** is already exported from `simple-directory-index` (Session G). It returns block ids ordered by `position_hint`. We just consume it.
+- **`resolve_link` (`crates/simple-directory-app/src/commands/links.rs:24`)** is the template for resolving a wiki-link target: snapshot `SELECT path FROM files ORDER BY path` → call `simple_directory_core::vault::links::resolve_target(target_raw, &known)` → `Option<String>` path. Public function; nothing new to export.
+- **Autocomplete handler patterns (`crates/simple-directory-app/src/commands/autocomplete.rs`).** `AUTOCOMPLETE_LIMIT: u32 = 50`. Handler signature: `pub async fn name(state: &AppState, req) -> Result<Resp, SimpleDirectoryError>` with `state.vaults().read().await.get(&req.vault_id).ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?`. Test helpers `fresh_state_with_vault` + `seed_file(vault, rel, type_id)` (with `inode NULL` column — see lines 95–108).
 - **Frontend autocomplete machinery (`ui/src/editor/autocomplete.ts`).** `Trigger { query, from }`, `detectLinkTrigger` regex `/\[\[([^\]\n|#]*)$/`, `linkInsertion(path, closerFollows) -> { insert, cursorAfter }`, `isInhibited(state, pos, denyWikiLink)` (Lezer ancestor walk over a `CODE_NODES` set; pass `false` for the block trigger since the trigger only matches *inside* a wiki-link). `linkCompletionSource(provider): CompletionSource` is the structural template — async handler returns `CompletionResult { from, options, validFor }`; option `apply` dispatches a `view` transaction with `changes: { from, to, insert }` and `selection: { anchor: from + cursorAfter }`. `lineBefore(state, pos)` reads the line up to the cursor.
 - **Provider injection (`ui/src/editor/autocompleteProvider.ts`).** `AutocompleteProvider { links, tags }`; `createAutocompleteProvider(vaultId, linkIpc?, tagIpc?)` injects IPC for tests, with production defaults from `api/ipc.ts`. Failures → empty list. Extend with `blockIds` + `blockIdIpc?`.
 - **Editor wiring (`ui/src/Editor.tsx`).** `autocompleteExtensionFor(provider)` lists `linkCompletionSource(provider)` + `tagCompletionSource(provider)` in `autocompletion({ override: [...] })`. Add `blockCompletionSource(provider)` to this array.
@@ -43,9 +43,9 @@ You have no prior context. Read this and the referenced files before starting.
 - *(none — all changes extend existing files)*
 
 **Modify:**
-- `crates/cubical-app/src/api/types.rs` — `BlockIdAutocomplete{Request,Response}` wire types.
-- `crates/cubical-app/src/commands/autocomplete.rs` — `block_id_autocomplete` handler + 2 unit tests.
-- `crates/cubical-app/src/lib.rs` — type imports, Tauri shim, registration.
+- `crates/simple-directory-app/src/api/types.rs` — `BlockIdAutocomplete{Request,Response}` wire types.
+- `crates/simple-directory-app/src/commands/autocomplete.rs` — `block_id_autocomplete` handler + 2 unit tests.
+- `crates/simple-directory-app/src/lib.rs` — type imports, Tauri shim, registration.
 - `ui/src/api/ipc.ts` — wire types + `blockIdAutocomplete` binding.
 - `ui/src/editor/autocompleteProvider.ts` — extend interface + factory with `blockIds`.
 - `ui/src/editor/autocomplete.ts` — `detectBlockTrigger`, `blockInsertion`, `blockCompletionSource`.
@@ -59,14 +59,14 @@ You have no prior context. Read this and the referenced files before starting.
 ### Task 1: Backend handler + IPC
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
-- Modify: `crates/cubical-app/src/commands/autocomplete.rs`
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
+- Modify: `crates/simple-directory-app/src/commands/autocomplete.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 - Modify: `ui/src/api/ipc.ts`
 
 - [ ] **Step 1: Add wire types**
 
-In `crates/cubical-app/src/api/types.rs`, append (after the existing autocomplete request/response types):
+In `crates/simple-directory-app/src/api/types.rs`, append (after the existing autocomplete request/response types):
 
 ```rust
 // -- block_id_autocomplete (L3 — [[#^ autocomplete) -------------------
@@ -93,12 +93,12 @@ pub struct BlockIdAutocompleteResponse {
 
 - [ ] **Step 2: Write the failing handler tests**
 
-In `crates/cubical-app/src/commands/autocomplete.rs`, inside the `#[cfg(test)] mod tests` block, append (after the existing tests):
+In `crates/simple-directory-app/src/commands/autocomplete.rs`, inside the `#[cfg(test)] mod tests` block, append (after the existing tests):
 
 ```rust
     #[tokio::test]
     async fn block_id_autocomplete_returns_ids_for_resolved_target() {
-        use cubical_index::{replace_blocks_for_file, BlockRow};
+        use simple_directory_index::{replace_blocks_for_file, BlockRow};
         let (_dir, vault, state) = fresh_state_with_vault("v1").await;
         seed_file(&vault, "notes/Daily.md", "markdown").await;
         replace_blocks_for_file(
@@ -151,21 +151,21 @@ Otherwise add them to the file-level `use` block.
 
 - [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-app commands::autocomplete::tests::block_id_autocomplete 2>&1 | tail`
+Run: `cargo test -p simple-directory-app commands::autocomplete::tests::block_id_autocomplete 2>&1 | tail`
 Expected: FAIL to compile — `block_id_autocomplete` is undefined.
 
 - [ ] **Step 4: Implement the handler**
 
-In `crates/cubical-app/src/commands/autocomplete.rs`:
+In `crates/simple-directory-app/src/commands/autocomplete.rs`:
 
 (a) Extend the `use` block at the top of the file to add the imports needed:
 
 ```rust
-use cubical_core::vault::links::resolve_target;
-use cubical_index::{blocks_for_file, files_for_link_query, tag_paths_for_prefix};
+use simple_directory_core::vault::links::resolve_target;
+use simple_directory_index::{blocks_for_file, files_for_link_query, tag_paths_for_prefix};
 ```
 
-(replace the existing `use cubical_index::{files_for_link_query, tag_paths_for_prefix};` with the second line; add the first line).
+(replace the existing `use simple_directory_index::{files_for_link_query, tag_paths_for_prefix};` with the second line; add the first line).
 
 Add to the file-level `use crate::api::types::{...}`:
 
@@ -183,11 +183,11 @@ Add to the file-level `use crate::api::types::{...}`:
 pub async fn block_id_autocomplete(
     state: &AppState,
     req: BlockIdAutocompleteRequest,
-) -> Result<BlockIdAutocompleteResponse, CubicalError> {
+) -> Result<BlockIdAutocompleteResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
     let vault = open.vault.clone();
     drop(guard);
 
@@ -217,12 +217,12 @@ pub async fn block_id_autocomplete(
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-app commands::autocomplete -- --nocapture 2>&1 | tail`
-Expected: PASS (new 2 + existing 3 = 5). Then `cargo clippy -p cubical-app --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-app commands::autocomplete -- --nocapture 2>&1 | tail`
+Expected: PASS (new 2 + existing 3 = 5). Then `cargo clippy -p simple-directory-app --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 6: Add the Tauri shim + registration**
 
-In `crates/cubical-app/src/lib.rs`:
+In `crates/simple-directory-app/src/lib.rs`:
 
 (a) Extend the `use crate::api::types::{...}` block to add the new types alongside the other autocomplete types:
 
@@ -238,7 +238,7 @@ In `crates/cubical-app/src/lib.rs`:
 async fn block_id_autocomplete(
     state: tauri::State<'_, AppState>,
     req: BlockIdAutocompleteRequest,
-) -> Result<BlockIdAutocompleteResponse, CubicalError> {
+) -> Result<BlockIdAutocompleteResponse, SimpleDirectoryError> {
     commands::autocomplete::block_id_autocomplete(state.inner(), req).await
 }
 ```
@@ -283,7 +283,7 @@ export function blockIdAutocomplete(
 - [ ] **Step 8: Build + typecheck**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 ( cd ui && npx tsc --noEmit )
 ```
 Expected: both clean.
@@ -291,7 +291,7 @@ Expected: both clean.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs crates/cubical-app/src/commands/autocomplete.rs crates/cubical-app/src/lib.rs ui/src/api/ipc.ts
+git add crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/commands/autocomplete.rs crates/simple-directory-app/src/lib.rs ui/src/api/ipc.ts
 git commit -m "feat(app): block_id_autocomplete handler + IPC"
 ```
 
@@ -710,7 +710,7 @@ Expected: Rust 273 (was 271 + 2 handler tests) green; clippy clean; fmt clean; v
 - [ ] **Step 2: Real-app smoke (best-effort)**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open a sandbox vault.
 #  - In note A, type "[[B#^" where B.md already has ^intro and ^summary
 #    (use Cmd/Ctrl+Shift+B on B's paragraphs first if needed).

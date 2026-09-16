@@ -22,11 +22,11 @@ export function TerminalConsentDialog(props: {
         >
           <div class="terminal-dialog">
             <p class="terminal-dialog__body">
-              Cubical can create <code>AGENTS.md</code> and{" "}
+              simple.directory can create <code>AGENTS.md</code> and{" "}
               <code>CLAUDE.md</code> at your vault root, each a one-line pointer
               to <code>{prompt().status.canonical_path}</code>. AI CLIs read
               them from the working directory, so they only work at the root.
-              They are yours to edit or delete, and Cubical never rewrites them.
+              They are yours to edit or delete, and simple.directory never rewrites them.
             </p>
             <div class="terminal-dialog__actions">
               <Button variant="secondary" onClick={props.onDecline}>

@@ -1,8 +1,8 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Distribution
+# simple.directory — Distribution
 
-**Owner of platform support.** Which operating systems Cubical ships to, what a
+**Owner of platform support.** Which operating systems simple.directory ships to, what a
 user is promised on each, how the three are kept identical, and which packaging
 formats exist. Nothing else restates this — link to it.
 
@@ -45,7 +45,7 @@ does not go out — the fix is to fix the platform, never to ship without it. Th
 is what makes "I updated on one machine, why is the other one different?"
 structurally impossible rather than merely unlikely.
 
-**One shared implementation, one narrow seam.** Effectively all of Cubical is
+**One shared implementation, one narrow seam.** Effectively all of simple.directory is
 already platform-agnostic: the engine is portable Rust and the interface is a
 webview. Platform-specific code is therefore the exception and must stay
 confined to a small, named set of locations, behind a single abstraction with one
@@ -59,7 +59,7 @@ keep platforms aligned; a red build does.
 
 ## 3. What "feels the same" does not mean
 
-Identical behaviour, not identical convention. Cubical follows each platform's
+Identical behaviour, not identical convention. simple.directory follows each platform's
 native conventions where a user would be confused by their absence: the primary
 modifier is Cmd on macOS and Ctrl elsewhere, menus sit where that platform puts
 them, and file dialogs are the system's own.
@@ -80,7 +80,7 @@ capability existing on one platform and not another.
 Flatpak and Snap are **out of scope**, and this is a rejection rather than a
 deferral. Each is a separate manifest with its own review process and its own
 sandbox-permission model, and that model is in direct tension with the
-non-negotiable that the vault is portable and self-contained: Cubical must open
+non-negotiable that the vault is portable and self-contained: simple.directory must open
 an arbitrary directory the user chooses, anywhere on disk. Fighting a sandbox for
 that permission, twice, buys very little over an AppImage that already runs
 everywhere.

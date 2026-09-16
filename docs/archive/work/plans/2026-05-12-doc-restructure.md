@@ -32,8 +32,8 @@
 **Update (4):**
 - `README.md` (root) — update docs/architecture.md reference
 - `docs/layer-0-spec.md` — add §14 "What was built" appendix + §2 tree note
-- `crates/cubical-ast/src/lib.rs` — update doc comment
-- `crates/cubical-sync/src/lib.rs` — update doc comment
+- `crates/simple-directory-ast/src/lib.rs` — update doc comment
+- `crates/simple-directory-sync/src/lib.rs` — update doc comment
 
 **Delete (1):**
 - `docs/architecture.md` — fully migrated to subdirectory
@@ -54,13 +54,13 @@
 Write `docs/architecture/README.md`:
 
 ```markdown
-# Cubical — Architecture
+# simple.directory — Architecture
 
 Locked decisions. These are the result of deliberate review. They can be changed, but only by an explicit architecture review — not a session-level call. If code disagrees with a doc here, the doc wins until explicitly updated.
 
 | Domain | File | Covers |
 |---|---|---|
-| Philosophy + stack | `foundation.md` | Why Cubical exists, tech choices |
+| Philosophy + stack | `foundation.md` | Why simple.directory exists, tech choices |
 | Vault + file identity | `vault.md` | Storage layout, identity model, external edits, binary assets |
 | Document model | `document-model.md` | Frontmatter, wiki-links, block refs, canonical AST, tags, Pending Rewrites |
 | Concurrency + IPC | `concurrency.md` | Three-lane model, command design |
@@ -320,7 +320,7 @@ git commit -m "docs: delete architecture.md — content fully migrated to docs/a
 - [ ] **Step 1: Write docs/README.md**
 
 ```markdown
-# Cubical — Documentation
+# simple.directory — Documentation
 
 ## For subagents
 Check your task brief for which layer you're on. Then:
@@ -364,7 +364,7 @@ git commit -m "docs: add docs/README.md index for humans and subagents"
 - [ ] **Step 1: Write layer-1-spec.md**
 
 ```markdown
-# Cubical — Layer 1: Document Model
+# simple.directory — Layer 1: Document Model
 
 The canonical Markdown AST, frontmatter indexing, and the editor's Lezer integration.
 
@@ -374,7 +374,7 @@ The canonical Markdown AST, frontmatter indexing, and the editor's Lezer integra
 
 By end of L1:
 
-1. `cubical-ast` has a fully typed canonical AST with `parse(source) -> Document` entry point.
+1. `simple-directory-ast` has a fully typed canonical AST with `parse(source) -> Document` entry point.
 2. Frontmatter indexed into libSQL `frontmatter` table on scan + watcher Created/Modified events.
 3. `get_frontmatter` IPC returns structured frontmatter for any tracked `.md` file.
 4. CodeMirror 6 with Lezer markdown grammar running in the editor webview.
@@ -388,7 +388,7 @@ See `docs/architecture/document-model.md` for the design spec this layer impleme
 
 ## 2. Session A — What was built (2026-05-09)
 
-### cubical-ast (`crates/cubical-ast/src/`)
+### simple-directory-ast (`crates/simple-directory-ast/src/`)
 
 Files: `lib.rs`, `types.rs`, `frontmatter.rs`, `normalize.rs`
 
@@ -414,9 +414,9 @@ Files: `lib.rs`, `types.rs`, `frontmatter.rs`, `normalize.rs`
 
 **Tests:** 25 — frontmatter split, YAML parsing, all Block/Inline variants, idempotence, span coverage.
 
-### cubical-index migration v2
+### simple-directory-index migration v2
 
-File: `crates/cubical-index/migrations/002_frontmatter.sql`
+File: `crates/simple-directory-index/migrations/002_frontmatter.sql`
 
 ```sql
 CREATE TABLE frontmatter (
@@ -431,20 +431,20 @@ CREATE INDEX idx_frontmatter_key ON frontmatter(key);
 
 `PRAGMA foreign_keys = ON` now executed on every connection open.
 
-### cubical-core (`crates/cubical-core/src/vault/frontmatter.rs`)
+### simple-directory-core (`crates/simple-directory-core/src/vault/frontmatter.rs`)
 
 `refresh_frontmatter(vault, abs_path, rel_str)`:
 - Reads + parses + DELETE-then-INSERT keyed on `file_path`. Idempotent.
 - Runs in `tokio::task::spawn_blocking`.
 - Called from `scan` (markdown only) + `apply_watch_event_to_db` (Created/Modified).
 
-### cubical-app
+### simple-directory-app
 
 - `get_frontmatter`: pure handler in `commands/vault.rs`; returns `FileNotFound` if path untracked.
-- `CubicalError::FileNotFound(String)` variant added.
+- `SimpleDirectoryError::FileNotFound(String)` variant added.
 - Frontend typed wrapper in `ui/src/api/ipc.ts`.
 
-**Test counts (cumulative):** cubical-ast 25 · cubical-core 42 · cubical-index 6 · cubical-app 10 = **83 total**
+**Test counts (cumulative):** simple-directory-ast 25 · simple-directory-core 42 · simple-directory-index 6 · simple-directory-app 10 = **83 total**
 
 ---
 
@@ -458,7 +458,7 @@ Install `@codemirror/lang-markdown` + `@lezer/markdown` in `ui/`. Wire Lezer mar
 
 **3b. `get_canonical_ast` IPC**
 
-Pure handler in `crates/cubical-app/src/commands/vault.rs`. Reads the file at the given vault-relative path, calls `cubical_ast::parse(source)` (already implemented in Session A), returns `Document` as JSON. Frontend typed wrapper in `ui/src/api/ipc.ts`.
+Pure handler in `crates/simple-directory-app/src/commands/vault.rs`. Reads the file at the given vault-relative path, calls `simple_directory_ast::parse(source)` (already implemented in Session A), returns `Document` as JSON. Frontend typed wrapper in `ui/src/api/ipc.ts`.
 
 ### Open decision — resolve in §3.1
 
@@ -535,13 +535,13 @@ Add this note directly below the closing triple-backtick of the code block:
 - **2026-05-05** — Initial workspace, Tauri scaffold, `ui/` skeleton, `tokens.css` + `base.css`, `ipc.ts`. `cargo tauri dev` verified.
 - **2026-05-06 (registry)** — `FileTypeHandler` trait, `FileTypeError`, `FileTypeRegistry`, `MarkdownHandler`, `BinaryHandler`, `sha256_file_hex` helper. 10 unit tests.
 - **2026-05-06 (migration runner)** — `open_index`, `Migration` struct, `MIGRATIONS` slice, `IndexError`, `001_initial.sql` (4 tables + 3 indexes). 4 `tokio::test` tests.
-- **2026-05-07** — `Vault` type, `scan()`, 5 Tauri shims (`open_vault` / `cancel_vault_scan` / `get_vault_info` / `list_files` / `close_vault`), `spawn_scan_dispatcher`, `CubicalError`, frontend open-vault flow, 200ms-throttled list refresh. 28 tests total.
+- **2026-05-07** — `Vault` type, `scan()`, 5 Tauri shims (`open_vault` / `cancel_vault_scan` / `get_vault_info` / `list_files` / `close_vault`), `spawn_scan_dispatcher`, `SimpleDirectoryError`, frontend open-vault flow, 200ms-throttled list refresh. 28 tests total.
 - **2026-05-08** — `WatchEvent` enum, `start_watcher()`, `WatcherHandle`, `notify` + `notify-debouncer-full` (100ms debounce + 25ms tick), `spawn_watcher_dispatcher`, `apply_watch_event_to_db`, audit_log rows. Frontend `VaultFileChanged` listener. 43 tests total.
 
 ### 14.2 Deviations from spec
 
-1. **Dep direction (§2 crate graph):** `cubical-index` no longer depends on `cubical-core`; direction reversed. `cubical-core` now depends on `cubical-index` (for `IndexConn`) and on `libsql` (for `params!`).
-2. **CubicalError location (§9):** lives in `cubical-app`, not `cubical-core`. Required by dep direction — must be downstream of all error sources.
+1. **Dep direction (§2 crate graph):** `simple-directory-index` no longer depends on `simple-directory-core`; direction reversed. `simple-directory-core` now depends on `simple-directory-index` (for `IndexConn`) and on `libsql` (for `params!`).
+2. **SimpleDirectoryError location (§9):** lives in `simple-directory-app`, not `simple-directory-core`. Required by dep direction — must be downstream of all error sources.
 3. **macOS FSEvents (§6):** `notify-debouncer-full` 0.3 coalesces synthetic Modify/Remove events in tests. Real editor flows work correctly. `translate_event` is fully unit-tested via synthetic `DebouncedEvent`s. `notify` 8.x + debouncer 0.6 is a candidate future fix.
 4. **Rename persistence (§6):** `apply_watch_event_to_db` for `Renamed` refreshes `last_seen` on the from-row only — does not update the `path` column or insert a to-row. Next vault scan handles it. Proper rename handler deferred to L3 Pending Rewrites Cache.
 
@@ -556,11 +556,11 @@ Add this note directly below the closing triple-backtick of the code block:
 Before tagging `l0`:
 - **(a)** Run `cargo tauri dev`; open a 10-file folder; verify the five scan DoD points (§12 #4).
 - **(b)** Modify a `.md` file externally; verify `vault:file-changed` reaches the frontend within ~300ms (§12 #6).
-- **(c)** Recreate the `cubical-cancel-test` fixture (2000–5000 plain `.md` files outside the repo) for the cancel-during-scan check.
+- **(c)** Recreate the `simple-directory-cancel-test` fixture (2000–5000 plain `.md` files outside the repo) for the cancel-during-scan check.
 
 ### 14.5 Test counts (final)
 
-`cubical-core` 34 · `cubical-app` 5 · `cubical-index` 4 = **43 tests**
+`simple-directory-core` 34 · `simple-directory-app` 5 · `simple-directory-index` 4 = **43 tests**
 
 ### 14.6 Session protocol change
 
@@ -584,7 +584,7 @@ git commit -m "docs: add §14 'What was built' appendix to layer-0-spec.md"
 - [ ] **Step 1: Replace CLAUDE.md entirely**
 
 ```markdown
-# Cubical
+# simple.directory
 
 A blazing-fast, strictly local-first Personal Knowledge Management application. Tauri + Rust + Solid/TS. Plain `.md` files are the absolute source of truth. No Electron, no Node, no cloud.
 
@@ -635,26 +635,26 @@ These are load-bearing decisions. Not up for debate in a working session. Surfac
 4. **Search.** Tantivy full-text, Dataview-style libSQL queries, persistent search panel, Cmd/Ctrl+K Omni-Bar.
 5. **Daily-Driver Polish.** Theme picker, export sanitization, perf pass, keyboard shortcuts. **Public v1.0 cut.**
 6. **Plugins.** WASI host, manifest format, Web Worker runtime, Javy/QuickJS-WASM toolchain, plugin themes, ABI deprecation framework. *(Ships before sync — the plugin ABI is a one-way door once third parties depend on it; earn a stable core first.)*
-7. **Sync.** Loro CRDT; frontmatter `cubical_id` UUIDs minted at onboarding; WebRTC P2P; optional E2EE relay.
+7. **Sync.** Loro CRDT; frontmatter `simple_directory_id` UUIDs minted at onboarding; WebRTC P2P; optional E2EE relay.
 8. **Time Machine.** Sync-clean-state snapshots, version history UI, 3-way merge UI. *(Post-v1.0)*
 9. **Graph View.** WebGPU-rendered knowledge graph. *(Post-v1.0)*
 10. **Long tail.** Canvas, mobile, anything else. *(Post-v1.0)*
 
-**Cut features (no for v1.x):** EOF HTML-comment UUIDs, recovery waterfall (4-tier), cross-app importers, local AI / RAG / llama.cpp as a core feature, `.cubical/quarantine/` directory.
+**Cut features (no for v1.x):** EOF HTML-comment UUIDs, recovery waterfall (4-tier), cross-app importers, local AI / RAG / llama.cpp as a core feature, `.simple-directory/quarantine/` directory.
 
 ---
 
 ## Repository layout
 
 ```
-cubical/
+simple-directory/
 ├── crates/
-│   ├── cubical-core/       # vault, file watcher, file-type registry, frontmatter I/O
-│   ├── cubical-ast/        # canonical Markdown AST (no Tauri deps)
-│   ├── cubical-index/      # libSQL schema and queries
-│   ├── cubical-search/     # Tantivy wrapper (L4)
-│   ├── cubical-sync/       # CrdtBackend trait + Loro impl (Loro lands at L7)
-│   └── cubical-app/        # Tauri app, depends on the above
+│   ├── simple-directory-core/       # vault, file watcher, file-type registry, frontmatter I/O
+│   ├── simple-directory-ast/        # canonical Markdown AST (no Tauri deps)
+│   ├── simple-directory-index/      # libSQL schema and queries
+│   ├── simple-directory-search/     # Tantivy wrapper (L4)
+│   ├── simple-directory-sync/       # CrdtBackend trait + Loro impl (Loro lands at L7)
+│   └── simple-directory-app/        # Tauri app, depends on the above
 ├── ui/                     # Solid + TypeScript + Vite frontend
 ├── docs/
 │   ├── README.md           # docs index — start here if unsure where to look
@@ -668,7 +668,7 @@ cubical/
 └── README.md
 ```
 
-Crates without Tauri deps (`cubical-core`, `cubical-ast`, `cubical-index`, `cubical-search`, `cubical-sync`) must remain buildable and testable without the app harness.
+Crates without Tauri deps (`simple-directory-core`, `simple-directory-ast`, `simple-directory-index`, `simple-directory-search`, `simple-directory-sync`) must remain buildable and testable without the app harness.
 
 ---
 
@@ -680,7 +680,7 @@ Crates without Tauri deps (`cubical-core`, `cubical-ast`, `cubical-index`, `cubi
 
 **Tauri commands.** Coarse-grained, named as verb-noun. Every command takes a typed request struct and returns a typed response struct.
 
-**Tests.** `cubical-core`, `cubical-ast`, `cubical-index` have unit tests. The app crate has integration tests against a temp vault. UI tests deferred until L3+.
+**Tests.** `simple-directory-core`, `simple-directory-ast`, `simple-directory-index` have unit tests. The app crate has integration tests against a temp vault. UI tests deferred until L3+.
 
 **Commits.** Conventional Commits (`feat:`, `fix:`, `refactor:`, etc.). One logical change per commit. Layer transitions get a tag.
 
@@ -691,7 +691,7 @@ Crates without Tauri deps (`cubical-core`, `cubical-ast`, `cubical-index`, `cubi
 ## Project state
 
 Current layer: 1 — Document Model
-Session A complete: canonical AST + frontmatter index (`cubical-ast`, `cubical-index`, `cubical-core`).
+Session A complete: canonical AST + frontmatter index (`simple-directory-ast`, `simple-directory-index`, `simple-directory-core`).
 Session B pending: Lezer in CodeMirror + `get_canonical_ast` IPC.
 Next: wire Lezer into `EditorView`; expose `get_canonical_ast`; resolve Lezer/pulldown-cmark decision (see `docs/layer-1-spec.md §3.1`).
 ⚠ L0 interactive smoke pass (`docs/layer-0-spec.md` §12 DoD #4 + #6) still outstanding — complete before tagging `l0`.
@@ -718,8 +718,8 @@ git commit -m "docs: rewrite CLAUDE.md as lean session primer"
 
 **Files:**
 - Modify: `README.md`
-- Modify: `crates/cubical-ast/src/lib.rs`
-- Modify: `crates/cubical-sync/src/lib.rs`
+- Modify: `crates/simple-directory-ast/src/lib.rs`
+- Modify: `crates/simple-directory-sync/src/lib.rs`
 
 - [ ] **Step 1: Update root README.md**
 
@@ -727,17 +727,17 @@ Find: `See \`CLAUDE.md\` for the working short form and \`docs/architecture.md\`
 
 Replace with: `See \`CLAUDE.md\` for the session primer and \`docs/architecture/\` for the canonical architectural reference.`
 
-- [ ] **Step 2: Update cubical-ast doc comment**
+- [ ] **Step 2: Update simple-directory-ast doc comment**
 
-In `crates/cubical-ast/src/lib.rs`, find the line containing `docs/architecture.md §5.5` and replace with:
+In `crates/simple-directory-ast/src/lib.rs`, find the line containing `docs/architecture.md §5.5` and replace with:
 
 ```rust
 //! See `docs/architecture/document-model.md` — "Canonical AST".
 ```
 
-- [ ] **Step 3: Update cubical-sync doc comment**
+- [ ] **Step 3: Update simple-directory-sync doc comment**
 
-In `crates/cubical-sync/src/lib.rs`, find the line containing `docs/architecture.md §7` and replace with:
+In `crates/simple-directory-sync/src/lib.rs`, find the line containing `docs/architecture.md §7` and replace with:
 
 ```rust
 //! See `docs/architecture/planned.md` — "Sync (Layer 7)".
@@ -754,7 +754,7 @@ grep -r "docs/architecture\.md" . --include="*.md" --include="*.rs" --include="*
 - [ ] **Step 5: Commit**
 
 ```bash
-git add README.md crates/cubical-ast/src/lib.rs crates/cubical-sync/src/lib.rs
+git add README.md crates/simple-directory-ast/src/lib.rs crates/simple-directory-sync/src/lib.rs
 git commit -m "docs: update all cross-references to docs/architecture/ subdirectory"
 ```
 

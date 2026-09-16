@@ -2,11 +2,11 @@
 >
 > *Covers §3 (vault), §4 (file identity), §9 (binary assets). Remaining sections live in sibling files — see [README.md](README.md).*
 
-# Cubical — Architecture: Vault
+# simple.directory — Architecture: Vault
 
 ## 3. The vault
 
-A vault is a directory on disk. The user picks it; Cubical does not own the location.
+A vault is a directory on disk. The user picks it; simple.directory does not own the location.
 
 ```
 <vault>/
@@ -17,14 +17,14 @@ A vault is a directory on disk. The user picks it; Cubical does not own the loca
 ├── .assets/                 # deduplicated binary assets
 │   ├── ab/cd/abcd1234...png
 │   └── ...
-└── .cubical/
+└── .simple-directory/
     ├── index.db             # libSQL: metadata, links, CRDT logs (post-L7), snapshots (post-L7)
     ├── config.toml          # durable per-vault settings — source of truth
     ├── themes/              # user-installed CSS themes (L5+)
     └── recovery/            # pre-merge buffer snapshots (L7+)
 ```
 
-The `.cubical/` directory is the only state Cubical owns inside the vault. It holds two categories of state:
+The `.simple-directory/` directory is the only state simple.directory owns inside the vault. It holds two categories of state:
 
 - **Durable config** — `config.toml`. The source of truth for the user's per-vault settings (theme, editor defaults, enabled core plugins). It is **not** rebuildable from the markdown; deleting it resets settings to their defaults (recoverable from a backup/trash copy). It travels with the vault when shared.
 - **Rebuildable cache** — `index.db`, `search/`, `recovery/`, and the rest. Derived from the markdown; deleting it and reopening the vault produces a fully functional vault again, just without history.
@@ -37,27 +37,27 @@ Transient workspace/UI state (sidebar layout, active panel, …) is session stat
 
 ## 4. File identity
 
-File identity is the absolute anchor for cross-references (wiki-links, block refs, backlinks). Cubical's identity model evolves across the build:
+File identity is the absolute anchor for cross-references (wiki-links, block refs, backlinks). simple.directory's identity model evolves across the build:
 
-- **Layers 0–6 (v1.0): path-based identity.** No UUIDs are written into user files. The vault Cubical opens is the vault the user wrote, byte-for-byte. Renames are detected via the file watcher and reconciled through the [Pending Rewrites Cache](document-model.md#57-pending-rewrites-cache). Renames that happen while the app is closed fall back to inode + content-hash heuristics.
-- **Layer 7 (sync): frontmatter UUIDs introduced.** When the user opts into sync, Cubical mints a `cubical_id: <uuid>` key in each file's YAML frontmatter as part of onboarding. The OS "last modified" timestamp is captured before each write and restored after. Files without frontmatter get one created. This is the single batch-write moment in a vault's lifetime; it is framed to the user as "enabling sync" rather than "Cubical mangling your files on first open."
+- **Layers 0–6 (v1.0): path-based identity.** No UUIDs are written into user files. The vault simple.directory opens is the vault the user wrote, byte-for-byte. Renames are detected via the file watcher and reconciled through the [Pending Rewrites Cache](document-model.md#57-pending-rewrites-cache). Renames that happen while the app is closed fall back to inode + content-hash heuristics.
+- **Layer 7 (sync): frontmatter UUIDs introduced.** When the user opts into sync, simple.directory mints a `simple_directory_id: <uuid>` key in each file's YAML frontmatter as part of onboarding. The OS "last modified" timestamp is captured before each write and restored after. Files without frontmatter get one created. This is the single batch-write moment in a vault's lifetime; it is framed to the user as "enabling sync" rather than "simple.directory mangling your files on first open."
 
 Path is mutable across both phases; the UUID (post-L7) is stable forever.
 
 ### 4.1 Why frontmatter, not EOF comment
 
-Earlier drafts proposed an EOF HTML comment of the form `<!-- ... Cubical ID: ... -->`. That approach is retired. Frontmatter is the conventional metadata zone, users already accept that tools edit YAML, and it sits where structured queries (Dataview-style) can read it without special handling. EOF comments would have been more visually intrusive at the bottom of the document — the reading territory — and easier to delete by accident.
+Earlier drafts proposed an EOF HTML comment of the form `<!-- ... simple.directory ID: ... -->`. That approach is retired. Frontmatter is the conventional metadata zone, users already accept that tools edit YAML, and it sits where structured queries (Dataview-style) can read it without special handling. EOF comments would have been more visually intrusive at the bottom of the document — the reading territory — and easier to delete by accident.
 
 ### 4.2 Export sanitization
 
-Before any export — PDF, HTML, copy-to-clipboard-as-markdown — the `cubical_id` frontmatter key is stripped from the in-memory buffer. The exported artifact carries no Cubical-specific metadata. Pre-L7 there is nothing to strip. This is a hard requirement: leaking UUIDs in shared documents is a privacy risk.
+Before any export — PDF, HTML, copy-to-clipboard-as-markdown — the `simple_directory_id` frontmatter key is stripped from the in-memory buffer. The exported artifact carries no simple.directory-specific metadata. Pre-L7 there is nothing to strip. This is a hard requirement: leaking UUIDs in shared documents is a privacy risk.
 
 ### 4.3 External edits
 
-When `notify` reports a `.md` file modified externally (vim, Dropbox, another Cubical instance pre-sync), Cubical:
+When `notify` reports a `.md` file modified externally (vim, Dropbox, another simple.directory instance pre-sync), simple.directory:
 
 1. Reads the new file content.
-2. If the file is currently open with unsaved local edits, the prior buffer state is written to `.cubical/recovery/<timestamp>-<filename>` as a safety snapshot (this is the user's escape hatch). The user is prompted with a 3-way merge UI (their unsaved buffer vs. the external content vs. the prior known state).
+2. If the file is currently open with unsaved local edits, the prior buffer state is written to `.simple-directory/recovery/<timestamp>-<filename>` as a safety snapshot (this is the user's escape hatch). The user is prompted with a 3-way merge UI (their unsaved buffer vs. the external content vs. the prior known state).
 3. If the file is not open or has no unsaved changes, the new content is accepted silently and the file's index entry is updated.
 4. The file's `last_known_content_hash` and `mtime` are refreshed.
 

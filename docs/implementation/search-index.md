@@ -3,7 +3,7 @@
 Schema owner: [`../architecture/document-model.md`](../architecture/document-model.md).
 This file records query-layer and search-layer invariants only.
 
-## Migrations (`cubical-index`)
+## Migrations (`simple-directory-index`)
 
 **Anchors:** open_index · SchemaTooNew · IndexError
 
@@ -35,7 +35,7 @@ Fix it forward with a new one.**
   which is otherwise derived from file paths. Fully derived and rebuildable —
   the on-disk directory is truth, re-discovered by every scan. Paths are
   vault-relative with no leading or trailing slash; the root is never stored.
-- **`files` is layer 0's table, and only `cubical-index` writes SQL against
+- **`files` is layer 0's table, and only `simple-directory-index` writes SQL against
   it.** `all_file_paths` is the whole-vault path list every resolver needs;
   engine-side copies of the same `SELECT` drift from it silently, because
   nothing type-checks a string.
@@ -49,13 +49,13 @@ Fix it forward with a new one.**
   than opening its own transaction, so the scan and watcher hot paths get
   atomicity from their per-batch transaction.
 
-## Dataview queries (`cubical-query`)
+## Dataview queries (`simple-directory-query`)
 
 **Anchors:** json_extract · Relation · conformance
 
 A small `LIST` / `TABLE` / `COUNT` DSL with `FROM` / `WHERE` / `SORT`. One
 grammar and one AST serve two record sources: notes in the index, and
-`.csv` / `.tsv` / `.xlsx` / `.xlsm` data files decoded by `cubical-table`.
+`.csv` / `.tsv` / `.xlsx` / `.xlsm` data files decoded by `simple-directory-table`.
 
 - Frontmatter values are stored as JSON-encoded text, so every comparison and
   projection goes through `json_extract(value,'$')` to unwrap to a native
@@ -80,7 +80,7 @@ falls through to the folder search rather than failing. Only a path that
 matches an extension and exists as neither reports a missing file. The
 `#SheetName` fragment is likewise plain path text until the engine splits it.
 
-`cubical-engine` owns resolution because it is the layer that may use
+`simple-directory-engine` owns resolution because it is the layer that may use
 `vault::relpath` — layer 1 cannot reach up to it, and a second containment
 check living next to the executor would be a second answer to a question that
 already has an owner.
@@ -139,7 +139,7 @@ and a numeric form and answers to either literal. `Cell` keeps the original
 text alongside the inferred forms precisely so that inference never destroys
 what the file said — a `code` of `007` still equals the string `"007"`.
 
-### Decoding data files (`cubical-table`)
+### Decoding data files (`simple-directory-table`)
 
 **Anchors:** TableCache · supports_extension
 
@@ -170,7 +170,7 @@ result sets `row_label` to `File`; data-file rows carry neither, and the
 renderer omits the leading column rather than inventing a path for a
 spreadsheet row.
 
-## Full-text search (`cubical-search`)
+## Full-text search (`simple-directory-search`)
 
 **Anchors:** SearchIndex · rebuilt_reason · is_recoverable_by_wipe · SearchHandle · SearchScanSink · settle_after_scan · change_sink · SEARCH_REBUILT · SEARCH_UNAVAILABLE
 
@@ -199,7 +199,7 @@ production caller of `SearchHandle::open`; otherwise corrupt-directory recovery
 silently stops being recorded.
 
 Substrate never names the handle. The scan, the watcher and rename report what
-they did through the sink traits `cubical-core` owns, and the shell hands them
+they did through the sink traits `simple-directory-core` owns, and the shell hands them
 the search block's implementation: `SearchScanSink` for the scan, and
 `SearchHandle` itself as the `ChangeSink` that the watcher receives through
 `WatchedVault` and rename fetches from `OpenVault::change_sink`. The scan
@@ -286,8 +286,8 @@ the correct outcome anyway.
 
 ### Benchmark driver
 
-`cargo run --release -p cubical-search --example bench` issues a fixed query mix
+`cargo run --release -p simple-directory-search --example bench` issues a fixed query mix
 and reports p50/p99/mean latency. It requires
-`CUBICAL_SEARCH_BENCH_VAULT=<absolute-vault-path>` — there is deliberately no
+`SIMPLE_DIRECTORY_SEARCH_BENCH_VAULT=<absolute-vault-path>` — there is deliberately no
 default, so the driver never depends on one machine's directory layout. Without
 it (or without a built index at that path) it prints what to set and exits 0.

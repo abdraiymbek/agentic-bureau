@@ -38,7 +38,7 @@ warnings, not chrome; the user explicitly chose not to make them hideable.
 
 Five new keys under a new `statusbar.` namespace (one master + four item
 toggles), all boolean, all default `true`. Durable (not `ui.*`), so they persist
-to `.cubical/config.toml` and travel with the vault — consistent with
+to `.simple-directory/config.toml` and travel with the vault — consistent with
 `appearance.theme_mode`.
 
 | Key | Controls |
@@ -50,7 +50,7 @@ to `.cubical/config.toml` and travel with the vault — consistent with
 | `statusbar.show_block_count` | Middle: block count |
 
 Added to the `Setting` union in `ui/src/api/ipc.ts:253`. **No Rust changes** — the
-settings layer (`crates/cubical-core/src/vault/settings.rs`) is schemaless; it
+settings layer (`crates/simple-directory-core/src/vault/settings.rs`) is schemaless; it
 flattens any dotted key to/from TOML. Durable keys (non-`ui.`) already route to
 `config.toml` via `is_workspace_key`.
 

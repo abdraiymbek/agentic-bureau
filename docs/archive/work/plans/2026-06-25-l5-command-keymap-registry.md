@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace Cubical's scattered keyboard handlers with one central command/keymap registry in the `core/` substrate, behaviour-preserving.
+**Goal:** Replace simple.directory's scattered keyboard handlers with one central command/keymap registry in the `core/` substrate, behaviour-preserving.
 
 **Architecture:** A **pure core** (`ui/src/core/commands.ts`) owns the command/binding *types*, the static binding table, key-string matching, and command resolution — no DOM, no Solid, and it imports nothing from any feature. Thin adapters consume it: `App.tsx` builds a command map from its own closures and drives a single global `keydown`; `Editor.tsx` generates its CodeMirror keymap from the editor-scope bindings. This is the first piece of the L5 (Approach A) substrate; the Copy-as-Markdown action and any later shortcut work register against it.
 

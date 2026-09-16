@@ -9,7 +9,7 @@
 
 ## Goal
 
-Make the `cubical` CLI a **live** second frontend on the *running app's* backend instead of a standalone one-shot. When the app owns a vault, the CLI attaches over a local socket and routes its command through the app's in-process engine — so a terminal `cubical` command updates the live UI identically to a click, reads work while the app is open, and there is never a second writer. When the app is closed, the CLI runs standalone exactly as in Phase 1.
+Make the `simple-directory` CLI a **live** second frontend on the *running app's* backend instead of a standalone one-shot. When the app owns a vault, the CLI attaches over a local socket and routes its command through the app's in-process engine — so a terminal `simple-directory` command updates the live UI identically to a click, reads work while the app is open, and there is never a second writer. When the app is closed, the CLI runs standalone exactly as in Phase 1.
 
 This completes the invariant Phase 1 established: **one backend owns a vault at a time; every frontend attaches to it.** It does **not** add or change any user-facing vault feature — it only changes *who executes* a CLI command when the app is up.
 
@@ -31,9 +31,9 @@ Three callers, **one dispatch**:
 
 Callers 1 and 3 execute the **same** `dispatch(...)` function; caller 2 produces the same `Command` value that caller 1 would run locally. Zero drift by construction: there is exactly one place that maps a command to engine calls, and one place that renders the result.
 
-### New crate: `cubical-ipc`
+### New crate: `simple-directory-ipc`
 
-A tiny workspace crate that owns the wire boundary. Depends on `cubical-engine`; both `cubical-cli` and `cubical-app` depend on it. The engine stays free of wire-serialization concerns.
+A tiny workspace crate that owns the wire boundary. Depends on `simple-directory-engine`; both `simple-directory-cli` and `simple-directory-app` depend on it. The engine stays free of wire-serialization concerns.
 
 Contents:
 
@@ -47,26 +47,26 @@ Contents:
 - **`Request { vault_path: PathBuf, command: Command }`** — `vault_path` is the **canonicalized** vault path; the server resolves it to an open `vault_id`.
 - **`Outcome`** — a `serde` enum, one variant per command carrying exactly what the CLI prints (created path, rename `pending_count`, file list, `Resolve` `Option<String>`, backlinks list, `Get` `Option<Value>`, `UndoRename` `removed` count, write confirmation, etc.).
 - **`Response`** — `enum Response { Ok(Outcome), Err(String) }`; dispatch errors travel as `Err(message)` data rather than a dropped connection. (Built as a dedicated enum rather than the originally-sketched `Result<Outcome, String>` alias: it tags cleanly on the wire and reads unambiguously at the CLI match site.)
-- **`dispatch(vault_id: &str, command: Command, state: &AppState, sink: &dyn EventSink) -> Result<Outcome, CubicalError>`** — the single command→engine-fn mapping. This *is* today's `cubical-cli/src/main.rs` `dispatch`, lifted out and made to return data instead of printing.
+- **`dispatch(vault_id: &str, command: Command, state: &AppState, sink: &dyn EventSink) -> Result<Outcome, SimpleDirectoryError>`** — the single command→engine-fn mapping. This *is* today's `simple-directory-cli/src/main.rs` `dispatch`, lifted out and made to return data instead of printing.
 - **`render(outcome: &Outcome, json: bool) -> i32`** — prints human-readable or `--json` output to stdout/stderr and returns the process exit code, owning the existing "unresolved/unset → exit 1" cases (`Resolve` None, `Get` None). Both the local and socket paths call `render` identically.
 - **Transport** (`#[cfg(unix)]`), see §4.
-- **`app_socket_path(pid: u32) -> PathBuf`** — the canonical per-app socket location (runtime dir, `cubical-<pid>.sock`), used by both the server bind and the app's open-vault wiring so they never disagree.
+- **`app_socket_path(pid: u32) -> PathBuf`** — the canonical per-app socket location (runtime dir, `simple-directory-<pid>.sock`), used by both the server bind and the app's open-vault wiring so they never disagree.
 
 ## Data flow
 
 **App closed (standalone, unchanged from Phase 1):**
-`cubical <cmd>` → canonicalize `--vault` → `open_vault` acquires the lock (advertising `None`) → `wait_for_scan` → build `Command` (read stdin for `write`) → `dispatch(vault_id, cmd, &state, &NoopEventSink)` → `render(outcome, json)` → `close_vault` (flushes referrer rewrites) → exit.
+`simple-directory <cmd>` → canonicalize `--vault` → `open_vault` acquires the lock (advertising `None`) → `wait_for_scan` → build `Command` (read stdin for `write`) → `dispatch(vault_id, cmd, &state, &NoopEventSink)` → `render(outcome, json)` → `close_vault` (flushes referrer rewrites) → exit.
 
 **App open (attach):**
-`cubical <cmd>` → canonicalize `--vault` → `open_vault` → `Err(VaultLocked { socket_path: Some(path), .. })` → build `Request { vault_path, command }` (read stdin for `write`) → `ipc::client::send(path, request)` → **[app]** accept → resolve `vault_path` → `vault_id` → `dispatch(vault_id, cmd, &state, &TauriEventSink)` → engine fn runs, `TauriEventSink` fires and the app's file watcher picks up the FS change (UI updates live) → `Outcome` → framed `Response` → **[CLI]** `render(outcome, json)` → exit with that code.
+`simple-directory <cmd>` → canonicalize `--vault` → `open_vault` → `Err(VaultLocked { socket_path: Some(path), .. })` → build `Request { vault_path, command }` (read stdin for `write`) → `ipc::client::send(path, request)` → **[app]** accept → resolve `vault_path` → `vault_id` → `dispatch(vault_id, cmd, &state, &TauriEventSink)` → engine fn runs, `TauriEventSink` fires and the app's file watcher picks up the FS change (UI updates live) → `Outcome` → framed `Response` → **[CLI]** `render(outcome, json)` → exit with that code.
 
 ## App-side socket server & advertisement
 
-- **Server task:** a `.setup(|app| …)` hook in `cubical-app` spawns a task (via `tauri::async_runtime::spawn`) that binds `app_socket_path(pid)` (**unlink-before-bind** to clear a stale same-pid leftover) and accepts connections. Connections are handled **sequentially** in that one task (not one task per connection: `handle_connection` borrows `&AppState`/`&dyn EventSink`, so spawning would demand `'static`, and mutations are already serialized by `AppState`'s own locks). Per connection:
+- **Server task:** a `.setup(|app| …)` hook in `simple-directory-app` spawns a task (via `tauri::async_runtime::spawn`) that binds `app_socket_path(pid)` (**unlink-before-bind** to clear a stale same-pid leftover) and accepts connections. Connections are handled **sequentially** in that one task (not one task per connection: `handle_connection` borrows `&AppState`/`&dyn EventSink`, so spawning would demand `'static`, and mutations are already serialized by `AppState`'s own locks). Per connection:
   1. read a framed `Request`;
   2. resolve `request.vault_path` → `(vault_id, scan_status)` via a new public engine resolver (see below); if not open → `Response::Err("vault not open")`, if not yet `Complete` → `Response::Err("vault is still scanning")`;
   3. `dispatch(vault_id, request.command, app.state::<AppState>(), &TauriEventSink::new(app.clone()))`;
-  4. map `Result<Outcome, CubicalError>` → `Response` and write it framed.
+  4. map `Result<Outcome, SimpleDirectoryError>` → `Response` and write it framed.
   A panicking or erroring handler never brings down the app; the worst case is one `Response::Err`.
 - **Path→vault resolver:** `find_open_vault_by_canonical_path` is currently private. Add a thin `pub async fn resolve_open_vault(state: &AppState, canonical: &Path) -> Option<(String, ScanStatus)>` in `commands::vault` wrapping it, rather than leaking the private helper. It must surface the scan status, not just the id: the attach path has no `wait_for_scan`, and dispatching against a partial index gives `list` partial results and `rename` an incomplete referrer set.
 - **Socket advertisement:** add an `advertise_socket: Option<String>` **parameter** to `commands::vault::open_vault` (not a field on `OpenVaultRequest`, which is the frontend→app `Deserialize` contract and must not carry app-internal wiring). Thread it into `vault_lock::acquire(canonical, socket_path)` → `write_payload`, replacing the hardcoded `socket_path: None`. The **app** passes `Some(app_socket_path(pid).to_string_lossy())`; the **CLI** and engine tests pass `None`. Four call sites total.
@@ -77,18 +77,18 @@ Contents:
 - The engine already serializes mutations through `AppState`'s locks. Socket connections, the GUI, and (when closed) the one-shot CLI all funnel through the same `AppState` — no new locking is introduced.
 - Attach uses the app's `AppState` + a real `TauriEventSink` (rather than a second engine) so the app's index, rename journal and audit log stay authoritative and the rename/flush/audit events reach the UI. The editor picks up a socket `write` through the **file watcher**, not through `flush_own_writes` — `write_file_text` does not populate that gate (only the rename referrer-rewrite flush does), and suppressing the echo would leave the GUI unaware of the write.
 - The socket is a same-user, local-only endpoint (Unix-domain socket in the user's runtime dir). Filesystem permissions are the only auth layer, so they are asserted rather than assumed: `0o700` on the runtime dir, `0o600` on the socket after bind (the `temp_dir()` fallback can be world-writable). Consistent with the local-first, single-user desktop model.
-- Both sides read under a deadline (`cubical_ipc::IO_TIMEOUT`, 10s): the accept loop is sequential, so an idle connected peer would otherwise wedge every later `cubical` invocation. A transient `accept` error backs off and retries, and a panicking handler is caught, so neither ends the server for the app's lifetime.
+- Both sides read under a deadline (`simple_directory_ipc::IO_TIMEOUT`, 10s): the accept loop is sequential, so an idle connected peer would otherwise wedge every later `simple-directory` invocation. A transient `accept` error backs off and retries, and a panicking handler is caught, so neither ends the server for the app's lifetime.
 
 ## Wire protocol & transport (`#[cfg(unix)]`)
 
 - **Framing:** length-prefixed JSON — a `u32` big-endian length followed by the `serde_json` bytes, for both `Request` and `Response`. One request / one response per connection, then close (no multiplexing — the CLI is one-shot).
 - **Client:** `client::send(socket_path: &Path, req: &Request) -> io::Result<Response>` — connect a `UnixStream`, write the framed request, read the framed response.
-- **Server helpers:** shared `read_frame`/`write_frame` (or typed `read_request`/`write_response`) in `cubical-ipc`; the ~20-line accept loop lives app-side because it needs the `AppHandle`.
+- **Server helpers:** shared `read_frame`/`write_frame` (or typed `read_request`/`write_response`) in `simple-directory-ipc`; the ~20-line accept loop lives app-side because it needs the `AppHandle`.
 - **Windows:** `#[cfg(not(unix))]` stubs — `client::send` and the server bind return an error; the app simply never spawns the server, and the CLI hits `socket_path: None` (or a connect error) and falls back to the Phase-1 decline. The platform seam is confined to the transport module.
 
 ## CLI attach path
 
-In `run()`, the `Err(CubicalError::VaultLocked { .. })` arm becomes:
+In `run()`, the `Err(SimpleDirectoryError::VaultLocked { .. })` arm becomes:
 
 - **`socket_path: Some(path)`** → build `Request { vault_path: canonicalize(--vault), command }` (reading stdin for `write`), `ipc::client::send(&path, &req)`:
   - `Ok(Response::Ok(outcome))` → `render(&outcome, json)`, exit with its code.
@@ -108,7 +108,7 @@ Reads (`list`, `resolve`, `backlinks`, `get`) now succeed while the app is open,
 | App open, dispatch error | `Response::Err` → exit 1 |
 | App open, vault mid-close / not resolvable | `Response::Err("vault not open")` → exit 1 |
 | App open, vault still scanning | `Response::Err("vault is still scanning")` → exit 1 (the local path's `wait_for_scan` equivalent — a partial index would give `list` partial results and `rename` an incomplete referrer set) |
-| App open, `cubical set …` | Dispatched live; the UI reflects it immediately. There is no watcher to ride on (`.cubical/` is excluded, and workspace keys go to libsql), so `dispatch`'s `Set` arm emits `vault:setting-changed` and the frontend re-hydrates. Emitted from `dispatch`, not `set_setting`, so the GUI's own writes don't echo back. *(Closed 2026-07-24; was the one attached command with no live UI effect.)* |
+| App open, `simple-directory set …` | Dispatched live; the UI reflects it immediately. There is no watcher to ride on (`.simple-directory/` is excluded, and workspace keys go to libsql), so `dispatch`'s `Set` arm emits `vault:setting-changed` and the frontend re-hydrates. Emitted from `dispatch`, not `set_setting`, so the GUI's own writes don't echo back. *(Closed 2026-07-24; was the one attached command with no live UI effect.)* |
 | App open, peer idle / app wedged | Client read times out after `IO_TIMEOUT` → clear error, exit 1 |
 | App open, connect fails (app just closed) | Clear error, exit 1 (no retry) |
 | Lock held but `socket_path: None` | Phase-1 decline, exit 2 |
@@ -116,27 +116,27 @@ Reads (`list`, `resolve`, `backlinks`, `get`) now succeed while the app is open,
 
 ## Testing
 
-- **`cubical-ipc` unit:** framing round-trip (`write_frame` → `read_frame` for a `Request` and a `Response`); `dispatch` against a temp-vault `AppState` for `NewNote` and `Write` (assert FS effect + returned `Outcome`); `render` exit codes for `Resolve(None)` / `Get(None)`.
-- **Socket round-trip (cross-task, one engine):** a server task binds a temp socket (via `CUBICAL_RUNTIME_DIR`) and runs real `dispatch` against a temp-vault `AppState`; `client::send` a `NewNote` then a `Write`; assert the FS effect and the `Response`.
-- **CLI attach integration (cross-process; mirrors Phase-1 `declines_with_exit_code_2`):** the test process calls `vault_lock::acquire(&canonical, Some(&sock))` to hold the lock *and* advertise, binds a **fake** server on `sock` that returns a sentinel `Outcome` (no real engine → no tantivy teardown concern), sets `CUBICAL_RUNTIME_DIR`, runs the `cubical` binary, and asserts it routed through the socket (sentinel in stdout) rather than declining with exit 2. A companion `write`-over-socket case asserts stdin reached the fake server.
+- **`simple-directory-ipc` unit:** framing round-trip (`write_frame` → `read_frame` for a `Request` and a `Response`); `dispatch` against a temp-vault `AppState` for `NewNote` and `Write` (assert FS effect + returned `Outcome`); `render` exit codes for `Resolve(None)` / `Get(None)`.
+- **Socket round-trip (cross-task, one engine):** a server task binds a temp socket (via `SIMPLE_DIRECTORY_RUNTIME_DIR`) and runs real `dispatch` against a temp-vault `AppState`; `client::send` a `NewNote` then a `Write`; assert the FS effect and the `Response`.
+- **CLI attach integration (cross-process; mirrors Phase-1 `declines_with_exit_code_2`):** the test process calls `vault_lock::acquire(&canonical, Some(&sock))` to hold the lock *and* advertise, binds a **fake** server on `sock` that returns a sentinel `Outcome` (no real engine → no tantivy teardown concern), sets `SIMPLE_DIRECTORY_RUNTIME_DIR`, runs the `simple-directory` binary, and asserts it routed through the socket (sentinel in stdout) rather than declining with exit 2. A companion `write`-over-socket case asserts stdin reached the fake server.
 - **Regression:** the Phase-1 exit-2 test still passes when the owner advertises no socket (`acquire(&canonical, None)`).
-- Full gate: `scripts/check.sh` (run it, not the pieces). Watch for the known `cubical-core` watcher flake under full load (not a regression).
+- Full gate: `scripts/check.sh` (run it, not the pieces). Watch for the known `simple-directory-core` watcher flake under full load (not a regression).
 
 ### Gotchas carried from Phase 1
 
 - Keep socket tests **cross-process or single-engine** — two real engines in one process fight over tantivy's own index lockfile even after `close_vault`. The fake-server attach test sidesteps this (no engine in the holder).
-- Always set `CUBICAL_RUNTIME_DIR` for hermeticity; in-process env-touching tests serialize on `vault_lock::RUNTIME_ENV_GUARD`.
+- Always set `SIMPLE_DIRECTORY_RUNTIME_DIR` for hermeticity; in-process env-touching tests serialize on `vault_lock::RUNTIME_ENV_GUARD`.
 - The lockfile is unlocked-but-not-deleted on release; the next acquirer truncates + rewrites. Socket-path advertisement rides in that same rewrite — don't unlink the lockfile.
 - Tauri stale-build phantom bugs: force a full `npm run tauri dev` recompile before debugging the app-side server.
 
 ## Docs
 
-- **Durable rationale:** extend `docs/implementation/engine-ipc.md` → "Cross-process vault ownership lock" with the now-realized socket boundary (server in `cubical-app`, `dispatch`/wire types in `cubical-ipc`, advertisement via the `open_vault` param, `#[cfg(unix)]` seam).
+- **Durable rationale:** extend `docs/implementation/engine-ipc.md` → "Cross-process vault ownership lock" with the now-realized socket boundary (server in `simple-directory-app`, `dispatch`/wire types in `simple-directory-ipc`, advertisement via the `open_vault` param, `#[cfg(unix)]` seam).
 - **"What was built (Phase 2)"** recorded in this spec at close; `CLAUDE.md` Project state and the `project_cli_frontend` memory rewritten.
 
 ## What was built (Phase 2)
 
-- **New crate `cubical-ipc`** — `protocol.rs` (`Command`/`Request`/`Outcome`/
+- **New crate `simple-directory-ipc`** — `protocol.rs` (`Command`/`Request`/`Outcome`/
   `Response`, `Outcome` carrying owned primitives rather than engine response
   structs), `dispatch.rs` (the single command→engine-fn mapping, lifted out
   of the CLI), `render.rs` (all printing + exit codes), `transport.rs`
@@ -151,12 +151,12 @@ Reads (`list`, `resolve`, `backlinks`, `get`) now succeed while the app is open,
   `resolve_open_vault(state, canonical_path) -> Option<(String, ScanStatus)>`
   wraps the existing private lookup — it returns the scan status too, so the
   socket path can gate on `Complete` the way the local path's
-  `wait_for_scan` does. `vault_lock::runtime_dir` is `pub` so `cubical-ipc`
+  `wait_for_scan` does. `vault_lock::runtime_dir` is `pub` so `simple-directory-ipc`
   shares one definition instead of a copy. 1 new `vault_lock` advertisement
   test, 2 resolver tests.
 - **App:** `open_vault` advertises `Some(app_socket_path(pid))`; a `.setup()`
   hook spawns `serve_socket`, a sequential accept loop over
-  `cubical_ipc::handle_connection` — one task, not one-per-connection, since
+  `simple_directory_ipc::handle_connection` — one task, not one-per-connection, since
   `handle_connection` borrows `&AppState` and mutations are already
   serialized by `AppState`'s own locks. Each connection gets a fresh
   `TauriEventSink`, so the app's index/journal stay authoritative and the
@@ -181,8 +181,8 @@ Reads (`list`, `resolve`, `backlinks`, `get`) now succeed while the app is open,
   `error: writing X.md: <cause>`; the shared `dispatch` prints
   `error: <cause>`. Accepted — the cause is unchanged and the context added
   nothing the command line didn't already say.
-- 17 new tests total across `cubical-ipc`, `cubical-engine`, and
-  `cubical-cli`.
+- 17 new tests total across `simple-directory-ipc`, `simple-directory-engine`, and
+  `simple-directory-cli`.
 
 **Not built:** interactive Tauri GUI smoke-verification of the live socket
 path (non-interactive session — covered instead by the cross-process fake-

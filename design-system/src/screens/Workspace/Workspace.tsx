@@ -47,7 +47,7 @@ const Workspace = () => {
   return (
     <div class="workspace stack">
       <Topbar
-        vaultName="Cubical vault"
+        vaultName="simple.directory vault"
         onOpenCommandPalette={() => setPaletteOpen(true)}
         onOpenSettings={() => setScreen('settings')}
       />

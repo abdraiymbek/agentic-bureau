@@ -10,41 +10,41 @@ Workspace members: `crates/*` → 12 crates.
 
 | Crate | Path | Role | Role source | Tauri-free |
 |---|---|---|---|---|
-| `cubical-app` | `crates/cubical-app/` | The Tauri shell — a thin frontend over cubical-engine (the actual logic). | `Cargo.toml` `description` | no |
-| `cubical-ast` | `crates/cubical-ast/` | The canonical Markdown AST. Lingua franca for every system outside the editor: indexer, link resolver, exporter, plugin host. | `Cargo.toml` `description` | **yes** |
-| `cubical-cli` | `crates/cubical-cli/` | Terminal frontend over cubical-engine — proof that the engine drives with no Tauri. | `Cargo.toml` `description` | **yes** |
-| `cubical-core` | `crates/cubical-core/` | Vault, file watcher, file-type registry, frontmatter I/O. Core building blocks shared by the rest of Cubical, with no Tauri dependency. | `Cargo.toml` `description` | **yes** |
-| `cubical-engine` | `crates/cubical-engine/` | Frontend-agnostic engine: command handlers, state, events, and IPC types. No Tauri — consumed by the Tauri shell and (future) CLI. | `Cargo.toml` `description` | **yes** |
-| `cubical-graph` | `crates/cubical-graph/` | Vault link graph: builds a node/edge model from the index and lays it out with a deterministic force simulation. No Tauri, no IPC, no UI. | `Cargo.toml` `description` | **yes** |
-| `cubical-index` | `crates/cubical-index/` | libSQL schema, migrations, and queries. Owns the on-disk index database at .cubical/index.db. | `Cargo.toml` `description` | **yes** |
-| `cubical-ipc` | `crates/cubical-ipc/` | Wire protocol + shared dispatch between the Cubical app backend and the cubical CLI frontend. | `Cargo.toml` `description` | **yes** |
-| `cubical-query` | `crates/cubical-query/` | dataview-style query parser + evaluator | carried over from `docs/README.md` | **yes** |
-| `cubical-search` | `crates/cubical-search/` | Tantivy wrapper. Full-text search over the canonical AST (L4-A). | `Cargo.toml` `description` | **yes** |
-| `cubical-sync` | `crates/cubical-sync/` | CRDT abstraction. Trait CrdtBackend lives here; the Loro implementation lands at L7. | `Cargo.toml` `description` | **yes** |
-| `cubical-table` | `crates/cubical-table/` | Tabular file decode: CSV/TSV/Excel bytes to an in-memory relation, plus a stat-validated memo cache. No Cubical dependencies. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-app` | `crates/simple-directory-app/` | The Tauri shell — a thin frontend over simple-directory-engine (the actual logic). | `Cargo.toml` `description` | no |
+| `simple-directory-ast` | `crates/simple-directory-ast/` | The canonical Markdown AST. Lingua franca for every system outside the editor: indexer, link resolver, exporter, plugin host. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-cli` | `crates/simple-directory-cli/` | Terminal frontend over simple-directory-engine — proof that the engine drives with no Tauri. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-core` | `crates/simple-directory-core/` | Vault, file watcher, file-type registry, frontmatter I/O. Core building blocks shared by the rest of simple.directory, with no Tauri dependency. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-engine` | `crates/simple-directory-engine/` | Frontend-agnostic engine: command handlers, state, events, and IPC types. No Tauri — consumed by the Tauri shell and (future) CLI. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-graph` | `crates/simple-directory-graph/` | Vault link graph: builds a node/edge model from the index and lays it out with a deterministic force simulation. No Tauri, no IPC, no UI. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-index` | `crates/simple-directory-index/` | libSQL schema, migrations, and queries. Owns the on-disk index database at .simple-directory/index.db. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-ipc` | `crates/simple-directory-ipc/` | Wire protocol + shared dispatch between the simple.directory app backend and the simple-directory CLI frontend. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-query` | `crates/simple-directory-query/` | dataview-style query parser + evaluator | carried over from `docs/README.md` | **yes** |
+| `simple-directory-search` | `crates/simple-directory-search/` | Tantivy wrapper. Full-text search over the canonical AST (L4-A). | `Cargo.toml` `description` | **yes** |
+| `simple-directory-sync` | `crates/simple-directory-sync/` | CRDT abstraction. Trait CrdtBackend lives here; the Loro implementation lands at L7. | `Cargo.toml` `description` | **yes** |
+| `simple-directory-table` | `crates/simple-directory-table/` | Tabular file decode: CSV/TSV/Excel bytes to an in-memory relation, plus a stat-validated memo cache. No simple.directory dependencies. | `Cargo.toml` `description` | **yes** |
 
 ### Tauri coupling
 
-The repo rule is that every crate except `cubical-app` must build and test without the Tauri harness. This table is **derived**, not asserted: a crate is Tauri-coupled if any of its `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]` or `[target.'…'.dependencies]` names `tauri` or a `tauri-*` crate, or if it depends on a workspace crate that is.
+The repo rule is that every crate except `simple-directory-app` must build and test without the Tauri harness. This table is **derived**, not asserted: a crate is Tauri-coupled if any of its `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]` or `[target.'…'.dependencies]` names `tauri` or a `tauri-*` crate, or if it depends on a workspace crate that is.
 
 | Crate | Tauri-free | Why |
 |---|---|---|
-| `cubical-app` | no | `tauri-build` (build-dependencies); `tauri-plugin-dialog` (dependencies); `tauri` (dependencies) |
-| `cubical-ast` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-cli` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-core` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-engine` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-graph` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-index` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-ipc` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-query` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-search` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-sync` | **yes** | no `tauri*` dependency, direct or transitive |
-| `cubical-table` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-app` | no | `tauri-build` (build-dependencies); `tauri-plugin-dialog` (dependencies); `tauri` (dependencies) |
+| `simple-directory-ast` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-cli` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-core` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-engine` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-graph` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-index` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-ipc` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-query` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-search` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-sync` | **yes** | no `tauri*` dependency, direct or transitive |
+| `simple-directory-table` | **yes** | no `tauri*` dependency, direct or transitive |
 
-Tauri-free (11): `cubical-ast`, `cubical-cli`, `cubical-core`, `cubical-engine`, `cubical-graph`, `cubical-index`, `cubical-ipc`, `cubical-query`, `cubical-search`, `cubical-sync`, `cubical-table`.
+Tauri-free (11): `simple-directory-ast`, `simple-directory-cli`, `simple-directory-core`, `simple-directory-engine`, `simple-directory-graph`, `simple-directory-index`, `simple-directory-ipc`, `simple-directory-query`, `simple-directory-search`, `simple-directory-sync`, `simple-directory-table`.
 
-Tauri-coupled (1): `cubical-app`.
+Tauri-coupled (1): `simple-directory-app`.
 
 ## Top-level directories
 

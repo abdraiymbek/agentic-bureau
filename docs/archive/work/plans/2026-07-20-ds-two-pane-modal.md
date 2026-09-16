@@ -18,7 +18,7 @@
 - **CSS namespace:** new DS components use the `ds-` prefix (matches `ds-popover__*`). Do **not** reuse the app's `.modal*` names or the older `Modal`'s `.modal-scrim`/`.modal-panel`.
 - **Escape handler must be active only while open** — gate it in a `createEffect` on `props.open` (this exact bug was fixed in Popover, commit `b38c979`). Do not use bare `onMount`.
 - **Gate command:** `scripts/check.sh` (tsc for `ui` *and* `design-system`, vitest, build, cargo fmt/clippy/test, docs). Run the script, not the pieces.
-- **Known flake, not yours:** `cubical-core`'s `watcher::…dropping_handle_stops_event_delivery_within_100ms` fails under full-workspace load and passes in isolation. Zero Rust is touched by this plan.
+- **Known flake, not yours:** `simple-directory-core`'s `watcher::…dropping_handle_stops_event_delivery_within_100ms` fails under full-workspace load and passes in isolation. Zero Rust is touched by this plan.
 - **Test files live in `ui/src/ds-*.test.tsx`** (the app's vitest project), importing the component via the `@ds` alias — matching `ds-popover.test.tsx`.
 
 ---
@@ -505,7 +505,7 @@ The preceding `</Show>` that closes the `shortcuts` tab block stays.
 `.modal__h2` is body content and stays app-owned, but must stop depending on the now-DS-internal `.modal` namespace. Rename all 7 usages to `set-h2`:
 
 ```bash
-cd /Users/user/Developer/Cubical
+cd /Users/user/Developer/simple.directory
 sed -i '' 's/class="modal__h2"/class="set-h2"/g' ui/src/App.tsx ui/src/settings/ShortcutsPanel.tsx
 grep -rn 'modal__h2' ui/src   # expect: no matches
 ```

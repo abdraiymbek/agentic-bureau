@@ -302,7 +302,7 @@ Expected: PASS, 271 (no backend edits). (If `runner::tests::schema_too_new_is_re
 - [ ] **Step 3: Real-app smoke (best-effort)**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open a sandbox vault.
 #  - In note A write `[[B#^missing]]` where B.md has no ^missing.
 #  - Confirm the footer shows "⚠ 1 broken block ref" with a tooltip

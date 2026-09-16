@@ -2,7 +2,7 @@
 
 # Migration touchpoints
 
-Cubical's shell is **Tauri 2.x**. We don't plan to migrate, but the architecture is structured so that if a swap is ever needed (most likely candidate: `tauri-runtime-verso` for engine consistency, or a future shell that doesn't exist yet), the work is bounded and predictable.
+simple.directory's shell is **Tauri 2.x**. We don't plan to migrate, but the architecture is structured so that if a swap is ever needed (most likely candidate: `tauri-runtime-verso` for engine consistency, or a future shell that doesn't exist yet), the work is bounded and predictable.
 
 This document is the inventory of Tauri-coupled surfaces. If migration becomes a real conversation, start here.
 
@@ -11,23 +11,23 @@ This document is the inventory of Tauri-coupled surfaces. If migration becomes a
 ### Backend (Rust)
 
 > **Structure (2026-06-30):** all the actual logic lives in the Tauri-free
-> **`cubical-engine`** crate (handlers, state, events, IPC types). `cubical-app`
+> **`simple-directory-engine`** crate (handlers, state, events, IPC types). `simple-directory-app`
 > is now just the Tauri shell — the four files below plus config. A CLI is a
-> second frontend over `cubical-engine`, no Tauri involved.
+> second frontend over `simple-directory-engine`, no Tauri involved.
 
-1. **`crates/cubical-app/src/lib.rs`** — the Tauri builder, `tauri::generate_context!()` macro call, plugin registration (`tauri-plugin-dialog`, etc.), and `#[tauri::command]`-decorated shim functions. Each shim forwards to a handler in `cubical_engine::commands`, wrapping the `AppHandle` in a `TauriEventSink`.
+1. **`crates/simple-directory-app/src/lib.rs`** — the Tauri builder, `tauri::generate_context!()` macro call, plugin registration (`tauri-plugin-dialog`, etc.), and `#[tauri::command]`-decorated shim functions. Each shim forwards to a handler in `simple_directory_engine::commands`, wrapping the `AppHandle` in a `TauriEventSink`.
 
-2. **`crates/cubical-app/src/main.rs`** — desktop entry point that calls `cubical_app::run()`. Trivial.
+2. **`crates/simple-directory-app/src/main.rs`** — desktop entry point that calls `simple_directory_app::run()`. Trivial.
 
-3. **`crates/cubical-app/src/tauri_sink.rs`** — the `TauriEventSink` adapter: the **only** place that names `app_handle.emit()`. The transport-agnostic `AppEvent` enum + `EventSink` trait (+ `NoopEventSink`) live in `cubical_engine::events`; handlers take `&dyn EventSink` / `Arc<dyn EventSink>` and never name a Tauri type. A CLI supplies its own sink.
+3. **`crates/simple-directory-app/src/tauri_sink.rs`** — the `TauriEventSink` adapter: the **only** place that names `app_handle.emit()`. The transport-agnostic `AppEvent` enum + `EventSink` trait (+ `NoopEventSink`) live in `simple_directory_engine::events`; handlers take `&dyn EventSink` / `Arc<dyn EventSink>` and never name a Tauri type. A CLI supplies its own sink.
 
-4. **`crates/cubical-app/Cargo.toml`** — `tauri = "2"`, `tauri-build = "2"`, `tauri-plugin-*` dependencies. Removed/replaced on migration.
+4. **`crates/simple-directory-app/Cargo.toml`** — `tauri = "2"`, `tauri-build = "2"`, `tauri-plugin-*` dependencies. Removed/replaced on migration.
 
-5. **`crates/cubical-app/build.rs`** — calls `tauri_build::build()`. Replaced.
+5. **`crates/simple-directory-app/build.rs`** — calls `tauri_build::build()`. Replaced.
 
-6. **`crates/cubical-app/tauri.conf.json`** — Tauri configuration (windows, frontendDist, devUrl, bundle, identifier). Replaced.
+6. **`crates/simple-directory-app/tauri.conf.json`** — Tauri configuration (windows, frontendDist, devUrl, bundle, identifier). Replaced.
 
-7. **`crates/cubical-app/capabilities/`** — Tauri's permission/capability manifests. Replaced; the new shell will need its own permission model.
+7. **`crates/simple-directory-app/capabilities/`** — Tauri's permission/capability manifests. Replaced; the new shell will need its own permission model.
 
 ### Frontend (TypeScript)
 
@@ -37,20 +37,20 @@ This document is the inventory of Tauri-coupled surfaces. If migration becomes a
 
 ### Tauri-specific user-facing files
 
-10. **App icons** at `crates/cubical-app/icons/` — Tauri's bundle config references them. Most replacement shells will want their own icon format/layout.
+10. **App icons** at `crates/simple-directory-app/icons/` — Tauri's bundle config references them. Most replacement shells will want their own icon format/layout.
 
 ## Out by design — these never touch Tauri
 
 By construction, these crates and modules **do not** import `tauri`:
 
-- `crates/cubical-engine/` — **the whole engine**: command handlers (`commands/`), `AppState` (`state.rs`), the event vocabulary + `EventSink` trait (`events.rs`), IPC request/response types (`api/types.rs`), and the error type (`error.rs`). No `tauri` dependency at all.
-- `crates/cubical-core/` — vault, file watcher, file-type registry, frontmatter I/O
-- `crates/cubical-ast/` — canonical AST
-- `crates/cubical-index/` — libSQL schema and queries
-- `crates/cubical-search/` — Tantivy wrapper (L4)
-- `crates/cubical-sync/` — `CrdtBackend` trait, Loro impl (L7)
+- `crates/simple-directory-engine/` — **the whole engine**: command handlers (`commands/`), `AppState` (`state.rs`), the event vocabulary + `EventSink` trait (`events.rs`), IPC request/response types (`api/types.rs`), and the error type (`error.rs`). No `tauri` dependency at all.
+- `crates/simple-directory-core/` — vault, file watcher, file-type registry, frontmatter I/O
+- `crates/simple-directory-ast/` — canonical AST
+- `crates/simple-directory-index/` — libSQL schema and queries
+- `crates/simple-directory-search/` — Tantivy wrapper (L4)
+- `crates/simple-directory-sync/` — `CrdtBackend` trait, Loro impl (L7)
 
-This is now enforced structurally: `cubical-engine`'s `Cargo.toml` has no Tauri dependency, so a handler that reaches for `tauri` simply won't compile. (Previously the handlers lived in `cubical-app` alongside Tauri and the rule was review-enforced.)
+This is now enforced structurally: `simple-directory-engine`'s `Cargo.toml` has no Tauri dependency, so a handler that reaches for `tauri` simply won't compile. (Previously the handlers lived in `simple-directory-app` alongside Tauri and the rule was review-enforced.)
 
 ## What a migration would actually look like
 

@@ -30,7 +30,7 @@ Frontend-only. No new backend code — both features reuse IPC that shipped with
 - **Decorations (`ui/src/editor/decorations.ts`).** `collectDecorations(tree, doc, activeLine, …)` is the pure, Lezer-driven core producing a flat `DecoEntry[]`; `buildDecorationSet` maps kinds → CM6 decorations; `livePreviewPlugin` rebuilds on doc/selection/parse changes. Frontmatter is the precedent for a **non-Lezer** decoration found by scanning the doc directly (`findFrontmatter`). Block IDs are explicitly called out as "L3+ territory, left raw" (decorations.ts:30). Markers reveal raw on the cursor line (`mark-marker-muted`) and hide/transform off it.
 - **Code-context gating (`ui/src/editor/autocomplete.ts` `isInhibited`).** Walks the Lezer ancestor chain to reject positions inside `FencedCode`/`CodeText`/`InlineCode`/etc. The decoration scan reuses this idea to skip `^id` inside code.
 - **Editor command wiring (`Editor.tsx`).** A `keymap.of([...])` already binds `Mod-e`. Callback props (`onToggleRawSource`, `onContentChange`, `onBlur`) are the established Editor→App seam.
-- **Wiki-link target resolution (`cubical-core::vault::links::resolve_target`).** Accepts an exact vault-relative path (with/without `.md`), then unique case-insensitive basename. A path-minus-`.md` target is therefore an unambiguous exact match even when basenames collide.
+- **Wiki-link target resolution (`simple-directory-core::vault::links::resolve_target`).** Accepts an exact vault-relative path (with/without `.md`), then unique case-insensitive basename. A path-minus-`.md` target is therefore an unambiguous exact match even when basenames collide.
 
 ## Feature 1 — Copy block-reference gesture
 

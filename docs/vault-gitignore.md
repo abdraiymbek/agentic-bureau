@@ -1,16 +1,16 @@
-# Recommended `.gitignore` for a Cubical vault
+# Recommended `.gitignore` for a simple.directory vault
 
-Most users will git-init their vault. The `.cubical/index.db` is rebuildable from the markdown — committing it would be churn-heavy. The `.cubical/config.toml` is *not* gitignored, since users may want vault-local config under version control.
+Most users will git-init their vault. The `.simple-directory/index.db` is rebuildable from the markdown — committing it would be churn-heavy. The `.simple-directory/config.toml` is *not* gitignored, since users may want vault-local config under version control.
 
 Drop this snippet into `<vault>/.gitignore`:
 
 ```gitignore
-# Cubical-managed derived state — rebuildable from .md files
-.cubical/index.db
-.cubical/index.db-wal
-.cubical/index.db-shm
-.cubical/cubical.log
-.cubical/recovery/        # appears at L7 (sync) — pre-merge snapshots
+# simple.directory-managed derived state — rebuildable from .md files
+.simple-directory/index.db
+.simple-directory/index.db-wal
+.simple-directory/index.db-shm
+.simple-directory/simple-directory.log
+.simple-directory/recovery/        # appears at L7 (sync) — pre-merge snapshots
 ```
 
 ## What about `.assets/`?

@@ -1,4 +1,4 @@
-# Cubical
+# simple.directory
 
 Local-first Markdown PKM. Tauri + Rust + Solid/TS. Plain `.md` files are the
 source of truth; no Electron, no Node runtime, no cloud in the shipped product.

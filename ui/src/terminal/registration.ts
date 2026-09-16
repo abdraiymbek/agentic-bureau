@@ -4,7 +4,7 @@ export const TERMINAL_PLUGIN: CorePlugin = {
   id: "terminal",
   name: "Terminal",
   description:
-    "Run a real shell in a tab, rooted at the vault with cubical on its PATH.",
+    "Run a real shell in a tab, rooted at the vault with simple-directory on its PATH.",
   settingKey: "plugins.terminal_enabled",
   defaultEnabled: false,
 };

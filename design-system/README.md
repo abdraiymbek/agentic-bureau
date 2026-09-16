@@ -1,6 +1,6 @@
-# Cubical Design System
+# simple.directory Design System
 
-A SolidJS design system for **Cubical**, a local-first Markdown knowledge base.
+A SolidJS design system for **simple.directory**, a local-first Markdown knowledge base.
 Design language: "Machinist / Graphite" — chrome recedes, the user's text is
 the loudest thing on screen.
 

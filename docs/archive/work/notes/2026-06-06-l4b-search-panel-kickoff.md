@@ -3,7 +3,7 @@
 # Kickoff — L4-B: persistent left-panel search results UI
 
 > Copy the body below (everything under the horizontal rule) into a
-> fresh Cubical session as the opening message. This is a full layer
+> fresh simple.directory session as the opening message. This is a full layer
 > session (a UI feature), not a patch — it goes through
 > `superpowers:brainstorming` → design spec → `superpowers:writing-plans`
 > → TDD, the same as every feature.
@@ -77,7 +77,7 @@ one, deliberately:
 - **(a) Promote `body`/`headings`/`code` (± `frontmatter`) to `STORED`**
   in the schema. Immediate highlighted snippets on first paint;
   ~2–3× index disk. This is a **schema change** → bump `SCHEMA_VERSION`
-  in `cubical-search` (triggers the existing wipe+rebuild path in
+  in `simple-directory-search` (triggers the existing wipe+rebuild path in
   `SearchIndex::open`); touches `schema.rs`, the projector in `doc.rs`,
   and snippet generation in `query.rs`. Crosses back into the Rust
   search crate.
@@ -126,7 +126,7 @@ visible result list.
 **Standing backfill (run when you touch those surfaces):** the L4-A
 search IPC recipes (`docs/layer-4-spec.md` §9.1 Recipes 1–11) — L4-B is
 exactly the session that makes them load-bearing, so run them against
-`~/Developer/sandbox/cubical-l4a-smoke/`. The L1/L2 watcher/properties
+`~/Developer/sandbox/simple-directory-l4a-smoke/`. The L1/L2 watcher/properties
 recipes remain standing for whichever session next touches them.
 
 ## Definition of done (L4-B)

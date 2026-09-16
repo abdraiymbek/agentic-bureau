@@ -95,7 +95,7 @@ response arriving after a vault or file switch cannot repopulate `seenHash`,
 
 **Seed both hashes when the caller already knows the on-disk hash** (e.g. a
 file it just created). Otherwise the watcher's created-echo arrives as an
-unrecognised external edit and raises a false "changed outside Cubical" banner
+unrecognised external edit and raises a false "changed outside simple.directory" banner
 immediately after create.
 
 Renames don't emit a file-changed event — that only arrives later, debounced,
@@ -159,7 +159,7 @@ are handled in `refreshFileList` via `dropMissingTabs`, gated on
 open tab.
 
 **Sessions are machine-local**, in the Tauri app-data dir keyed by vault path —
-not `.cubical/config.toml`. Which tabs you had open should not travel with a
+not `.simple-directory/config.toml`. Which tabs you had open should not travel with a
 vault shared between machines or people (the recent-vaults precedent). Nav
 history is not persisted; a restored tab starts with empty history, the way a
 browser treats a restored tab. Persistence is gated behind a `tabsReady` flag:
@@ -709,7 +709,7 @@ A file can have a viewer without having a source view, and a source view
 without being editable. Three predicates in `viewer/viewerKind.ts` keep them
 apart, and they widen strictly:
 
-- `hasViewer` — Cubical can render it at all. Everything else gets the
+- `hasViewer` — simple.directory can render it at all. Everything else gets the
   unsupported badge in the tree and refuses to open.
 - `supportsSourceView` — the raw-source toggle means something. True for text
   and delimited; an image has no source, so the toggle is disabled rather than
@@ -718,7 +718,7 @@ apart, and they widen strictly:
   only (`.txt`, `.text`, `.log`).
 
 `isEditableText` is the frontend half of a boundary the engine enforces:
-`editable_as_text` in `crates/cubical-engine/src/commands/vault.rs` gates both
+`editable_as_text` in `crates/simple-directory-engine/src/commands/vault.rs` gates both
 `read_file_text` and `write_file_text`, and the two lists must agree. The
 engine is the authority — a frontend that asked to write a `.png` would be
 refused, not obeyed.
@@ -771,7 +771,7 @@ rAF-throttled repaint that reuses the existing layout.
 
 `ui/src/core/perf.ts` keeps a capped ring of timing samples and logs anything
 that blew a frame. It is on in dev and off in a shipped build until the
-`cubical:perf` key is set in `localStorage`, so a slow build in front of a user
+`simple-directory:perf` key is set in `localStorage`, so a slow build in front of a user
 can be asked what it is spending without a special binary.
 
 Two seams cover most of it. Every command goes through the one `invoke` in

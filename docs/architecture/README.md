@@ -1,10 +1,10 @@
-# Cubical — Architecture
+# simple.directory — Architecture
 
 Locked decisions. These are the result of deliberate review. They can be changed, but only by an explicit architecture review — not a session-level call. If code disagrees with a doc here, the doc wins until explicitly updated.
 
 | Domain | File | Covers |
 |---|---|---|
-| Philosophy + stack | `foundation.md` | Why Cubical exists, tech choices |
+| Philosophy + stack | `foundation.md` | Why simple.directory exists, tech choices |
 | Vault + file identity | `vault.md` | Storage layout, identity model, external edits, binary assets |
 | Document model | `document-model.md` | Frontmatter, wiki-links, block refs, canonical AST, tags, Pending Rewrites |
 | Concurrency + IPC | `concurrency.md` | Three-lane model, command design |

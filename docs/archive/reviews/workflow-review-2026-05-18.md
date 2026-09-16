@@ -1,6 +1,6 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../architecture/) and [`docs/implementation/`](../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical — Workflow Review (Segment 2: AI tooling loop) — 2026-05-18
+# simple.directory — Workflow Review (Segment 2: AI tooling loop) — 2026-05-18
 
 ### 1. Summary
 

@@ -13,7 +13,7 @@ export const vaultTree: VaultNode[] = [
     name: 'Projects',
     kind: 'folder',
     children: [
-      { id: 'cubical-roadmap', name: 'Cubical roadmap.md', kind: 'md' },
+      { id: 'simple-directory-roadmap', name: 'simple.directory roadmap.md', kind: 'md' },
       { id: 'design-notes', name: 'Design notes.md', kind: 'md' },
       { id: 'old-spec', name: 'Old spec.md', kind: 'broken' },
     ],

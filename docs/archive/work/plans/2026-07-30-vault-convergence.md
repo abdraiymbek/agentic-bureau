@@ -22,7 +22,7 @@ Then: **T3** → **T4**. Batch alongside: **T5**.
 
 ## T1 — Extract `commit_rename` from `rename_file`
 
-`crates/cubical-engine/src/commands/rename.rs`
+`crates/simple-directory-engine/src/commands/rename.rs`
 
 Pull the post-syscall commit sequence out of `rename_file` into a helper that performs **no filesystem mutation**:
 
@@ -34,7 +34,7 @@ Pull the post-syscall commit sequence out of `rename_file` into a helper that pe
 
 ## T2 — Populate `files.inode`
 
-`crates/cubical-engine/src/events.rs` (~L365, the watcher upsert writing `inode` as literal `NULL`)
+`crates/simple-directory-engine/src/events.rs` (~L365, the watcher upsert writing `inode` as literal `NULL`)
 
 Write the real inode from the metadata already read by `read_file_stats`. `MetadataExt::ino()` under `#[cfg(unix)]`; `None` elsewhere. Update the `ON CONFLICT` arm to refresh it too.
 
@@ -42,7 +42,7 @@ Write the real inode from the metadata already read by `read_file_stats`. `Metad
 
 ## T3 — Wire `WatchEvent::Renamed` → `adopt_external_rename`
 
-`crates/cubical-engine/src/events.rs` (the `Renamed { from, to: _ }` arm, ~L457) + `rename.rs`
+`crates/simple-directory-engine/src/events.rs` (the `Renamed { from, to: _ }` arm, ~L457) + `rename.rs`
 
 Add `adopt_external_rename` = `validate_adopted + commit_rename` (destination exists, source gone — inverted from `rename_file`). Call it from the `Renamed` arm, which currently discards `to`.
 
@@ -54,7 +54,7 @@ Failed adoption logs and degrades to today's remove+create behaviour.
 
 ## T4 — Recover renames the watcher failed to pair
 
-`crates/cubical-engine/src/events.rs`. **Revised after T3's measurement** — see spec §3.
+`crates/simple-directory-engine/src/events.rs`. **Revised after T3's measurement** — see spec §3.
 
 Two failure modes needing two mechanisms, both funnelling into `adopt_external_rename`:
 
@@ -76,7 +76,7 @@ UI: panel listing dangling links with a per-group "reattach to…" action. Repai
 
 ## T6 — Isolate the console (do not delete)
 
-Collapse the console's surface to a single wiring point so terminal work cannot collide with it. Currently spread across `ui/src/console/`, `ui/src/api/ipc.ts`, `ui/src/core/commands.ts`, `ui/src/settings/corePlugins.ts`, `ui/src/tabs/*`, `crates/cubical-app/src/lib.rs`, `crates/cubical-ipc/`.
+Collapse the console's surface to a single wiring point so terminal work cannot collide with it. Currently spread across `ui/src/console/`, `ui/src/api/ipc.ts`, `ui/src/core/commands.ts`, `ui/src/settings/corePlugins.ts`, `ui/src/tabs/*`, `crates/simple-directory-app/src/lib.rs`, `crates/simple-directory-ipc/`.
 
 **Acceptance:** console still works exactly as today, its tests pass unchanged, and it is removable in one commit later. **Nothing deleted.**
 

@@ -1,0 +1,25 @@
+[package]
+name = "simple-directory-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Terminal frontend over simple-directory-engine — proof that the engine drives with no Tauri."
+
+[[bin]]
+name = "simple-directory"
+path = "src/main.rs"
+
+[dependencies]
+simple-directory-engine = { path = "../simple-directory-engine" }
+simple-directory-ipc = { path = "../simple-directory-ipc" }
+
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+simple-directory-engine = { path = "../simple-directory-engine" }
+simple-directory-ipc = { path = "../simple-directory-ipc" }
+serde_json = { workspace = true }
+tempfile = "3"

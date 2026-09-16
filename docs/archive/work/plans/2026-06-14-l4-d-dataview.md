@@ -6,7 +6,7 @@
 
 **Goal:** Add fenced ```` ```query ```` blocks that project typed frontmatter into list / table / count views, evaluated against libSQL and rendered live in the editor.
 
-**Architecture:** A new pure `cubical-query` crate (parser → planner → executor) compiles a small DQL-flavored DSL into parameterized SQL over the existing `files` / `frontmatter` / `tags` tables, normalizing the JSON-encoded `frontmatter.value` through `json_extract(value,'$')`. One vault-id-keyed Tauri command (`dataview_query`) exposes it; a CodeMirror live-preview block widget (mirroring the L3 embed widget) detects the fence and renders the result via a pure, jsdom-tested `dataviewRender.ts`.
+**Architecture:** A new pure `simple-directory-query` crate (parser → planner → executor) compiles a small DQL-flavored DSL into parameterized SQL over the existing `files` / `frontmatter` / `tags` tables, normalizing the JSON-encoded `frontmatter.value` through `json_extract(value,'$')`. One vault-id-keyed Tauri command (`dataview_query`) exposes it; a CodeMirror live-preview block widget (mirroring the L3 embed widget) detects the fence and renders the result via a pure, jsdom-tested `dataviewRender.ts`.
 
 **Tech Stack:** Rust (libSQL, thiserror, serde, tokio), Tauri IPC, Solid/TypeScript, CodeMirror 6, vitest (jsdom).
 
@@ -18,8 +18,8 @@
 
 ## File structure
 
-**New crate `crates/cubical-query/`:**
-- `Cargo.toml` — deps: `cubical-index` (path), `libsql`, `serde`, `thiserror`; dev-deps: `tokio`, `tempfile`.
+**New crate `crates/simple-directory-query/`:**
+- `Cargo.toml` — deps: `simple-directory-index` (path), `libsql`, `serde`, `thiserror`; dev-deps: `tokio`, `tempfile`.
 - `src/lib.rs` — crate root + public re-exports.
 - `src/ast.rs` — `Query` AST types (`Command`, `Source`, `Op`, `Value`, `Cond`, `Sort`, `Query`).
 - `src/parser.rs` — `parse(&str) -> Result<Query, ParseError>` (tokenizer + recursive descent).
@@ -27,8 +27,8 @@
 - `src/exec.rs` — `run(&IndexConn, &Query) -> Result<QueryResult, QueryError>` + result types (`NoteRef`, `Row`, `QueryResult`).
 - `src/error.rs` — `ParseError`, `QueryError`.
 
-**Modified `crates/cubical-app/`:**
-- `Cargo.toml` — add `cubical-query` path dep.
+**Modified `crates/simple-directory-app/`:**
+- `Cargo.toml` — add `simple-directory-query` path dep.
 - `src/api/types.rs` — `DataviewQueryRequest`, `DataviewResult`.
 - `src/commands/dataview.rs` — new handler (+ unit tests).
 - `src/commands/mod.rs` — `pub mod dataview;`.
@@ -44,19 +44,19 @@
 
 ---
 
-## Phase 1 — `cubical-query` crate
+## Phase 1 — `simple-directory-query` crate
 
 ### Task 1: Scaffold the crate
 
 **Files:**
-- Create: `crates/cubical-query/Cargo.toml`
-- Create: `crates/cubical-query/src/lib.rs`
+- Create: `crates/simple-directory-query/Cargo.toml`
+- Create: `crates/simple-directory-query/src/lib.rs`
 
 - [ ] **Step 1: Write `Cargo.toml`**
 
 ```toml
 [package]
-name = "cubical-query"
+name = "simple-directory-query"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -64,7 +64,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-cubical-index = { path = "../cubical-index" }
+simple-directory-index = { path = "../simple-directory-index" }
 libsql.workspace = true
 serde.workspace = true
 thiserror.workspace = true
@@ -74,18 +74,18 @@ tokio.workspace = true
 tempfile.workspace = true
 ```
 
-Check `crates/cubical-index/Cargo.toml` first to confirm the exact workspace key names for `libsql`, `serde`, `thiserror`, `tokio`, `tempfile`. If `tempfile` is not yet a workspace dep, use the version already pinned in `cubical-index`'s dev-deps.
+Check `crates/simple-directory-index/Cargo.toml` first to confirm the exact workspace key names for `libsql`, `serde`, `thiserror`, `tokio`, `tempfile`. If `tempfile` is not yet a workspace dep, use the version already pinned in `simple-directory-index`'s dev-deps.
 
 - [ ] **Step 2: Write the crate root with a placeholder test**
 
-`crates/cubical-query/src/lib.rs`:
+`crates/simple-directory-query/src/lib.rs`:
 
 ```rust
-//! `cubical-query` — the Dataview-style query language for Cubical.
+//! `simple-directory-query` — the Dataview-style query language for simple.directory.
 //!
 //! Compiles a small DQL-flavored DSL (`LIST` / `TABLE` / `COUNT` with
 //! `FROM` / `WHERE` / `SORT`) into parameterized SQL over the
-//! `cubical-index` libSQL tables. See
+//! `simple-directory-index` libSQL tables. See
 //! `docs/superpowers/specs/2026-06-14-l4-d-dataview-design.md`.
 //!
 //! Pipeline: [`parse`] (text → [`Query`]) → `plan` (AST → SQL) →
@@ -110,14 +110,14 @@ This will not compile until the modules exist — Tasks 2-6 create them. Create 
 
 - [ ] **Step 3: Verify the workspace picks up the crate**
 
-Run: `cargo build -p cubical-query`
+Run: `cargo build -p simple-directory-query`
 Expected: builds (empty crate). If "no targets", ensure `src/lib.rs` exists.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-query/
-git commit -m "feat(l4d): scaffold cubical-query crate"
+git add crates/simple-directory-query/
+git commit -m "feat(l4d): scaffold simple-directory-query crate"
 ```
 
 ---
@@ -125,11 +125,11 @@ git commit -m "feat(l4d): scaffold cubical-query crate"
 ### Task 2: AST types
 
 **Files:**
-- Create: `crates/cubical-query/src/ast.rs`
+- Create: `crates/simple-directory-query/src/ast.rs`
 
 - [ ] **Step 1: Write the AST module**
 
-`crates/cubical-query/src/ast.rs`:
+`crates/simple-directory-query/src/ast.rs`:
 
 ```rust
 //! The query AST — the parser's output, the planner's input.
@@ -229,13 +229,13 @@ pub struct Query {
 
 - [ ] **Step 3: Build**
 
-Run: `cargo build -p cubical-query`
+Run: `cargo build -p simple-directory-query`
 Expected: compiles (types only, no tests yet).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-query/
+git add crates/simple-directory-query/
 git commit -m "feat(l4d): query AST types"
 ```
 
@@ -244,11 +244,11 @@ git commit -m "feat(l4d): query AST types"
 ### Task 3: Error types
 
 **Files:**
-- Create: `crates/cubical-query/src/error.rs`
+- Create: `crates/simple-directory-query/src/error.rs`
 
 - [ ] **Step 1: Write the error module**
 
-`crates/cubical-query/src/error.rs`:
+`crates/simple-directory-query/src/error.rs`:
 
 ```rust
 //! Error types for parsing and execution.
@@ -276,7 +276,7 @@ pub enum QueryError {
     Db(#[from] libsql::Error),
     /// An index-layer error (e.g. opening the connection).
     #[error("index error: {0}")]
-    Index(#[from] cubical_index::IndexError),
+    Index(#[from] simple_directory_index::IndexError),
 }
 ```
 
@@ -284,13 +284,13 @@ pub enum QueryError {
 
 - [ ] **Step 3: Build**
 
-Run: `cargo build -p cubical-query`
+Run: `cargo build -p simple-directory-query`
 Expected: compiles.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-query/
+git add crates/simple-directory-query/
 git commit -m "feat(l4d): query error types"
 ```
 
@@ -299,13 +299,13 @@ git commit -m "feat(l4d): query error types"
 ### Task 4: Parser — tokenizer + grammar (TDD, incremental)
 
 **Files:**
-- Create: `crates/cubical-query/src/parser.rs`
+- Create: `crates/simple-directory-query/src/parser.rs`
 
 The parser is built test-first, one grammar feature per cycle. Each test uses an input that exercises only its feature, so its asserted AST stays stable as later features land.
 
 - [ ] **Step 1: Write the failing test for the minimal `LIST`**
 
-`crates/cubical-query/src/parser.rs` (start the file):
+`crates/simple-directory-query/src/parser.rs` (start the file):
 
 ```rust
 //! Hand-written tokenizer + recursive-descent parser for the query DSL.
@@ -334,7 +334,7 @@ mod tests {
 
 - [ ] **Step 2: Run it — fails to compile (`parse` undefined)**
 
-Run: `cargo test -p cubical-query parses_bare_list`
+Run: `cargo test -p simple-directory-query parses_bare_list`
 Expected: FAIL (cannot find function `parse`).
 
 - [ ] **Step 3: Implement the tokenizer + a `parse` covering `LIST`/`COUNT`/`TABLE`**
@@ -497,7 +497,7 @@ impl Parser {
 
 - [ ] **Step 4: Run — passes**
 
-Run: `cargo test -p cubical-query parses_bare_list`
+Run: `cargo test -p simple-directory-query parses_bare_list`
 Expected: PASS.
 
 - [ ] **Step 5: Add tests for COUNT + TABLE columns**
@@ -523,7 +523,7 @@ fn table_without_columns_errors() {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS (the command parser already handles these).
+Run: `cargo test -p simple-directory-query` — Expected: PASS (the command parser already handles these).
 
 - [ ] **Step 6: Add FROM tests, then implement `parse_from`**
 
@@ -556,7 +556,7 @@ fn parse_from(&mut self) -> Result<Option<Source>, ParseError> {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS.
+Run: `cargo test -p simple-directory-query` — Expected: PASS.
 
 - [ ] **Step 7: Add WHERE tests, then implement `parse_where`**
 
@@ -622,7 +622,7 @@ fn parse_value(&mut self) -> Result<Value, ParseError> {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS.
+Run: `cargo test -p simple-directory-query` — Expected: PASS.
 
 - [ ] **Step 8: Add SORT tests, then implement `parse_sort`**
 
@@ -666,7 +666,7 @@ fn parse_sort(&mut self) -> Result<Option<Sort>, ParseError> {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS.
+Run: `cargo test -p simple-directory-query` — Expected: PASS.
 
 - [ ] **Step 9: Add error-path tests**
 
@@ -693,17 +693,17 @@ fn unterminated_string_errors() {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS. If `LIST garbage` does not error, confirm the trailing-input check in `parse` is reached (a bare `Word` after a command with no clause keyword falls through to the trailing check).
+Run: `cargo test -p simple-directory-query` — Expected: PASS. If `LIST garbage` does not error, confirm the trailing-input check in `parse` is reached (a bare `Word` after a command with no clause keyword falls through to the trailing check).
 
 - [ ] **Step 10: Add `mod parser;` + `pub use parser::parse;` to `lib.rs`; full build**
 
-Run: `cargo test -p cubical-query && cargo clippy -p cubical-query --all-targets -- -D warnings`
+Run: `cargo test -p simple-directory-query && cargo clippy -p simple-directory-query --all-targets -- -D warnings`
 Expected: green.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-git add crates/cubical-query/
+git add crates/simple-directory-query/
 git commit -m "feat(l4d): query parser (tokenizer + grammar)"
 ```
 
@@ -712,13 +712,13 @@ git commit -m "feat(l4d): query parser (tokenizer + grammar)"
 ### Task 5: Planner — AST → parameterized SQL
 
 **Files:**
-- Create: `crates/cubical-query/src/plan.rs`
+- Create: `crates/simple-directory-query/src/plan.rs`
 
 Planner is pure: `Query → Plan { sql, params }`. Tests assert the exact SQL + params for a specific input, so they stay stable. Param order in the produced SQL: TABLE column keys (in SELECT) → FROM tag/folder params → WHERE (key,value) pairs → SORT key.
 
 - [ ] **Step 1: Write the failing test for bare LIST**
 
-`crates/cubical-query/src/plan.rs`:
+`crates/simple-directory-query/src/plan.rs`:
 
 ```rust
 //! Compile a [`Query`] into a parameterized SQL string.
@@ -768,7 +768,7 @@ mod tests {
 
 - [ ] **Step 2: Run — fails (`plan` undefined)**
 
-Run: `cargo test -p cubical-query plans_bare_list`
+Run: `cargo test -p simple-directory-query plans_bare_list`
 Expected: FAIL.
 
 - [ ] **Step 3: Implement the planner**
@@ -884,7 +884,7 @@ pub fn plan(q: &Query) -> Plan {
 
 - [ ] **Step 4: Run — passes**
 
-Run: `cargo test -p cubical-query plans_bare_list`
+Run: `cargo test -p simple-directory-query plans_bare_list`
 Expected: PASS.
 
 - [ ] **Step 5: Add planner tests for COUNT, FROM, WHERE, TABLE, SORT**
@@ -957,17 +957,17 @@ fn plans_sort_orders_missing_keys_last() {
 }
 ```
 
-Run: `cargo test -p cubical-query` — Expected: PASS. Adjust the asserted substrings to match your exact whitespace if any test fails on formatting (the SQL content, not spacing, is what matters).
+Run: `cargo test -p simple-directory-query` — Expected: PASS. Adjust the asserted substrings to match your exact whitespace if any test fails on formatting (the SQL content, not spacing, is what matters).
 
 - [ ] **Step 6: Add `mod plan;` to `lib.rs` (keep `plan`/`Plan`/`SqlParam` crate-internal — no `pub use` needed yet); clippy**
 
-Run: `cargo clippy -p cubical-query --all-targets -- -D warnings`
+Run: `cargo clippy -p simple-directory-query --all-targets -- -D warnings`
 Expected: clean.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-query/
+git add crates/simple-directory-query/
 git commit -m "feat(l4d): query planner (AST to parameterized SQL)"
 ```
 
@@ -976,16 +976,16 @@ git commit -m "feat(l4d): query planner (AST to parameterized SQL)"
 ### Task 6: Executor — run plan against the index
 
 **Files:**
-- Create: `crates/cubical-query/src/exec.rs`
+- Create: `crates/simple-directory-query/src/exec.rs`
 
 - [ ] **Step 1: Write the failing test for LIST + COUNT against a seeded in-memory-ish index**
 
-`crates/cubical-query/src/exec.rs`:
+`crates/simple-directory-query/src/exec.rs`:
 
 ```rust
 //! Execute a parsed [`Query`] against an open index connection.
 
-use cubical_index::IndexConn;
+use simple_directory_index::IndexConn;
 use libsql::Value as SqlValue;
 use serde::Serialize;
 
@@ -1109,7 +1109,7 @@ pub async fn run(conn: &IndexConn, q: &Query) -> Result<QueryResult, QueryError>
 mod tests {
     use super::*;
     use crate::parse;
-    use cubical_index::open_index;
+    use simple_directory_index::open_index;
     use tempfile::tempdir;
 
     async fn seed() -> (tempfile::TempDir, IndexConn) {
@@ -1165,18 +1165,18 @@ mod tests {
 }
 ```
 
-> Confirm the libSQL row accessor names against `cubical-index`'s usage: the codebase uses `row.get(i)` (typed). For a dynamic cell whose type is unknown at compile time, use `row.get_value(i)` if available in the pinned libsql version; if the method is named differently (e.g. `get::<libsql::Value>(i)`), adjust `cell_text`'s call site accordingly. Verify with `cargo doc -p libsql` or by grepping existing usage.
+> Confirm the libSQL row accessor names against `simple-directory-index`'s usage: the codebase uses `row.get(i)` (typed). For a dynamic cell whose type is unknown at compile time, use `row.get_value(i)` if available in the pinned libsql version; if the method is named differently (e.g. `get::<libsql::Value>(i)`), adjust `cell_text`'s call site accordingly. Verify with `cargo doc -p libsql` or by grepping existing usage.
 
 - [ ] **Step 2: Run — fails (module/function undefined until wired)**
 
-Run: `cargo test -p cubical-query list_all`
+Run: `cargo test -p simple-directory-query list_all`
 Expected: FAIL (then PASS once `mod exec;` + `pub use` are added).
 
 - [ ] **Step 3: Add `mod exec;` + `pub use exec::{run, NoteRef, QueryResult, Row};` to `lib.rs`**
 
 - [ ] **Step 4: Run the exec tests**
 
-Run: `cargo test -p cubical-query`
+Run: `cargo test -p simple-directory-query`
 Expected: PASS. If `get_value` does not exist, apply the accessor fix noted above and re-run.
 
 - [ ] **Step 5: Add tests for ordered comparison, sort, table cells, tag source, and missing key**
@@ -1214,41 +1214,41 @@ async fn table_projects_cells_and_empty_for_missing_key() {
 
 > The `status` cell asserts `"in-progress"` (unquoted) — proof that `json_extract` unwrapped the JSON string. If you instead see `"\"in-progress\""`, the planner is not extracting; fix the planner, not the test.
 
-Run: `cargo test -p cubical-query` — Expected: PASS.
+Run: `cargo test -p simple-directory-query` — Expected: PASS.
 
 - [ ] **Step 6: Full crate gate**
 
-Run: `cargo test -p cubical-query && cargo clippy -p cubical-query --all-targets -- -D warnings && cargo fmt -p cubical-query -- --check`
+Run: `cargo test -p simple-directory-query && cargo clippy -p simple-directory-query --all-targets -- -D warnings && cargo fmt -p simple-directory-query -- --check`
 Expected: all green.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-query/
+git add crates/simple-directory-query/
 git commit -m "feat(l4d): query executor (plan -> shaped result)"
 ```
 
 ---
 
-## Phase 2 — IPC (`cubical-app`)
+## Phase 2 — IPC (`simple-directory-app`)
 
 ### Task 7: Wire types + crate dependency
 
 **Files:**
-- Modify: `crates/cubical-app/Cargo.toml`
-- Modify: `crates/cubical-app/src/api/types.rs`
+- Modify: `crates/simple-directory-app/Cargo.toml`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
 
 - [ ] **Step 1: Add the dependency**
 
-In `crates/cubical-app/Cargo.toml` `[dependencies]`, alongside the other `cubical-*` path deps:
+In `crates/simple-directory-app/Cargo.toml` `[dependencies]`, alongside the other `simple-directory-*` path deps:
 
 ```toml
-cubical-query = { path = "../cubical-query" }
+simple-directory-query = { path = "../simple-directory-query" }
 ```
 
 - [ ] **Step 2: Add request + result DTOs**
 
-Append to `crates/cubical-app/src/api/types.rs` (match the existing `#[derive(...)]` + `serde` conventions in that file):
+Append to `crates/simple-directory-app/src/api/types.rs` (match the existing `#[derive(...)]` + `serde` conventions in that file):
 
 ```rust
 /// Request for the `dataview_query` command.
@@ -1268,14 +1268,14 @@ pub enum DataviewResult {
     /// `LIST` — note links.
     List {
         /// Matching notes.
-        notes: Vec<cubical_query::NoteRef>,
+        notes: Vec<simple_directory_query::NoteRef>,
     },
     /// `TABLE` — columns + rows.
     Table {
         /// Column headers.
         columns: Vec<String>,
         /// Result rows.
-        rows: Vec<cubical_query::Row>,
+        rows: Vec<simple_directory_query::Row>,
     },
     /// `COUNT`.
     Count {
@@ -1289,12 +1289,12 @@ pub enum DataviewResult {
     },
 }
 
-impl From<cubical_query::QueryResult> for DataviewResult {
-    fn from(r: cubical_query::QueryResult) -> Self {
+impl From<simple_directory_query::QueryResult> for DataviewResult {
+    fn from(r: simple_directory_query::QueryResult) -> Self {
         match r {
-            cubical_query::QueryResult::List { notes } => Self::List { notes },
-            cubical_query::QueryResult::Table { columns, rows } => Self::Table { columns, rows },
-            cubical_query::QueryResult::Count { count } => Self::Count { count },
+            simple_directory_query::QueryResult::List { notes } => Self::List { notes },
+            simple_directory_query::QueryResult::Table { columns, rows } => Self::Table { columns, rows },
+            simple_directory_query::QueryResult::Count { count } => Self::Count { count },
         }
     }
 }
@@ -1302,14 +1302,14 @@ impl From<cubical_query::QueryResult> for DataviewResult {
 
 - [ ] **Step 3: Build**
 
-Run: `cargo build -p cubical-app`
+Run: `cargo build -p simple-directory-app`
 Expected: compiles.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/Cargo.toml crates/cubical-app/src/api/types.rs
-git commit -m "feat(l4d): dataview IPC DTOs + cubical-query dep"
+git add crates/simple-directory-app/Cargo.toml crates/simple-directory-app/src/api/types.rs
+git commit -m "feat(l4d): dataview IPC DTOs + simple-directory-query dep"
 ```
 
 ---
@@ -1317,12 +1317,12 @@ git commit -m "feat(l4d): dataview IPC DTOs + cubical-query dep"
 ### Task 8: Command handler
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/dataview.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
+- Create: `crates/simple-directory-app/src/commands/dataview.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
 
 - [ ] **Step 1: Write the handler with tests**
 
-`crates/cubical-app/src/commands/dataview.rs`:
+`crates/simple-directory-app/src/commands/dataview.rs`:
 
 ```rust
 //! Pure async handler for the `dataview_query` command.
@@ -1334,24 +1334,24 @@ git commit -m "feat(l4d): dataview IPC DTOs + cubical-query dep"
 //! vault-not-open is a hard error.
 
 use crate::api::types::{DataviewQueryRequest, DataviewResult};
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// Evaluate a Dataview query against the named vault.
 pub async fn dataview_query(
     state: &AppState,
     req: DataviewQueryRequest,
-) -> Result<DataviewResult, CubicalError> {
+) -> Result<DataviewResult, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
 
-    let query = match cubical_query::parse(&req.source) {
+    let query = match simple_directory_query::parse(&req.source) {
         Ok(q) => q,
         Err(e) => return Ok(DataviewResult::Error { message: e.to_string() }),
     };
-    match cubical_query::run(open.vault.index(), &query).await {
+    match simple_directory_query::run(open.vault.index(), &query).await {
         Ok(result) => Ok(result.into()),
         Err(e) => Ok(DataviewResult::Error { message: e.to_string() }),
     }
@@ -1361,7 +1361,7 @@ pub async fn dataview_query(
 mod tests {
     use super::*;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
+    use simple_directory_core::Vault;
     use tempfile::{tempdir, TempDir};
     use tokio_util::sync::CancellationToken;
 
@@ -1419,22 +1419,22 @@ mod tests {
         let (_d, _vault, state) = fresh_state_with_vault("v1").await;
         let req = DataviewQueryRequest { vault_id: "ghost".into(), source: "LIST".into() };
         let err = dataview_query(&state, req).await.expect_err("vault-not-open");
-        assert!(matches!(err, CubicalError::VaultNotOpen(v) if v == "ghost"));
+        assert!(matches!(err, SimpleDirectoryError::VaultNotOpen(v) if v == "ghost"));
     }
 }
 ```
 
-- [ ] **Step 2: Register the module** — add `pub mod dataview;` to `crates/cubical-app/src/commands/mod.rs` (alphabetical, before `embeds`).
+- [ ] **Step 2: Register the module** — add `pub mod dataview;` to `crates/simple-directory-app/src/commands/mod.rs` (alphabetical, before `embeds`).
 
 - [ ] **Step 3: Run handler tests**
 
-Run: `cargo test -p cubical-app dataview`
-Expected: PASS. If `OpenVault::new`'s signature differs from the tags test's, copy the exact call from `crates/cubical-app/src/commands/tags.rs` tests.
+Run: `cargo test -p simple-directory-app dataview`
+Expected: PASS. If `OpenVault::new`'s signature differs from the tags test's, copy the exact call from `crates/simple-directory-app/src/commands/tags.rs` tests.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/
+git add crates/simple-directory-app/src/commands/
 git commit -m "feat(l4d): dataview_query command handler"
 ```
 
@@ -1443,7 +1443,7 @@ git commit -m "feat(l4d): dataview_query command handler"
 ### Task 9: Tauri shim + handler registration
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 
 - [ ] **Step 1: Add the shim** — near the other command shims in `lib.rs`, mirroring the `search` shim exactly:
 
@@ -1453,7 +1453,7 @@ git commit -m "feat(l4d): dataview_query command handler"
 async fn dataview_query(
     state: tauri::State<'_, AppState>,
     req: DataviewQueryRequest,
-) -> Result<DataviewResult, CubicalError> {
+) -> Result<DataviewResult, SimpleDirectoryError> {
     commands::dataview::dataview_query(state.inner(), req).await
 }
 ```
@@ -1470,7 +1470,7 @@ Expected: compiles. A missing import or unregistered command shows here.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs
+git add crates/simple-directory-app/src/lib.rs
 git commit -m "feat(l4d): register dataview_query Tauri command"
 ```
 

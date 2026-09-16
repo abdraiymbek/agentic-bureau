@@ -1,12 +1,12 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../../architecture/) and [`docs/implementation/`](../../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-<!-- Purpose: parked plan for a FUTURE agent to execute BETWEEN layers — adopts agent-workflow doc surfaces (inbox, roadmap, open-questions, active-context, core-docs pointer hub) onto Cubical's existing docs, without touching the code tree. Do not run mid-layer. -->
+<!-- Purpose: parked plan for a FUTURE agent to execute BETWEEN layers — adopts agent-workflow doc surfaces (inbox, roadmap, open-questions, active-context, core-docs pointer hub) onto simple.directory's existing docs, without touching the code tree. Do not run mid-layer. -->
 
 # Agent-Workflow Docs Adoption — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Adopt the valuable parts of a generic "agent-friendly monorepo" template — async-comms, a dependency-aware roadmap, a live known-issues surface, and codified workflow rules — *layered onto* Cubical's existing docs system, without touching the code tree or duplicating the architecture canon.
+**Goal:** Adopt the valuable parts of a generic "agent-friendly monorepo" template — async-comms, a dependency-aware roadmap, a live known-issues surface, and codified workflow rules — *layered onto* simple.directory's existing docs system, without touching the code tree or duplicating the architecture canon.
 
 **Architecture:** Docs-only change. Add four new surfaces (`inbox.md`, `open-questions.md`, `roadmap.md`, `active-context/known-issues.md`), a thin pointer hub (`core-docs/`) that designates the *existing* CLAUDE.md non-negotiables + `architecture/` + `conventions.md` as the source of truth (no content copied → no drift), merge the workflow rules into `CLAUDE.md` as new sections, and index everything in `docs/README.md`. The `crates/` + `ui/` code layout is left untouched; logs/handoffs reuse the existing `docs/superpowers/` flow.
 
@@ -20,13 +20,13 @@ This plan is the architect-reviewed *hybrid* of a restructure proposal. The prop
 
 **Deliberate deviations from the verbatim template — do NOT "fix" these:**
 
-- **No `code/` tree, no `code/backend|frontend|db`.** `crates/` (6-member Cargo workspace) and `ui/` (Solid+Vite) are already the idiomatic Tauri monorepo layout. Moving them rewrites `Cargo.toml`, `crates/cubical-app/tauri.conf.json`, `ui/vite.config.ts`, `package.json`, `.gitignore`, resets `git blame`, and buys nothing.
-- **No `code/db/`.** Cubical's #1 non-negotiable: `.md` files are the source of truth; libSQL is *derived* state whose schema lives inside `cubical-index`. A top-level `db/` would contradict the architecture.
-- **No centralized `tests/`.** Rust tests are inline `#[cfg(test)]` + per-crate `tests/` (e.g. `crates/cubical-ast/tests/`); vitest specs are colocated in `ui/src/`. CLAUDE.md requires each library crate to be independently testable — that depends on tests living in the crate.
+- **No `code/` tree, no `code/backend|frontend|db`.** `crates/` (6-member Cargo workspace) and `ui/` (Solid+Vite) are already the idiomatic Tauri monorepo layout. Moving them rewrites `Cargo.toml`, `crates/simple-directory-app/tauri.conf.json`, `ui/vite.config.ts`, `package.json`, `.gitignore`, resets `git blame`, and buys nothing.
+- **No `code/db/`.** simple.directory's #1 non-negotiable: `.md` files are the source of truth; libSQL is *derived* state whose schema lives inside `simple-directory-index`. A top-level `db/` would contradict the architecture.
+- **No centralized `tests/`.** Rust tests are inline `#[cfg(test)]` + per-crate `tests/` (e.g. `crates/simple-directory-ast/tests/`); vitest specs are colocated in `ui/src/`. CLAUDE.md requires each library crate to be independently testable — that depends on tests living in the crate.
 - **No `docs/logs/` or `docs/handoffs/` dirs.** The existing `docs/superpowers/` flow (`*-kickoff.md` = handoff in, `prompts/*-closeout.md` = log out, `plans/`) is a richer version of the same idea. We reuse it and only adopt the naming convention.
 - **`core-docs/` holds pointers, not copies.** Copying the non-negotiables/architecture into a new canon would create two sources of truth that drift. `core-docs/` is a thin index *pointing at* the real canon (CLAUDE.md + `architecture/` + `conventions.md`).
 - **`CLAUDE.md` is merged, not overwritten.** It is the real master primer (non-negotiables, repo layout, session protocol, project-state with hard-won methodology notes). The template's "master AI rules" are thinner; we add them as new sections.
-- **`brand.md` is a placeholder by design.** Cubical is a local-first desktop tool with no brand layer yet; the file exists to satisfy the workflow rule's "check before generating UI," and points at `architecture/ui.md`.
+- **`brand.md` is a placeholder by design.** simple.directory is a local-first desktop tool with no brand layer yet; the file exists to satisfy the workflow rule's "check before generating UI," and points at `architecture/ui.md`.
 
 ---
 
@@ -38,7 +38,7 @@ This repo uses branches in the single checkout — do NOT create a git worktree.
 
 Run:
 ```bash
-cd /Users/user/Developer/Cubical
+cd /Users/user/Developer/simple.directory
 git checkout main && git pull --ff-only 2>/dev/null; git checkout -b docs/agent-workflow-adoption
 ```
 Expected: switched to a new branch `docs/agent-workflow-adoption`.
@@ -238,8 +238,8 @@ dependencies or generating UI.
 **Snapshot (verify against the manifests):**
 - **Shell:** Tauri (desktop only for v1; no Electron, no Node runtime).
 - **Backend libraries:** Rust, edition 2021, Cargo workspace of 6 crates —
-  `cubical-core`, `cubical-ast`, `cubical-index`, `cubical-search`, `cubical-sync`,
-  `cubical-app` (the Tauri shell). The five non-`app` crates have no Tauri deps and
+  `simple-directory-core`, `simple-directory-ast`, `simple-directory-index`, `simple-directory-search`, `simple-directory-sync`,
+  `simple-directory-app` (the Tauri shell). The five non-`app` crates have no Tauri deps and
   build/test standalone.
 - **Frontend:** Solid + TypeScript + Vite (`ui/`).
 - **Key Rust deps:** tokio, serde / serde_yaml_ng, thiserror / anyhow, tracing,
@@ -252,7 +252,7 @@ dependencies or generating UI.
 ```markdown
 # Brand (placeholder)
 
-Cubical is a strictly local-first PKM desktop app. There is no formal brand layer
+simple.directory is a strictly local-first PKM desktop app. There is no formal brand layer
 yet. Visual direction currently lives in [`../architecture/ui.md`](../architecture/ui.md)
 and the UI styles under `ui/src/styles/`.
 
@@ -304,7 +304,7 @@ Find the `## Docs` bullet list and append these four bullets to the end of that 
 ## Agent workflow
 
 Async collaboration + task-tracking rules. These primitives were adapted from a
-generic agent-monorepo template onto Cubical's existing system — rationale and the
+generic agent-monorepo template onto simple.directory's existing system — rationale and the
 deliberate deviations are in
 `docs/superpowers/plans/2026-06-06-agent-workflow-docs-adoption.md`.
 
@@ -395,7 +395,7 @@ Expected: nothing listed (only `exit=` with a nonzero status from the failed `ls
 
 - [ ] **Step 3: Confirm the code tree is untouched**
 
-Run: `git diff --name-only main -- crates ui Cargo.toml ui/package.json ui/vite.config.ts crates/cubical-app/tauri.conf.json`
+Run: `git diff --name-only main -- crates ui Cargo.toml ui/package.json ui/vite.config.ts crates/simple-directory-app/tauri.conf.json`
 Expected: **empty output** (no code/config files changed on this branch).
 
 - [ ] **Step 4: Review the whole branch diff**

@@ -3,7 +3,7 @@
 # Design — Idempotent `open_vault` (fix Tantivy `LockBusy` on re-open)
 
 **Status:** approved 2026-06-06. Focused bug-fix in the Rust app layer
-(`cubical-app`). Independent of the L4-A-fix.1 embed scroll fix.
+(`simple-directory-app`). Independent of the L4-A-fix.1 embed scroll fix.
 
 ## Problem
 
@@ -19,12 +19,12 @@ different process.")
 
 ## Root cause (confirmed)
 
-`crates/cubical-app/src/commands/vault.rs` — `open_vault` calls
+`crates/simple-directory-app/src/commands/vault.rs` — `open_vault` calls
 `Vault::open(&req.path)` **unconditionally** at the top (line 54).
-`Vault::open` → `cubical_search::SearchIndex::open` →
-`index.writer(50_000_000)` (`crates/cubical-search/src/index.rs:70`),
+`Vault::open` → `simple_directory_search::SearchIndex::open` →
+`index.writer(50_000_000)` (`crates/simple-directory-search/src/index.rs:70`),
 which acquires Tantivy's **exclusive writer lock** on
-`<vault>/.cubical/search/` for the lifetime of the `IndexWriter`.
+`<vault>/.simple-directory/search/` for the lifetime of the `IndexWriter`.
 
 `vault_id` is a fresh monotonic counter (`v1`, `v2`, … —
 `state.rs:179`, `new_vault_id()`), **not** derived from the path. Open
@@ -33,11 +33,11 @@ ephemeral id, so there is **no path-based dedup**. Re-opening the same
 folder mints a new id and constructs a *second* `Vault` — a second
 `IndexWriter` on the same directory — while the first `Vault`'s writer
 is still alive in the map. Tantivy returns `LockBusy`; it surfaces as
-`VaultError::Search` → `CubicalError` ("search index error: …").
+`VaultError::Search` → `SimpleDirectoryError` ("search index error: …").
 
-**Evidence:** with the app running on `cubical-l4a-smoke`, `lsof` shows
-the live `cubical-app` process holding
-`…/cubical-l4a-smoke/.cubical/search/.tantivy-writer.lock`; re-opening
+**Evidence:** with the app running on `simple-directory-l4a-smoke`, `lsof` shows
+the live `simple-directory-app` process holding
+`…/simple-directory-l4a-smoke/.simple-directory/search/.tantivy-writer.lock`; re-opening
 that same folder triggers the error. Verified the code path: no
 `contains_key` / path check precedes the `Vault::open` at line 54.
 
@@ -135,12 +135,12 @@ decision in this session.
 - `IndexWriter` lifetime model (stays per-vault).
 - `vault_id` generation / `OpenVault` fields / `OpenVault::new`.
 - The cross-process LockBusy message.
-- Any `cubical-search` or `cubical-core` code — the fix lives entirely
+- Any `simple-directory-search` or `simple-directory-core` code — the fix lives entirely
   in the `open_vault` command.
 
 ## Testing (TDD)
 
-`crates/cubical-app/src/commands/vault.rs` `tests` module (mirrors the
+`crates/simple-directory-app/src/commands/vault.rs` `tests` module (mirrors the
 existing command-test harness that builds an `AppState` + test
 `AppHandle`):
 

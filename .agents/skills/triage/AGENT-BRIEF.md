@@ -19,8 +19,8 @@ exists, and the anchors it already enforces are the vocabulary to reuse.
 
 **Name the crate, though.** [`crate-separation`](../../../docs/principles/crate-separation.md)
 decides where a change is allowed to live, and an agent that guesses wrong
-writes code the dependency-boundary gate rejects. "In `cubical-index`, behind the
-existing query surface" is durable; `crates/cubical-index/src/query.rs:88` is not.
+writes code the dependency-boundary gate rejects. "In `simple-directory-index`, behind the
+existing query surface" is durable; `crates/simple-directory-index/src/query.rs:88` is not.
 
 **Behavioural, not procedural.** Say what the system must do. The agent explores
 fresh and makes its own implementation calls.
@@ -83,7 +83,7 @@ What should happen, including the edge cases and the failure mode.
 ## Agent brief
 
 **Category:** bug
-**Crate / surface:** `cubical-index`; no UI change
+**Crate / surface:** `simple-directory-index`; no UI change
 **Summary:** A cancelled or failed scan leaves the index partial and offers no
 way to re-run it
 
@@ -129,7 +129,7 @@ one than you would have.
 
 ## Local edits
 
-Rewritten against Cubical's own durability convention: upstream says "don't
+Rewritten against simple.directory's own durability convention: upstream says "don't
 reference file paths", this repo already has a mechanism for that — symbol
 anchors — and a crate boundary that a brief must name. Added the gate and smoke
 lines, and the rule against restating the `feature` template. The upstream

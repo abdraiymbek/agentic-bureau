@@ -1,6 +1,6 @@
 # Security policy
 
-Cubical is a desktop application over a local vault of `.md` files. It ships no
+simple.directory is a desktop application over a local vault of `.md` files. It ships no
 server, no accounts and no cloud component, so there is no hosted surface to
 report against — everything below concerns the application and the vault on
 your own machine.

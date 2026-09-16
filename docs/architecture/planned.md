@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Constraints from unbuilt layers
+# simple.directory — Constraints from unbuilt layers
 
 **This file holds only what constrains work happening today.** Everything else
 that used to live here — the full Loro design, the plugin ABI versioning
@@ -25,12 +25,12 @@ week?** If the answer is "only once we build it", it is an issue.
 Desktop only for v1 — but the architecture must not close the door. In
 practice that is one enforceable rule and one habit:
 
-- **Only `cubical-app` may depend on Tauri.** Every other crate stays buildable
+- **Only `simple-directory-app` may depend on Tauri.** Every other crate stays buildable
   and testable without the desktop harness. Enforced by
   `scripts/gates/dependency_boundary.py`; the rule is
   [`../principles/crate-separation.md`](../principles/crate-separation.md).
-- The engine is a **library first**. `cubical-engine` is transport-agnostic and
-  `cubical-cli` exists as standing proof — a second frontend that works. A
+- The engine is a **library first**. `simple-directory-engine` is transport-agnostic and
+  `simple-directory-cli` exists as standing proof — a second frontend that works. A
   mobile shell would be a third.
 
 The practical test: a change that makes a non-app crate depend on a
@@ -43,7 +43,7 @@ anything that renders or exports document content must route through a single
 point where sanitization can later be inserted. Scattering render-to-output
 across call sites means the seam has to be retrofitted into each one.
 
-## 3. `cubical-sync` exports nothing
+## 3. `simple-directory-sync` exports nothing
 
 The crate exists as a planned interface with **no implementation and no public
 items** until `trait CrdtBackend` and Loro land. Nothing may depend on it — a
@@ -62,7 +62,7 @@ to be violated *by* unbuilt-layer thinking: the sync design keys everything on
 The vault stays byte-for-byte the user's until they opt into sync. Pre-sync
 reconciliation uses the hash + mtime model in
 [`vault.md`](vault.md) §4.3, and the pre-sync safety net is
-`.cubical/recovery/` — **not** a Time Machine, which is dormant rather than
+`.simple-directory/recovery/` — **not** a Time Machine, which is dormant rather than
 partial until there is a CRDT layer to be clean relative to.
 
 The open question this creates for the plugin ABI — what key durable plugin
@@ -81,11 +81,11 @@ These are architectural questions that will be forced eventually and have no
 home yet. Each becomes its own section here, written before any code, when it
 goes live:
 
-- **Encryption at rest** for `.cubical/index.db` and `.cubical/recovery/`. The
+- **Encryption at rest** for `.simple-directory/index.db` and `.simple-directory/recovery/`. The
   architecture should not preclude it.
 - **i18n strategy.** A UI string layer will be reserved in the frontend; real
   translations are post-v1.0.
-- **Backup / corruption recovery** for `.cubical/index.db` — rebuild from `.md`
+- **Backup / corruption recovery** for `.simple-directory/index.db` — rebuild from `.md`
   versus a built-in backup tool. Mostly documentation rather than architecture,
   but the trade-off deserves deciding.
 - **License / business model.** MIT placeholder during alpha.
@@ -98,7 +98,7 @@ Two features are merged and therefore easy to mistake for settled foundations.
 (`properties.typed_enabled` absent → false). The v1 stores a property's type as
 an inline `# type:` comment, which puts app metadata in the `.md` source of
 truth against the non-negotiables. The intended replacement is a vault-level
-type registry in `.cubical/`. **Build the registry before promoting typed
+type registry in `.simple-directory/`. **Build the registry before promoting typed
 properties default-on, or letting sort / query / Dataview depend on type
 storage** — issue [#19](https://github.com/simple-techdev/simple.directory/issues/19).
 

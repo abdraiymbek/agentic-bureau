@@ -2,7 +2,7 @@
 
 # L3 Session J — Rename → Pending Rewrites Cache
 
-L3 Session J for the Cubical project. Renaming a file, a tag, or a block-id becomes **instant**; the disk impact — rewriting referrer files — is **coalesced** through a new `pending_rewrites` libSQL table. Every read of a file's effective content materializes pending rewrites against the on-disk source. Flush triggers: 5-minute timer (configurable), app close (mandatory), >50-pending-per-file fuse, manual "save all pending changes." Status bar shows the unflushed count; flush emits a toast. Undo within the unflushed window is instant. Builds on Sessions A (`links`), D (`tags`), and G (`blocks` / `block_refs`).
+L3 Session J for the simple.directory project. Renaming a file, a tag, or a block-id becomes **instant**; the disk impact — rewriting referrer files — is **coalesced** through a new `pending_rewrites` libSQL table. Every read of a file's effective content materializes pending rewrites against the on-disk source. Flush triggers: 5-minute timer (configurable), app close (mandatory), >50-pending-per-file fuse, manual "save all pending changes." Status bar shows the unflushed count; flush emits a toast. Undo within the unflushed window is instant. Builds on Sessions A (`links`), D (`tags`), and G (`blocks` / `block_refs`).
 
 **Scope warning — this is the largest L3 session.** It spans three rename surfaces × backend enqueue × materialize-on-read × four flush triggers × status bar × toast × undo × external-write-conflict re-apply. If your STEP-1 plan grows past ~12 substantial tasks, **stop and brainstorm a J.1 / J.2 split** — mirroring how Session H split into H.1 (backend extractor) and H.2 (frontend widget). The natural seam: J.1 = migration + enqueue + materialize-on-read + IPC + flush; J.2 = status bar + toast + undo button + the file-rename UI gesture. Default to a single session if the plan stays tight.
 
@@ -12,7 +12,7 @@ Do NOT start Session K in this session.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state" block (currently reports L3 Sessions A–F + scan perf fix + G + `[[#^` + H.1 + H.2 + I done; Sessions J + K pending).
@@ -24,33 +24,33 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/migration-touchpoints.md` — if you touch IPC.
 
 2. Read for context (skim; come back to specific lines):
-   - `crates/cubical-index/migrations/` — five existing migrations (`001_initial.sql` through `005_blocks.sql`). J adds `006_pending_rewrites.sql`. The runner (`runner.rs`) needs `HIGHEST_KNOWN_VERSION` bumped to 6.
-   - `crates/cubical-index/src/{links,tags,blocks}.rs` — query module pattern (`replace_X_for_file`, `X_for_file`).
-   - `crates/cubical-core/src/vault/{links,tags,blocks,mentions}.rs` — pure scanner + `refresh_X` shape. Pending rewrites needs its own pure module (`cubical-core::vault::pending` or similar) for materialize-on-read.
-   - `crates/cubical-core/src/vault/scan.rs` — two-pass scan pattern. Pending materialization may need to slot in here so the scan sees post-rewrite content (decide in the plan — see decisions below).
-   - `crates/cubical-app/src/commands/{vault,blocks,mentions}.rs` — handler patterns. `vault::write_file_text` is the atomic-write + hash-gate precedent; `mentions::link_mention` is the freshest read-modify-write precedent (atomic write, file hash eager update, no `expected_seen_hash` for non-open files).
-   - `crates/cubical-app/src/commands/vault.rs::read_file_text` — the existing read path. Materialize-on-read changes its contract.
-   - `crates/cubical-app/src/events.rs` (or wherever the existing `vault:file-changed` is emitted) — the new `vault:pending-rewrites-changed` event lives next to it.
-   - `crates/cubical-app/src/lib.rs` — `generate_handler!` registration. The freshest precedents are `get_unlinked_mentions` + `link_mention` (Session I) and `get_embed` (Session H.1).
-   - `crates/cubical-app/src/api/types.rs` — wire-type style.
+   - `crates/simple-directory-index/migrations/` — five existing migrations (`001_initial.sql` through `005_blocks.sql`). J adds `006_pending_rewrites.sql`. The runner (`runner.rs`) needs `HIGHEST_KNOWN_VERSION` bumped to 6.
+   - `crates/simple-directory-index/src/{links,tags,blocks}.rs` — query module pattern (`replace_X_for_file`, `X_for_file`).
+   - `crates/simple-directory-core/src/vault/{links,tags,blocks,mentions}.rs` — pure scanner + `refresh_X` shape. Pending rewrites needs its own pure module (`simple-directory-core::vault::pending` or similar) for materialize-on-read.
+   - `crates/simple-directory-core/src/vault/scan.rs` — two-pass scan pattern. Pending materialization may need to slot in here so the scan sees post-rewrite content (decide in the plan — see decisions below).
+   - `crates/simple-directory-app/src/commands/{vault,blocks,mentions}.rs` — handler patterns. `vault::write_file_text` is the atomic-write + hash-gate precedent; `mentions::link_mention` is the freshest read-modify-write precedent (atomic write, file hash eager update, no `expected_seen_hash` for non-open files).
+   - `crates/simple-directory-app/src/commands/vault.rs::read_file_text` — the existing read path. Materialize-on-read changes its contract.
+   - `crates/simple-directory-app/src/events.rs` (or wherever the existing `vault:file-changed` is emitted) — the new `vault:pending-rewrites-changed` event lives next to it.
+   - `crates/simple-directory-app/src/lib.rs` — `generate_handler!` registration. The freshest precedents are `get_unlinked_mentions` + `link_mention` (Session I) and `get_embed` (Session H.1).
+   - `crates/simple-directory-app/src/api/types.rs` — wire-type style.
    - `ui/src/App.tsx` — autosave timer + various `scheduleX` debounce patterns (the broken-block-refs ticker and the right-sidebar refresh ticker are the freshest precedents). The status-bar footer (around line 1404–1436) is where the pending-rewrites count lands.
    - `ui/src/statusbar/brokenRefs.ts` (pure formatter) — model for `pendingRewrites.ts` (count → label).
    - `ui/src/api/ipc.ts` — IPC binding shape; recent `getUnlinkedMentions` + `linkMention` are the freshest precedents.
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` → `merge: L3 Session I — unlinked mentions` (commit `30aa655`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` → `merge: L3 Session I — unlinked mentions` (commit `30aa655`).
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
    - CLAUDE.md "Project state" reports L3 Sessions A–F + G + H.1 + H.2 + I done; Sessions J + K pending. If not, STOP.
 
 4. Baseline test counts (must match CLAUDE.md "Project state"):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → 326.
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → 326.
    - `cd ui && npx vitest run` → 329 vitest green.
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-j-pending-rewrites`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-j-pending-rewrites`
 
 ---
 
@@ -90,29 +90,29 @@ In summary (full task breakdown lives in the plan):
 
    No FK on `target_file → files(path)` because (a) the spec doesn't lock one, (b) a rewrite targeting a since-deleted file should silently drop on flush rather than block the migration runner. Bump `HIGHEST_KNOWN_VERSION = 6` in `runner.rs`.
 
-2. **`cubical-index::pending` query module.** Functions: `enqueue_pending`, `pending_for_target`, `pending_count_total`, `pending_count_for_target`, `delete_rename_op`, `delete_pending_for_target` (used after a successful flush). Mirror the shape of `cubical-index::blocks` / `cubical-index::links`.
+2. **`simple-directory-index::pending` query module.** Functions: `enqueue_pending`, `pending_for_target`, `pending_count_total`, `pending_count_for_target`, `delete_rename_op`, `delete_pending_for_target` (used after a successful flush). Mirror the shape of `simple-directory-index::blocks` / `simple-directory-index::links`.
 
-3. **Pure materialization — `cubical-core::vault::pending` (new module).** Two pure helpers:
+3. **Pure materialization — `simple-directory-core::vault::pending` (new module).** Two pure helpers:
    - `apply_pending(source: &str, rewrites: &[PendingRewrite]) -> String` — apply each `(old_token, new_token)` in `created_at` order. Pure string ops; no DB, no I/O. Three rewrite kinds:
-     - `wiki_link`: replaces every `[[old_target…]]` / `![[old_target…]]` occurrence, preserving optional `|display` and `#anchor`. Reuse `cubical_ast::scan_wikilinks` (already `pub` since Session I) — walk tokens, rewrite only the `target` field, re-emit.
+     - `wiki_link`: replaces every `[[old_target…]]` / `![[old_target…]]` occurrence, preserving optional `|display` and `#anchor`. Reuse `simple_directory_ast::scan_wikilinks` (already `pub` since Session I) — walk tokens, rewrite only the `target` field, re-emit.
      - `tag`: replaces inline `#old_tag` (whole-tag boundary; nested tags `#old_tag/child` rename to `#new_tag/child`) AND frontmatter `tags:` list entries equal to `old_tag` or rooted at `old_tag/`. Heavy unit tests required.
      - `block_ref`: replaces every `[[note#^old_id]]` referrer AND the `^old_id` literal on the defining line.
    - `materialize_on_read(vault, path, on_disk: &str) -> String` — pull pending rows for `path`, call `apply_pending`. Used by every read path that needs effective content.
 
 4. **Read-path integration.** Decide once: which read paths see materialized content?
-   - `cubical-app::commands::vault::read_file_text` — **MUST materialize** (the editor displays this). Frontend sees post-rename text.
-   - `cubical-app::commands::vault::get_canonical_ast` — **MUST materialize** (otherwise the AST disagrees with the editor view).
-   - `cubical-app::commands::embeds::get_embed` — **MUST materialize** (embed content reflects renames).
-   - `cubical-app::commands::mentions::get_unlinked_mentions` / `link_mention` — see decision below; default is materialize the *source* file but leave the open note's title/aliases at on-disk values (a self-rename hasn't flushed yet either).
-   - Scan / watcher (`cubical-core::vault::scan`, `cubical-core::vault::watcher::apply_watch_event_to_db`) — see decision below; the cleanest call is "scan sees materialized content for the link/tag/block extractors" so backlinks reflect the post-rename world. This is the trickiest plumbing — get the brainstorm to lock it.
+   - `simple-directory-app::commands::vault::read_file_text` — **MUST materialize** (the editor displays this). Frontend sees post-rename text.
+   - `simple-directory-app::commands::vault::get_canonical_ast` — **MUST materialize** (otherwise the AST disagrees with the editor view).
+   - `simple-directory-app::commands::embeds::get_embed` — **MUST materialize** (embed content reflects renames).
+   - `simple-directory-app::commands::mentions::get_unlinked_mentions` / `link_mention` — see decision below; default is materialize the *source* file but leave the open note's title/aliases at on-disk values (a self-rename hasn't flushed yet either).
+   - Scan / watcher (`simple-directory-core::vault::scan`, `simple-directory-core::vault::watcher::apply_watch_event_to_db`) — see decision below; the cleanest call is "scan sees materialized content for the link/tag/block extractors" so backlinks reflect the post-rename world. This is the trickiest plumbing — get the brainstorm to lock it.
    - **Watcher own-write suppression for flush:** the flush writes files itself; the watcher will fire `vault:file-changed` for each. The existing `last_written_hash` mechanism is per-buffer (editor side); flush has no editor. Decide a backend-side own-write hash gate (a short-lived set of (path, hash) tuples the flush populates and the watcher dispatcher drains).
 
-5. **Rename IPC handlers — `cubical-app::commands::rename`** (new module). Each rename mints a fresh `rename_op_id` (UUID or monotonically-increasing — decide), enqueues one `pending_rewrites` row per referrer, and emits `vault:pending-rewrites-changed { vault_id, count }`. Three handlers:
+5. **Rename IPC handlers — `simple-directory-app::commands::rename`** (new module). Each rename mints a fresh `rename_op_id` (UUID or monotonically-increasing — decide), enqueues one `pending_rewrites` row per referrer, and emits `vault:pending-rewrites-changed { vault_id, count }`. Three handlers:
    - `rename_file { vault_id, from_path, to_path }` — query `links` for every referrer; enqueue `wiki_link` rewrites; **also rename the file itself on disk** (atomic move + update `files.path` + cascade). The rename of the file is synchronous (instant); the referrer rewrites are deferred. Returns `{ rename_op_id }`.
    - `rename_tag { vault_id, old_tag, new_tag }` — query `tags` for every carrying file; enqueue `tag` rewrites; no file move. Returns `{ rename_op_id }`.
    - `rename_block_id { vault_id, file_path, old_id, new_id }` — query `block_refs` for every referrer; enqueue `block_ref` rewrites that target both the referrer files (for the `[[note#^old_id]]` updates) AND the defining file (for the `^old_id` → `^new_id` literal). Returns `{ rename_op_id }`.
 
-6. **Flush + helpers — `cubical-app::commands::rename` continued.**
+6. **Flush + helpers — `simple-directory-app::commands::rename` continued.**
    - `flush_pending_rewrites { vault_id }` → `{ files_rewritten, refs_updated }`. For each distinct `target_file` with pending rows: read on-disk content; call `apply_pending`; if it changed, write atomically (`atomic_write`) with the backend-side own-write hash gate; `DELETE FROM pending_rewrites WHERE target_file = ?`. External-write conflict per §5.7: re-apply textually — find `old_token` in the freshly-read disk content; if present, replace; if not, drop the row silently. Emits `vault:pending-rewrites-changed { count: 0 }` on completion + a `vault:flush-complete { files_rewritten, refs_updated }` event the toast subscribes to.
    - `get_pending_rewrites_count { vault_id }` → `{ count }`. Sum across the table.
    - `undo_rename { vault_id, rename_op_id }` — `DELETE FROM pending_rewrites WHERE rename_op_id = ?`. Emits the count-changed event. Spec §5.7 footnote: "After flush, undo is a full reverse rewrite — same flush mechanism, opposite direction" — that's L8 territory, NOT in scope here. Pre-flush undo only in J.
@@ -158,7 +158,7 @@ In summary (full task breakdown lives in the plan):
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` → 326 baseline + N new (migration + index module + materialize helper + rename handlers + flush + undo + external-write re-apply). Document the new count.
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` → 326 baseline + N new (migration + index module + materialize helper + rename handlers + flush + undo + external-write re-apply). Document the new count.
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.
 - `cd ui && npx vitest run` → 329 baseline + N new (status-bar formatter + IPC bindings + Solid toast if built). Document the new count.
@@ -204,8 +204,8 @@ Run and paste actual output:
 - [ ] Brainstorming pass recorded (single session vs J.1/J.2 split decided; materialize-on-read invariant locked; file-rename UI gesture picked).
 - [ ] Plan written at `docs/superpowers/plans/<date>-l3-session-j-pending-rewrites.md` (or split filenames) with every "Decisions to raise" item resolved.
 - [ ] Migration `006_pending_rewrites.sql` lands; `HIGHEST_KNOWN_VERSION = 6`; runner tests cover the upgrade.
-- [ ] `cubical-index::pending` query module ships with full unit coverage (enqueue, list, count, delete-by-target, delete-by-op).
-- [ ] `cubical-core::vault::pending::apply_pending` covers all three rewrite kinds incl. nested tags + block-id literal-line rewrite + frontmatter `tags:` list updates + `|display` + `#anchor` preservation on wiki-link rewrites.
+- [ ] `simple-directory-index::pending` query module ships with full unit coverage (enqueue, list, count, delete-by-target, delete-by-op).
+- [ ] `simple-directory-core::vault::pending::apply_pending` covers all three rewrite kinds incl. nested tags + block-id literal-line rewrite + frontmatter `tags:` list updates + `|display` + `#anchor` preservation on wiki-link rewrites.
 - [ ] Three rename IPCs end-to-end (`rename_file` + `rename_tag` + `rename_block_id`); each mints a fresh `rename_op_id` and emits `vault:pending-rewrites-changed`.
 - [ ] `flush_pending_rewrites` rewrites referrers atomically with the backend-side own-write hash gate; external-write conflict re-apply works per §5.7; emits `vault:flush-complete`.
 - [ ] `get_pending_rewrites_count` + `undo_rename` IPCs ship.

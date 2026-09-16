@@ -8,7 +8,7 @@
 
 **Architecture:** A new `005_blocks` migration adds the locked `blocks` + `block_refs` tables. A pure source scanner extracts `^id` tokens (fence-aware) from markdown; `blocks` rows are refreshed **inline in scan Pass 1** and on every watcher edit (per-file, no resolution needed, exactly like tags). `block_refs` are **derived in scan Pass 2** (and on the watcher path) from the already-resolved block-anchored rows in the `links` table via one shared `refresh_block_refs_for_file` helper. A `create_block_ref` command mints a deterministic, file-unique `^id` into the target source and persists the `blocks` row. A `get_broken_block_refs` query surfaces refs whose target block no longer exists. `resolve_link` is unchanged — block resolution is represented by the `block_refs`/`blocks` tables.
 
-**Tech Stack:** Rust, `libsql` (local SQLite), `sha2` (already a dep; used for deterministic id generation), `tokio` (`spawn_blocking` for file I/O), existing `cubical-index` / `cubical-core` / `cubical-app` patterns. **No frontend in this plan** (backend core only — the editor gesture, `^id` decoration, and status-bar surfacing are a deferred follow-up; one TS IPC binding is added so the new commands are callable).
+**Tech Stack:** Rust, `libsql` (local SQLite), `sha2` (already a dep; used for deterministic id generation), `tokio` (`spawn_blocking` for file I/O), existing `simple-directory-index` / `simple-directory-core` / `simple-directory-app` patterns. **No frontend in this plan** (backend core only — the editor gesture, `^id` decoration, and status-bar surfacing are a deferred follow-up; one TS IPC binding is added so the new commands are callable).
 
 ---
 
@@ -29,13 +29,13 @@ block_refs(source_file_path, target_file_path, target_block_id)
 
 ### What already exists (the patterns you mirror)
 
-- **Wiki-link anchors are already parsed.** `cubical_ast::Anchor::Block { value }` is produced from `[[note#^id]]` (see `crates/cubical-ast/src/wikilink.rs::parse_body`). The `links` table already stores `anchor_kind='block'` + `anchor_value` per occurrence (see `crates/cubical-index/migrations/003_links.sql` and `crates/cubical-core/src/vault/links.rs::refresh_links`). **So block *references* are already captured in `links`.** This session adds the `blocks` (definitions) + `block_refs` (a derived, queryable projection of the resolved block-anchored links) tables.
-- **Migrations** live in `crates/cubical-index/migrations/NNN_*.sql`, registered in `crates/cubical-index/src/migrations.rs::MIGRATIONS`, with `runner.rs::HIGHEST_KNOWN_VERSION` and a `fresh_db_applies_all_known_migrations` test. The latest is `004_tags.sql` (version 4). Read `003_links.sql` + `004_tags.sql` for SQL style (FK `ON DELETE CASCADE` on `files(path)`, indexes).
-- **Index query modules** live in `crates/cubical-index/src/{links,tags}.rs` as `pub async fn …(conn: &IndexConn, …) -> Result<…, IndexError>`, re-exported from `crates/cubical-index/src/lib.rs`. `tags.rs::replace_tags_for_file` (delete-then-insert, participates in the caller's transaction) is the model for `replace_blocks_for_file`.
-- **Per-file refresh helpers** live in `crates/cubical-core/src/vault/{links,tags,frontmatter}.rs` as `pub async fn refresh_X(vault: &Vault, abs_path: &Path, rel_path_str: &str) -> Result<…, libsql::Error>`, re-exported from `crates/cubical-core/src/lib.rs` line ~20 (`pub use vault::{ atomic_write, refresh_frontmatter, refresh_links, refresh_tags, scan, start_watcher, … }`). `links.rs::refresh_links` (parse off-executor → extract → resolve → `replace_links_for_file`) is the model; `links.rs::parse_off_executor` reads the file off the runtime.
-- **The scan** is `crates/cubical-core/src/vault/scan.rs::scan`. Pass 1 (the walk) upserts `files` and calls `refresh_frontmatter` + buffers link extractions + `refresh_tags` **inline** per markdown file (lines ~225–238). Pass 2 (after the walk) builds a `PathResolver`, resolves the buffered links, and writes `links` rows per source via `replace_links_for_file` in batched transactions (loop at line ~284, each source written at line ~309, final commit at line ~319).
-- **The watcher single-file path** is `crates/cubical-app/src/events.rs::apply_watch_event_to_db` (lines ~320–393): on a create/modify it calls `refresh_frontmatter`, `refresh_links`, `refresh_tags` for the one changed file.
-- **Command handlers** are pure `pub async fn name(state: &AppState, req) -> Result<Resp, CubicalError>` in `crates/cubical-app/src/commands/*.rs`, with wire types in `api/types.rs`, 3-line Tauri shims in `lib.rs` registered in `generate_handler!`. `commands::links::resolve_link` and `commands::tags::query_tag_page` are models. The vault is fetched via `state.vaults().read().await.get(&req.vault_id).ok_or_else(|| CubicalError::VaultNotOpen(...))?`; the index connection is `open.vault.index()` (an `&IndexConn`) and `.index().connection()` for raw `libsql` queries.
+- **Wiki-link anchors are already parsed.** `simple_directory_ast::Anchor::Block { value }` is produced from `[[note#^id]]` (see `crates/simple-directory-ast/src/wikilink.rs::parse_body`). The `links` table already stores `anchor_kind='block'` + `anchor_value` per occurrence (see `crates/simple-directory-index/migrations/003_links.sql` and `crates/simple-directory-core/src/vault/links.rs::refresh_links`). **So block *references* are already captured in `links`.** This session adds the `blocks` (definitions) + `block_refs` (a derived, queryable projection of the resolved block-anchored links) tables.
+- **Migrations** live in `crates/simple-directory-index/migrations/NNN_*.sql`, registered in `crates/simple-directory-index/src/migrations.rs::MIGRATIONS`, with `runner.rs::HIGHEST_KNOWN_VERSION` and a `fresh_db_applies_all_known_migrations` test. The latest is `004_tags.sql` (version 4). Read `003_links.sql` + `004_tags.sql` for SQL style (FK `ON DELETE CASCADE` on `files(path)`, indexes).
+- **Index query modules** live in `crates/simple-directory-index/src/{links,tags}.rs` as `pub async fn …(conn: &IndexConn, …) -> Result<…, IndexError>`, re-exported from `crates/simple-directory-index/src/lib.rs`. `tags.rs::replace_tags_for_file` (delete-then-insert, participates in the caller's transaction) is the model for `replace_blocks_for_file`.
+- **Per-file refresh helpers** live in `crates/simple-directory-core/src/vault/{links,tags,frontmatter}.rs` as `pub async fn refresh_X(vault: &Vault, abs_path: &Path, rel_path_str: &str) -> Result<…, libsql::Error>`, re-exported from `crates/simple-directory-core/src/lib.rs` line ~20 (`pub use vault::{ atomic_write, refresh_frontmatter, refresh_links, refresh_tags, scan, start_watcher, … }`). `links.rs::refresh_links` (parse off-executor → extract → resolve → `replace_links_for_file`) is the model; `links.rs::parse_off_executor` reads the file off the runtime.
+- **The scan** is `crates/simple-directory-core/src/vault/scan.rs::scan`. Pass 1 (the walk) upserts `files` and calls `refresh_frontmatter` + buffers link extractions + `refresh_tags` **inline** per markdown file (lines ~225–238). Pass 2 (after the walk) builds a `PathResolver`, resolves the buffered links, and writes `links` rows per source via `replace_links_for_file` in batched transactions (loop at line ~284, each source written at line ~309, final commit at line ~319).
+- **The watcher single-file path** is `crates/simple-directory-app/src/events.rs::apply_watch_event_to_db` (lines ~320–393): on a create/modify it calls `refresh_frontmatter`, `refresh_links`, `refresh_tags` for the one changed file.
+- **Command handlers** are pure `pub async fn name(state: &AppState, req) -> Result<Resp, SimpleDirectoryError>` in `crates/simple-directory-app/src/commands/*.rs`, with wire types in `api/types.rs`, 3-line Tauri shims in `lib.rs` registered in `generate_handler!`. `commands::links::resolve_link` and `commands::tags::query_tag_page` are models. The vault is fetched via `state.vaults().read().await.get(&req.vault_id).ok_or_else(|| SimpleDirectoryError::VaultNotOpen(...))?`; the index connection is `open.vault.index()` (an `&IndexConn`) and `.index().connection()` for raw `libsql` queries.
 - **Frontend IPC** is centralized in `ui/src/api/ipc.ts` (typed wire structs + one `invoke("name", { req })` wrapper per command). `query_tag_page` is the model.
 
 ### Scope boundaries — do NOT do these
@@ -56,22 +56,22 @@ A block id is `^` followed by `[A-Za-z_][A-Za-z0-9_-]*`. In source it appears at
 ## File Structure
 
 **Create:**
-- `crates/cubical-index/migrations/005_blocks.sql` — `blocks` + `block_refs` tables + indexes.
-- `crates/cubical-index/src/blocks.rs` — `BlockRow` / `BlockRefRow` + `replace_blocks_for_file`, `blocks_for_file`, `block_exists`, `replace_block_refs_for_file`, `broken_block_refs` + tests.
-- `crates/cubical-core/src/vault/blocks.rs` — pure `extract_block_ids` scanner + `refresh_blocks` + `refresh_block_refs_for_file` + tests.
-- `crates/cubical-app/src/commands/blocks.rs` — `create_block_ref` + `get_broken_block_refs` handlers + tests.
+- `crates/simple-directory-index/migrations/005_blocks.sql` — `blocks` + `block_refs` tables + indexes.
+- `crates/simple-directory-index/src/blocks.rs` — `BlockRow` / `BlockRefRow` + `replace_blocks_for_file`, `blocks_for_file`, `block_exists`, `replace_block_refs_for_file`, `broken_block_refs` + tests.
+- `crates/simple-directory-core/src/vault/blocks.rs` — pure `extract_block_ids` scanner + `refresh_blocks` + `refresh_block_refs_for_file` + tests.
+- `crates/simple-directory-app/src/commands/blocks.rs` — `create_block_ref` + `get_broken_block_refs` handlers + tests.
 
 **Modify:**
-- `crates/cubical-index/src/migrations.rs` — register migration 005 + a `migration_005_creates_blocks_tables` test.
-- `crates/cubical-index/src/runner.rs` — bump `HIGHEST_KNOWN_VERSION` to 5.
-- `crates/cubical-index/src/lib.rs` — `mod blocks;` + re-exports.
-- `crates/cubical-core/src/vault/mod.rs` — `pub mod blocks;` (mirror how `links`/`tags` are declared — confirm the real module-declaration site).
-- `crates/cubical-core/src/lib.rs` — re-export `refresh_blocks`, `refresh_block_refs_for_file`.
-- `crates/cubical-core/src/vault/scan.rs` — Pass 1 inline `refresh_blocks`; Pass 2 `refresh_block_refs_for_file` per source.
-- `crates/cubical-app/src/events.rs` — watcher: `refresh_blocks` + `refresh_block_refs_for_file` for the changed file.
-- `crates/cubical-app/src/api/types.rs` — `CreateBlockRef*`, `GetBrokenBlockRefs*`, `BrokenBlockRef` wire types.
-- `crates/cubical-app/src/commands/mod.rs` — `pub mod blocks;`.
-- `crates/cubical-app/src/lib.rs` — two shims + registration + type imports.
+- `crates/simple-directory-index/src/migrations.rs` — register migration 005 + a `migration_005_creates_blocks_tables` test.
+- `crates/simple-directory-index/src/runner.rs` — bump `HIGHEST_KNOWN_VERSION` to 5.
+- `crates/simple-directory-index/src/lib.rs` — `mod blocks;` + re-exports.
+- `crates/simple-directory-core/src/vault/mod.rs` — `pub mod blocks;` (mirror how `links`/`tags` are declared — confirm the real module-declaration site).
+- `crates/simple-directory-core/src/lib.rs` — re-export `refresh_blocks`, `refresh_block_refs_for_file`.
+- `crates/simple-directory-core/src/vault/scan.rs` — Pass 1 inline `refresh_blocks`; Pass 2 `refresh_block_refs_for_file` per source.
+- `crates/simple-directory-app/src/events.rs` — watcher: `refresh_blocks` + `refresh_block_refs_for_file` for the changed file.
+- `crates/simple-directory-app/src/api/types.rs` — `CreateBlockRef*`, `GetBrokenBlockRefs*`, `BrokenBlockRef` wire types.
+- `crates/simple-directory-app/src/commands/mod.rs` — `pub mod blocks;`.
+- `crates/simple-directory-app/src/lib.rs` — two shims + registration + type imports.
 - `ui/src/api/ipc.ts` — bindings for the two new commands.
 
 ---
@@ -79,13 +79,13 @@ A block id is `^` followed by `[A-Za-z_][A-Za-z0-9_-]*`. In source it appears at
 ### Task 1: Migration 005 — `blocks` + `block_refs` tables
 
 **Files:**
-- Create: `crates/cubical-index/migrations/005_blocks.sql`
-- Modify: `crates/cubical-index/src/migrations.rs`
-- Modify: `crates/cubical-index/src/runner.rs`
+- Create: `crates/simple-directory-index/migrations/005_blocks.sql`
+- Modify: `crates/simple-directory-index/src/migrations.rs`
+- Modify: `crates/simple-directory-index/src/runner.rs`
 
 - [ ] **Step 1: Write the migration SQL**
 
-Create `crates/cubical-index/migrations/005_blocks.sql`:
+Create `crates/simple-directory-index/migrations/005_blocks.sql`:
 
 ```sql
 -- Layer 3 block references. See docs/architecture/document-model.md §5.3
@@ -129,7 +129,7 @@ CREATE INDEX idx_block_refs_target ON block_refs(target_file_path, target_block_
 
 - [ ] **Step 2: Write the failing migration test**
 
-Add to the `#[cfg(test)] mod tests` in `crates/cubical-index/src/migrations.rs` (mirror `migration_004_creates_tags_table`):
+Add to the `#[cfg(test)] mod tests` in `crates/simple-directory-index/src/migrations.rs` (mirror `migration_004_creates_tags_table`):
 
 ```rust
 #[test]
@@ -149,12 +149,12 @@ fn migration_005_creates_blocks_tables() {
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `cargo test -p cubical-index migrations::tests::migration_005 -- --nocapture`
+Run: `cargo test -p simple-directory-index migrations::tests::migration_005 -- --nocapture`
 Expected: FAIL — the `005` migration isn't registered yet (`expect` panics).
 
 - [ ] **Step 4: Register the migration + bump the version**
 
-In `crates/cubical-index/src/migrations.rs`, append to the `MIGRATIONS` array (after the version-4 entry):
+In `crates/simple-directory-index/src/migrations.rs`, append to the `MIGRATIONS` array (after the version-4 entry):
 
 ```rust
     Migration {
@@ -163,17 +163,17 @@ In `crates/cubical-index/src/migrations.rs`, append to the `MIGRATIONS` array (a
     },
 ```
 
-In `crates/cubical-index/src/runner.rs`, change `const HIGHEST_KNOWN_VERSION: i64 = 4;` to `= 5;`.
+In `crates/simple-directory-index/src/runner.rs`, change `const HIGHEST_KNOWN_VERSION: i64 = 4;` to `= 5;`.
 
 - [ ] **Step 5: Run the migration + runner tests to verify they pass**
 
-Run: `cargo test -p cubical-index migrations:: runner::tests::fresh_db_applies_all_known_migrations -- --nocapture`
+Run: `cargo test -p simple-directory-index migrations:: runner::tests::fresh_db_applies_all_known_migrations -- --nocapture`
 Expected: PASS — `migration_005_creates_blocks_tables`, `migrations_are_in_strict_ascending_order`, and the fresh-db test (now asserting `schema_version == 5`) all green.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-index/migrations/005_blocks.sql crates/cubical-index/src/migrations.rs crates/cubical-index/src/runner.rs
+git add crates/simple-directory-index/migrations/005_blocks.sql crates/simple-directory-index/src/migrations.rs crates/simple-directory-index/src/runner.rs
 git commit -m "feat(index): migration 005 — blocks + block_refs tables"
 ```
 
@@ -182,16 +182,16 @@ git commit -m "feat(index): migration 005 — blocks + block_refs tables"
 ### Task 2: Block-id source scanner (pure)
 
 **Files:**
-- Create: `crates/cubical-core/src/vault/blocks.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs` (declare the module)
+- Create: `crates/simple-directory-core/src/vault/blocks.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs` (declare the module)
 
 - [ ] **Step 1: Declare the module**
 
-In `crates/cubical-core/src/vault/mod.rs`, add `pub mod blocks;` next to the existing `pub mod links;` / `pub mod tags;` declarations (read the file to match the exact style/ordering).
+In `crates/simple-directory-core/src/vault/mod.rs`, add `pub mod blocks;` next to the existing `pub mod links;` / `pub mod tags;` declarations (read the file to match the exact style/ordering).
 
 - [ ] **Step 2: Write the failing scanner tests**
 
-Create `crates/cubical-core/src/vault/blocks.rs` with the scanner's tests first (plus the public type, so it compiles to a failing assertion rather than a missing-symbol error):
+Create `crates/simple-directory-core/src/vault/blocks.rs` with the scanner's tests first (plus the public type, so it compiles to a failing assertion rather than a missing-symbol error):
 
 ```rust
 //! Block-id source scanning + per-file index refresh (L3 Session G,
@@ -202,7 +202,7 @@ Create `crates/cubical-core/src/vault/blocks.rs` with the scanner's tests first 
 
 use std::path::Path;
 
-use cubical_index::{replace_block_refs_for_file, replace_blocks_for_file, BlockRefRow, BlockRow};
+use simple_directory_index::{replace_block_refs_for_file, replace_blocks_for_file, BlockRefRow, BlockRow};
 
 use crate::vault::Vault;
 
@@ -265,10 +265,10 @@ mod tests {
 
 - [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-core vault::blocks::tests -- --nocapture`
-Expected: FAIL to compile — `extract_block_ids` does not exist (and the `cubical_index` block imports don't exist yet either; if compilation blocks on those imports, temporarily stub them — but Task 3 adds them, so prefer to implement Task 2's `extract_block_ids` body now and leave the `refresh_*` functions, which need Task 3's types, for Task 4. To keep Task 2 self-contained, **drop the `use cubical_index::...` line and the `Vault` import in this task** and add them in Task 4 when `refresh_blocks` lands.)
+Run: `cargo test -p simple-directory-core vault::blocks::tests -- --nocapture`
+Expected: FAIL to compile — `extract_block_ids` does not exist (and the `simple_directory_index` block imports don't exist yet either; if compilation blocks on those imports, temporarily stub them — but Task 3 adds them, so prefer to implement Task 2's `extract_block_ids` body now and leave the `refresh_*` functions, which need Task 3's types, for Task 4. To keep Task 2 self-contained, **drop the `use simple_directory_index::...` line and the `Vault` import in this task** and add them in Task 4 when `refresh_blocks` lands.)
 
-> Practical note: implement ONLY `extract_block_ids` + `BlockIdOccurrence` + the tests in this task. Remove the `cubical_index` / `Vault` imports for now (they belong to Task 4). This keeps the crate compiling.
+> Practical note: implement ONLY `extract_block_ids` + `BlockIdOccurrence` + the tests in this task. Remove the `simple_directory_index` / `Vault` imports for now (they belong to Task 4). This keeps the crate compiling.
 
 - [ ] **Step 4: Implement the scanner**
 
@@ -352,27 +352,27 @@ fn is_valid_block_id(id: &str) -> bool {
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-core vault::blocks::tests -- --nocapture`
-Expected: PASS (all five scanner tests). Also `cargo clippy -p cubical-core --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-core vault::blocks::tests -- --nocapture`
+Expected: PASS (all five scanner tests). Also `cargo clippy -p simple-directory-core --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/blocks.rs crates/cubical-core/src/vault/mod.rs
+git add crates/simple-directory-core/src/vault/blocks.rs crates/simple-directory-core/src/vault/mod.rs
 git commit -m "feat(core): block-id source scanner (fence-aware, end-of-line)"
 ```
 
 ---
 
-### Task 3: `cubical-index` block + block_ref queries
+### Task 3: `simple-directory-index` block + block_ref queries
 
 **Files:**
-- Create: `crates/cubical-index/src/blocks.rs`
-- Modify: `crates/cubical-index/src/lib.rs`
+- Create: `crates/simple-directory-index/src/blocks.rs`
+- Modify: `crates/simple-directory-index/src/lib.rs`
 
 - [ ] **Step 1: Declare the module + re-exports**
 
-In `crates/cubical-index/src/lib.rs`, add `mod blocks;` next to `mod links;` / `mod tags;`, and add a re-export block:
+In `crates/simple-directory-index/src/lib.rs`, add `mod blocks;` next to `mod links;` / `mod tags;`, and add a re-export block:
 
 ```rust
 pub use blocks::{
@@ -383,7 +383,7 @@ pub use blocks::{
 
 - [ ] **Step 2: Write the failing tests**
 
-Create `crates/cubical-index/src/blocks.rs` with imports + tests first (model the test scaffolding on `tags.rs`'s `open_test_index` + `seed_file`):
+Create `crates/simple-directory-index/src/blocks.rs` with imports + tests first (model the test scaffolding on `tags.rs`'s `open_test_index` + `seed_file`):
 
 ```rust
 //! Queries against the L3 `blocks` + `block_refs` tables (migration 005,
@@ -532,12 +532,12 @@ mod tests {
 
 - [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-index blocks::tests -- --nocapture`
+Run: `cargo test -p simple-directory-index blocks::tests -- --nocapture`
 Expected: FAIL to compile — the query functions don't exist.
 
 - [ ] **Step 4: Implement the queries**
 
-Add above the `tests` module in `crates/cubical-index/src/blocks.rs`. `replace_*` use delete-then-insert and execute on the caller's connection (participating in any open transaction), exactly like `tags::replace_tags_for_file`:
+Add above the `tests` module in `crates/simple-directory-index/src/blocks.rs`. `replace_*` use delete-then-insert and execute on the caller's connection (participating in any open transaction), exactly like `tags::replace_tags_for_file`:
 
 ```rust
 /// Replace all `blocks` rows for `file_path`. Delete-then-insert; runs
@@ -671,13 +671,13 @@ fn now_unix_secs() -> i64 {
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-index blocks::tests -- --nocapture`
-Expected: PASS (all four). Then `cargo test -p cubical-index` (no regressions) + `cargo clippy -p cubical-index --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-index blocks::tests -- --nocapture`
+Expected: PASS (all four). Then `cargo test -p simple-directory-index` (no regressions) + `cargo clippy -p simple-directory-index --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-index/src/blocks.rs crates/cubical-index/src/lib.rs
+git add crates/simple-directory-index/src/blocks.rs crates/simple-directory-index/src/lib.rs
 git commit -m "feat(index): blocks + block_refs queries (incl. broken-ref anti-join)"
 ```
 
@@ -686,17 +686,17 @@ git commit -m "feat(index): blocks + block_refs queries (incl. broken-ref anti-j
 ### Task 4: `refresh_blocks` + `refresh_block_refs_for_file` (core)
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/blocks.rs`
-- Modify: `crates/cubical-core/src/lib.rs`
+- Modify: `crates/simple-directory-core/src/vault/blocks.rs`
+- Modify: `crates/simple-directory-core/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the `tests` module in `crates/cubical-core/src/vault/blocks.rs` (these need a `Vault` + a markdown file on disk + a `files` row, since the FKs require it — model the setup on `links.rs`'s refresh tests; read them to copy the `Vault::open` + scan-or-seed pattern):
+Add to the `tests` module in `crates/simple-directory-core/src/vault/blocks.rs` (these need a `Vault` + a markdown file on disk + a `files` row, since the FKs require it — model the setup on `links.rs`'s refresh tests; read them to copy the `Vault::open` + scan-or-seed pattern):
 
 ```rust
 #[tokio::test]
 async fn refresh_blocks_populates_rows_from_source() {
-    use cubical_index::blocks_for_file;
+    use simple_directory_index::blocks_for_file;
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path().join("a.md");
     std::fs::write(&p, "first para ^one\n\nsecond ^two\n").unwrap();
@@ -715,7 +715,7 @@ async fn refresh_blocks_populates_rows_from_source() {
 
 #[tokio::test]
 async fn refresh_block_refs_derives_from_resolved_block_links() {
-    use cubical_index::{broken_block_refs, replace_blocks_for_file, BlockRow};
+    use simple_directory_index::{broken_block_refs, replace_blocks_for_file, BlockRow};
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("src.md"), "see [[tgt#^present]] and [[tgt#^gone]]\n").unwrap();
     std::fs::write(dir.path().join("tgt.md"), "body ^present\n").unwrap();
@@ -738,17 +738,17 @@ async fn refresh_block_refs_derives_from_resolved_block_links() {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `cargo test -p cubical-core vault::blocks::tests::refresh_blocks_populates_rows_from_source -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::blocks::tests::refresh_blocks_populates_rows_from_source -- --nocapture`
 Expected: FAIL to compile — `refresh_blocks` does not exist.
 
 - [ ] **Step 3: Implement the refresh helpers**
 
-At the top of `crates/cubical-core/src/vault/blocks.rs`, restore the imports and add the functions (above `extract_block_ids`):
+At the top of `crates/simple-directory-core/src/vault/blocks.rs`, restore the imports and add the functions (above `extract_block_ids`):
 
 ```rust
 use std::path::Path;
 
-use cubical_index::{
+use simple_directory_index::{
     replace_block_refs_for_file, replace_blocks_for_file, BlockRefRow, BlockRow,
 };
 
@@ -830,21 +830,21 @@ pub async fn refresh_block_refs_for_file(
 }
 ```
 
-`map_index_err` already exists in `links.rs` (it maps `cubical_index::IndexError` → `libsql::Error`). Either make it `pub(crate)` in `links.rs` and `use crate::vault::links::map_index_err;`, or copy the tiny function into `blocks.rs`. Prefer widening it to `pub(crate)` (DRY).
+`map_index_err` already exists in `links.rs` (it maps `simple_directory_index::IndexError` → `libsql::Error`). Either make it `pub(crate)` in `links.rs` and `use crate::vault::links::map_index_err;`, or copy the tiny function into `blocks.rs`. Prefer widening it to `pub(crate)` (DRY).
 
-- [ ] **Step 4: Re-export from `cubical_core`**
+- [ ] **Step 4: Re-export from `simple_directory_core`**
 
-In `crates/cubical-core/src/lib.rs`, add `refresh_blocks, refresh_block_refs_for_file` to the `pub use vault::{ … }` re-export list (line ~20–21, alongside `refresh_links`).
+In `crates/simple-directory-core/src/lib.rs`, add `refresh_blocks, refresh_block_refs_for_file` to the `pub use vault::{ … }` re-export list (line ~20–21, alongside `refresh_links`).
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-core vault::blocks -- --nocapture`
-Expected: `refresh_blocks_populates_rows_from_source` PASSES now. (`refresh_block_refs_derives_from_resolved_block_links` passes after Task 5 — if you `#[ignore]`d it, it stays ignored until then.) `cargo clippy -p cubical-core --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-core vault::blocks -- --nocapture`
+Expected: `refresh_blocks_populates_rows_from_source` PASSES now. (`refresh_block_refs_derives_from_resolved_block_links` passes after Task 5 — if you `#[ignore]`d it, it stays ignored until then.) `cargo clippy -p simple-directory-core --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/blocks.rs crates/cubical-core/src/vault/links.rs crates/cubical-core/src/lib.rs
+git add crates/simple-directory-core/src/vault/blocks.rs crates/simple-directory-core/src/vault/links.rs crates/simple-directory-core/src/lib.rs
 git commit -m "feat(core): refresh_blocks + refresh_block_refs_for_file"
 ```
 
@@ -853,11 +853,11 @@ git commit -m "feat(core): refresh_blocks + refresh_block_refs_for_file"
 ### Task 5: Wire blocks into the scan
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/scan.rs`
+- Modify: `crates/simple-directory-core/src/vault/scan.rs`
 
 - [ ] **Step 1: Import the new helpers**
 
-In `crates/cubical-core/src/vault/scan.rs`, extend the `use crate::vault::{ … }` block to include the blocks helpers:
+In `crates/simple-directory-core/src/vault/scan.rs`, extend the `use crate::vault::{ … }` block to include the blocks helpers:
 
 ```rust
     blocks::{refresh_block_refs_for_file, refresh_blocks},
@@ -897,13 +897,13 @@ If you added `#[ignore]` to `refresh_block_refs_derives_from_resolved_block_link
 
 - [ ] **Step 5: Run the scan + blocks tests**
 
-Run: `cargo test -p cubical-core vault::scan vault::blocks -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::scan vault::blocks -- --nocapture`
 Expected: PASS — including `refresh_block_refs_derives_from_resolved_block_links` (one broken ref for `gone`), and every pre-existing scan test (links/tags/frontmatter/cancellation) still green.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/scan.rs crates/cubical-core/src/vault/blocks.rs
+git add crates/simple-directory-core/src/vault/scan.rs crates/simple-directory-core/src/vault/blocks.rs
 git commit -m "feat(core): populate blocks (Pass 1) + block_refs (Pass 2) in scan"
 ```
 
@@ -912,11 +912,11 @@ git commit -m "feat(core): populate blocks (Pass 1) + block_refs (Pass 2) in sca
 ### Task 6: Wire blocks into the watcher
 
 **Files:**
-- Modify: `crates/cubical-app/src/events.rs`
+- Modify: `crates/simple-directory-app/src/events.rs`
 
 - [ ] **Step 1: Import the helpers**
 
-In `crates/cubical-app/src/events.rs`, extend the `cubical_core` import (line ~18, currently `refresh_frontmatter, refresh_links, refresh_tags, scan, ScanProgress, Vault, VaultError`) to add `refresh_block_refs_for_file, refresh_blocks`.
+In `crates/simple-directory-app/src/events.rs`, extend the `simple_directory_core` import (line ~18, currently `refresh_frontmatter, refresh_links, refresh_tags, scan, ScanProgress, Vault, VaultError`) to add `refresh_block_refs_for_file, refresh_blocks`.
 
 - [ ] **Step 2: Refresh blocks + block_refs on the single-file path**
 
@@ -935,13 +935,13 @@ In `apply_watch_event_to_db` (around lines 378–393), after the `refresh_tags(.
 
 - [ ] **Step 3: Build + run the app crate tests**
 
-Run: `cargo build -p cubical-app && cargo test -p cubical-app events -- --nocapture`
+Run: `cargo build -p simple-directory-app && cargo test -p simple-directory-app events -- --nocapture`
 Expected: clean build; existing watcher tests still pass. (No new test here — the helpers are unit-tested in core; this is wiring. If `events.rs` has a watcher integration test that asserts on links/tags after an edit, confirm it still passes.)
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/events.rs
+git add crates/simple-directory-app/src/events.rs
 git commit -m "feat(app): watcher refreshes blocks + block_refs on edits"
 ```
 
@@ -950,13 +950,13 @@ git commit -m "feat(app): watcher refreshes blocks + block_refs on edits"
 ### Task 7: `create_block_ref` command (mint + persist)
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
-- Create: `crates/cubical-app/src/commands/blocks.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
+- Create: `crates/simple-directory-app/src/commands/blocks.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
 
 - [ ] **Step 1: Add wire types**
 
-In `crates/cubical-app/src/api/types.rs`, after the autocomplete section:
+In `crates/simple-directory-app/src/api/types.rs`, after the autocomplete section:
 
 ```rust
 // -- create_block_ref / get_broken_block_refs (L3 Session G) -------------
@@ -1008,9 +1008,9 @@ pub struct BrokenBlockRefDto {
 
 - [ ] **Step 2: Register the module + write failing tests**
 
-In `crates/cubical-app/src/commands/mod.rs`, add `pub mod blocks;` (alphabetical, before `links`).
+In `crates/simple-directory-app/src/commands/mod.rs`, add `pub mod blocks;` (alphabetical, before `links`).
 
-Create `crates/cubical-app/src/commands/blocks.rs` with module doc + tests first (copy the `fresh_state_with_vault` helper from `commands/autocomplete.rs` or `commands/tags.rs`):
+Create `crates/simple-directory-app/src/commands/blocks.rs` with module doc + tests first (copy the `fresh_state_with_vault` helper from `commands/autocomplete.rs` or `commands/tags.rs`):
 
 ```rust
 //! Pure handlers for L3 block references (Session G):
@@ -1022,7 +1022,7 @@ Create `crates/cubical-app/src/commands/blocks.rs` with module doc + tests first
 mod tests {
     use super::*;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
+    use simple_directory_core::Vault;
     use tempfile::{tempdir, TempDir};
     use tokio_util::sync::CancellationToken;
 
@@ -1062,7 +1062,7 @@ mod tests {
         assert!(src.lines().next().unwrap().ends_with(&format!("^{id}")), "src was: {src:?}");
 
         // And a blocks row was persisted.
-        let exists = cubical_index::block_exists(vault.index(), "a.md", &id).await.unwrap();
+        let exists = simple_directory_index::block_exists(vault.index(), "a.md", &id).await.unwrap();
         assert!(exists);
     }
 
@@ -1090,7 +1090,7 @@ mod tests {
         std::fs::write(dir.path().join("tgt.md"), "body\n").unwrap();
         let (vault, state) = state_with_vault_at(dir.path(), "v1").await;
         let (tx, _rx) = tokio::sync::mpsc::channel(8);
-        cubical_core::vault::scan(vault.clone(), CancellationToken::new(), tx).await.unwrap();
+        simple_directory_core::vault::scan(vault.clone(), CancellationToken::new(), tx).await.unwrap();
 
         let resp = get_broken_block_refs(
             &state,
@@ -1106,23 +1106,23 @@ mod tests {
 
 - [ ] **Step 3: Run to verify failure**
 
-Run: `cargo test -p cubical-app commands::blocks -- --nocapture`
+Run: `cargo test -p simple-directory-app commands::blocks -- --nocapture`
 Expected: FAIL to compile — handlers undefined.
 
 - [ ] **Step 4: Implement the handlers**
 
-Add at the top of `crates/cubical-app/src/commands/blocks.rs`:
+Add at the top of `crates/simple-directory-app/src/commands/blocks.rs`:
 
 ```rust
-use cubical_core::vault::blocks::refresh_blocks;
-use cubical_index::{broken_block_refs, BlockRow};
+use simple_directory_core::vault::blocks::refresh_blocks;
+use simple_directory_index::{broken_block_refs, BlockRow};
 use sha2::{Digest, Sha256};
 
 use crate::api::types::{
     BrokenBlockRefDto, CreateBlockRefRequest, CreateBlockRefResponse, GetBrokenBlockRefsRequest,
     GetBrokenBlockRefsResponse,
 };
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// Lazily mint (or reuse) a block id on the line at `position` in
@@ -1132,30 +1132,30 @@ use crate::state::AppState;
 pub async fn create_block_ref(
     state: &AppState,
     req: CreateBlockRefRequest,
-) -> Result<CreateBlockRefResponse, CubicalError> {
+) -> Result<CreateBlockRefResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
     let vault = open.vault.clone();
     drop(guard);
 
     let abs = vault.root().join(&req.target_path);
     let source = tokio::fs::read_to_string(&abs)
         .await
-        .map_err(|e| CubicalError::Io(e.to_string()))?;
+        .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
 
     let (new_source, block_id) = mint_block_id(&source, req.position, &req.target_path);
     if new_source != source {
         tokio::fs::write(&abs, &new_source)
             .await
-            .map_err(|e| CubicalError::Io(e.to_string()))?;
+            .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
     }
     // Persist the blocks row immediately so resolution doesn't wait on
     // the watcher. (The watcher echo will re-refresh; replace is idempotent.)
     refresh_blocks(&vault, &abs, &req.target_path)
         .await
-        .map_err(|e| CubicalError::Io(e.to_string()))?;
+        .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
 
     Ok(CreateBlockRefResponse { block_id })
 }
@@ -1244,11 +1244,11 @@ fn unique_id(path: &str, position: u64, existing: &[String]) -> String {
 pub async fn get_broken_block_refs(
     state: &AppState,
     req: GetBrokenBlockRefsRequest,
-) -> Result<GetBrokenBlockRefsResponse, CubicalError> {
+) -> Result<GetBrokenBlockRefsResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
     let broken = broken_block_refs(open.vault.index()).await?;
     let refs = broken
         .into_iter()
@@ -1263,20 +1263,20 @@ pub async fn get_broken_block_refs(
 ```
 
 > **Verify these against the real source before relying on them:**
-> - `CubicalError` variant for I/O — the template uses `CubicalError::Io(String)`. Open `crates/cubical-app/src/error.rs` and use the actual I/O variant (it may be named differently or wrap `std::io::Error`). If there is none, the existing `write_file_text` handler in `commands/vault.rs` shows how file-write errors are mapped — mirror that.
-> - `vault.root()` — confirm the accessor that returns the vault's root `&Path` (used to build the absolute path). Check `cubical_core::Vault`'s public methods; `scan.rs` uses `vault.root()`.
+> - `SimpleDirectoryError` variant for I/O — the template uses `SimpleDirectoryError::Io(String)`. Open `crates/simple-directory-app/src/error.rs` and use the actual I/O variant (it may be named differently or wrap `std::io::Error`). If there is none, the existing `write_file_text` handler in `commands/vault.rs` shows how file-write errors are mapped — mirror that.
+> - `vault.root()` — confirm the accessor that returns the vault's root `&Path` (used to build the absolute path). Check `simple_directory_core::Vault`'s public methods; `scan.rs` uses `vault.root()`.
 > - `BlockRow` import is only needed if you reference it; trim unused imports to satisfy clippy.
-> - `?` on `broken_block_refs(...)` relies on `From<IndexError> for CubicalError` (the same impl `query_tag_page` uses).
+> - `?` on `broken_block_refs(...)` relies on `From<IndexError> for SimpleDirectoryError` (the same impl `query_tag_page` uses).
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-app commands::blocks -- --nocapture`
-Expected: PASS (all three). Then `cargo clippy -p cubical-app --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-app commands::blocks -- --nocapture`
+Expected: PASS (all three). Then `cargo clippy -p simple-directory-app --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs crates/cubical-app/src/commands/blocks.rs crates/cubical-app/src/commands/mod.rs
+git add crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/commands/blocks.rs crates/simple-directory-app/src/commands/mod.rs
 git commit -m "feat(app): create_block_ref + get_broken_block_refs handlers"
 ```
 
@@ -1285,12 +1285,12 @@ git commit -m "feat(app): create_block_ref + get_broken_block_refs handlers"
 ### Task 8: Tauri shims + registration + IPC bindings
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 - Modify: `ui/src/api/ipc.ts`
 
 - [ ] **Step 1: Import types + add shims**
 
-In `crates/cubical-app/src/lib.rs`, add to the `use crate::api::types::{ … }` block:
+In `crates/simple-directory-app/src/lib.rs`, add to the `use crate::api::types::{ … }` block:
 
 ```rust
     CreateBlockRefRequest, CreateBlockRefResponse, GetBrokenBlockRefsRequest,
@@ -1305,7 +1305,7 @@ Add the shims after the autocomplete shims:
 async fn create_block_ref(
     state: tauri::State<'_, AppState>,
     req: CreateBlockRefRequest,
-) -> Result<CreateBlockRefResponse, CubicalError> {
+) -> Result<CreateBlockRefResponse, SimpleDirectoryError> {
     commands::blocks::create_block_ref(state.inner(), req).await
 }
 
@@ -1314,7 +1314,7 @@ async fn create_block_ref(
 async fn get_broken_block_refs(
     state: tauri::State<'_, AppState>,
     req: GetBrokenBlockRefsRequest,
-) -> Result<GetBrokenBlockRefsResponse, CubicalError> {
+) -> Result<GetBrokenBlockRefsResponse, SimpleDirectoryError> {
     commands::blocks::get_broken_block_refs(state.inner(), req).await
 }
 ```
@@ -1328,7 +1328,7 @@ Register both in `generate_handler![…]` (after `tag_autocomplete,`):
 
 - [ ] **Step 2: Build to verify wiring**
 
-Run: `cargo build -p cubical-app`
+Run: `cargo build -p simple-directory-app`
 Expected: clean (the macro fails loudly on a missing name or a non-Serde type).
 
 - [ ] **Step 3: Add the frontend IPC bindings**
@@ -1393,7 +1393,7 @@ Expected: clean (bindings unused for now — that's fine; the surfacing UI is th
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs ui/src/api/ipc.ts
+git add crates/simple-directory-app/src/lib.rs ui/src/api/ipc.ts
 git commit -m "feat: register block-ref Tauri commands + IPC bindings"
 ```
 
@@ -1418,7 +1418,7 @@ Expected: all clean. (vitest count unchanged — no UI logic added; the chunk-si
 - [ ] **Step 3: Real-app smoke (best-effort)**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open ~/Developer/sandbox/vault.
 #  - In the dev console / via a temporary call, invoke create_block_ref
 #    on a note + position; confirm `^id` appears in the .md on disk and

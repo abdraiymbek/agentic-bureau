@@ -19,7 +19,7 @@ that *would* lean on the registry.
 > extractor applies **file-existence-wins precedence**: a cross-file property-ref
 > whose reconstructed dotted target resolves to a real file is indexed as a
 > wiki-link, and renaming that file rewrites the whole `[[…]]` token
-> (`crates/cubical-core/src/vault/links.rs::keeps_link_row` +
+> (`crates/simple-directory-core/src/vault/links.rs::keeps_link_row` +
 > `pending.rs::rewrite_wiki_link`). Genuine property-refs (no matching file) are
 > still left for this feature. **When interpolation resolution runs, it must
 > respect this precedence** (or consciously override it): if `note.prop.md`
@@ -32,12 +32,12 @@ that *would* lean on the registry.
 
 A user writing a note — say a D&D character — wants to refer to a structured
 value (`age`, `hp`, `alignment`) without copying the literal number into
-prose, so the prose stays correct when the value changes. Today Cubical has
+prose, so the prose stays correct when the value changes. Today simple.directory has
 no inline single-value interpolation: **Dataview** queries *across* files and
 renders whole `LIST`/`TABLE`/`COUNT` blocks ([`ui/src/editor/dataview.ts`](../../../ui/src/editor/dataview.ts)),
 and **wiki-links** navigate but don't surface values. This feature fills the
 gap: pull one frontmatter scalar and splice it inline, read-only, at display
-time. Cubical's own docs already anticipated it — the inline-comments spec
+time. simple.directory's own docs already anticipated it — the inline-comments spec
 lists "Dataview-driven / computed dynamic properties" as a desired follow-up.
 
 It honors the non-negotiables: interpolation is a **display-time** transform.
@@ -94,7 +94,7 @@ as their own thing.
 ### 3.2 Tokenizer branch (Rust + TS, parity)
 
 The wiki-link tokenizer runs in both
-[`crates/cubical-ast/src/wikilink.rs`](../../../crates/cubical-ast/src/wikilink.rs)
+[`crates/simple-directory-ast/src/wikilink.rs`](../../../crates/simple-directory-ast/src/wikilink.rs)
 and [`ui/src/ast/wikilink.ts`](../../../ui/src/ast/wikilink.ts), kept in
 lockstep by parity fixtures. Inside `[[ ]]`: if the target contains a dot,
 branch to `PropertyRef` (split at first dot; no anchor parsing). Otherwise
@@ -111,7 +111,7 @@ thrash — resolve at render time, the way the link/embed layers already do.
   the key, re-render on the normal AST tick. Trivial reactivity.
 - **Cross-file:** resolve the note name via the existing wiki-link resolver
   ([`ui/src/editor/wikilinkResolver.ts`](../../../ui/src/editor/wikilinkResolver.ts)
-  → `crates/cubical-core/src/vault/links.rs` `resolve_target`) to a path,
+  → `crates/simple-directory-core/src/vault/links.rs` `resolve_target`) to a path,
   then fetch + cache that file's frontmatter and **invalidate on its
   change events** following the embed pattern in
   [`ui/src/editor/embedResolver.ts`](../../../ui/src/editor/embedResolver.ts).
@@ -150,8 +150,8 @@ branch or immediately after.
 ## 5. Dotted filenames — the trade
 
 Dot-as-separator means a note named `2026.06.20.md` can't be `[[ ]]`-linked by
-name. Cubical can't *prevent* such files existing (external tools, byte-for-byte
-vault), so the rule is enforced only where Cubical can: the **UI blocks
+name. simple.directory can't *prevent* such files existing (external tools, byte-for-byte
+vault), so the rule is enforced only where simple.directory can: the **UI blocks
 creating new dotted note names and flags existing ones** (§3.6); the **linker
 treats every dot as a property separator**. Dotted notes still open via tree
 and search — they're just not plain-link targets. Accepted deliberately in

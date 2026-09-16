@@ -39,6 +39,6 @@ echo "==> build";        ( cd ui && npm run build )
 echo "==> cargo fmt";    cargo fmt --all --check
 echo "==> cargo clippy"; cargo clippy --workspace --all-targets -- -D warnings
 echo "==> cargo test";   cargo test --workspace
-echo "==> perf";         python3 scripts/gates/perf.py   # opt-in: CUBICAL_PERF=1
+echo "==> perf";         python3 scripts/gates/perf.py   # opt-in: SIMPLE_DIRECTORY_PERF=1
 echo
 echo "All gates green."

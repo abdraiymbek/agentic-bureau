@@ -622,7 +622,7 @@ const Properties: Component<PropertiesProps> = (props) => {
                   color: "var(--c-warning)",
                 }}
               >
-                Cubical can't safely edit this frontmatter (it uses anchors or
+                simple.directory can't safely edit this frontmatter (it uses anchors or
                 aliases).
               </p>
               <pre

@@ -41,7 +41,7 @@ export function supportsSourceView(kind: ViewerKind): boolean {
 
 const EDITABLE_TEXT_EXTENSIONS = new Set(["txt", "text", "log"]);
 
-// Pairs with editable_as_text in cubical-engine — docs/implementation/frontend.md
+// Pairs with editable_as_text in simple-directory-engine — docs/implementation/frontend.md
 export function isEditableText(path: string): boolean {
   return EDITABLE_TEXT_EXTENSIONS.has(extensionOf(path));
 }

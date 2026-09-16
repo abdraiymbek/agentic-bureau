@@ -9,7 +9,7 @@
 > **Operator:** [your identifier]
 > **Date:** [YYYY-MM-DD]
 > **Build commit:** [`git rev-parse HEAD`]
-> **Vault:** `~/Developer/sandbox/cubical-l4a-smoke/`
+> **Vault:** `~/Developer/sandbox/simple-directory-l4a-smoke/`
 >
 > Convention: each step has an expected outcome and a blank line
 > for the actual observation. Mark `[x]` after passing.
@@ -21,7 +21,7 @@
 - [ ] Run `cargo tauri dev`. Native window opens within 60s.
   Observation:
 
-- [ ] File menu → Open Vault → `~/Developer/sandbox/cubical-l4a-smoke/`.
+- [ ] File menu → Open Vault → `~/Developer/sandbox/simple-directory-l4a-smoke/`.
   File tree populates with A.md, B.md, C.md, plus L3 + L4-A test
   files (`Aliased Note.md`, `code/rust_examples.md`,
   `code/python_examples.md`, `data/frontmatter_rich.md`, and L3
@@ -41,7 +41,7 @@
   Observation:
 
 - [ ] In an external terminal:
-  `echo "external edit" >> ~/Developer/sandbox/cubical-l4a-smoke/A.md`
+  `echo "external edit" >> ~/Developer/sandbox/simple-directory-l4a-smoke/A.md`
   Within ~2s: `vault:file-changed` surfaces (conflict banner, OR
   editor reloads silently if buffer was clean).
   Observation:
@@ -137,7 +137,7 @@
 - [ ] **Recipe 3 — field-scoped on headings.** `text: 'examples'`, `fields: { kind: 'headings_only' }`. Hits on rust + python examples.
   Observation:
 
-- [ ] **Recipe 4 — field-scoped on tags.** `text: 'anything'`, `fields: { kind: 'tags', tags: ['project/cubical'] }`. Hits on `data/frontmatter_rich.md`.
+- [ ] **Recipe 4 — field-scoped on tags.** `text: 'anything'`, `fields: { kind: 'tags', tags: ['project/simple-directory'] }`. Hits on `data/frontmatter_rich.md`.
   Observation:
 
 - [ ] **Recipe 5 — fuzzy.** `text: 'tantvy'`, `fuzzy: true`, default fields. Hits on `code/python_examples.md`.
@@ -156,7 +156,7 @@
   Observation:
 
 - [ ] **Recipe 10 — watcher fan-out.** In external terminal:
-  `echo "# Smoke test" > ~/Developer/sandbox/cubical-l4a-smoke/smoke_test.md`
+  `echo "# Smoke test" > ~/Developer/sandbox/simple-directory-l4a-smoke/smoke_test.md`
   Within 2s, `search({ text: 'smoke' })` returns 1 hit. Then
   `rm` the file; within 2s, query returns 0 hits.
   Observation:

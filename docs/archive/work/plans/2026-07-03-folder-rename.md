@@ -8,7 +8,7 @@
 
 **Architecture:** Extract `rename_file`'s per-file FK-rekey logic into three shared functions (referrer collection, in-transaction rekey, in-transaction referrer enqueue). `rename_file` calls them once, behaviorally unchanged. A new `rename_folder` command calls them once per file under the old prefix, inside one transaction covering the whole subtree, then moves the directory on disk as a single atomic operation.
 
-**Tech Stack:** Rust (`cubical-engine`), Solid.js/TypeScript (`ui/src/App.tsx`, `ui/src/fileRename.ts`, `ui/src/api/ipc.ts`).
+**Tech Stack:** Rust (`simple-directory-engine`), Solid.js/TypeScript (`ui/src/App.tsx`, `ui/src/fileRename.ts`, `ui/src/api/ipc.ts`).
 
 ## Global Constraints
 
@@ -25,7 +25,7 @@
 ### Task 1: Extract shared per-file rename primitives (regression-safe refactor)
 
 **Files:**
-- Modify: `crates/cubical-engine/src/commands/rename.rs`
+- Modify: `crates/simple-directory-engine/src/commands/rename.rs`
 
 **Interfaces:**
 - Produces: three new private functions in `rename.rs` — `collect_referrers`, `rekey_file_in_tx`, `enqueue_referrers_in_tx` (exact signatures below). Task 2 calls all three; `rename_file` (refactored in this task) calls all three too.
@@ -50,7 +50,7 @@ async fn collect_referrers(
     conn: &libsql::Connection,
     from_path: &str,
     rewrite_broken: bool,
-) -> Result<Vec<(String, String)>, CubicalError> {
+) -> Result<Vec<(String, String)>, SimpleDirectoryError> {
     let mut referrers: Vec<(String, String)> = {
         let mut rows = conn
             .query(
@@ -86,7 +86,7 @@ async fn rekey_file_in_tx(
     from_path: &str,
     to_path: &str,
     rewrite_broken: bool,
-) -> Result<(), CubicalError> {
+) -> Result<(), SimpleDirectoryError> {
     for (table, column) in [
         ("links", "source_path"),
         ("tags", "file_path"),
@@ -139,7 +139,7 @@ async fn enqueue_referrers_in_tx(
     referrers: &[(String, String)],
     now: i64,
     rename_op_id: i64,
-) -> Result<Vec<String>, CubicalError> {
+) -> Result<Vec<String>, SimpleDirectoryError> {
     let mut touched = Vec::with_capacity(referrers.len());
     for (source_path, target_raw) in referrers {
         let new_token = derive_wikilink_new_token(target_raw, from_path, to_path);
@@ -168,9 +168,9 @@ pub async fn rename_file(
     state: &AppState,
     app: &dyn EventSink,
     req: RenameFileRequest,
-) -> Result<RenameFileResponse, CubicalError> {
+) -> Result<RenameFileResponse, SimpleDirectoryError> {
     if req.from_path == req.to_path {
-        return Err(CubicalError::InvalidRequest("from_path == to_path".into()));
+        return Err(SimpleDirectoryError::InvalidRequest("from_path == to_path".into()));
     }
     let (vault, flush_own_writes, _flush_in_progress) =
         clone_vault_with_flush_state(state, &req.vault_id).await?;
@@ -179,13 +179,13 @@ pub async fn rename_file(
     let from_abs = vault.root().join(&req.from_path);
     let to_abs = vault.root().join(&req.to_path);
     if to_abs.exists() {
-        return Err(CubicalError::InvalidRequest(format!(
+        return Err(SimpleDirectoryError::InvalidRequest(format!(
             "destination path already exists: {}",
             req.to_path
         )));
     }
     if !path_tracked(conn, &req.from_path).await? {
-        return Err(CubicalError::FileNotFound(req.from_path.clone()));
+        return Err(SimpleDirectoryError::FileNotFound(req.from_path.clone()));
     }
 
     let rewrite_broken =
@@ -216,23 +216,23 @@ pub async fn rename_file(
     // from_path) that the next watcher tick will surface; surface as
     // Io for the caller to retry.
     if let Some(parent) = to_abs.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| CubicalError::Io(e.to_string()))?;
+        std::fs::create_dir_all(parent).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
     }
     if let Err(e) = std::fs::rename(&from_abs, &to_abs) {
         if e.raw_os_error() == Some(18) {
-            let bytes = std::fs::read(&from_abs).map_err(|e| CubicalError::Io(e.to_string()))?;
-            atomic_write(&to_abs, &bytes).map_err(|e| CubicalError::Io(e.to_string()))?;
-            std::fs::remove_file(&from_abs).map_err(|e| CubicalError::Io(e.to_string()))?;
+            let bytes = std::fs::read(&from_abs).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
+            atomic_write(&to_abs, &bytes).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
+            std::fs::remove_file(&from_abs).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
         } else {
-            return Err(CubicalError::Io(e.to_string()));
+            return Err(SimpleDirectoryError::Io(e.to_string()));
         }
     }
 
     // Durably journal the rename so an index wipe before flush can't
     // strand referrer links (design 2026-06-27).
-    if let Err(e) = cubical_core::vault::rename_journal::append_entry(
+    if let Err(e) = simple_directory_core::vault::rename_journal::append_entry(
         vault.root(),
-        &cubical_core::vault::rename_journal::RenameJournalEntry {
+        &simple_directory_core::vault::rename_journal::RenameJournalEntry {
             op_id: rename_op_id,
             kind: "file".into(),
             from: req.from_path.clone(),
@@ -249,8 +249,8 @@ pub async fn rename_file(
         move || std::fs::read_to_string(&to_abs)
     })
     .await
-    .map_err(|e| CubicalError::Io(format!("re-extract read join error: {e}")))?
-    .map_err(|e| CubicalError::Io(e.to_string()))?;
+    .map_err(|e| SimpleDirectoryError::Io(format!("re-extract read join error: {e}")))?
+    .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
     let _ = refresh_frontmatter(&vault, &req.to_path, &on_disk).await;
     let _ = refresh_links(&vault, &req.to_path, &on_disk).await;
     let _ = refresh_tags(&vault, &req.to_path, &on_disk).await;
@@ -298,14 +298,14 @@ Note what changed vs. the original: the referrer SELECT now goes through `collec
 
 - [ ] **Step 3: Run `rename_file`'s existing test suite to verify no regression**
 
-Run: `cargo test -p cubical-engine rename_file`
+Run: `cargo test -p simple-directory-engine rename_file`
 Expected: all 9 existing tests pass (`rename_file_enqueues_one_row_per_distinct_referrer_pair`, `rename_file_round_trip_cancels_pending_rows`, `rename_file_chained_coalesces_into_single_row`, `rename_file_keeps_search_index_in_sync`, `rename_file_appends_durability_journal`, `rename_file_explicit_rekeys_fk_tables_to_new_path`, `rename_file_moves_the_file_on_disk`, `rename_file_rejects_same_path_and_existing_destination`, `rename_file_links_target_path_rekeys_too`).
 
 If any fail, the refactor introduced a behavior change — do not proceed to Task 2 until every one of these passes exactly as it did before this task.
 
 - [ ] **Step 4: Run the full engine test suite**
 
-Run: `cargo test -p cubical-engine`
+Run: `cargo test -p simple-directory-engine`
 Expected: all tests pass (no regressions elsewhere — `rename_tag`/`rename_block_id`/flush tests etc. don't touch the refactored code path, but confirm anyway).
 
 - [ ] **Step 5: fmt + clippy**
@@ -316,7 +316,7 @@ Expected: no diff from fmt, no clippy warnings.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-engine/src/commands/rename.rs
+git add crates/simple-directory-engine/src/commands/rename.rs
 git commit -m "$(cat <<'EOF'
 refactor(engine): extract rename_file's per-file rekey into shared fns
 
@@ -336,17 +336,17 @@ EOF
 ### Task 2: `rename_folder` command + types + Tauri wiring + Rust tests
 
 **Files:**
-- Modify: `crates/cubical-engine/src/api/types.rs` (add `RenameFolderRequest`/`RenameFolderResponse`)
-- Modify: `crates/cubical-engine/src/commands/rename.rs` (add `rename_folder`, tests)
-- Modify: `crates/cubical-app/src/lib.rs` (register the Tauri shim)
+- Modify: `crates/simple-directory-engine/src/api/types.rs` (add `RenameFolderRequest`/`RenameFolderResponse`)
+- Modify: `crates/simple-directory-engine/src/commands/rename.rs` (add `rename_folder`, tests)
+- Modify: `crates/simple-directory-app/src/lib.rs` (register the Tauri shim)
 
 **Interfaces:**
-- Consumes: `collect_referrers(conn, from_path, rewrite_broken) -> Result<Vec<(String,String)>, CubicalError>`, `rekey_file_in_tx(tx, from_path, to_path, rewrite_broken) -> Result<(), CubicalError>`, `enqueue_referrers_in_tx(tx, from_path, to_path, referrers, now, rename_op_id) -> Result<Vec<String>, CubicalError>` — all from Task 1.
-- Produces: `pub async fn rename_folder(state: &AppState, app: &dyn EventSink, req: RenameFolderRequest) -> Result<RenameFolderResponse, CubicalError>`. Task 3's frontend `renameFolder` IPC wrapper calls this via the Tauri shim.
+- Consumes: `collect_referrers(conn, from_path, rewrite_broken) -> Result<Vec<(String,String)>, SimpleDirectoryError>`, `rekey_file_in_tx(tx, from_path, to_path, rewrite_broken) -> Result<(), SimpleDirectoryError>`, `enqueue_referrers_in_tx(tx, from_path, to_path, referrers, now, rename_op_id) -> Result<Vec<String>, SimpleDirectoryError>` — all from Task 1.
+- Produces: `pub async fn rename_folder(state: &AppState, app: &dyn EventSink, req: RenameFolderRequest) -> Result<RenameFolderResponse, SimpleDirectoryError>`. Task 3's frontend `renameFolder` IPC wrapper calls this via the Tauri shim.
 
 - [ ] **Step 1: Add `RenameFolderRequest`/`RenameFolderResponse`**
 
-In `crates/cubical-engine/src/api/types.rs`, insert immediately after the `RenameFileResponse` struct (after its closing `}`, before the `/// Request payload for \`rename_tag\`.` doc comment):
+In `crates/simple-directory-engine/src/api/types.rs`, insert immediately after the `RenameFileResponse` struct (after its closing `}`, before the `/// Request payload for \`rename_tag\`.` doc comment):
 
 ```rust
 /// Request payload for `rename_folder`.
@@ -372,7 +372,7 @@ pub struct RenameFolderResponse {
 
 - [ ] **Step 2: Write the failing tests**
 
-In `crates/cubical-engine/src/commands/rename.rs`, inside `mod tests`:
+In `crates/simple-directory-engine/src/commands/rename.rs`, inside `mod tests`:
 
 This file's test module already has everything needed to seed a vault —
 reuse it exactly, don't add parallel helpers: `fresh(vault_id: &str) ->
@@ -391,7 +391,7 @@ test (after its closing `}`):
 
 ```rust
     async fn seed_folder(vault: &Vault, rel: &str) {
-        cubical_index::upsert_folder(vault.index(), rel, 0)
+        simple_directory_index::upsert_folder(vault.index(), rel, 0)
             .await
             .unwrap();
     }
@@ -423,7 +423,7 @@ test (after its closing `}`):
         assert!(dir.path().join("work/a.md").exists());
         assert!(dir.path().join("work/deep/b.md").exists());
 
-        let folders = cubical_index::list_folders(vault.index()).await.unwrap();
+        let folders = simple_directory_index::list_folders(vault.index()).await.unwrap();
         assert!(folders.contains(&"work".to_string()));
         assert!(folders.contains(&"work/deep".to_string()));
         assert!(!folders.contains(&"projects".to_string()));
@@ -521,7 +521,7 @@ test (after its closing `}`):
         )
         .await
         .expect_err("must reject an existing destination");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 
     #[tokio::test]
@@ -538,7 +538,7 @@ test (after its closing `}`):
         )
         .await
         .expect_err("must reject an untracked folder");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 
     #[tokio::test]
@@ -557,13 +557,13 @@ test (after its closing `}`):
         )
         .await
         .expect_err("must reject from == to");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 ```
 
 - [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-engine rename_folder`
+Run: `cargo test -p simple-directory-engine rename_folder`
 Expected: compile error — `cannot find function \`rename_folder\`` and `cannot find struct \`RenameFolderRequest\``.
 
 - [ ] **Step 4: Implement `rename_folder`**
@@ -586,9 +586,9 @@ pub async fn rename_folder(
     state: &AppState,
     app: &dyn EventSink,
     req: RenameFolderRequest,
-) -> Result<RenameFolderResponse, CubicalError> {
+) -> Result<RenameFolderResponse, SimpleDirectoryError> {
     if req.from_path == req.to_path {
-        return Err(CubicalError::InvalidRequest("from_path == to_path".into()));
+        return Err(SimpleDirectoryError::InvalidRequest("from_path == to_path".into()));
     }
     let (vault, flush_own_writes, _flush_in_progress) =
         clone_vault_with_flush_state(state, &req.vault_id).await?;
@@ -597,7 +597,7 @@ pub async fn rename_folder(
     let from_abs = vault.root().join(&req.from_path);
     let to_abs = vault.root().join(&req.to_path);
     if to_abs.exists() {
-        return Err(CubicalError::InvalidRequest(format!(
+        return Err(SimpleDirectoryError::InvalidRequest(format!(
             "destination path already exists: {}",
             req.to_path
         )));
@@ -612,7 +612,7 @@ pub async fn rename_folder(
         rows.next().await?.is_some()
     };
     if !tracked {
-        return Err(CubicalError::InvalidRequest(format!(
+        return Err(SimpleDirectoryError::InvalidRequest(format!(
             "folder not tracked: {}",
             req.from_path
         )));
@@ -714,22 +714,22 @@ pub async fn rename_folder(
 
     // Move the whole directory on disk in one atomic operation.
     if let Some(parent) = to_abs.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| CubicalError::Io(e.to_string()))?;
+        std::fs::create_dir_all(parent).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
     }
     if let Err(e) = std::fs::rename(&from_abs, &to_abs) {
         if e.raw_os_error() == Some(18) {
-            return Err(CubicalError::Io(
+            return Err(SimpleDirectoryError::Io(
                 "cross-filesystem folder rename is not supported".into(),
             ));
         }
-        return Err(CubicalError::Io(e.to_string()));
+        return Err(SimpleDirectoryError::Io(e.to_string()));
     }
 
     // Per-file: journal, re-extract outbound rows, sync search index.
     for (from, to, _) in &plans {
-        if let Err(e) = cubical_core::vault::rename_journal::append_entry(
+        if let Err(e) = simple_directory_core::vault::rename_journal::append_entry(
             vault.root(),
-            &cubical_core::vault::rename_journal::RenameJournalEntry {
+            &simple_directory_core::vault::rename_journal::RenameJournalEntry {
                 op_id: rename_op_id,
                 kind: "file".into(),
                 from: from.clone(),
@@ -792,17 +792,17 @@ pub async fn rename_folder(
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-engine rename_folder`
+Run: `cargo test -p simple-directory-engine rename_folder`
 Expected: all 5 new tests pass.
 
 If `crate::events::NoopEventSink` (or whatever the actual existing test sink is named) doesn't compile, search `rename.rs`'s own test module for how `rename_tag`/`rename_block_id` tests call their event-sink-taking functions and copy that exact pattern — do not add a new sink type.
 
-Then run: `cargo test -p cubical-engine`
+Then run: `cargo test -p simple-directory-engine`
 Expected: all tests pass (rename_file's 9 tests still green, plus these 5 new ones).
 
 - [ ] **Step 6: Register the Tauri shim**
 
-In `crates/cubical-app/src/lib.rs`, add `RenameFolderRequest, RenameFolderResponse` to the `use cubical_engine::api::types::{...}` import block (alphabetically, near `RenameFileRequest, RenameFileResponse`).
+In `crates/simple-directory-app/src/lib.rs`, add `RenameFolderRequest, RenameFolderResponse` to the `use simple_directory_engine::api::types::{...}` import block (alphabetically, near `RenameFileRequest, RenameFileResponse`).
 
 Add `rename_folder,` to the `generate_handler!` list, immediately after `rename_file,`.
 
@@ -815,7 +815,7 @@ async fn rename_folder(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     req: RenameFolderRequest,
-) -> Result<RenameFolderResponse, CubicalError> {
+) -> Result<RenameFolderResponse, SimpleDirectoryError> {
     commands::rename::rename_folder(
         state.inner(),
         &crate::tauri_sink::TauriEventSink::new(app),
@@ -838,7 +838,7 @@ Expected: no diff from fmt, no warnings.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add crates/cubical-engine/src/api/types.rs crates/cubical-engine/src/commands/rename.rs crates/cubical-app/src/lib.rs
+git add crates/simple-directory-engine/src/api/types.rs crates/simple-directory-engine/src/commands/rename.rs crates/simple-directory-app/src/lib.rs
 git commit -m "$(cat <<'EOF'
 feat(engine): add rename_folder — move a folder and everything under it
 

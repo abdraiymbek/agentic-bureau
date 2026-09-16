@@ -4,7 +4,7 @@ import { createRoot, createSignal } from "solid-js";
 vi.mock("../api/terminal", () => ({
   agentInstructionsStatus: vi.fn(async () => ({
     offered: false,
-    canonical_path: "/vault/.cubical/agent-instructions.md",
+    canonical_path: "/vault/.simple-directory/agent-instructions.md",
     existing_pointers: [],
   })),
   agentInstructionsAccept: vi.fn(async () => ({ created: [], skipped: [] })),
@@ -218,7 +218,7 @@ describe("agent-instructions consent", () => {
   it("stays quiet when the vault was already asked", async () => {
     vi.mocked(agentInstructionsStatus).mockResolvedValueOnce({
       offered: true,
-      canonical_path: "/vault/.cubical/agent-instructions.md",
+      canonical_path: "/vault/.simple-directory/agent-instructions.md",
       existing_pointers: ["AGENTS.md"],
     });
     const h = harness();

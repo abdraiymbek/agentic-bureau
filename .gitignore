@@ -11,7 +11,7 @@ dist/
 # Tauri (auto-generated build artifacts)
 src-tauri/target/
 src-tauri/gen/
-crates/cubical-app/gen/
+crates/simple-directory-app/gen/
 
 # Editor / IDE
 .idea/

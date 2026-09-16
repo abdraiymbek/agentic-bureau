@@ -1,11 +1,11 @@
-# Implementation — canonical AST (`cubical-ast`)
+# Implementation — canonical AST (`simple-directory-ast`)
 
 Design owner: [`../architecture/document-model.md`](../architecture/document-model.md)
 → "Canonical AST". This file records the implementation invariants only.
 
 ## The AST is deliberately slim
 
-Only nodes Cubical itself produces and renders. Tables, footnotes, definition
+Only nodes simple.directory itself produces and renders. Tables, footnotes, definition
 lists, math, callouts and other CommonMark extensions are **not** enabled in
 `pulldown-cmark`'s `Options` — cross-app importers are out of v1 scope. Adding
 a node type is a document-model decision, not a parser tweak.
@@ -98,16 +98,16 @@ resolution indexes a candidate under its `.md`-stripped forms only. The two
 rules only ever disagree on a non-`.md` extension; agreeing with the resolver
 is what makes an offered title a usable link target.
 
-**Why `cubical-ast` owns it.** The rule is needed by `cubical-engine`,
-`cubical-query`, `cubical-search` and `cubical-graph`, so it has to live in a
+**Why `simple-directory-ast` owns it.** The rule is needed by `simple-directory-engine`,
+`simple-directory-query`, `simple-directory-search` and `simple-directory-graph`, so it has to live in a
 crate all of them may depend on. The layering leaves two candidates at layer 0,
-and `cubical-index` is the wrong one: `cubical-search` would have to take a
-libSQL dependency to reach it. `cubical-ast` is already the lingua franca for
+and `simple-directory-index` is the wrong one: `simple-directory-search` would have to take a
+libSQL dependency to reach it. `simple-directory-ast` is already the lingua franca for
 the link resolver, and it sits beside the wiki-link tokenizer that consumes the
 same names.
 
 Name *folding* is a different question with a different owner —
-`cubical_index::fold_name`, described in
+`simple_directory_index::fold_name`, described in
 [`search-index.md`](search-index.md).
 
 The TypeScript mirror is `ui/src/vault/noteName.ts`, which also owns note-name
@@ -147,9 +147,9 @@ representation. Change one side and the other in the **same commit**.
 
 ## Cross-language parity harness
 
-**Anchors:** CUBICAL_UPDATE_PARITY_FIXTURES
+**Anchors:** SIMPLE_DIRECTORY_UPDATE_PARITY_FIXTURES
 
-`crates/cubical-ast/tests/parity_fixtures.rs` owns the ground truth: parsing
+`crates/simple-directory-ast/tests/parity_fixtures.rs` owns the ground truth: parsing
 each fixture and serializing to JSON must equal its `expected` field. The same
 fixture file drives the TypeScript side (`ui/src/ast/parity.test.ts`), so one
 ground truth keeps the editor's Lezer normalizer and the indexer's
@@ -158,7 +158,7 @@ pulldown-cmark normalizer in agreement.
 When you intentionally change the AST shape, regenerate in place:
 
 ```sh
-CUBICAL_UPDATE_PARITY_FIXTURES=1 cargo test -p cubical-ast --test parity_fixtures
+SIMPLE_DIRECTORY_UPDATE_PARITY_FIXTURES=1 cargo test -p simple-directory-ast --test parity_fixtures
 ```
 
 Then re-run the TS side. If it disagrees, **fix the TS normalizer — never

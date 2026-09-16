@@ -32,7 +32,7 @@
 
   "benchmarks": {
     "scan": {
-      "crate": "cubical-engine",
+      "crate": "simple-directory-engine",
       "example": "scan_bench",
       "args": ["{tmpdir}", "{size}", "{runs}"],
       "median_pattern": "^open\\+scan\\s*:.*?median\\s+([0-9.]+)\\s*s",
@@ -46,7 +46,7 @@
     },
 
     "graph_layout": {
-      "crate": "cubical-graph",
+      "crate": "simple-directory-graph",
       "example": "layout_bench",
       "args": ["{size}", "{runs}"],
       "median_pattern": "^layout\\s*:.*?median\\s+([0-9.]+)\\s*s",

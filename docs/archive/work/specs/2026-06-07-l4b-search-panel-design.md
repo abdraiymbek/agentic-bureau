@@ -64,7 +64,7 @@ ui/src/
     ├── snippet.ts              # pickSnippet + parseHighlights (pure; vitest)
     └── debounce.ts             # generic debounce            (pure; vitest)
 
-crates/cubical-search/src/
+crates/simple-directory-search/src/
 ├── schema.rs                   # STORED flags + stored-flag tests
 ├── index.rs                    # SCHEMA_VERSION 1 → 2
 └── query.rs                    # no logic change; new per-field snippet tests
@@ -217,7 +217,7 @@ exercise these):**
   re-open the same folder → no `LockBusy`; open a different folder →
   distinct vault. Record the result and flip the CLAUDE.md "operator
   smoke pending" line.
-- L4-A search recipes 1–11 against `~/Developer/sandbox/cubical-l4a-smoke/`
+- L4-A search recipes 1–11 against `~/Developer/sandbox/simple-directory-l4a-smoke/`
   (standing backfill — L4-B is the session that makes them load-bearing).
 
 **Six gates green at every commit boundary:** `cargo test --workspace`,

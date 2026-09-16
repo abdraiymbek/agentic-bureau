@@ -137,7 +137,7 @@ unit-testable; these tests pin the *decision*, the smoke pins the
 
 ### Executed interactive smoke (Contract E — required before any tag)
 
-`cargo tauri dev`, open `~/Developer/sandbox/cubical-l4a-smoke/` (A.md /
+`cargo tauri dev`, open `~/Developer/sandbox/simple-directory-l4a-smoke/` (A.md /
 B.md / C.md carry own-line embeds):
 
 1. Type continuously for ~30 s in a file with a rendered embed — confirm

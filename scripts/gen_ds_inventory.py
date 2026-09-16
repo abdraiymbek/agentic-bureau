@@ -37,7 +37,7 @@ PURPOSES = {
                "body content.",
     "CommandPalette": "Modal command list filtered by a substring query over "
                       "a flat `Command[]`.",
-    "CubeMark": "The Cubical cube logo, drawn inline as SVG at a "
+    "CubeMark": "The simple.directory cube logo, drawn inline as SVG at a "
                 "caller-chosen size.",
     "DatePicker": "Native `date` / `datetime-local` input styled to the "
                   "tokens.",

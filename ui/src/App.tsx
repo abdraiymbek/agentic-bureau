@@ -1349,7 +1349,7 @@ const App: Component = () => {
                               }}
                             >
                               <span>
-                                This file was changed outside Cubical.
+                                This file was changed outside simple.directory.
                               </span>
                               <span
                                 style={{

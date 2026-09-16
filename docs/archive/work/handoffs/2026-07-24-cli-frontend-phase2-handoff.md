@@ -7,7 +7,7 @@
 > owned by [`specs/2026-07-24-cli-attach-phase2-design.md`](specs/2026-07-24-cli-attach-phase2-design.md).
 > The live handoff is [`2026-07-24-cli-phase3-handoff.md`](2026-07-24-cli-phase3-handoff.md).
 
-Making the `cubical` CLI a **live** second frontend on the *running app's* backend,
+Making the `simple-directory` CLI a **live** second frontend on the *running app's* backend,
 instead of a standalone one-shot. This is the payoff of the whole design: the app
 window and the terminal become two windows onto one backend — no collision, always
 up to date.
@@ -29,7 +29,7 @@ off `main` (`feat/cli-attach` or similar — the user works in the main checkout
 branches, never worktrees).
 
 **The invariant Phase 1 established:** *one backend owns a vault at a time; frontends
-attach.* Enforced by an OS advisory lock in `cubical-engine::vault_lock`, taken inside
+attach.* Enforced by an OS advisory lock in `simple-directory-engine::vault_lock`, taken inside
 `open_vault` before `Vault::open`. Chosen architecture is **Option A** (the running
 app hosts the backend; CLI attaches when it's up, runs standalone when it's down) —
 *not* a standalone daemon.
@@ -39,19 +39,19 @@ app hosts the backend; CLI attaches when it's up, runs standalone when it's down
 Everything below was built deliberately as a Phase-2 attach point:
 
 1. **`socket_path` already threads through the lock, hardcoded to `None`.**
-   - `CubicalError::VaultLocked { pid, socket_path }` — the error `open_vault` returns
-     on contention (`crates/cubical-engine/src/error.rs`).
+   - `SimpleDirectoryError::VaultLocked { pid, socket_path }` — the error `open_vault` returns
+     on contention (`crates/simple-directory-engine/src/error.rs`).
    - `vault_lock::LockPayload.socket_path` + `LockOwner.socket_path`
-     (`crates/cubical-engine/src/vault_lock.rs`). `write_payload` currently writes
+     (`crates/simple-directory-engine/src/vault_lock.rs`). `write_payload` currently writes
      `socket_path: None` (vault_lock.rs:82). **Phase 2 makes the app write its socket
      path here so a contending CLI can read it back.**
 2. **The CLI's decline branch is the attach point.**
-   `crates/cubical-cli/src/main.rs:95` — `Err(CubicalError::VaultLocked { pid, .. }) =>`
+   `crates/simple-directory-cli/src/main.rs:95` — `Err(SimpleDirectoryError::VaultLocked { pid, .. }) =>`
    prints "Live routing arrives in Phase 2" and exits 2. **Phase 2 flips this: if
    `socket_path` is `Some`, connect and route the command through it instead of
    declining.**
 3. **The lock is taken in the engine, so the GUI already participates.**
-   `open_vault` at `crates/cubical-engine/src/commands/vault.rs:60` acquires;
+   `open_vault` at `crates/simple-directory-engine/src/commands/vault.rs:60` acquires;
    `close_vault`/process-exit releases. The app taking the lock is exactly what lets
    the CLI find it. The app does NOT yet advertise a socket (there is none) — that's
    the new work.
@@ -59,18 +59,18 @@ Everything below was built deliberately as a Phase-2 attach point:
 ## What Phase 2 must build
 
 ### a) App-side socket server (the backend endpoint)
-A Unix-domain-socket listener in `cubical-app` that accepts a framed command, runs it
+A Unix-domain-socket listener in `simple-directory-app` that accepts a framed command, runs it
 against the app's **managed** `AppState` with a **`TauriEventSink`**, and returns the
 response. Because it uses the same `AppState` + real event sink, executing a command
 over the socket updates the live UI identically to a click.
 
-- App wiring today: `crates/cubical-app/src/lib.rs:44` `pub fn run()`,
+- App wiring today: `crates/simple-directory-app/src/lib.rs:44` `pub fn run()`,
   `:51` `.manage(AppState::new())`, `:52` `.invoke_handler(generate_handler![…])`,
   and per-command `TauriEventSink::new(app.clone())` (e.g. `:113`, `:365`…). The socket
   server wants a **`.setup(|app| …)`** hook that spawns a tokio task holding the
   `AppHandle` (for `state()` + a `TauriEventSink`) and the socket path.
 - **Strong recommendation: factor a shared dispatch layer.** The Tauri commands in
-  `lib.rs` are thin wrappers over `cubical_engine::commands::*`. The socket handler is
+  `lib.rs` are thin wrappers over `simple_directory_engine::commands::*`. The socket handler is
   the same mapping keyed by a wire enum. Extract one
   `dispatch(cmd, &AppState, &dyn EventSink) -> Response` used by *both* the socket
   server and (ideally) the Tauri commands, so they can never drift. The CLI's
@@ -95,12 +95,12 @@ second index-writing scan; over the socket there's no second engine).
 ### Design decisions to settle in brainstorming (don't skip the process)
 - **Wire protocol / framing:** length-prefixed JSON is the low-ceremony default (serde
   is everywhere already). Define a `Request`/`Response` enum in a shared module
-  (engine or a new tiny `cubical-ipc` crate?) so CLI and app share the types.
+  (engine or a new tiny `simple-directory-ipc` crate?) so CLI and app share the types.
 - **One socket per app, or per vault?** Per-app is simpler (one listener; the request
   names the vault). The lock payload is per-vault but can advertise the same app-global
   socket path.
 - **Socket location & cleanup:** OS runtime dir (same place as the lockfile; reuse
-  `CUBICAL_RUNTIME_DIR`). Stale-socket handling on app crash (bind fails → unlink →
+  `SIMPLE_DIRECTORY_RUNTIME_DIR`). Stale-socket handling on app crash (bind fails → unlink →
   rebind).
 - **Windows:** `fs4` locking is cross-platform, but Unix-domain sockets differ on
   Windows (named pipes, or `interprocess` crate). Desktop-v1 is Mac/Linux-first; decide
@@ -113,9 +113,9 @@ second index-writing scan; over the socket there's no second engine).
   connect, send `create_file`, assert the file exists and the response is right.
 - **CLI attach:** an integration test where the *test process* stands up a minimal
   socket server advertising itself in the lock payload (reuse `vault_lock`), then runs
-  the `cubical` binary and asserts it routed through the socket (e.g. a sentinel the
+  the `simple-directory` binary and asserts it routed through the socket (e.g. a sentinel the
   fake server writes) rather than declining. This mirrors the Phase-1
-  `declines_with_exit_code_2…` test in `crates/cubical-cli/tests/cli.rs`, which is the
+  `declines_with_exit_code_2…` test in `crates/simple-directory-cli/tests/cli.rs`, which is the
   template.
 - Full gate: `scripts/check.sh` (run it, not the pieces).
 
@@ -126,7 +126,7 @@ second index-writing scan; over the socket there's no second engine).
   release test asserts at the **`vault_lock` layer**, not via a full reopen
   (`vault.rs` ~:2010). In real cross-process use it's a non-issue (tantivy's lock
   releases on process exit). Keep socket tests cross-process or lock-layer.
-- **`CUBICAL_RUNTIME_DIR`** overrides the lock/socket dir — set it in every test for
+- **`SIMPLE_DIRECTORY_RUNTIME_DIR`** overrides the lock/socket dir — set it in every test for
   hermeticity. In-process env-touching tests must serialize on
   `vault_lock::RUNTIME_ENV_GUARD` (std Mutex) — see the `#[allow(clippy::await_holding_lock)]`
   on the Phase-1 integration test.
@@ -136,11 +136,11 @@ second index-writing scan; over the socket there's no second engine).
   fakes real bugs — force a full `npm run tauri dev` recompile before debugging the
   Tauri layer. Auto-memory `project_tauri_stale_build_gotcha`. Live-drive setup:
   `project_tauri_live_verify_setup`.
-- **Known flake** (not yours): `cubical-core`'s
+- **Known flake** (not yours): `simple-directory-core`'s
   `dropping_handle_stops_event_delivery_within_100ms` fails under full-workspace load,
   passes in isolation.
 
 ## Phase 3 (after Phase 2)
-An in-app terminal panel running the same `cubical` binary against the socket. It's
+An in-app terminal panel running the same `simple-directory` binary against the socket. It's
 nearly free once Phase 2 exists, and subsumes the long-deferred "terminal" backlog item
 (`project_requested_ui_backlog` / issue #20 neighborhood).

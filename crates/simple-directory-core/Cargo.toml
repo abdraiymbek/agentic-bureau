@@ -1,0 +1,27 @@
+[package]
+name = "simple-directory-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vault, file watcher, file-type registry, frontmatter I/O. Core building blocks shared by the rest of simple.directory, with no Tauri dependency."
+
+[dependencies]
+simple-directory-ast = { path = "../simple-directory-ast" }
+simple-directory-index = { path = "../simple-directory-index" }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+notify = { workspace = true }
+notify-debouncer-full = { workspace = true }
+walkdir = { workspace = true }
+sha2 = { workspace = true }
+libsql = { workspace = true }
+toml = "1.1"
+
+[dev-dependencies]
+tempfile = "3"

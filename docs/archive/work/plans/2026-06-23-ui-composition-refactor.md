@@ -78,7 +78,7 @@ substrate; the substrate never imports a feature.
 
 5. **Rust (separate domain, out of scope for the UI work):** the same "thin handler +
    extracted orchestration" principle applies to the command god-functions
-   (`crates/cubical-app/src/commands/rename.rs`, `vault.rs::write_file_text`,
+   (`crates/simple-directory-app/src/commands/rename.rs`, `vault.rs::write_file_text`,
    `events.rs::apply_watch_event_to_db`).
 
 ## Impact so far

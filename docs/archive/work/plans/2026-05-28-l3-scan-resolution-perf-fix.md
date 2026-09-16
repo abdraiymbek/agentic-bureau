@@ -8,7 +8,7 @@
 
 **Architecture:** Today the bulk scan calls `refresh_links` once per markdown file inside the walk loop; each call re-runs `SELECT path FROM files` (`list_known_paths`) and a linear `resolve_target` per link — O(N²) for N files. This plan splits the scan into two passes: **Pass 1** (the existing walk) hashes, upserts `files`, refreshes frontmatter + tags, and *buffers* extracted link occurrences in memory without resolving them; **Pass 2** runs once after the walk, builds a `PathResolver` index from the now-complete `files.path` set, resolves every buffered link in O(1) (common case), and writes the `links` rows. The watcher's single-file path and the public `resolve_target` semantics are untouched.
 
-**Tech Stack:** Rust, `tokio` (async + `spawn_blocking`), `libsql` (local SQLite), `cubical-ast` (markdown `Document` parse), existing `cubical-index` query helpers.
+**Tech Stack:** Rust, `tokio` (async + `spawn_blocking`), `libsql` (local SQLite), `simple-directory-ast` (markdown `Document` parse), existing `simple-directory-index` query helpers.
 
 ---
 
@@ -18,17 +18,17 @@
 
 ### What's wrong
 
-On a 30,000-file vault (`~/Developer/sandbox/cubical-cancel-test`, 124 MB) Cubical's vault-open scan takes *minutes*; Obsidian loads the same folder in a small fraction of that. Root-cause investigation (recorded in `docs/layer-3-spec.md` §5.6) found the dominant cost is an **O(N²) algorithm in the bulk scan's link resolution**:
+On a 30,000-file vault (`~/Developer/sandbox/simple-directory-cancel-test`, 124 MB) simple.directory's vault-open scan takes *minutes*; Obsidian loads the same folder in a small fraction of that. Root-cause investigation (recorded in `docs/layer-3-spec.md` §5.6) found the dominant cost is an **O(N²) algorithm in the bulk scan's link resolution**:
 
-- `crates/cubical-core/src/vault/scan.rs` walks every file and, for each markdown file, calls `refresh_links(&vault, abs, rel)`.
-- `refresh_links` (in `crates/cubical-core/src/vault/links.rs`) calls `list_known_paths(vault)` — `SELECT path FROM files ORDER BY path` — which materializes the **entire** `files.path` column into a `Vec<String>`.
+- `crates/simple-directory-core/src/vault/scan.rs` walks every file and, for each markdown file, calls `refresh_links(&vault, abs, rel)`.
+- `refresh_links` (in `crates/simple-directory-core/src/vault/links.rs`) calls `list_known_paths(vault)` — `SELECT path FROM files ORDER BY path` — which materializes the **entire** `files.path` column into a `Vec<String>`.
 - It then calls `resolve_target(target, &files)` for each wiki-link in the file. `resolve_target` is a **linear scan** of that Vec (up to three passes: exact → basename-ci → suffix-ci), with `.to_lowercase()` allocations.
 
 Because `refresh_links` runs **once per file** and `list_known_paths` grows from 1 row to N rows as the scan progresses, the cumulative work is ≈ N²/2 row-materializations plus O(N) per link. At N=30,000 that is the multi-minute cost.
 
 ### Why it exists (not a designed-in tradeoff)
 
-`refresh_links` was written for the **single-file watcher path** (`apply_watch_event_to_db` in `crates/cubical-app/src/events.rs`): when one note changes, loading all paths once and resolving its links is perfectly fine — O(N) for a single edit. The initial bulk scan loop **reused that single-file helper unchanged**, turning O(N)-per-edit into O(N²)-for-N-files. No agent flagged it; it is invisible in every spec and was never planned or recorded until 2026-05-28.
+`refresh_links` was written for the **single-file watcher path** (`apply_watch_event_to_db` in `crates/simple-directory-app/src/events.rs`): when one note changes, loading all paths once and resolving its links is perfectly fine — O(N) for a single edit. The initial bulk scan loop **reused that single-file helper unchanged**, turning O(N)-per-edit into O(N²)-for-N-files. No agent flagged it; it is invisible in every spec and was never planned or recorded until 2026-05-28.
 
 ### Why we fix it now (and not at the planned L5 perf pass)
 
@@ -45,41 +45,41 @@ Resolving links *during* the walk is also partly **incorrect**: a file walked be
 - **Do NOT touch the 3× parse / multi-read issue (§5.5).** That is deliberately deferred to L5; the shared-`Document` refactor ripples through the public API and would be redone as F–K add consumers. Link *extraction* keeps its own parse in Pass 1. We are only moving link *resolution*.
 - **Do NOT change the watcher's single-file path.** `refresh_links` stays and is still called by `apply_watch_event_to_db`. It is O(N)-per-edit, which is correct for one file.
 - **Do NOT change resolution *semantics*.** The exact → basename-ci (unique) → suffix-ci (unique) order, the ambiguity→`None` rules, and the empty-target→`None` rule must be byte-for-byte preserved. Only the time complexity changes. `resolve_target`'s existing tests must stay green.
-- **Do NOT add a public-API change** to crates other than the internal `cubical-core::vault` module surface.
+- **Do NOT add a public-API change** to crates other than the internal `simple-directory-core::vault` module surface.
 
 ---
 
 ## File Structure
 
-- **Modify `crates/cubical-core/src/vault/links.rs`** — add a `PathResolver` index type (`build` + `resolve`), refactor `resolve_target` to delegate to it (DRY, keeps watcher + tests intact), and add a `pub(crate)` `extract_links_off_executor` that parses + extracts without resolving or writing.
-- **Modify `crates/cubical-core/src/vault/scan.rs`** — split `scan()` into Pass 1 (walk: buffer link extractions instead of calling `refresh_links`) and Pass 2 (resolve buffered links once against a `PathResolver`, write rows in a batched transaction). Add the forward-reference regression test.
+- **Modify `crates/simple-directory-core/src/vault/links.rs`** — add a `PathResolver` index type (`build` + `resolve`), refactor `resolve_target` to delegate to it (DRY, keeps watcher + tests intact), and add a `pub(crate)` `extract_links_off_executor` that parses + extracts without resolving or writing.
+- **Modify `crates/simple-directory-core/src/vault/scan.rs`** — split `scan()` into Pass 1 (walk: buffer link extractions instead of calling `refresh_links`) and Pass 2 (resolve buffered links once against a `PathResolver`, write rows in a batched transaction). Add the forward-reference regression test.
 - No other files change. `events.rs` (watcher) keeps calling `refresh_links` unchanged.
 
 ### Types you will use (already defined — do not redefine)
 
-From `crates/cubical-core/src/vault/links.rs`:
+From `crates/simple-directory-core/src/vault/links.rs`:
 ```rust
 pub struct LinkExtraction {
     pub target_raw: String,
-    pub anchor: Option<cubical_ast::Anchor>, // Heading { value } | Block { value }
+    pub anchor: Option<simple_directory_ast::Anchor>, // Heading { value } | Block { value }
     pub display: Option<String>,
     pub is_embed: bool,
     pub position: u64,
 }
-pub fn extract_links(doc: &cubical_ast::Document) -> Vec<LinkExtraction>;
+pub fn extract_links(doc: &simple_directory_ast::Document) -> Vec<LinkExtraction>;
 pub fn resolve_target(target_raw: &str, files: &[String]) -> Option<String>;
-async fn parse_off_executor(abs_path: &Path) -> Option<cubical_ast::Document>; // private today
+async fn parse_off_executor(abs_path: &Path) -> Option<simple_directory_ast::Document>; // private today
 ```
-From `crates/cubical-index` (re-exported at crate root): `LinkRow`, `replace_links_for_file(conn, source_path, &[LinkRow])`.
+From `crates/simple-directory-index` (re-exported at crate root): `LinkRow`, `replace_links_for_file(conn, source_path, &[LinkRow])`.
 
-> **Before Task 1:** open `crates/cubical-core/src/vault/links.rs` and confirm the exact field names/visibility of `LinkExtraction` and the signature of `extract_links`. If `LinkExtraction` or `extract_links` is private, widen to `pub(crate)`. Adjust the code blocks below if the real field names differ (e.g. `display` vs `display_text`).
+> **Before Task 1:** open `crates/simple-directory-core/src/vault/links.rs` and confirm the exact field names/visibility of `LinkExtraction` and the signature of `extract_links`. If `LinkExtraction` or `extract_links` is private, widen to `pub(crate)`. Adjust the code blocks below if the real field names differ (e.g. `display` vs `display_text`).
 
 ---
 
 ### Task 1: `PathResolver` index with semantic-equivalence tests
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/links.rs`
+- Modify: `crates/simple-directory-core/src/vault/links.rs`
 - Test: same file, `#[cfg(test)] mod tests`
 
 - [ ] **Step 1: Write the failing tests**
@@ -123,7 +123,7 @@ fn path_resolver_resolves_exact_and_basename_in_constant_lookups() {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-core vault::links::tests::path_resolver -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::links::tests::path_resolver -- --nocapture`
 Expected: FAIL to compile — `PathResolver` does not exist yet.
 
 - [ ] **Step 3: Implement `PathResolver`**
@@ -235,13 +235,13 @@ impl PathResolver {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-core vault::links::tests::path_resolver -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::links::tests::path_resolver -- --nocapture`
 Expected: PASS (both tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs
+git add crates/simple-directory-core/src/vault/links.rs
 git commit -m "feat(core): PathResolver — O(1) wiki-link resolution index"
 ```
 
@@ -250,7 +250,7 @@ git commit -m "feat(core): PathResolver — O(1) wiki-link resolution index"
 ### Task 2: Refactor `resolve_target` to delegate to `PathResolver` (DRY, keep watcher + tests green)
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/links.rs` (`resolve_target` body only)
+- Modify: `crates/simple-directory-core/src/vault/links.rs` (`resolve_target` body only)
 
 - [ ] **Step 1: Replace `resolve_target`'s body with a delegation**
 
@@ -269,13 +269,13 @@ pub fn resolve_target(target_raw: &str, files: &[String]) -> Option<String> {
 
 - [ ] **Step 2: Run the full links test suite to verify nothing regressed**
 
-Run: `cargo test -p cubical-core vault::links -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::links -- --nocapture`
 Expected: PASS — all pre-existing `resolve_target` tests (exact / basename-ci / unique-suffix / ambiguity / empty) still green, plus Task 1's tests.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs
+git add crates/simple-directory-core/src/vault/links.rs
 git commit -m "refactor(core): resolve_target delegates to PathResolver"
 ```
 
@@ -284,7 +284,7 @@ git commit -m "refactor(core): resolve_target delegates to PathResolver"
 ### Task 3: `extract_links_off_executor` — parse + extract without resolving or writing
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/links.rs`
+- Modify: `crates/simple-directory-core/src/vault/links.rs`
 - Test: same file `tests` module
 
 - [ ] **Step 1: Write the failing test**
@@ -310,7 +310,7 @@ async fn extract_links_off_executor_unreadable_file_returns_empty() {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test -p cubical-core vault::links::tests::extract_links_off_executor -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::links::tests::extract_links_off_executor -- --nocapture`
 Expected: FAIL to compile — `extract_links_off_executor` does not exist.
 
 - [ ] **Step 3: Implement the helper**
@@ -335,13 +335,13 @@ pub(crate) async fn extract_links_off_executor(abs_path: &Path) -> Vec<LinkExtra
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cargo test -p cubical-core vault::links::tests::extract_links_off_executor -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::links::tests::extract_links_off_executor -- --nocapture`
 Expected: PASS (both tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs
+git add crates/simple-directory-core/src/vault/links.rs
 git commit -m "feat(core): extract_links_off_executor — parse+extract, no resolve/write"
 ```
 
@@ -350,7 +350,7 @@ git commit -m "feat(core): extract_links_off_executor — parse+extract, no reso
 ### Task 4: Two-pass scan — buffer extractions, resolve once after the walk
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/scan.rs`
+- Modify: `crates/simple-directory-core/src/vault/scan.rs`
 - Test: same file `tests` module
 
 - [ ] **Step 1: Write the failing regression test (forward reference)**
@@ -360,7 +360,7 @@ Add to the `tests` module in `scan.rs`. This FAILS on the current per-file code 
 ```rust
 #[tokio::test]
 async fn scan_resolves_forward_references() {
-    use cubical_index::links_from;
+    use simple_directory_index::links_from;
     let dir = tempdir().unwrap();
     // Alphabetical walk order: aaa.md is visited before zzz.md, so the
     // old per-file resolution could not see zzz.md yet → NULL. The
@@ -381,7 +381,7 @@ async fn scan_resolves_forward_references() {
 
 - [ ] **Step 2: Run to verify it fails on current code**
 
-Run: `cargo test -p cubical-core vault::scan::tests::scan_resolves_forward_references -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::scan::tests::scan_resolves_forward_references -- --nocapture`
 Expected: FAIL — `assertion failed: rows[0].target_path == Some("zzz.md")` (it is `None` today). This proves the defect.
 
 - [ ] **Step 3: Update the imports in `scan.rs`**
@@ -395,8 +395,8 @@ use crate::vault::{
     tags::refresh_tags,
     Vault, VaultError,
 };
-use cubical_index::{replace_links_for_file, LinkRow};
-use cubical_ast::Anchor;
+use simple_directory_index::{replace_links_for_file, LinkRow};
+use simple_directory_ast::Anchor;
 ```
 
 - [ ] **Step 4: In the walk loop, buffer extractions instead of calling `refresh_links`**
@@ -505,24 +505,24 @@ Locate the trailing commit at the very end of `scan()` (just before `tracing::in
     link_tx.commit().await.map_err(IndexError::from)?;
 ```
 
-> Note: the `LinkRow` field names (`target_raw`, `target_path`, `anchor_kind`, `anchor_value`, `display_text`, `is_embed`, `position`) must match `cubical-index`'s `LinkRow`. They are copied from the current `refresh_links` body — confirm against `crates/cubical-core/src/vault/links.rs` if the compiler complains.
-> Note: `Anchor` import path — if `cubical_ast::Anchor` differs, match the path used at the top of `links.rs`.
+> Note: the `LinkRow` field names (`target_raw`, `target_path`, `anchor_kind`, `anchor_value`, `display_text`, `is_embed`, `position`) must match `simple-directory-index`'s `LinkRow`. They are copied from the current `refresh_links` body — confirm against `crates/simple-directory-core/src/vault/links.rs` if the compiler complains.
+> Note: `Anchor` import path — if `simple_directory_ast::Anchor` differs, match the path used at the top of `links.rs`.
 > Note: `LinkExtraction.display` — if the real field is named differently, adjust `display_text: e.display`.
 
 - [ ] **Step 6: Run the forward-reference test — it must now pass**
 
-Run: `cargo test -p cubical-core vault::scan::tests::scan_resolves_forward_references -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::scan::tests::scan_resolves_forward_references -- --nocapture`
 Expected: PASS — `aaa.md`'s link resolves to `zzz.md` on the first scan.
 
 - [ ] **Step 7: Run the existing link + scan tests — nothing regressed**
 
-Run: `cargo test -p cubical-core vault::scan -- --nocapture`
+Run: `cargo test -p simple-directory-core vault::scan -- --nocapture`
 Expected: PASS — including `scan_populates_links_table_and_resolves_targets` (resolved + NULL-for-missing still correct) and the cancellation test.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/scan.rs
+git add crates/simple-directory-core/src/vault/scan.rs
 git commit -m "perf(core): resolve scan links in one O(N) post-walk pass (fixes §5.6 O(N²))"
 ```
 
@@ -533,7 +533,7 @@ git commit -m "perf(core): resolve scan links in one O(N) post-walk pass (fixes 
 - [ ] **Step 1: Whole workspace test suite**
 
 Run: `cargo test --workspace`
-Expected: PASS, 0 failures. (Note: `commands::vault::tests::get_setting_returns_none_for_absent_key` is a known parallel-execution flake — if it fails, re-run it in isolation: `cargo test -p cubical-app commands::vault::tests::get_setting_returns_none_for_absent_key`.)
+Expected: PASS, 0 failures. (Note: `commands::vault::tests::get_setting_returns_none_for_absent_key` is a known parallel-execution flake — if it fails, re-run it in isolation: `cargo test -p simple-directory-app commands::vault::tests::get_setting_returns_none_for_absent_key`.)
 
 - [ ] **Step 2: Lint + format + frontend gates**
 
@@ -548,8 +548,8 @@ cargo fmt --all --check
 
 Open the 30k-file vault and confirm the scan completes in seconds, not minutes:
 ```bash
-cargo build -p cubical-app
-# then: cargo tauri dev, open ~/Developer/sandbox/cubical-cancel-test,
+cargo build -p simple-directory-app
+# then: cargo tauri dev, open ~/Developer/sandbox/simple-directory-cancel-test,
 # watch the footer "Scanning… X / Y" reach completion. Sanity-check a
 # couple of backlinks/wiki-links resolve.
 ```

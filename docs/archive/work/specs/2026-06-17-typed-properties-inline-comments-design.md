@@ -25,7 +25,7 @@ type system.
 ## 2. Non-negotiables honored
 
 - Plain `.md` files stay the source of truth — the type lives **inside the
-  file** as a standard YAML comment; nothing in `.cubical/`.
+  file** as a standard YAML comment; nothing in `.simple-directory/`.
 - Frontmatter stays YAML, byte-for-byte portable. We add only trailing
   comments. Text values are quoted **only when bare YAML would misread
   them** (the `yaml` library default) — clean, ecosystem-portable files.
@@ -257,7 +257,7 @@ Settings ▸ Editor (matching the core-plugin precedent):
 - **`properties.tags_key_as_tags`** (boolean, default **on**), an on/off
   toggle for rendering the `tags` property as tag chips even without `#`
   (§4.4).
-- All keys live in `.cubical/config.toml`; defaults applied in TS
+- All keys live in `.simple-directory/config.toml`; defaults applied in TS
   (`getSetting(...) ?? default`); no backend change.
 - A help block documents every type's `# type:` syntax (a full reference),
   that it lives in the note and is portable, how to set a type, and that
@@ -279,7 +279,7 @@ data loss). Gated by the flag: the type submenu, comment-based resolution
 - Feeding types into libSQL or making Dataview type-aware.
 - Currencies beyond usd/nis/eur; arbitrary date formats; a date library;
   enum values containing commas/parens.
-- Rust / `cubical-ast` changes.
+- Rust / `simple-directory-ast` changes.
 
 ## 10. Testing (vitest, node, pure functions)
 

@@ -42,8 +42,8 @@ describe("buildSearchQuery", () => {
 
   it("splits the query box into tags for the tags scope", () => {
     expect(
-      buildSearchQuery({ text: "  project/cubical   urgent ", sort: "relevance", scope: "tags", limit: 50, offset: 0 }).fields,
-    ).toEqual({ kind: "tags", tags: ["project/cubical", "urgent"] });
+      buildSearchQuery({ text: "  project/simple-directory   urgent ", sort: "relevance", scope: "tags", limit: 50, offset: 0 }).fields,
+    ).toEqual({ kind: "tags", tags: ["project/simple-directory", "urgent"] });
   });
 
   it("yields an empty tag list when the query box is blank under tags scope", () => {

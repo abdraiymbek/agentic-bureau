@@ -23,8 +23,8 @@ This closes the §9.7-deferred "in-bracket anchor completion" half — *for bloc
 
 ## Background — relevant existing machinery
 
-- **`blocks_for_file(conn, file_path) -> Vec<BlockRow>`** already exists in `cubical-index::blocks` (Session G), returning ids ordered by `position_hint`. No new index helper needed.
-- **`resolve_link`** (`crates/cubical-app/src/commands/links.rs:24`) is the template for "snapshot `files.path`, build `PathResolver`, call `resolve_target(target_raw)`." Identical pattern works here.
+- **`blocks_for_file(conn, file_path) -> Vec<BlockRow>`** already exists in `simple-directory-index::blocks` (Session G), returning ids ordered by `position_hint`. No new index helper needed.
+- **`resolve_link`** (`crates/simple-directory-app/src/commands/links.rs:24`) is the template for "snapshot `files.path`, build `PathResolver`, call `resolve_target(target_raw)`." Identical pattern works here.
 - **Session F autocomplete** (`ui/src/editor/autocomplete.ts`) defines `detectLinkTrigger` / `detectTagTrigger` (pure trigger regex returning `{from}` for CM6), `linkInsertion` (computes `{insert, cursorAfter}` with the `closerFollows` `]]` check), `isInhibited` (Lezer-walk code-context gate), and `linkCompletionSource` / `tagCompletionSource` (`CompletionSource` factories with `validFor` for inter-keystroke filtering). `autocompleteProvider.ts` carries the injected IPC callbacks; `Editor.tsx`'s `autocompleteCompartment` lists the sources in `autocompletion({ override: [...] })`. The same shape is reused for blocks.
 - **Link trigger stops at `#`** (regex `/\[\[([^\]\n|#]*)$/`) — by construction it never fires once `#` is typed. So the block trigger and link trigger don't overlap.
 - **`AUTOCOMPLETE_LIMIT = 50`** is the existing server-side cap in `commands/autocomplete.rs`.
@@ -54,14 +54,14 @@ blockInsertion("intro", closerFollows) → { insert, cursorAfter }
    inserts "intro" (+ "]]" if no closer follows), caret past "]]"
 ```
 
-## Backend additions (`cubical-app`)
+## Backend additions (`simple-directory-app`)
 
 - New handler `commands::autocomplete::block_id_autocomplete(state, req)`:
   ```rust
   pub async fn block_id_autocomplete(
       state: &AppState,
       req: BlockIdAutocompleteRequest,
-  ) -> Result<BlockIdAutocompleteResponse, CubicalError> {
+  ) -> Result<BlockIdAutocompleteResponse, SimpleDirectoryError> {
       let guard = state.vaults().read().await;
       let open = guard.get(&req.vault_id).ok_or_else(/* VaultNotOpen */)?;
       let vault = open.vault.clone();
@@ -71,15 +71,15 @@ blockInsertion("intro", closerFollows) → { insert, cursorAfter }
       let mut rows = conn.query("SELECT path FROM files ORDER BY path", ()).await?;
       let mut known: Vec<String> = Vec::new();
       while let Some(row) = rows.next().await? { known.push(row.get(0)?); }
-      let resolver = cubical_core::vault::links::PathResolver::build(known);
-      // NB: PathResolver isn't currently re-exported through cubical_core's
+      let resolver = simple_directory_core::vault::links::PathResolver::build(known);
+      // NB: PathResolver isn't currently re-exported through simple_directory_core's
       // public API — see implementation note below.
 
       let target_path = match resolver.resolve(&req.target_raw) {
           Some(p) => p,
           None => return Ok(BlockIdAutocompleteResponse { candidates: vec![] }),
       };
-      let blocks = cubical_index::blocks_for_file(vault.index(), &target_path).await?;
+      let blocks = simple_directory_index::blocks_for_file(vault.index(), &target_path).await?;
       let candidates: Vec<String> = blocks
           .into_iter()
           .map(|b| b.block_id)
@@ -88,7 +88,7 @@ blockInsertion("intro", closerFollows) → { insert, cursorAfter }
       Ok(BlockIdAutocompleteResponse { candidates })
   }
   ```
-- **Implementation note on `PathResolver`:** `resolve_link` uses `resolve_target(target_raw, &known)` (a thin wrapper), not `PathResolver` directly. Mirror that — call `cubical_core::vault::links::resolve_target` to avoid touching crate visibility. (`resolve_target` is the public function; `PathResolver` is the internal type.)
+- **Implementation note on `PathResolver`:** `resolve_link` uses `resolve_target(target_raw, &known)` (a thin wrapper), not `PathResolver` directly. Mirror that — call `simple_directory_core::vault::links::resolve_target` to avoid touching crate visibility. (`resolve_target` is the public function; `PathResolver` is the internal type.)
 - Wire types in `api/types.rs`:
   ```rust
   #[derive(Debug, Clone, Deserialize)]
@@ -134,7 +134,7 @@ Add `blockCompletionSource(p)` to the `autocompletion({ override: [...] })` arra
 
 ## Error handling
 
-- Backend: any `IndexError` propagates via `From<IndexError> for CubicalError` (existing). Unknown vault → `VaultNotOpen` (existing).
+- Backend: any `IndexError` propagates via `From<IndexError> for SimpleDirectoryError` (existing). Unknown vault → `VaultNotOpen` (existing).
 - Frontend: provider failures resolve to `[]` (dropdown shows nothing rather than erroring), matching the link/tag pattern.
 
 ## Testing summary

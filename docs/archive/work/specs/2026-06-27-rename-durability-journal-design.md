@@ -4,15 +4,15 @@
 
 **Date:** 2026-06-27
 **Status:** built 2026-06-27 (see "What landed" below)
-**Owner area:** L3 rename / pending-rewrites (`crates/cubical-app/src/commands/rename.rs`,
-`crates/cubical-core/src/vault/pending.rs`)
+**Owner area:** L3 rename / pending-rewrites (`crates/simple-directory-app/src/commands/rename.rs`,
+`crates/simple-directory-core/src/vault/pending.rs`)
 
 ## What landed (2026-06-27)
 
-- **Pure core + I/O** — `crates/cubical-core/src/vault/rename_journal.rs`:
+- **Pure core + I/O** — `crates/simple-directory-core/src/vault/rename_journal.rs`:
   `RenameJournalEntry`, serialize/parse/parse_all/compact, plus
   `journal_path` / `append_entry` / `read_entries` / `rewrite_without` over the
-  `.cubical/renames.jsonl` sidecar. 9 tests.
+  `.simple-directory/renames.jsonl` sidecar. 9 tests.
 - **Append on rename** — `rename_file` appends a `file` entry after the on-disk
   move (best-effort; a journal write failure logs, doesn't fail the rename).
 - **Replay on open** — `replay_rename_journal` runs in the scan-success arm of
@@ -43,7 +43,7 @@ deferred. It lives in the libSQL index — which the architecture treats as
 **disposable / rebuildable from `.md`**.
 
 But the file move itself is committed to disk *immediately* during `rename_file`
-([rename.rs §"Move the file on disk"](../../../crates/cubical-app/src/commands/rename.rs)),
+([rename.rs §"Move the file on disk"](../../../crates/simple-directory-app/src/commands/rename.rs)),
 while the referrer text edits are deferred. So if the index is wiped/rebuilt
 while rewrites are unflushed:
 
@@ -65,8 +65,8 @@ deferred text edits regenerate and flush normally.
 
 ## Decision
 
-Add a durable **rename journal** sidecar at `<vault>/.cubical/renames.jsonl`,
-mirroring the existing `.cubical/config.toml` sidecar pattern
+Add a durable **rename journal** sidecar at `<vault>/.simple-directory/renames.jsonl`,
+mirroring the existing `.simple-directory/config.toml` sidecar pattern
 (`vault::settings::settings_path` + `atomic::atomic_write`).
 
 Rejected alternative — *defer the on-disk file move too* (so the whole rename
@@ -76,7 +76,7 @@ handling, and is far more invasive for the same payoff. Not worth it.
 
 ### Why this respects the non-negotiables
 
-- `.cubical/` is already part of the portable vault (it holds `config.toml`),
+- `.simple-directory/` is already part of the portable vault (it holds `config.toml`),
   travels with it, and needs no external service.
 - Zero `.md` bytes touched; no file-identity UUIDs (paths only) — Layer-7 rule
   intact.
@@ -123,7 +123,7 @@ rename path and the replay path can't drift.
 
 ## Integration points
 
-- `crates/cubical-core/src/vault/rename_journal.rs` (new) — pure-ish module:
+- `crates/simple-directory-core/src/vault/rename_journal.rs` (new) — pure-ish module:
   serialize/parse one entry, `append`, `read_all`, `compact` (drop a set of
   op_ids). Pure parse/serialize is unit-tested; the file I/O is a thin wrapper.
 - `rename.rs` — append on rename; prune after flush; call replay on open.

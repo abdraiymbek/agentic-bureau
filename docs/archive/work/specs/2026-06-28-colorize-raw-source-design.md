@@ -11,7 +11,7 @@
 
 ## 1. Why this
 
-Cubical's editor has two display states today:
+simple.directory's editor has two display states today:
 
 - **Live Preview** (`livePreviewBundle`) — colors tokens **and** hides/replaces
   markup: `[[…]]` brackets vanish, heading `#` disappears, headings scale,

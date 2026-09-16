@@ -2,7 +2,7 @@
 >
 > *Covers §15 (navigation). Layout, Live Preview and settings are §11–§12 in [`ui.md`](ui.md); the tab data model's implementation invariants are owned by [`../implementation/frontend.md`](../implementation/frontend.md) → Tabs.*
 
-# Cubical — Architecture: Navigation
+# simple.directory — Architecture: Navigation
 
 ## 15. Navigation
 

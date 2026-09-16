@@ -16,7 +16,7 @@ Post-L5 is L6 Plugins.
 
 ## 1. Why
 
-Layer 5 is the line where Cubical becomes a tool someone uses every day and the
+Layer 5 is the line where simple.directory becomes a tool someone uses every day and the
 v1.0 release is cut. The substrate (vault, AST, index, editing, knowledge graph,
 search) is in place; L5 adds the polish that makes it pleasant: a real theme
 picker, an escape hatch to get content out, consolidated keyboard shortcuts, and
@@ -32,7 +32,7 @@ verifiable on its own.
 
 | Surface | In v1.0 | Out of v1.0 |
 |---|---|---|
-| **Theme picker** | Picker UI for built-in palette + light/dark/system mode; user themes scanned from `<vault>/.cubical/themes/*.css` | Font family/size overrides; High-Contrast built-in; plugin themes (L6) |
+| **Theme picker** | Picker UI for built-in palette + light/dark/system mode; user themes scanned from `<vault>/.simple-directory/themes/*.css` | Font family/size overrides; High-Contrast built-in; plugin themes (L6) |
 | **Export** | `sanitize()` seam (identity pre-L7) + one **Copy-as-Markdown** action (whole note) | HTML/PDF export; selection-scoped copy |
 | **Keyboard shortcuts** | Centralized command/keymap registry binding existing core actions | User-remappable bindings; command palette; cheat-sheet overlay |
 | **Perf pass** | The four anti-patterns from [`anti-patterns-2026-06-01.md`](../../anti-patterns-2026-06-01.md) | Indexing-scale strategy; Pretext virtualization |
@@ -87,7 +87,7 @@ resolution stays in the frontend — only the webview sees `prefers-color-scheme
 
 ### 4.2 User themes
 
-- A Rust IPC scans `<vault>/.cubical/themes/*.css` and returns the available theme
+- A Rust IPC scans `<vault>/.simple-directory/themes/*.css` and returns the available theme
   names (identity = filename). Called on vault open; the picker populates from it.
 - Selecting a user theme injects/swaps a **managed `<style>` element** loaded
   *after* `tokens.css`, overriding token values. Selecting `default` removes it.
@@ -110,9 +110,9 @@ This is the one integration point that must not be skipped.
   materialize") to the clipboard, via the **existing materialized-read path**.
   Registered as a command (§6) with a binding.
 - **Sanitize seam** — a documented, reserved checkpoint in that path. Pre-L7 it is
-  the **identity function** (no `cubical_id` exists to strip,
+  the **identity function** (no `simple_directory_id` exists to strip,
   [`vault.md`](../../architecture/vault.md) §4.2); at L7 it strips the minted
-  `cubical_id`. **No standalone sanitize subsystem is built now** — building a
+  `simple_directory_id`. **No standalone sanitize subsystem is built now** — building a
   Rust module for a no-op would be over-engineering.
 
 This delivers the no-lock-in escape hatch (foundation commitment 3) while keeping

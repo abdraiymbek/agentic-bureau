@@ -43,7 +43,7 @@ centralized cloud DB). Any change must keep:
 ## Current reactive model (recap, so this doc stands alone)
 
 1. **FS watcher** (`notify`/FSEvents, debounced) → emits `WatchEvent`.
-2. **Dispatcher** (`crates/cubical-app/src/events.rs`): per changed markdown
+2. **Dispatcher** (`crates/simple-directory-app/src/events.rs`): per changed markdown
    file, re-parses and re-runs `refresh_frontmatter` / `refresh_links` /
    `refresh_tags` / `refresh_blocks` / `refresh_block_refs_for_file`
    (currently **row-by-row, un-batched, sequential**), updates `files` +
@@ -60,7 +60,7 @@ should not be rethought.
 
 ## The pattern we already have, and its domain of validity
 
-`pending_rewrites` (`crates/cubical-core/src/vault/pending.rs`, migration
+`pending_rewrites` (`crates/simple-directory-core/src/vault/pending.rs`, migration
 `006`) is the "defer the heavy work" cache. On a rename touching N backlinks
 it records **N cheap intent rows** instead of rewriting N files, applies them
 **lazily on read** via `materialize_on_read`, and **flushes in the

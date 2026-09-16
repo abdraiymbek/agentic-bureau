@@ -1,6 +1,6 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../architecture/) and [`docs/implementation/`](../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical — Layer 0: Bedrock
+# simple.directory — Layer 0: Bedrock
 
 > **Historical record**, frozen at layer close (tag + date in [`build-order.md`](build-order.md)). The plan and "what was built" below are the state *as of then*; current canonical truth lives in [`architecture/`](architecture/README.md). Where work later diverged, it's noted inline as a deviation — not silently overwritten.
 
@@ -14,9 +14,9 @@ The foundation everything else is built on. Layer 0's job is to make the vault c
 
 By the end of Layer 0:
 
-1. A user can launch Cubical, pick a directory to use as a vault, and see an empty Cubical window connected to that vault. `open_vault` returns within 100ms regardless of vault size; scan progress streams to the UI as files are discovered.
-2. The vault has a `.cubical/index.db` file with the initial schema.
-3. Cubical detects when files in the vault are added, modified, deleted, or renamed (file watcher works).
+1. A user can launch simple.directory, pick a directory to use as a vault, and see an empty simple.directory window connected to that vault. `open_vault` returns within 100ms regardless of vault size; scan progress streams to the UI as files are discovered.
+2. The vault has a `.simple-directory/index.db` file with the initial schema.
+3. simple.directory detects when files in the vault are added, modified, deleted, or renamed (file watcher works).
 4. Markdown files are tracked in the index by path. **No UUID injection happens in Layer 0** — frontmatter UUIDs are introduced at L7 as part of "enable sync" onboarding.
 5. Non-markdown files are tracked through the polymorphic file-type registry without crashing.
 6. There is a working Tauri command from the webview that returns vault metadata, demonstrating the IPC contract.
@@ -32,29 +32,29 @@ What's *not* in Layer 0: parsing markdown into AST, indexing links, computing ba
 Cargo workspace at the repo root. TypeScript frontend in `ui/`, owned by Vite.
 
 ```
-cubical/
+simple-directory/
 ├── Cargo.toml                  # workspace manifest
 ├── CLAUDE.md
 ├── README.md
 ├── LICENSE                     # MIT
 ├── .gitignore
 ├── crates/
-│   ├── cubical-core/           # vault, file watcher, file-type registry, frontmatter I/O
+│   ├── simple-directory-core/           # vault, file watcher, file-type registry, frontmatter I/O
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   ├── cubical-ast/            # canonical AST (skeleton only in Layer 0)
+│   ├── simple-directory-ast/            # canonical AST (skeleton only in Layer 0)
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   ├── cubical-index/          # libSQL schema and queries
+│   ├── simple-directory-index/          # libSQL schema and queries
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   ├── cubical-search/         # Tantivy wrapper (skeleton only in L0; live at L4)
+│   ├── simple-directory-search/         # Tantivy wrapper (skeleton only in L0; live at L4)
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   ├── cubical-sync/           # CrdtBackend trait (Loro impl lands at L7)
+│   ├── simple-directory-sync/           # CrdtBackend trait (Loro impl lands at L7)
 │   │   ├── Cargo.toml
 │   │   └── src/
-│   └── cubical-app/            # Tauri app
+│   └── simple-directory-app/            # Tauri app
 │       ├── Cargo.toml
 │       ├── tauri.conf.json
 │       ├── build.rs
@@ -85,7 +85,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/<org>/cubical"
+repository = "https://github.com/<org>/simple-directory"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -109,33 +109,33 @@ Versions above are placeholders; the first session pins the actual current versi
 ### Crate dependency graph
 
 ```
-cubical-app
-  ├── cubical-core
-  ├── cubical-index
-  ├── cubical-ast    (skeleton)
-  ├── cubical-search (skeleton)
-  └── cubical-sync   (skeleton — trait only)
+simple-directory-app
+  ├── simple-directory-core
+  ├── simple-directory-index
+  ├── simple-directory-ast    (skeleton)
+  ├── simple-directory-search (skeleton)
+  └── simple-directory-sync   (skeleton — trait only)
 
-cubical-core   (no workspace deps)
-cubical-ast    (no workspace deps)
-cubical-index  (depends on cubical-core for shared types)
-cubical-search (depends on cubical-ast — indexes the canonical AST, not raw markdown)
-cubical-sync   (depends on cubical-ast for diff payloads)
+simple-directory-core   (no workspace deps)
+simple-directory-ast    (no workspace deps)
+simple-directory-index  (depends on simple-directory-core for shared types)
+simple-directory-search (depends on simple-directory-ast — indexes the canonical AST, not raw markdown)
+simple-directory-sync   (depends on simple-directory-ast for diff payloads)
 ```
 
-`cubical-core`, `cubical-ast`, `cubical-index`, `cubical-search`, `cubical-sync` must build and test without Tauri. This is enforced — none of them may depend on `tauri` directly.
+`simple-directory-core`, `simple-directory-ast`, `simple-directory-index`, `simple-directory-search`, `simple-directory-sync` must build and test without Tauri. This is enforced — none of them may depend on `tauri` directly.
 
-The `cubical-search` and `cubical-sync` crates ship as empty skeletons in L0. `cubical-sync` contains only the `trait CrdtBackend` definition (no impl) until L7.
+The `simple-directory-search` and `simple-directory-sync` crates ship as empty skeletons in L0. `simple-directory-sync` contains only the `trait CrdtBackend` definition (no impl) until L7.
 
 ---
 
 ## 3. The vault — directory contract
 
-A vault is any directory the user picks. Cubical creates one subdirectory inside it:
+A vault is any directory the user picks. simple.directory creates one subdirectory inside it:
 
 ```
 <vault>/
-└── .cubical/
+└── .simple-directory/
     ├── index.db        # libSQL database
     ├── config.toml     # vault-local config (not used in Layer 0; created empty)
     ├── themes/         # reserved for L5+ user themes (not created in L0)
@@ -150,15 +150,15 @@ When opening a path as a vault:
 
 1. The path must exist and be a directory.
 2. The path must be readable and writable by the current process.
-3. If `.cubical/` does not exist, it is created.
-4. If `.cubical/index.db` does not exist, the schema is initialized.
-5. If `.cubical/index.db` exists with an unknown schema version, the user is prompted (in Layer 0, just refuse to open with a clear error — migration UX is a later concern).
+3. If `.simple-directory/` does not exist, it is created.
+4. If `.simple-directory/index.db` does not exist, the schema is initialized.
+5. If `.simple-directory/index.db` exists with an unknown schema version, the user is prompted (in Layer 0, just refuse to open with a clear error — migration UX is a later concern).
 
 ### Vault scanning on open
 
-On vault open, Cubical walks the directory tree. For each file:
+On vault open, simple.directory walks the directory tree. For each file:
 
-- Skip everything inside `.cubical/`, `.git/`, `node_modules/`, and any directory beginning with `.` (configurable later).
+- Skip everything inside `.simple-directory/`, `.git/`, `node_modules/`, and any directory beginning with `.` (configurable later).
 - Dispatch to the file-type registry to classify the file.
 - For tracked file types, ensure an entry exists in `index.db` keyed by relative path. Compute SHA-256 of file content for change detection.
 
@@ -172,13 +172,13 @@ No UUID injection happens here — files are tracked by path. Renames detected b
 
 **Path-based.** Files are identified in the index by their path relative to the vault root. No UUIDs are written into user files at this layer.
 
-Frontmatter UUIDs (`cubical_id: <uuid>` in YAML) are introduced at L7 as part of "enable sync" onboarding. The mtime-preservation dance (read mtime → atomic rewrite → restore mtime via `filetime::set_file_mtime`) lives there, not here. L0 never modifies a `.md` file's content.
+Frontmatter UUIDs (`simple_directory_id: <uuid>` in YAML) are introduced at L7 as part of "enable sync" onboarding. The mtime-preservation dance (read mtime → atomic rewrite → restore mtime via `filetime::set_file_mtime`) lives there, not here. L0 never modifies a `.md` file's content.
 
 ### Atomic writes (still relevant)
 
-Even without UUID injection, L0 writes files in some cases — vault-local config (`.cubical/config.toml`), and the libSQL database itself. Any L0 write to a user-visible file uses temp-file-and-rename:
+Even without UUID injection, L0 writes files in some cases — vault-local config (`.simple-directory/config.toml`), and the libSQL database itself. Any L0 write to a user-visible file uses temp-file-and-rename:
 
-1. Write to `<path>.cubical-tmp`.
+1. Write to `<path>.simple-directory-tmp`.
 2. `fsync` the temp file.
 3. `rename` to `<path>` (atomic on POSIX; near-atomic via `MoveFileEx` on Windows).
 
@@ -206,9 +206,9 @@ pub trait FileTypeHandler: Send + Sync {
     /// how to derive this (e.g., SHA-256 of the byte stream).
     fn content_hash(&self, path: &Path) -> Result<String, FileTypeError>;
 
-    /// Strip Cubical-specific metadata from a content buffer for export sanitization.
+    /// Strip simple.directory-specific metadata from a content buffer for export sanitization.
     /// In L0 this is a no-op for all handlers; at L7 the markdown handler will
-    /// strip the `cubical_id` frontmatter key.
+    /// strip the `simple_directory_id` frontmatter key.
     fn sanitize_for_export(&self, content: &[u8]) -> Result<Vec<u8>, FileTypeError>;
 }
 ```
@@ -224,7 +224,7 @@ The registry is a `Vec<Box<dyn FileTypeHandler>>` queried in order; first match 
 
 ### Why this matters in Layer 0
 
-If we don't put the registry in place now, every later piece of code will assume "files are markdown" and we'll find ourselves rewriting half of `cubical-core` when Canvas arrives. Cost-of-doing-it-now is small; cost-of-doing-it-later is enormous.
+If we don't put the registry in place now, every later piece of code will assume "files are markdown" and we'll find ourselves rewriting half of `simple-directory-core` when Canvas arrives. Cost-of-doing-it-now is small; cost-of-doing-it-later is enormous.
 
 ---
 
@@ -259,7 +259,7 @@ The full event-handling logic — link rewrites, Pending Rewrites integration, e
 
 ## 7. libSQL schema (Layer 0 initial)
 
-Stored at `<vault>/.cubical/index.db`. The schema is versioned via a `schema_version` table. Migrations run on open; if version is unknown (newer than this build), refuse to open.
+Stored at `<vault>/.simple-directory/index.db`. The schema is versioned via a `schema_version` table. Migrations run on open; if version is unknown (newer than this build), refuse to open.
 
 ### Tables
 
@@ -271,7 +271,7 @@ CREATE TABLE schema_version (
 INSERT INTO schema_version (version) VALUES (1);
 
 -- The vault's tracked files. Identified by path in L0; gains a nullable
--- `cubical_id` column at L7 when frontmatter UUIDs are introduced.
+-- `simple_directory_id` column at L7 when frontmatter UUIDs are introduced.
 CREATE TABLE files (
     path          TEXT PRIMARY KEY,           -- relative to vault root
     type_id       TEXT NOT NULL,              -- file-type handler id
@@ -293,7 +293,7 @@ CREATE TABLE config (
     value TEXT NOT NULL
 );
 
--- Audit log of significant Cubical operations. Useful for debugging.
+-- Audit log of significant simple.directory operations. Useful for debugging.
 -- Auto-pruned to 10000 most recent rows.
 CREATE TABLE audit_log (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -335,27 +335,27 @@ On open: read current `schema_version`, run all migrations with `version > curre
 
 ## 8. Tauri command surface (Layer 0)
 
-The full Lane 1 ↔ Lane 2 IPC contract for Layer 0. Each command has a typed request and response struct. All commands are async and return `Result<Response, CubicalError>`.
+The full Lane 1 ↔ Lane 2 IPC contract for Layer 0. Each command has a typed request and response struct. All commands are async and return `Result<Response, SimpleDirectoryError>`.
 
 ### Pattern: pure handler + thin Tauri shim
 
-Every command is implemented as a **pure async function** in `cubical-app/src/commands/*.rs` taking a plain `&AppState` reference and a typed request, returning a typed response. **The pure handler imports nothing from `tauri`.** Tauri-specific wiring lives in a thin shim in `cubical-app/src/lib.rs`.
+Every command is implemented as a **pure async function** in `simple-directory-app/src/commands/*.rs` taking a plain `&AppState` reference and a typed request, returning a typed response. **The pure handler imports nothing from `tauri`.** Tauri-specific wiring lives in a thin shim in `simple-directory-app/src/lib.rs`.
 
 ```rust
-// crates/cubical-app/src/commands/vault.rs — pure, no tauri imports
+// crates/simple-directory-app/src/commands/vault.rs — pure, no tauri imports
 pub async fn open_vault(
     state: &AppState,
     req: OpenVaultRequest,
-) -> Result<OpenVaultResponse, CubicalError> {
+) -> Result<OpenVaultResponse, SimpleDirectoryError> {
     // ... actual logic ...
 }
 
-// crates/cubical-app/src/lib.rs — thin Tauri shim
+// crates/simple-directory-app/src/lib.rs — thin Tauri shim
 #[tauri::command]
 async fn open_vault(
     state: tauri::State<'_, AppState>,
     req: OpenVaultRequest,
-) -> Result<OpenVaultResponse, CubicalError> {
+) -> Result<OpenVaultResponse, SimpleDirectoryError> {
     commands::vault::open_vault(state.inner(), req).await
 }
 ```
@@ -363,21 +363,21 @@ async fn open_vault(
 This pattern serves two purposes simultaneously:
 
 1. **Testability.** Pure handlers are unit-testable without booting a Tauri test harness — you construct an `AppState`, call the handler, assert on the result.
-2. **Migration-friendliness.** If Cubical ever swaps Tauri (e.g., for `tauri-runtime-verso` later, or a different shell entirely), the migration is "rewrite the shims," not "rewrite the logic." See `docs/migration-touchpoints.md`.
+2. **Migration-friendliness.** If simple.directory ever swaps Tauri (e.g., for `tauri-runtime-verso` later, or a different shell entirely), the migration is "rewrite the shims," not "rewrite the logic." See `docs/migration-touchpoints.md`.
 
 `AppState` is plain Rust — no `tauri::State<T>` baked into the type. Tauri wraps it via `app.manage(state)`; the shim does the `state.inner()` unwrap before calling the pure handler.
 
 ### Request / response types
 
-Defined in `cubical-app/src/api/types.rs`. Plain serde structs, no Tauri-specific decorators.
+Defined in `simple-directory-app/src/api/types.rs`. Plain serde structs, no Tauri-specific decorators.
 
 ### Commands
 
 ```rust
-// Open a vault at the given path. Creates .cubical/ if missing.
+// Open a vault at the given path. Creates .simple-directory/ if missing.
 // Returns immediately — the scan runs as a background Tokio task.
 #[command]
-async fn open_vault(req: OpenVaultRequest) -> Result<OpenVaultResponse, CubicalError>;
+async fn open_vault(req: OpenVaultRequest) -> Result<OpenVaultResponse, SimpleDirectoryError>;
 
 struct OpenVaultRequest {
     path: PathBuf,
@@ -393,7 +393,7 @@ enum ScanStatus {
 
 // Cancel an in-flight scan for a vault. Idempotent — no-op if scan is already complete.
 #[command]
-async fn cancel_vault_scan(req: CancelVaultScanRequest) -> Result<(), CubicalError>;
+async fn cancel_vault_scan(req: CancelVaultScanRequest) -> Result<(), SimpleDirectoryError>;
 
 struct CancelVaultScanRequest {
     vault_id: String,
@@ -402,7 +402,7 @@ struct CancelVaultScanRequest {
 // Get summary metadata for the open vault. Safe to call during scan;
 // counts reflect what's been discovered so far.
 #[command]
-async fn get_vault_info(req: GetVaultInfoRequest) -> Result<GetVaultInfoResponse, CubicalError>;
+async fn get_vault_info(req: GetVaultInfoRequest) -> Result<GetVaultInfoResponse, SimpleDirectoryError>;
 
 struct GetVaultInfoRequest {
     vault_id: String,
@@ -419,7 +419,7 @@ struct GetVaultInfoResponse {
 // List files in the vault. Layer 0 returns a flat list; Layer 3 will add hierarchy.
 // Safe to call during scan; returns whatever has been discovered so far.
 #[command]
-async fn list_files(req: ListFilesRequest) -> Result<ListFilesResponse, CubicalError>;
+async fn list_files(req: ListFilesRequest) -> Result<ListFilesResponse, SimpleDirectoryError>;
 
 struct ListFilesRequest {
     vault_id: String,
@@ -439,7 +439,7 @@ struct FileEntry {
 
 // Close the open vault. Cancels any in-flight scan; flushes any pending writes.
 #[command]
-async fn close_vault(req: CloseVaultRequest) -> Result<(), CubicalError>;
+async fn close_vault(req: CloseVaultRequest) -> Result<(), SimpleDirectoryError>;
 
 struct CloseVaultRequest {
     vault_id: String,
@@ -458,17 +458,17 @@ Tauri events emitted by the backend during Layer 0:
 
 ### Event names + payloads live in one place
 
-Event name strings and their typed payload structs are defined in `cubical-app/src/events.rs` — one constant per event, one struct per payload. Pure handlers call a small `emit_*` helper that wraps `app_handle.emit()`; they never hand-roll the string name or call Tauri's emit API directly. If the event surface ever migrates, only `events.rs` changes.
+Event name strings and their typed payload structs are defined in `simple-directory-app/src/events.rs` — one constant per event, one struct per payload. Pure handlers call a small `emit_*` helper that wraps `app_handle.emit()`; they never hand-roll the string name or call Tauri's emit API directly. If the event surface ever migrates, only `events.rs` changes.
 
 ---
 
 ## 9. Errors
 
-Defined in `cubical-core` and re-exported. Every fallible operation in Layer 0 returns `Result<T, CubicalError>`.
+Defined in `simple-directory-core` and re-exported. Every fallible operation in Layer 0 returns `Result<T, SimpleDirectoryError>`.
 
 ```rust
 #[derive(Debug, thiserror::Error)]
-pub enum CubicalError {
+pub enum SimpleDirectoryError {
     #[error("vault not found: {0}")]
     VaultNotFound(PathBuf),
 
@@ -501,7 +501,7 @@ pub enum CubicalError {
 }
 ```
 
-`CubicalError` serializes to a JSON shape suitable for the frontend:
+`SimpleDirectoryError` serializes to a JSON shape suitable for the frontend:
 
 ```json
 { "code": "VaultNotWritable", "message": "vault path is not writable: /Users/x/foo" }
@@ -565,7 +565,7 @@ Both Rust and the frontend log structured events.
 
 ### Rust
 
-`tracing` with `tracing-subscriber`. Logs go to stderr in dev and to a file in release (`<vault>/.cubical/cubical.log`, rotated daily). Significant events also write to the `audit_log` table.
+`tracing` with `tracing-subscriber`. Logs go to stderr in dev and to a file in release (`<vault>/.simple-directory/simple-directory.log`, rotated daily). Significant events also write to the `audit_log` table.
 
 ### Frontend
 
@@ -587,7 +587,7 @@ The Layer is complete when *all* of these are true:
    - Vault scan correctness test: 100 sample files, scan completes, all 100 rows in `files` table.
 4. `cargo tauri dev` opens a window. Clicking "Open Vault" on a folder containing 10 sample `.md` files results in: `index.db` containing 10 rows in `files` (no file content modified — verified by SHA-256 of each `.md` file before and after open), the UI listing all 10 files, no UUID injected anywhere.
 5. **`open_vault` returns within 100ms regardless of vault size.** Tested with a synthetic 10,000-file vault: command resolves in <100ms; `vault:scan-progress` events fire; `vault:scan-complete` fires with the final count.
-6. Modifying one of the `.md` files externally (in a separate editor) while Cubical is open results in a `vault:file-changed` event reaching the frontend within 200ms.
+6. Modifying one of the `.md` files externally (in a separate editor) while simple.directory is open results in a `vault:file-changed` event reaching the frontend within 200ms.
 7. Closing the vault during an in-flight scan results in a clean `vault:scan-cancelled` event and no orphan Tokio tasks (verified via task tracking in tests).
 8. The frontend ships `ui/src/styles/tokens.css` and consumes it; no component contains hardcoded colors, fonts, or spacings.
 9. `CLAUDE.md`'s "Project state" section is updated to reflect Layer 0 complete and Layer 1 next.
@@ -607,14 +607,14 @@ Bedrock predates the `superpowers/plans/` workflow; its session sequencing was p
 - **2026-05-05** — Initial workspace, Tauri scaffold, `ui/` skeleton, `tokens.css` + `base.css`, `ipc.ts`. `cargo tauri dev` verified.
 - **2026-05-06 (registry)** — `FileTypeHandler` trait, `FileTypeError`, `FileTypeRegistry`, `MarkdownHandler`, `BinaryHandler`, `sha256_file_hex` helper. 10 unit tests.
 - **2026-05-06 (migration runner)** — `open_index`, `Migration` struct, `MIGRATIONS` slice, `IndexError`, `001_initial.sql` (4 tables + 3 indexes). 4 `tokio::test` tests.
-- **2026-05-07** — `Vault` type, `scan()`, 5 Tauri shims (`open_vault` / `cancel_vault_scan` / `get_vault_info` / `list_files` / `close_vault`), `spawn_scan_dispatcher`, `CubicalError`, frontend open-vault flow, 200ms-throttled list refresh. 28 tests total.
+- **2026-05-07** — `Vault` type, `scan()`, 5 Tauri shims (`open_vault` / `cancel_vault_scan` / `get_vault_info` / `list_files` / `close_vault`), `spawn_scan_dispatcher`, `SimpleDirectoryError`, frontend open-vault flow, 200ms-throttled list refresh. 28 tests total.
 - **2026-05-08** — `WatchEvent` enum, `start_watcher()`, `WatcherHandle`, `notify` + `notify-debouncer-full` (100ms debounce + 25ms tick), `spawn_watcher_dispatcher`, `apply_watch_event_to_db`, audit_log rows. Frontend `VaultFileChanged` listener. 43 tests total.
-- **2026-06-23 (create files + folders)** — **Migration 007** `folders(path PK, created_at, last_seen)` (`HIGHEST_KNOWN_VERSION → 7`) + `cubical-index::folders` query module (`upsert_folder` / `delete_folder` / `sweep_stale_folders` / `list_folders`). Empty directories are tracked so they render in the file tree (otherwise derived from `files` paths); the on-disk dir is the source of truth, the table is rebuildable cache. Scan records every walked dir + sweeps stale rows (same `last_seen` mechanism as the `files` sweep); the watcher routes directory `Created`/`Modified` → `folders` (skipping file extraction) and `Removed` → folder-row delete. New IPCs `create_file` / `create_folder` (collision-safe `Untitled` / `Untitled Folder` naming, mkdir, eager row insert); `list_files` response gained a `folders` field. Follow-up: `create_file_at_path { vault_id, path }` creates a note at an exact caller-chosen path (shares `create_empty_markdown` with `create_file`) — fixes the "create this note" action on an unresolved `[[wiki-link]]`, which previously called `write_file_text` on a non-existent path and always failed with `FileNotFound`. Frontend: New file / New folder header buttons, `buildFileTree(files, folderPaths)` merge so empty folders show, create→navigate (file) / create→refresh (folder). New-item placement is vault root in v1; folder rename/delete deferred (delete still works externally via the watcher). Needs an interactive `cargo tauri dev` operator smoke (header buttons → new note opens + renamable via title; new folder appears empty and survives reopen).
+- **2026-06-23 (create files + folders)** — **Migration 007** `folders(path PK, created_at, last_seen)` (`HIGHEST_KNOWN_VERSION → 7`) + `simple-directory-index::folders` query module (`upsert_folder` / `delete_folder` / `sweep_stale_folders` / `list_folders`). Empty directories are tracked so they render in the file tree (otherwise derived from `files` paths); the on-disk dir is the source of truth, the table is rebuildable cache. Scan records every walked dir + sweeps stale rows (same `last_seen` mechanism as the `files` sweep); the watcher routes directory `Created`/`Modified` → `folders` (skipping file extraction) and `Removed` → folder-row delete. New IPCs `create_file` / `create_folder` (collision-safe `Untitled` / `Untitled Folder` naming, mkdir, eager row insert); `list_files` response gained a `folders` field. Follow-up: `create_file_at_path { vault_id, path }` creates a note at an exact caller-chosen path (shares `create_empty_markdown` with `create_file`) — fixes the "create this note" action on an unresolved `[[wiki-link]]`, which previously called `write_file_text` on a non-existent path and always failed with `FileNotFound`. Frontend: New file / New folder header buttons, `buildFileTree(files, folderPaths)` merge so empty folders show, create→navigate (file) / create→refresh (folder). New-item placement is vault root in v1; folder rename/delete deferred (delete still works externally via the watcher). Needs an interactive `cargo tauri dev` operator smoke (header buttons → new note opens + renamable via title; new folder appears empty and survives reopen).
 
 ### 14.2 Deviations from spec
 
-1. **Dep direction (§2 crate graph):** `cubical-index` no longer depends on `cubical-core`; direction reversed. `cubical-core` now depends on `cubical-index` (for `IndexConn`) and on `libsql` (for `params!`).
-2. **CubicalError location (§9):** not `cubical-core` — it must sit downstream of every error source, which the dep direction forbids in core. Landed in `cubical-app`; the later engine/transport split moved it to `cubical-engine`, where it lives now (see [`implementation/engine-ipc.md`](implementation/engine-ipc.md) → Error folding).
+1. **Dep direction (§2 crate graph):** `simple-directory-index` no longer depends on `simple-directory-core`; direction reversed. `simple-directory-core` now depends on `simple-directory-index` (for `IndexConn`) and on `libsql` (for `params!`).
+2. **SimpleDirectoryError location (§9):** not `simple-directory-core` — it must sit downstream of every error source, which the dep direction forbids in core. Landed in `simple-directory-app`; the later engine/transport split moved it to `simple-directory-engine`, where it lives now (see [`implementation/engine-ipc.md`](implementation/engine-ipc.md) → Error folding).
 3. **macOS FSEvents (§6):** `notify-debouncer-full` 0.3 coalesces synthetic Modify/Remove events in tests. Real editor flows work correctly. `translate_event` is fully unit-tested via synthetic `DebouncedEvent`s. `notify` 8.x + debouncer 0.6 is a candidate future fix.
 4. **Rename persistence (§6):** `apply_watch_event_to_db` for `Renamed` refreshes `last_seen` on the from-row only — does not update the `path` column or insert a to-row. Next vault scan handles it. Proper rename handler deferred to L3 Pending Rewrites Cache.
 5. **Deletion pruning (§6, 2026-06-23):** supersedes the original "row stays, refresh `last_seen` only" decision for `Removed`. `apply_watch_event_to_db` now `DELETE`s the `files` row (the `ON DELETE CASCADE` FKs added in L1–L3 carry the file's outbound `frontmatter`/`links`/`tags`/`blocks`/`block_refs` with it; inbound refs have no FK and degrade to broken links). The vault scan mirrors this: after Pass 1 it sweeps `files WHERE last_seen < scan_started_secs`, dropping rows for files deleted while the app wasn't watching. Without this a deleted file lingered in `list_files` / the tree.
@@ -627,13 +627,13 @@ Bedrock predates the `superpowers/plans/` workflow; its session sequencing was p
 
 - **(a)** §12 #4 scan correctness: 10-file fixture, `open_vault` returned in 3 ms, `index.db` had 10 `files` rows, UI listed all 10, SHA-256 of every `.md` unchanged vs pre-open baseline.
 - **(b)** §12 #6 external-edit propagation: `printf >> file3.md` → `vault:file-changed` reached the frontend ~185 ms later (incl. 100 ms watcher debounce); audit_log captured the Modified row.
-- **(c)** §12 #7 cancel-during-scan interactive variant deferred: L0 has no Close-vault UI affordance, and the dev-console `cancel_vault_scan` IPC could not beat a 30 000-file scan completing in ~19 s. Coverage stands on `scan_cancels_within_100ms_of_signal_on_a_200_file_vault` (`crates/cubical-core/src/vault/scan.rs`) plus code review of the dispatcher's `ScanCancelled` arm in `events.rs` and the frontend listener in `App.tsx`. Re-test interactively once L2 adds a Close-vault control.
+- **(c)** §12 #7 cancel-during-scan interactive variant deferred: L0 has no Close-vault UI affordance, and the dev-console `cancel_vault_scan` IPC could not beat a 30 000-file scan completing in ~19 s. Coverage stands on `scan_cancels_within_100ms_of_signal_on_a_200_file_vault` (`crates/simple-directory-core/src/vault/scan.rs`) plus code review of the dispatcher's `ScanCancelled` arm in `events.rs` and the frontend listener in `App.tsx`. Re-test interactively once L2 adds a Close-vault control.
 
 **Open observation (not blocking, follow-up for L2 perf pass):** `open_vault` on a 30 000-file vault first-open returned in 158–166 ms, over §12 #5's "<100 ms regardless of vault size" budget. §12 #5's stated test point is 10 000 files; that case was not measured this session. The bulk of the time sits inside `Vault::open` (164 ms of 166 ms); likely candidates are the schema migration runner plus initial directory stat. Worth profiling before §12 #5 is asserted as met.
 
 ### 14.5 Test counts (final)
 
-`cubical-core` 34 · `cubical-app` 5 · `cubical-index` 4 = **43 tests**
+`simple-directory-core` 34 · `simple-directory-app` 5 · `simple-directory-index` 4 = **43 tests**
 
 ### 14.6 Session protocol change
 

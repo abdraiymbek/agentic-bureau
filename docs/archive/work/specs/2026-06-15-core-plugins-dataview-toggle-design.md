@@ -6,7 +6,7 @@
 **Status:** approved (brainstorm), pending implementation plan
 **Scope:** two phases, both in this build —
 **Phase 1:** move per-vault settings out of the libSQL `config` table into
-a single TOML file, `.cubical/config.toml`, which becomes the source of
+a single TOML file, `.simple-directory/config.toml`, which becomes the source of
 truth.
 **Phase 2:** the Dataview Core Plugin on/off toggle, the settings file's
 first feature consumer.
@@ -15,7 +15,7 @@ first feature consumer.
 
 ## 1. Goal
 
-1. **Settings live in a plain, portable TOML file.** `.cubical/config.toml`
+1. **Settings live in a plain, portable TOML file.** `.simple-directory/config.toml`
    is the single source of truth for per-vault settings — human-readable,
    editable, and it travels with the vault.
 2. **Toggle Dataview.** From **Settings → Plugins → Core Plugins**, turn
@@ -29,14 +29,14 @@ touches L6.
 
 ## 2. Decisions (from brainstorm)
 
-- **Single store, no redundancy.** `.cubical/config.toml` (TOML) is the
+- **Single store, no redundancy.** `.simple-directory/config.toml` (TOML) is the
   sole source of truth **for settings**; the DB `config` table no longer
   holds them (it is narrowed to workspace state — see §4.3). Accepted
-  trade: deleting `.cubical/` resets settings to defaults — recoverable
+  trade: deleting `.simple-directory/` resets settings to defaults — recoverable
   from backup/trash, and cheap to re-set by hand.
-- **Location:** inside `.cubical/` (single hidden dir, clean vault root).
+- **Location:** inside `.simple-directory/` (single hidden dir, clean vault root).
 - **Format rationale (so nobody "fixes" the split later):** TOML is right
-  for `config.toml` because it is *Cubical's own* file — no other tool
+  for `config.toml` because it is *simple.directory's own* file — no other tool
   reads it, so it optimizes for config ergonomics (comments, strict
   types, no whitespace footguns). Note **frontmatter stays YAML**: it
   lives in the user's portable `.md` files, which must stay standard
@@ -66,10 +66,10 @@ touches L6.
 ## 3. Architecture amendment (required, Phase 1)
 
 Amend `docs/architecture/vault.md` §3. Today it says *everything in
-`.cubical/` is rebuildable from the markdown*. `config.toml` is **not**
+`.simple-directory/` is rebuildable from the markdown*. `config.toml` is **not**
 derivable from markdown, so the rule needs a carve-out:
 
-> `.cubical/` holds vault-owned state in two categories:
+> `.simple-directory/` holds vault-owned state in two categories:
 > - **Durable config** — `config.toml`. The source of truth for the
 >   user's settings; **not** rebuildable from markdown. Deleting it resets
 >   settings to defaults (recoverable from a backup/trash copy).
@@ -78,7 +78,7 @@ derivable from markdown, so the rule needs a carve-out:
 
 A deliberate change to a locked rule; it is the gate for Phase 1.
 
-## 4. Phase 1 — settings move to `.cubical/config.toml`
+## 4. Phase 1 — settings move to `.simple-directory/config.toml`
 
 ### 4.1 Format
 Setting keys are dotted (`plugins.dataview_enabled`,
@@ -132,7 +132,7 @@ string.
 - `open_vault`: file present hydrates the map; absent ⇒ defaults; malformed
   ⇒ empty map + warning, open still succeeds (integration, temp vault).
 - `set_setting`: file created on first set (lazy); atomic rewrite reflects
-  the map; survives a re-open (cubical-app test).
+  the map; survives a re-open (simple-directory-app test).
 
 ## 5. Phase 2 — Dataview Core Plugin toggle
 

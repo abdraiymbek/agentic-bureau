@@ -99,11 +99,11 @@ describe("search ipc wrappers", () => {
   });
 
   it("listTags calls list_tags with `{ req }` and returns the tag list", async () => {
-    mockInvoke.mockResolvedValueOnce({ tags: ["alpha", "project/cubical"] });
+    mockInvoke.mockResolvedValueOnce({ tags: ["alpha", "project/simple-directory"] });
     const res = await listTags({ vault_id: "vault-1" });
     expect(mockInvoke).toHaveBeenCalledWith("list_tags", {
       req: { vault_id: "vault-1" },
     });
-    expect(res.tags).toEqual(["alpha", "project/cubical"]);
+    expect(res.tags).toEqual(["alpha", "project/simple-directory"]);
   });
 });

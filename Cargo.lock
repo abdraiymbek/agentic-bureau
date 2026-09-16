@@ -813,13 +813,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
 
 [[package]]
-name = "cubical-app"
+name = "simple-directory-app"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "cubical-core",
- "cubical-engine",
- "cubical-ipc",
+ "simple-directory-core",
+ "simple-directory-engine",
+ "simple-directory-ipc",
  "futures-util",
  "nix 0.31.3",
  "portable-pty",
@@ -836,7 +836,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-ast"
+name = "simple-directory-ast"
 version = "0.1.0"
 dependencies = [
  "pulldown-cmark",
@@ -848,23 +848,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-cli"
+name = "simple-directory-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cubical-engine",
- "cubical-ipc",
+ "simple-directory-engine",
+ "simple-directory-ipc",
  "serde_json",
  "tempfile",
  "tokio",
 ]
 
 [[package]]
-name = "cubical-core"
+name = "simple-directory-core"
 version = "0.1.0"
 dependencies = [
- "cubical-ast",
- "cubical-index",
+ "simple-directory-ast",
+ "simple-directory-index",
  "libsql",
  "notify",
  "notify-debouncer-full",
@@ -881,17 +881,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-engine"
+name = "simple-directory-engine"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "cubical-ast",
- "cubical-core",
- "cubical-graph",
- "cubical-index",
- "cubical-query",
- "cubical-search",
- "cubical-table",
+ "simple-directory-ast",
+ "simple-directory-core",
+ "simple-directory-graph",
+ "simple-directory-index",
+ "simple-directory-query",
+ "simple-directory-search",
+ "simple-directory-table",
  "dirs",
  "libsql",
  "serde",
@@ -906,11 +906,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-graph"
+name = "simple-directory-graph"
 version = "0.1.0"
 dependencies = [
- "cubical-ast",
- "cubical-index",
+ "simple-directory-ast",
+ "simple-directory-index",
  "libsql",
  "serde",
  "tempfile",
@@ -919,7 +919,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-index"
+name = "simple-directory-index"
 version = "0.1.0"
 dependencies = [
  "libsql",
@@ -930,13 +930,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-ipc"
+name = "simple-directory-ipc"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "cubical-core",
- "cubical-engine",
+ "simple-directory-core",
+ "simple-directory-engine",
  "serde",
  "serde_json",
  "tempfile",
@@ -945,12 +945,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-query"
+name = "simple-directory-query"
 version = "0.1.0"
 dependencies = [
- "cubical-ast",
- "cubical-index",
- "cubical-table",
+ "simple-directory-ast",
+ "simple-directory-index",
+ "simple-directory-table",
  "libsql",
  "serde",
  "tempfile",
@@ -959,10 +959,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-search"
+name = "simple-directory-search"
 version = "0.1.0"
 dependencies = [
- "cubical-ast",
+ "simple-directory-ast",
  "serde",
  "serde_json",
  "tantivy",
@@ -971,11 +971,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cubical-sync"
+name = "simple-directory-sync"
 version = "0.1.0"
 
 [[package]]
-name = "cubical-table"
+name = "simple-directory-table"
 version = "0.1.0"
 dependencies = [
  "calamine",

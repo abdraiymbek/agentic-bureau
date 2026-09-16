@@ -6,9 +6,9 @@
 
 **Goal:** In the CodeMirror editor, typing `[[` opens an autocomplete dropdown over the vault's markdown files, and typing `#` at a word boundary (outside code) opens autocomplete over existing tags; selecting an entry completes the `[[…]]` or `#…` token.
 
-**Architecture:** Two new read-only `cubical-index` query helpers (`files_for_link_query`, `tag_paths_for_prefix`) back two new pure async command handlers (`link_autocomplete`, `tag_autocomplete`) exposed over IPC via the standard thin-shim pattern. On the frontend, a per-vault `AutocompleteProvider` (mirroring the existing `WikiLinkResolver` injection) feeds two CodeMirror 6 `CompletionSource`s installed via the `@codemirror/autocomplete` `autocompletion({ override })` extension. Trigger detection and insert-text construction are pure, unit-tested functions; "inside code" gating reads the Lezer syntax tree.
+**Architecture:** Two new read-only `simple-directory-index` query helpers (`files_for_link_query`, `tag_paths_for_prefix`) back two new pure async command handlers (`link_autocomplete`, `tag_autocomplete`) exposed over IPC via the standard thin-shim pattern. On the frontend, a per-vault `AutocompleteProvider` (mirroring the existing `WikiLinkResolver` injection) feeds two CodeMirror 6 `CompletionSource`s installed via the `@codemirror/autocomplete` `autocompletion({ override })` extension. Trigger detection and insert-text construction are pure, unit-tested functions; "inside code" gating reads the Lezer syntax tree.
 
-**Tech Stack:** Rust, `libsql` (local SQLite), `cubical-index` query helpers, Tauri command shims, TypeScript, Solid, CodeMirror 6 (`@codemirror/autocomplete`, `@codemirror/state`, `@codemirror/language`), vitest.
+**Tech Stack:** Rust, `libsql` (local SQLite), `simple-directory-index` query helpers, Tauri command shims, TypeScript, Solid, CodeMirror 6 (`@codemirror/autocomplete`, `@codemirror/state`, `@codemirror/language`), vitest.
 
 ---
 
@@ -18,7 +18,7 @@ You have no prior context on this codebase. Read this section, then the referenc
 
 ### What we're building
 
-Cubical is a local-first Markdown PKM app (Tauri + Rust + Solid). L3 ("Knowledge Graph") adds wiki-links, tags, backlinks, etc. Sessions A–E are done. This is **Session F — link + tag autocomplete** (`docs/layer-3-spec.md` §2.6 + §8 "Session F").
+simple.directory is a local-first Markdown PKM app (Tauri + Rust + Solid). L3 ("Knowledge Graph") adds wiki-links, tags, backlinks, etc. Sessions A–E are done. This is **Session F — link + tag autocomplete** (`docs/layer-3-spec.md` §2.6 + §8 "Session F").
 
 When the user types `[[` in the editor, a dropdown should list the vault's markdown files; picking one inserts a valid `[[path]]` wiki-link. When the user types `#` at a word boundary outside code, a dropdown should list existing tags (prefix-filtered); picking one inserts `#tag`.
 
@@ -32,10 +32,10 @@ The §2.6 prose additionally muses about "after `#` inside the brackets, that fi
 
 ### How the existing pieces fit (the patterns you will mirror)
 
-- **Index query helpers** live in `crates/cubical-index/src/{links,tags}.rs` as `pub async fn …(conn: &IndexConn, …) -> Result<…, IndexError>`. They run SQL against the libSQL `files` / `tags` tables. See `tags::files_for_tag_prefix` (the closest model — note its `escape_like_literal` helper and `LIKE … ESCAPE '\'` usage).
-- **Command handlers** live in `crates/cubical-app/src/commands/*.rs` as pure `pub async fn name(state: &AppState, req: XRequest) -> Result<XResponse, CubicalError>`. They pull the open vault from `state.vaults().read().await`, call an index helper, and map to wire types. See `commands::tags::query_tag_page` — copy its shape exactly.
-- **Wire types** live in `crates/cubical-app/src/api/types.rs` (`#[derive(Deserialize)]` requests, `#[derive(Serialize)]` responses). See `QueryTagPageRequest` / `QueryTagPageResponse` / `TagPageFile`.
-- **Tauri shims** are 3-line `#[tauri::command]` forwarders in `crates/cubical-app/src/lib.rs`, registered in the `tauri::generate_handler![…]` list. See the `query_tag_page` shim.
+- **Index query helpers** live in `crates/simple-directory-index/src/{links,tags}.rs` as `pub async fn …(conn: &IndexConn, …) -> Result<…, IndexError>`. They run SQL against the libSQL `files` / `tags` tables. See `tags::files_for_tag_prefix` (the closest model — note its `escape_like_literal` helper and `LIKE … ESCAPE '\'` usage).
+- **Command handlers** live in `crates/simple-directory-app/src/commands/*.rs` as pure `pub async fn name(state: &AppState, req: XRequest) -> Result<XResponse, SimpleDirectoryError>`. They pull the open vault from `state.vaults().read().await`, call an index helper, and map to wire types. See `commands::tags::query_tag_page` — copy its shape exactly.
+- **Wire types** live in `crates/simple-directory-app/src/api/types.rs` (`#[derive(Deserialize)]` requests, `#[derive(Serialize)]` responses). See `QueryTagPageRequest` / `QueryTagPageResponse` / `TagPageFile`.
+- **Tauri shims** are 3-line `#[tauri::command]` forwarders in `crates/simple-directory-app/src/lib.rs`, registered in the `tauri::generate_handler![…]` list. See the `query_tag_page` shim.
 - **Frontend IPC** is centralized in `ui/src/api/ipc.ts` — typed wire structs + one `invoke(...)` wrapper per command. Components NEVER call `invoke` directly. See `queryTagPage`.
 - **Per-vault provider injection:** `ui/src/editor/wikilinkResolver.ts` exports `createWikiLinkResolver(vaultId, ipc?)`. `App.tsx` holds it in a signal (`wikilinkResolver`), sets it on vault open (~line 714 `setWikilinkResolver(createWikiLinkResolver(resp.vault_id))`), and passes it to `<Editor wikilinkResolver={…}>`. `Editor.tsx` holds it in a `Compartment` and reconfigures on prop change. **You will add an exactly-parallel `AutocompleteProvider`.**
 - **Editor extension install site:** `Editor.tsx` `onMount`, the `EditorState.create({ extensions: [...] })` array. Markdown is configured as `markdown({ extensions: [wikilinkExtension, tagExtension] })`. Live-preview decorations + resolver facet are each in their own `Compartment`.
@@ -59,18 +59,18 @@ The §2.6 prose additionally muses about "after `#` inside the brackets, that fi
 ## File Structure
 
 **Create:**
-- `crates/cubical-app/src/commands/autocomplete.rs` — the two pure handlers + their unit tests.
+- `crates/simple-directory-app/src/commands/autocomplete.rs` — the two pure handlers + their unit tests.
 - `ui/src/editor/autocomplete.ts` — pure trigger detection, insert-text construction, code-context gating, and the two `CompletionSource` builders.
 - `ui/src/editor/autocomplete.test.ts` — vitest for the pure functions + gating.
 - `ui/src/editor/autocompleteProvider.ts` — `createAutocompleteProvider(vaultId, ipc?)`, the per-vault IPC adapter (mirrors `wikilinkResolver.ts`).
 
 **Modify:**
-- `crates/cubical-index/src/links.rs` — add `files_for_link_query` + tests.
-- `crates/cubical-index/src/tags.rs` — add `tag_paths_for_prefix` + tests.
-- `crates/cubical-index/src/lib.rs` — re-export the two new helpers.
-- `crates/cubical-app/src/api/types.rs` — add request/response/candidate structs.
-- `crates/cubical-app/src/commands/mod.rs` — `pub mod autocomplete;`.
-- `crates/cubical-app/src/lib.rs` — two Tauri shims + register them in `generate_handler!`; import the new types.
+- `crates/simple-directory-index/src/links.rs` — add `files_for_link_query` + tests.
+- `crates/simple-directory-index/src/tags.rs` — add `tag_paths_for_prefix` + tests.
+- `crates/simple-directory-index/src/lib.rs` — re-export the two new helpers.
+- `crates/simple-directory-app/src/api/types.rs` — add request/response/candidate structs.
+- `crates/simple-directory-app/src/commands/mod.rs` — `pub mod autocomplete;`.
+- `crates/simple-directory-app/src/lib.rs` — two Tauri shims + register them in `generate_handler!`; import the new types.
 - `ui/src/api/ipc.ts` — wire types + `linkAutocomplete` / `tagAutocomplete` functions.
 - `ui/src/Editor.tsx` — new `autocompleteProvider` prop + `autocompletion` extension in a compartment.
 - `ui/src/App.tsx` — construct/clear the provider alongside `wikilinkResolver`; pass it to `<Editor>`.
@@ -81,29 +81,29 @@ The §2.6 prose additionally muses about "after `#` inside the brackets, that fi
 ### Task 1: `files_for_link_query` index helper
 
 **Files:**
-- Modify: `crates/cubical-index/src/links.rs`
-- Modify: `crates/cubical-index/src/lib.rs`
+- Modify: `crates/simple-directory-index/src/links.rs`
+- Modify: `crates/simple-directory-index/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the `#[cfg(test)] mod tests` block in `crates/cubical-index/src/links.rs`. (That module already has an `open_test_index()` helper and a `seed_file` helper — confirm their exact names by reading the bottom of `links.rs`; if `seed_file` is named differently or absent, copy the `seed_file` from `tags.rs`'s test module, which inserts a `files` row with `type_id='markdown'`.)
+Add to the `#[cfg(test)] mod tests` block in `crates/simple-directory-index/src/links.rs`. (That module already has an `open_test_index()` helper and a `seed_file` helper — confirm their exact names by reading the bottom of `links.rs`; if `seed_file` is named differently or absent, copy the `seed_file` from `tags.rs`'s test module, which inserts a `files` row with `type_id='markdown'`.)
 
 ```rust
 #[tokio::test]
 async fn files_for_link_query_substring_case_insensitive() {
     let (_dir, conn) = open_test_index().await;
     seed_file(&conn, "Daily/2026-05-28.md").await;
-    seed_file(&conn, "notes/Project Cubical.md").await;
-    seed_file(&conn, "notes/cubical-ast.md").await;
+    seed_file(&conn, "notes/Project simple.directory.md").await;
+    seed_file(&conn, "notes/simple-directory-ast.md").await;
     seed_file(&conn, "archive/old.md").await;
 
     // Case-insensitive substring over the whole path.
-    let got = files_for_link_query(&conn, "cubical", 50).await.unwrap();
+    let got = files_for_link_query(&conn, "simple-directory", 50).await.unwrap();
     assert_eq!(
         got,
         vec![
-            "notes/Project Cubical.md".to_string(),
-            "notes/cubical-ast.md".to_string(),
+            "notes/Project simple.directory.md".to_string(),
+            "notes/simple-directory-ast.md".to_string(),
         ]
     );
 }
@@ -149,12 +149,12 @@ async fn files_for_link_query_excludes_non_markdown_and_escapes_like() {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-index links::tests::files_for_link_query -- --nocapture`
+Run: `cargo test -p simple-directory-index links::tests::files_for_link_query -- --nocapture`
 Expected: FAIL to compile — `files_for_link_query` does not exist.
 
 - [ ] **Step 3: Implement the helper**
 
-Add to `crates/cubical-index/src/links.rs` (near the other `pub async fn` query helpers, above the `tests` module). It needs an `escape_like_literal` like the one in `tags.rs`; add a private copy here (small, self-contained — keeping it local avoids a cross-module visibility change):
+Add to `crates/simple-directory-index/src/links.rs` (near the other `pub async fn` query helpers, above the `tests` module). It needs an `escape_like_literal` like the one in `tags.rs`; add a private copy here (small, self-contained — keeping it local avoids a cross-module visibility change):
 
 ```rust
 /// Escape LIKE-special bytes (`\`, `%`, `_`) so a literal can be used
@@ -205,7 +205,7 @@ pub async fn files_for_link_query(
 
 - [ ] **Step 4: Re-export from the crate root**
 
-In `crates/cubical-index/src/lib.rs`, add `files_for_link_query` to the `pub use links::{…}` list:
+In `crates/simple-directory-index/src/lib.rs`, add `files_for_link_query` to the `pub use links::{…}` list:
 
 ```rust
 pub use links::{
@@ -216,13 +216,13 @@ pub use links::{
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-index links::tests::files_for_link_query -- --nocapture`
+Run: `cargo test -p simple-directory-index links::tests::files_for_link_query -- --nocapture`
 Expected: PASS (all three tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-index/src/links.rs crates/cubical-index/src/lib.rs
+git add crates/simple-directory-index/src/links.rs crates/simple-directory-index/src/lib.rs
 git commit -m "feat(index): files_for_link_query — markdown paths for link autocomplete"
 ```
 
@@ -231,12 +231,12 @@ git commit -m "feat(index): files_for_link_query — markdown paths for link aut
 ### Task 2: `tag_paths_for_prefix` index helper
 
 **Files:**
-- Modify: `crates/cubical-index/src/tags.rs`
-- Modify: `crates/cubical-index/src/lib.rs`
+- Modify: `crates/simple-directory-index/src/tags.rs`
+- Modify: `crates/simple-directory-index/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the `#[cfg(test)] mod tests` block in `crates/cubical-index/src/tags.rs` (it has `open_test_index()`, `seed_file`, and a `row(tag, source)` helper):
+Add to the `#[cfg(test)] mod tests` block in `crates/simple-directory-index/src/tags.rs` (it has `open_test_index()`, `seed_file`, and a `row(tag, source)` helper):
 
 ```rust
 #[tokio::test]
@@ -249,7 +249,7 @@ async fn tag_paths_for_prefix_distinct_prefix_match_case_insensitive() {
         "a.md",
         &[
             row("Project", TagSource::Inline),
-            row("project/cubical", TagSource::Frontmatter),
+            row("project/simple-directory", TagSource::Frontmatter),
         ],
     )
     .await
@@ -262,7 +262,7 @@ async fn tag_paths_for_prefix_distinct_prefix_match_case_insensitive() {
     let got = tag_paths_for_prefix(&conn, "proj", 50).await.unwrap();
     assert_eq!(
         got,
-        vec!["Project".to_string(), "project/cubical".to_string()]
+        vec!["Project".to_string(), "project/simple-directory".to_string()]
     );
     // Non-matching prefix yields nothing.
     assert!(tag_paths_for_prefix(&conn, "zzz", 50).await.unwrap().is_empty());
@@ -306,12 +306,12 @@ async fn tag_paths_for_prefix_escapes_like_underscore() {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-index tags::tests::tag_paths_for_prefix -- --nocapture`
+Run: `cargo test -p simple-directory-index tags::tests::tag_paths_for_prefix -- --nocapture`
 Expected: FAIL to compile — `tag_paths_for_prefix` does not exist.
 
 - [ ] **Step 3: Implement the helper**
 
-Add to `crates/cubical-index/src/tags.rs` (near `files_for_tag_prefix`, reusing the existing private `escape_like_literal` already defined in that file):
+Add to `crates/simple-directory-index/src/tags.rs` (near `files_for_tag_prefix`, reusing the existing private `escape_like_literal` already defined in that file):
 
 ```rust
 /// Distinct tag paths whose lowercased form starts with `query`
@@ -347,7 +347,7 @@ pub async fn tag_paths_for_prefix(
 
 - [ ] **Step 4: Re-export from the crate root**
 
-In `crates/cubical-index/src/lib.rs`, add `tag_paths_for_prefix` to the `pub use tags::{…}` list:
+In `crates/simple-directory-index/src/lib.rs`, add `tag_paths_for_prefix` to the `pub use tags::{…}` list:
 
 ```rust
 pub use tags::{
@@ -358,13 +358,13 @@ pub use tags::{
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-index tags::tests::tag_paths_for_prefix -- --nocapture`
+Run: `cargo test -p simple-directory-index tags::tests::tag_paths_for_prefix -- --nocapture`
 Expected: PASS (all three tests).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-index/src/tags.rs crates/cubical-index/src/lib.rs
+git add crates/simple-directory-index/src/tags.rs crates/simple-directory-index/src/lib.rs
 git commit -m "feat(index): tag_paths_for_prefix — distinct tags for tag autocomplete"
 ```
 
@@ -373,13 +373,13 @@ git commit -m "feat(index): tag_paths_for_prefix — distinct tags for tag autoc
 ### Task 3: Wire types + `link_autocomplete` / `tag_autocomplete` handlers
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
-- Create: `crates/cubical-app/src/commands/autocomplete.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
+- Create: `crates/simple-directory-app/src/commands/autocomplete.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
 
 - [ ] **Step 1: Add the wire types**
 
-In `crates/cubical-app/src/api/types.rs`, add (after the `query_tag_page` section, before `close_vault`). Match the existing `#[derive(...)]` conventions in that file — requests derive `Deserialize`, responses + nested rows derive `Serialize`:
+In `crates/simple-directory-app/src/api/types.rs`, add (after the `query_tag_page` section, before `close_vault`). Match the existing `#[derive(...)]` conventions in that file — requests derive `Deserialize`, responses + nested rows derive `Serialize`:
 
 ```rust
 // -- link_autocomplete / tag_autocomplete (L3 Session F) -----------------
@@ -428,7 +428,7 @@ pub struct TagAutocompleteResponse {
 
 - [ ] **Step 2: Write the failing handler tests**
 
-Create `crates/cubical-app/src/commands/autocomplete.rs` with ONLY the tests first (so the step fails to compile), modeled on `commands/tags.rs`'s test module (which has `fresh_state_with_vault`, `seed_file`, and a `tag(path, source)` helper — copy those helpers verbatim into this file's test module):
+Create `crates/simple-directory-app/src/commands/autocomplete.rs` with ONLY the tests first (so the step fails to compile), modeled on `commands/tags.rs`'s test module (which has `fresh_state_with_vault`, `seed_file`, and a `tag(path, source)` helper — copy those helpers verbatim into this file's test module):
 
 ```rust
 //! Pure async handlers for `link_autocomplete` + `tag_autocomplete`.
@@ -441,8 +441,8 @@ Create `crates/cubical-app/src/commands/autocomplete.rs` with ONLY the tests fir
 mod tests {
     use super::*;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
-    use cubical_index::{replace_tags_for_file, TagRow, TagSource};
+    use simple_directory_core::Vault;
+    use simple_directory_index::{replace_tags_for_file, TagRow, TagSource};
     use tempfile::{tempdir, TempDir};
     use tokio_util::sync::CancellationToken;
 
@@ -484,7 +484,7 @@ mod tests {
     #[tokio::test]
     async fn link_autocomplete_returns_titled_candidates() {
         let (_dir, vault, state) = fresh_state_with_vault("v1").await;
-        seed_file(&vault, "notes/Project Cubical.md", "markdown").await;
+        seed_file(&vault, "notes/Project simple.directory.md", "markdown").await;
         seed_file(&vault, "image.png", "binary").await;
 
         let resp = link_autocomplete(
@@ -494,8 +494,8 @@ mod tests {
         .await
         .expect("ok");
         assert_eq!(resp.candidates.len(), 1);
-        assert_eq!(resp.candidates[0].path, "notes/Project Cubical.md");
-        assert_eq!(resp.candidates[0].title, "Project Cubical");
+        assert_eq!(resp.candidates[0].path, "notes/Project simple.directory.md");
+        assert_eq!(resp.candidates[0].title, "Project simple.directory");
     }
 
     #[tokio::test]
@@ -528,14 +528,14 @@ mod tests {
         )
         .await
         .expect_err("vault-not-open");
-        assert!(matches!(err, crate::error::CubicalError::VaultNotOpen(v) if v == "ghost"));
+        assert!(matches!(err, crate::error::SimpleDirectoryError::VaultNotOpen(v) if v == "ghost"));
     }
 }
 ```
 
 - [ ] **Step 3: Register the module so it compiles**
 
-In `crates/cubical-app/src/commands/mod.rs`, add the module declaration (keep the list alphabetical with the others):
+In `crates/simple-directory-app/src/commands/mod.rs`, add the module declaration (keep the list alphabetical with the others):
 
 ```rust
 pub mod autocomplete;
@@ -543,23 +543,23 @@ pub mod autocomplete;
 
 - [ ] **Step 4: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-app commands::autocomplete -- --nocapture`
+Run: `cargo test -p simple-directory-app commands::autocomplete -- --nocapture`
 Expected: FAIL to compile — `link_autocomplete` / `tag_autocomplete` are not defined.
 
 - [ ] **Step 5: Implement the handlers**
 
-Add the handler bodies + imports at the TOP of `crates/cubical-app/src/commands/autocomplete.rs` (above the `#[cfg(test)] mod tests`):
+Add the handler bodies + imports at the TOP of `crates/simple-directory-app/src/commands/autocomplete.rs` (above the `#[cfg(test)] mod tests`):
 
 ```rust
 use std::path::Path;
 
-use cubical_index::{files_for_link_query, tag_paths_for_prefix};
+use simple_directory_index::{files_for_link_query, tag_paths_for_prefix};
 
 use crate::api::types::{
     LinkAutocompleteRequest, LinkAutocompleteResponse, LinkCandidate, TagAutocompleteRequest,
     TagAutocompleteResponse,
 };
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// Server-side cap on candidates returned per request. Keeps the
@@ -582,11 +582,11 @@ fn derive_title(path: &str) -> String {
 pub async fn link_autocomplete(
     state: &AppState,
     req: LinkAutocompleteRequest,
-) -> Result<LinkAutocompleteResponse, CubicalError> {
+) -> Result<LinkAutocompleteResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
 
     let paths = files_for_link_query(open.vault.index(), &req.query, AUTOCOMPLETE_LIMIT).await?;
     let candidates = paths
@@ -603,28 +603,28 @@ pub async fn link_autocomplete(
 pub async fn tag_autocomplete(
     state: &AppState,
     req: TagAutocompleteRequest,
-) -> Result<TagAutocompleteResponse, CubicalError> {
+) -> Result<TagAutocompleteResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
 
     let candidates = tag_paths_for_prefix(open.vault.index(), &req.query, AUTOCOMPLETE_LIMIT).await?;
     Ok(TagAutocompleteResponse { candidates })
 }
 ```
 
-> If the compiler reports `CubicalError::VaultNotOpen`'s shape differs, open `crates/cubical-app/src/error.rs` and match the real variant used by `commands::tags::query_tag_page` (copied above). If `?` on the index call fails to convert `IndexError` into `CubicalError`, check how `query_tag_page` propagates it — it relies on a `From<IndexError> for CubicalError` impl that already exists; the same `?` works here.
+> If the compiler reports `SimpleDirectoryError::VaultNotOpen`'s shape differs, open `crates/simple-directory-app/src/error.rs` and match the real variant used by `commands::tags::query_tag_page` (copied above). If `?` on the index call fails to convert `IndexError` into `SimpleDirectoryError`, check how `query_tag_page` propagates it — it relies on a `From<IndexError> for SimpleDirectoryError` impl that already exists; the same `?` works here.
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-app commands::autocomplete -- --nocapture`
+Run: `cargo test -p simple-directory-app commands::autocomplete -- --nocapture`
 Expected: PASS (all three tests).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs crates/cubical-app/src/commands/autocomplete.rs crates/cubical-app/src/commands/mod.rs
+git add crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/commands/autocomplete.rs crates/simple-directory-app/src/commands/mod.rs
 git commit -m "feat(app): link_autocomplete + tag_autocomplete handlers"
 ```
 
@@ -633,11 +633,11 @@ git commit -m "feat(app): link_autocomplete + tag_autocomplete handlers"
 ### Task 4: Tauri shims + handler registration
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 
 - [ ] **Step 1: Import the new request/response types**
 
-In `crates/cubical-app/src/lib.rs`, the `use crate::api::types::{…}` import block lists the wire types used by the shims. Add the four new types to it:
+In `crates/simple-directory-app/src/lib.rs`, the `use crate::api::types::{…}` import block lists the wire types used by the shims. Add the four new types to it:
 
 ```rust
     LinkAutocompleteRequest, LinkAutocompleteResponse, TagAutocompleteRequest,
@@ -648,7 +648,7 @@ In `crates/cubical-app/src/lib.rs`, the `use crate::api::types::{…}` import bl
 
 - [ ] **Step 2: Add the two shims**
 
-Add after the `query_tag_page` shim in `crates/cubical-app/src/lib.rs`:
+Add after the `query_tag_page` shim in `crates/simple-directory-app/src/lib.rs`:
 
 ```rust
 /// Tauri shim — see [`commands::autocomplete::link_autocomplete`].
@@ -656,7 +656,7 @@ Add after the `query_tag_page` shim in `crates/cubical-app/src/lib.rs`:
 async fn link_autocomplete(
     state: tauri::State<'_, AppState>,
     req: LinkAutocompleteRequest,
-) -> Result<LinkAutocompleteResponse, CubicalError> {
+) -> Result<LinkAutocompleteResponse, SimpleDirectoryError> {
     commands::autocomplete::link_autocomplete(state.inner(), req).await
 }
 
@@ -665,7 +665,7 @@ async fn link_autocomplete(
 async fn tag_autocomplete(
     state: tauri::State<'_, AppState>,
     req: TagAutocompleteRequest,
-) -> Result<TagAutocompleteResponse, CubicalError> {
+) -> Result<TagAutocompleteResponse, SimpleDirectoryError> {
     commands::autocomplete::tag_autocomplete(state.inner(), req).await
 }
 ```
@@ -681,13 +681,13 @@ In the `tauri::generate_handler![…]` array, add both names (after `query_tag_p
 
 - [ ] **Step 4: Build the app crate to verify wiring compiles**
 
-Run: `cargo build -p cubical-app`
+Run: `cargo build -p simple-directory-app`
 Expected: clean build (the `generate_handler!` macro fails loudly if a name is missing or a type isn't `Serialize`/`Deserialize`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs
+git add crates/simple-directory-app/src/lib.rs
 git commit -m "feat(app): register link/tag autocomplete Tauri commands"
 ```
 
@@ -1332,7 +1332,7 @@ git commit -m "feat(ui): wire link/tag autocomplete into the editor"
 - [ ] **Step 1: Whole workspace Rust test suite**
 
 Run: `cargo test --workspace`
-Expected: PASS, 0 failures. (Known flake: `commands::vault::tests::get_setting_returns_none_for_absent_key` is parallel-execution-sensitive — if it fails, re-run in isolation: `cargo test -p cubical-app commands::vault::tests::get_setting_returns_none_for_absent_key`.)
+Expected: PASS, 0 failures. (Known flake: `commands::vault::tests::get_setting_returns_none_for_absent_key` is parallel-execution-sensitive — if it fails, re-run in isolation: `cargo test -p simple-directory-app commands::vault::tests::get_setting_returns_none_for_absent_key`.)
 
 - [ ] **Step 2: Lint + format + frontend gates**
 
@@ -1346,7 +1346,7 @@ cargo fmt --all --check
 - [ ] **Step 3: Real-app smoke**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open a vault with several notes + tags.
 #  - Type `[[` → a dropdown of files appears; pick one → `[[path]]`
 #    is inserted with the caret after `]]`.

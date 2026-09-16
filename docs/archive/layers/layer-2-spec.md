@@ -1,6 +1,6 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../architecture/) and [`docs/implementation/`](../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical — Layer 2: Editing
+# simple.directory — Layer 2: Editing
 
 > **Historical record**, frozen at layer close (tag + date in [`build-order.md`](build-order.md)). The plan and "what was built" below are the state *as of then*; current canonical truth lives in [`architecture/`](architecture/README.md). Where work later diverged, it's noted inline as a deviation — not silently overwritten.
 
@@ -23,7 +23,7 @@ By end of L2:
 5. Theming is real. The token surface in `ui/src/styles/tokens.css` is consumed by an `<html data-theme="...">` cascade. The dark token values are tuned. The CodeMirror theme is generated programmatically from the same tokens. OS `prefers-color-scheme` drives the default; the user override is read from / written to the settings infrastructure.
 6. Frontmatter has an inline Properties UI above the editor pane. Rows for each top-level key, click-to-edit cells with type-specific inputs for `string`, `number`, `boolean`, `date` (ISO 8601), `list-of-strings`, `list-of-tags`. Unknown YAML types render as raw text. Nested mappings collapse to read-only JSON. Saves go through the same `write_file_text` path as body edits.
 
-What's **not** in L2: a Settings page UI (the toggle button is the only L2 surface that writes a setting; the rest is read-on-startup); theme picker UI (L5); user-supplied themes under `<vault>/.cubical/themes/` (L5); high-contrast theme (L5); export sanitization (L5); a real 3-way merge UI for external-edit conflicts (L8 Time Machine); tabs / split-pane (post-L2); right-sidebar backlinks / unlinked mentions (L3); search panel (L4); wiki-link / embed / block-ref decorations (L3); tag autocomplete inside Properties tag-lists (L3 owns autocomplete).
+What's **not** in L2: a Settings page UI (the toggle button is the only L2 surface that writes a setting; the rest is read-on-startup); theme picker UI (L5); user-supplied themes under `<vault>/.simple-directory/themes/` (L5); high-contrast theme (L5); export sanitization (L5); a real 3-way merge UI for external-edit conflicts (L8 Time Machine); tabs / split-pane (post-L2); right-sidebar backlinks / unlinked mentions (L3); search panel (L4); wiki-link / embed / block-ref decorations (L3); tag autocomplete inside Properties tag-lists (L3 owns autocomplete).
 
 ---
 
@@ -37,7 +37,7 @@ What's **not** in L2: a Settings page UI (the toggle button is the only L2 surfa
 - **Flush triggers:** debounce timer fires; editor blurs; the active file changes (the previous file's pending write is awaited before the new file is read); the app is closing (the close-vault IPC awaits any in-flight save).
 - **Per-file scoping:** each open document has its own pending timer + last-written-hash. L2 only ever opens one document at a time, but the structure must not preclude tabs (post-L2).
 - **Cancel-on-external-edit:** none. When an external edit lands on a dirty buffer (see §2.7), the pending autosave is *paused* via the conflict banner; the user resolves.
-- **Atomic write:** all writes go through `cubical-core`'s temp-and-rename helper (`docs/layer-0-spec.md` §4). Windows retry semantics inherited unchanged.
+- **Atomic write:** all writes go through `simple-directory-core`'s temp-and-rename helper (`docs/layer-0-spec.md` §4). Windows retry semantics inherited unchanged.
 - **Audit log:** every successful autosave writes an `audit_log` row (category `autosave`, level `info`, detail `{ path, bytes }`).
 
 Reads still go through `read_file_text`. Writes go through the new `write_file_text` IPC (§3).
@@ -108,7 +108,7 @@ A new component `ui/src/Properties.tsx` mounted above `Editor.tsx` in `App.tsx` 
 
 ### 2.6 Vault-local settings infrastructure
 
-L2 needs persistent settings for the Raw-Source default and the theme mode. The L0 schema already created the `config` table (path `<vault>/.cubical/index.db`, `config(key TEXT PRIMARY KEY, value TEXT NOT NULL)`).
+L2 needs persistent settings for the Raw-Source default and the theme mode. The L0 schema already created the `config` table (path `<vault>/.simple-directory/index.db`, `config(key TEXT PRIMARY KEY, value TEXT NOT NULL)`).
 
 L2 adds two pure-handler-plus-shim Tauri commands (§3.4) reading and writing that table. Values are JSON-encoded so non-string types round-trip cleanly. L2 keys used:
 
@@ -125,7 +125,7 @@ When the file underneath the editor changes externally while the buffer is dirty
 
 1. **Detect.** The Editor records the `content_hash` of the file as of its last successful read or write (call this `seen_hash`). The `vault:file-changed` event carries the file's `new_content_hash` after the watcher refresh (§3.5 — new field on the existing event). If `new_content_hash != seen_hash` and the buffer is dirty, the conflict branch fires.
 2. **Pause autosave.** The pending 300ms timer is cancelled. Any in-flight `write_file_text` finishes normally — its response updates `last_written_hash` so the watcher round-trip is still suppressed. A buffer change that lands while the banner is up does *not* restart the debounce.
-3. **Banner UI.** A banner spans above the editor: "*This file was changed outside Cubical.* `[ Reload from disk ]` `[ Keep my edits ]`."
+3. **Banner UI.** A banner spans above the editor: "*This file was changed outside simple.directory.* `[ Reload from disk ]` `[ Keep my edits ]`."
 4. **Resolution.**
    - **Reload from disk:** discard buffer state, re-read via `read_file_text`, replace CM6 doc, update `seen_hash`. Conflict resolved.
    - **Keep my edits:** resume autosave on the next change; the next write will overwrite the external version. An `audit_log` row with category `external_edit_override` records the path, the external hash that was overwritten, and the timestamp.
@@ -139,7 +139,7 @@ Without suppression, every autosave would emit a `vault:file-changed` and round-
 
 Mechanism: **content-hash gating in the event payload.**
 
-- The `vault:file-changed` payload gains an optional field `new_content_hash: Option<String>`. Already computed inside `cubical-core::vault::watcher::apply_watch_event_to_db` for Created/Modified; just plumb it onto the emitted struct.
+- The `vault:file-changed` payload gains an optional field `new_content_hash: Option<String>`. Already computed inside `simple-directory-core::vault::watcher::apply_watch_event_to_db` for Created/Modified; just plumb it onto the emitted struct.
 - The Editor records the hash returned by its most recent successful `write_file_text` response as `last_written_hash` (per open file).
 - Inbound `vault:file-changed` events whose `new_content_hash` matches `last_written_hash` are dropped by the Editor before any external-edit logic runs.
 - Concurrent writes from outside (different hash than what we wrote) are not suppressed; they flow into §2.7.
@@ -150,7 +150,7 @@ This survives debouncer timing, watcher retries, and ordering jitter. It does no
 
 ## 3. IPC surface
 
-All new commands follow the L0 §8 pure-handler + thin-shim pattern. Types live in `crates/cubical-app/src/api/types.rs`; pure handlers in `crates/cubical-app/src/commands/vault.rs`; Tauri shims in `crates/cubical-app/src/lib.rs`.
+All new commands follow the L0 §8 pure-handler + thin-shim pattern. Types live in `crates/simple-directory-app/src/api/types.rs`; pure handlers in `crates/simple-directory-app/src/commands/vault.rs`; Tauri shims in `crates/simple-directory-app/src/lib.rs`.
 
 ### 3.1 `write_file_text`
 
@@ -210,7 +210,7 @@ export type Setting =
 { vault_id, path, kind, from_path?: string, new_content_hash?: string }
 ```
 
-`new_content_hash` is set for `kind: "created"` and `kind: "modified"`; absent for `removed` / `renamed`. Required by §2.8 suppression and §2.7 detection. Rust side: `cubical-core` already computes the hash inside the watcher path; the emit helper in `crates/cubical-app/src/events.rs` gains the field.
+`new_content_hash` is set for `kind: "created"` and `kind: "modified"`; absent for `removed` / `renamed`. Required by §2.8 suppression and §2.7 detection. Rust side: `simple-directory-core` already computes the hash inside the watcher path; the emit helper in `crates/simple-directory-app/src/events.rs` gains the field.
 
 ---
 
@@ -245,12 +245,12 @@ ui/src/
 
 Existing files modified:
 
-- `crates/cubical-app/src/api/types.rs` — new request/response structs.
-- `crates/cubical-app/src/commands/vault.rs` — new pure handlers.
-- `crates/cubical-app/src/lib.rs` — new `#[tauri::command]` shims.
-- `crates/cubical-app/src/events.rs` — `VaultFileChangedPayload` gains `new_content_hash`.
-- `crates/cubical-core/src/vault/watcher.rs` — emit the hash on the event side (already computed for the DB write).
-- `crates/cubical-core/src/vault/frontmatter.rs` — refresh continues unchanged; properties UI relies on it.
+- `crates/simple-directory-app/src/api/types.rs` — new request/response structs.
+- `crates/simple-directory-app/src/commands/vault.rs` — new pure handlers.
+- `crates/simple-directory-app/src/lib.rs` — new `#[tauri::command]` shims.
+- `crates/simple-directory-app/src/events.rs` — `VaultFileChangedPayload` gains `new_content_hash`.
+- `crates/simple-directory-core/src/vault/watcher.rs` — emit the hash on the event side (already computed for the DB write).
+- `crates/simple-directory-core/src/vault/frontmatter.rs` — refresh continues unchanged; properties UI relies on it.
 
 No new Rust crates. No changes to the crate dependency graph.
 
@@ -262,13 +262,13 @@ Captured here so they're reviewable as architecture decisions rather than buried
 
 1. **`write_file_text` is the universal write path.** Both body edits and Properties edits go through one IPC. This contradicts an alternative (`update_frontmatter` as a structured-edit IPC) that was explicitly considered and rejected during L2 brainstorming (Q1-A vs Q1-C). Reason: keeps Rust's write side small and lets the frontend stay the only place that understands frontmatter serialization until plugins (L6) demand a Rust-side reserializer.
 
-2. **Decorations bypass the canonical AST.** L1 §3.1 made `cubical_ast::Document` the canonical shape, with the TS normalizer providing parity for in-process consumers. L2 introduces a third path: a CM6 `ViewPlugin` reading `syntaxTree(state)` directly. Marker token positions are required for decorations and the canonical AST deliberately omits them. The parity contract is not weakened — decorations are a parallel consumer, not a replacement.
+2. **Decorations bypass the canonical AST.** L1 §3.1 made `simple_directory_ast::Document` the canonical shape, with the TS normalizer providing parity for in-process consumers. L2 introduces a third path: a CM6 `ViewPlugin` reading `syntaxTree(state)` directly. Marker token positions are required for decorations and the canonical AST deliberately omits them. The parity contract is not weakened — decorations are a parallel consumer, not a replacement.
 
 3. **External-edit conflict policy is buffer-vs-disk only.** No 3-way merge in L2; that is L8 Time Machine territory. The audit_log row written on "Keep my edits" is the breadcrumb that lets L8 reconstruct what was overwritten.
 
 4. **Watcher event payload extended with content-hash.** Already computed inside `apply_watch_event_to_db`; L2 plumbs it onto the emitted `vault:file-changed` struct (§3.5). Non-breaking for existing consumers (optional field).
 
-5. **Theme `system` resolution lives in the frontend.** Rust does not know whether the user is in light or dark mode; it just stores the `"light" | "dark" | "system"` string. `theme.ts` resolves it via `matchMedia` and subscribes to changes. Plugins (L6) that want to render in a Cubical-appropriate theme will receive resolved-mode information via the plugin host API.
+5. **Theme `system` resolution lives in the frontend.** Rust does not know whether the user is in light or dark mode; it just stores the `"light" | "dark" | "system"` string. `theme.ts` resolves it via `matchMedia` and subscribes to changes. Plugins (L6) that want to render in a simple.directory-appropriate theme will receive resolved-mode information via the plugin host API.
 
 6. **Raw-source toggle button lives in the header chrome strip, not next to the vault path.** §2.3 specified the `</>` button "in the header next to the vault path." The vault path actually renders inside the content section (a mono `<p>` above the file list / editor split), while Session D established the header's right side as the chrome-button strip (theme cycle button). Session E placed the `</>` button there, next to the theme button, rather than next to the vault path. Reason: co-locating the two app-chrome toggles is more discoverable and consistent than splitting them; the vault-path line is content, not chrome. Cosmetic — no behavioral impact.
 
@@ -301,7 +301,7 @@ No `docs/architecture/` files are modified by L2. If any of the above turns out 
 L2 explicitly does **not** ship the following. Each item links to the layer that owns it.
 
 - **Settings page UI.** Only the toggle button (raw default) and the theme button (theme mode) are L2 settings-write surfaces. A real Settings page is L5.
-- **Theme picker UX, user themes (`<vault>/.cubical/themes/`), high-contrast theme, font overrides.** L5.
+- **Theme picker UX, user themes (`<vault>/.simple-directory/themes/`), high-contrast theme, font overrides.** L5.
 - **Export sanitization rules.** L5.
 - **Wiki-links `[[…]]`, embeds `![[…]]`, block refs `^id`, tag autocomplete, tag indexing, backlinks, unlinked mentions.** L3.
 - **Search (Tantivy, Dataview-style queries, search panel, Omni-Bar).** L4.
@@ -330,24 +330,24 @@ Seven dependency-ordered sessions (A–F feature; G closeout). This layer predat
 
 #### Atomic write helper (load-bearing prerequisite)
 
-L0 §4 documented the temp-file + fsync + rename procedure but didn't actually land a callable. L2 Session A could not honor "all writes go through `cubical-core`'s temp-and-rename helper" without first implementing it. New module [`crates/cubical-core/src/vault/atomic.rs`](../crates/cubical-core/src/vault/atomic.rs) exposes `pub fn atomic_write(target: &Path, content: &[u8]) -> Result<(), VaultError>` — sync, called via `tokio::task::spawn_blocking` so `fsync` doesn't stall the runtime. Windows retry is wired in (50ms / 200ms / 800ms backoff) but only triggered by `is_transient_rename_error`, which is `false` on POSIX (no retry path runs on macOS/Linux).
+L0 §4 documented the temp-file + fsync + rename procedure but didn't actually land a callable. L2 Session A could not honor "all writes go through `simple-directory-core`'s temp-and-rename helper" without first implementing it. New module [`crates/simple-directory-core/src/vault/atomic.rs`](../crates/simple-directory-core/src/vault/atomic.rs) exposes `pub fn atomic_write(target: &Path, content: &[u8]) -> Result<(), VaultError>` — sync, called via `tokio::task::spawn_blocking` so `fsync` doesn't stall the runtime. Windows retry is wired in (50ms / 200ms / 800ms backoff) but only triggered by `is_transient_rename_error`, which is `false` on POSIX (no retry path runs on macOS/Linux).
 
 #### Watcher exclude filter (load-bearing prerequisite)
 
-The watcher (and scan) `is_excluded` filters skipped dot-prefixed directories but not the `.cubical-tmp` suffix used by `atomic_write`. Every autosave was leaking three watcher events (create + modify of the temp file, modify of the target) and the temp path was being upserted into the `files` table before the rename. Both filters in [`crates/cubical-core/src/vault/watcher.rs::is_excluded`](../crates/cubical-core/src/vault/watcher.rs) and [`crates/cubical-core/src/vault/scan.rs`](../crates/cubical-core/src/vault/scan.rs) now drop files whose extension is `cubical-tmp`. After the fix, each autosave produces exactly one `Modified <target>` event in the logs.
+The watcher (and scan) `is_excluded` filters skipped dot-prefixed directories but not the `.simple-directory-tmp` suffix used by `atomic_write`. Every autosave was leaking three watcher events (create + modify of the temp file, modify of the target) and the temp path was being upserted into the `files` table before the rename. Both filters in [`crates/simple-directory-core/src/vault/watcher.rs::is_excluded`](../crates/simple-directory-core/src/vault/watcher.rs) and [`crates/simple-directory-core/src/vault/scan.rs`](../crates/simple-directory-core/src/vault/scan.rs) now drop files whose extension is `simple-directory-tmp`. After the fix, each autosave produces exactly one `Modified <target>` event in the logs.
 
 #### Rust IPC
 
-`write_file_text` lands in [`crates/cubical-app/src/commands/vault.rs`](../crates/cubical-app/src/commands/vault.rs) following the §8 pure-handler / thin-shim pattern.
+`write_file_text` lands in [`crates/simple-directory-app/src/commands/vault.rs`](../crates/simple-directory-app/src/commands/vault.rs) following the §8 pure-handler / thin-shim pattern.
 
 - Looks up the path in `files`, rejects non-`markdown` with `InvalidRequest`, captures the on-disk hash.
-- Computes the post-write hash from the buffer bytes (`cubical_core::sha256_bytes_hex` — newly exposed helper that mirrors the file-streaming `sha256_file_hex` digest without re-reading disk).
+- Computes the post-write hash from the buffer bytes (`simple_directory_core::sha256_bytes_hex` — newly exposed helper that mirrors the file-streaming `sha256_file_hex` digest without re-reading disk).
 - Runs `atomic_write` inside `spawn_blocking`.
 - Pre-write audit row: when `expected_seen_hash` is `Some` and doesn't match the captured on-disk hash, inserts a `level='warn', category='external_edit_override'` row with detail `{path, expected, actual}`. Spec §3.1 keeps `expected_seen_hash` advisory in L2 — the write proceeds. Hard rejection lands in L8 alongside the merge UI.
 - Post-write: updates the `files` row with new size, mtime, hash; inserts a `level='info', category='autosave'` row with detail `{path, bytes, new_content_hash}`.
 - Returns `{new_content_hash, new_mtime_unix}` so the editor can populate `last_written_hash` for §2.8 hash-gating.
 
-Wire types in [`crates/cubical-app/src/api/types.rs`](../crates/cubical-app/src/api/types.rs); Tauri shim in [`crates/cubical-app/src/lib.rs`](../crates/cubical-app/src/lib.rs); `invoke_handler` updated.
+Wire types in [`crates/simple-directory-app/src/api/types.rs`](../crates/simple-directory-app/src/api/types.rs); Tauri shim in [`crates/simple-directory-app/src/lib.rs`](../crates/simple-directory-app/src/lib.rs); `invoke_handler` updated.
 
 #### Watcher payload extension
 
@@ -407,13 +407,13 @@ WHERE category IN ('autosave', 'external_edit_override') ORDER BY id;
 
 #### Test counts (cumulative)
 
-**Rust:** cubical-ast 26 + 1 parity_fixtures · cubical-core 49 (was 42; +6 atomic_write tests, +1 watcher temp-file filter test) · cubical-index 6 · cubical-app 29 (was 17; +8 write_file_text tests, +4 watcher hash-plumbing/payload tests) = **111 Rust tests across the workspace, all green**.
+**Rust:** simple-directory-ast 26 + 1 parity_fixtures · simple-directory-core 49 (was 42; +6 atomic_write tests, +1 watcher temp-file filter test) · simple-directory-index 6 · simple-directory-app 29 (was 17; +8 write_file_text tests, +4 watcher hash-plumbing/payload tests) = **111 Rust tests across the workspace, all green**.
 
 **UI:** 23 vitest tests (unchanged — Session A is plumbing, no new TS units).
 
 #### Interactive smoke (recorded)
 
-Against `cargo tauri dev` with `/Users/user/Developer/sandbox/cubical-demo`:
+Against `cargo tauri dev` with `/Users/user/Developer/sandbox/simple-directory-demo`:
 
 - Type → wait → switch file → switch back: edits persist (`Yes` on the autosave round-trip check).
 - Editor doesn't reset on its own watcher event (own-write suppression working — observed cursor doesn't jump during continuous typing through autosave boundaries).
@@ -519,7 +519,7 @@ the table has existed since L0 migration `001_initial.sql`.
 #### Rust IPC
 
 `get_setting` / `set_setting` land in
-[`crates/cubical-app/src/commands/vault.rs`](../crates/cubical-app/src/commands/vault.rs)
+[`crates/simple-directory-app/src/commands/vault.rs`](../crates/simple-directory-app/src/commands/vault.rs)
 following the §8 pure-handler / thin-shim pattern.
 
 - `get_setting` reads `config.value` for the key. Absent key →
@@ -530,9 +530,9 @@ following the §8 pure-handler / thin-shim pattern.
   always `serde_json::to_string`-encoding the value first so non-string
   types round-trip. An existing key is overwritten.
 
-Wire types in [`crates/cubical-app/src/api/types.rs`](../crates/cubical-app/src/api/types.rs)
+Wire types in [`crates/simple-directory-app/src/api/types.rs`](../crates/simple-directory-app/src/api/types.rs)
 (`GetSettingRequest`/`Response`, `SetSettingRequest`/`Response`);
-Tauri shims in [`crates/cubical-app/src/lib.rs`](../crates/cubical-app/src/lib.rs);
+Tauri shims in [`crates/simple-directory-app/src/lib.rs`](../crates/simple-directory-app/src/lib.rs);
 `invoke_handler` updated.
 
 #### Frontend wire layer
@@ -547,8 +547,8 @@ union, but `await` sidesteps that.
 
 #### Test counts (cumulative)
 
-**Rust:** cubical-ast 26 + 1 parity · cubical-core 49 · cubical-index 6 ·
-cubical-app 39 (was 29; +10 settings tests: boolean/string/number/null
+**Rust:** simple-directory-ast 26 + 1 parity · simple-directory-core 49 · simple-directory-index 6 ·
+simple-directory-app 39 (was 29; +10 settings tests: boolean/string/number/null
 round-trips, absent-key `None`, corrupt-JSON `InvalidRequest`, upsert
 overwrite, unknown-vault for both handlers, and a close-then-reopen
 test proving values survive on disk in `index.db`) = **121 Rust tests
@@ -902,7 +902,7 @@ that native window cannot be driven programmatically by this session's
 tooling. The smoke was therefore run in three honest tiers:
 
 - **Integration build + boot** — `cargo tauri dev` compiled the
-  workspace clean and the app booted (`cubical_app: Cubical starting`,
+  workspace clean and the app booted (`simple_directory_app: simple.directory starting`,
   logged 2026-05-22T20:03:51Z). Vite dev server up, no Rust panic.
 - **Frontend surfaces (B, D, E)** — verified by constructing real
   CodeMirror `EditorView` instances inside the running dev-server page
@@ -923,7 +923,7 @@ tooling. The smoke was therefore run in three honest tiers:
 #### Surface by surface
 
 **Write + autosave (A).** Not re-driven this session. Covered by
-cubical-app's `write_file_text` tests (atomic round-trip, markdown-only
+simple-directory-app's `write_file_text` tests (atomic round-trip, markdown-only
 gate, post-write hash returned, advisory `expected_seen_hash` audit
 row) and the recorded §9.1 interactive smoke (autosave round-trip
 byte-match, own-write hash-gating suppression, conflict banner Reload /
@@ -940,7 +940,7 @@ as a muted mark and the raw source shows through. The frontmatter
 block is collapsed by `frontmatterHideField`. **One bug found here —
 see below.**
 
-**Settings (C).** Not re-driven this session. Covered by cubical-app's
+**Settings (C).** Not re-driven this session. Covered by simple-directory-app's
 ten settings tests, including the close-then-reopen test that proves
 values survive on disk in `index.db`.
 

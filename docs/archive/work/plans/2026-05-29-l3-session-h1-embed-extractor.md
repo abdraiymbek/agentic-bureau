@@ -6,9 +6,9 @@
 
 **Goal:** Backend half of Session H — a `get_embed` IPC that, given a wiki-link target (`note` / `note#heading` / `note#^id`), returns the content to be rendered inline by the (deferred) embed widget. Pure markdown-aware extractors do the work; the handler is a thin orchestrator.
 
-**Architecture:** New `cubical-core::vault::embeds` module with three pure functions (`extract_section`, `extract_block`, `strip_frontmatter`) — fully unit-testable. New `cubical-app::commands::embeds::get_embed` handler mirrors `commands::autocomplete::block_id_autocomplete`: snapshot `files.path`, `resolve_target`, read file off-runtime, route by anchor kind to the matching extractor, return a tagged response. Widens `commands::links::split_target_anchor` to `pub(crate)` for reuse. Zero frontend code beyond the IPC binding (used in H.2).
+**Architecture:** New `simple-directory-core::vault::embeds` module with three pure functions (`extract_section`, `extract_block`, `strip_frontmatter`) — fully unit-testable. New `simple-directory-app::commands::embeds::get_embed` handler mirrors `commands::autocomplete::block_id_autocomplete`: snapshot `files.path`, `resolve_target`, read file off-runtime, route by anchor kind to the matching extractor, return a tagged response. Widens `commands::links::split_target_anchor` to `pub(crate)` for reuse. Zero frontend code beyond the IPC binding (used in H.2).
 
-**Tech Stack:** Rust (`cubical-core` pure module, `cubical-app` handler, Tauri shim), TypeScript (IPC binding only). Reuses `cubical_index::blocks_for_file` (Session G), `cubical_core::vault::links::{resolve_target, read_source_off_executor}`, and `crate::commands::links::split_target_anchor` (widened in this session).
+**Tech Stack:** Rust (`simple-directory-core` pure module, `simple-directory-app` handler, Tauri shim), TypeScript (IPC binding only). Reuses `simple_directory_index::blocks_for_file` (Session G), `simple_directory_core::vault::links::{resolve_target, read_source_off_executor}`, and `crate::commands::links::split_target_anchor` (widened in this session).
 
 **Branch:** Work on a new branch `l3-session-h1-embed-extractor` cut from `main` (single-checkout workflow — no worktrees).
 
@@ -21,15 +21,15 @@
 You have no prior context. Read this and the referenced files before starting.
 
 - **Spec §2.8** (`docs/layer-3-spec.md`): `![[target]]` renders a note inline, `![[…#heading]]` a section, `![[…#^id]]` a block. Recursion bounded at depth 4 (default), beyond → styled link; unresolved → placeholder. **All recursion / widget concerns are H.2** — this session returns one slice at a time.
-- **`resolve_target`** (`cubical_core::vault::links::resolve_target`) accepts exact vault path with/without `.md`, then unique basename. Snapshot pattern: `SELECT path FROM files ORDER BY path` → build `Vec<String>` → call. `block_id_autocomplete` (`crates/cubical-app/src/commands/autocomplete.rs`, search "block_id_autocomplete") is the model — copy the file-snapshot loop verbatim.
-- **`split_target_anchor`** (`crates/cubical-app/src/commands/links.rs:63`) splits `target_raw` into `(target_string, Option<ResolvedAnchor>)`. **Currently private**. This plan widens it to `pub(crate)` and reuses it; do not duplicate the parsing.
-- **`ResolvedAnchor`** (`crates/cubical-app/src/api/types.rs:300`) is `enum { Heading { value: String }, Block { value: String } }`. The `value` stores the anchor text without `#`/`^` (matching `Anchor::Block { value }` from `cubical-ast::wikilink::parse_body`).
-- **`read_source_off_executor`** (`cubical_core::vault::links::read_source_off_executor`, `pub(crate)`) reads a file off the tokio runtime as lossy UTF-8, returning `Option<String>`. Already used by `refresh_blocks`. **This module is in `cubical-core`'s `vault` tree; `cubical-app` doesn't have access through `pub(crate)`.** Widen to `pub` in this session (one-line visibility change) so the handler can call it.
-- **`blocks_for_file(conn, &path) -> Vec<BlockRow>`** (`cubical_index::blocks_for_file`, Session G). `BlockRow { block_id: String, position_hint: u64 }`. `position_hint` is the byte offset of the start of the line carrying `^id` — set by Session G's `extract_block_ids`. This is *exactly* what `extract_block` consumes.
-- **`vault::blocks`** lives at `crates/cubical-core/src/vault/blocks.rs` and is declared `pub mod blocks;` in `vault/mod.rs:19`. **`vault::embeds`** will be a sibling module in the same style.
-- **No frontmatter-strip helper exists yet** in `cubical_core::vault::frontmatter`. We add one as a pure function inside the new `embeds` module — it's used only here for now, so don't pre-export it.
-- **Handler module layout:** `crates/cubical-app/src/commands/mod.rs` lists `pub mod backlinks;`, `pub mod blocks;`, `pub mod links;`, etc. Add `pub mod embeds;` in alphabetical order. The handler test harness uses `fresh_state_with_vault` + `seed_file(vault, rel, type_id)` from `commands::autocomplete::tests` — pattern to copy.
-- **Tauri shim + registration:** `crates/cubical-app/src/lib.rs` has one `#[tauri::command]` shim per handler, registered in `tauri::generate_handler![...]`. `block_id_autocomplete` is the recent precedent — copy it verbatim, renaming.
+- **`resolve_target`** (`simple_directory_core::vault::links::resolve_target`) accepts exact vault path with/without `.md`, then unique basename. Snapshot pattern: `SELECT path FROM files ORDER BY path` → build `Vec<String>` → call. `block_id_autocomplete` (`crates/simple-directory-app/src/commands/autocomplete.rs`, search "block_id_autocomplete") is the model — copy the file-snapshot loop verbatim.
+- **`split_target_anchor`** (`crates/simple-directory-app/src/commands/links.rs:63`) splits `target_raw` into `(target_string, Option<ResolvedAnchor>)`. **Currently private**. This plan widens it to `pub(crate)` and reuses it; do not duplicate the parsing.
+- **`ResolvedAnchor`** (`crates/simple-directory-app/src/api/types.rs:300`) is `enum { Heading { value: String }, Block { value: String } }`. The `value` stores the anchor text without `#`/`^` (matching `Anchor::Block { value }` from `simple-directory-ast::wikilink::parse_body`).
+- **`read_source_off_executor`** (`simple_directory_core::vault::links::read_source_off_executor`, `pub(crate)`) reads a file off the tokio runtime as lossy UTF-8, returning `Option<String>`. Already used by `refresh_blocks`. **This module is in `simple-directory-core`'s `vault` tree; `simple-directory-app` doesn't have access through `pub(crate)`.** Widen to `pub` in this session (one-line visibility change) so the handler can call it.
+- **`blocks_for_file(conn, &path) -> Vec<BlockRow>`** (`simple_directory_index::blocks_for_file`, Session G). `BlockRow { block_id: String, position_hint: u64 }`. `position_hint` is the byte offset of the start of the line carrying `^id` — set by Session G's `extract_block_ids`. This is *exactly* what `extract_block` consumes.
+- **`vault::blocks`** lives at `crates/simple-directory-core/src/vault/blocks.rs` and is declared `pub mod blocks;` in `vault/mod.rs:19`. **`vault::embeds`** will be a sibling module in the same style.
+- **No frontmatter-strip helper exists yet** in `simple_directory_core::vault::frontmatter`. We add one as a pure function inside the new `embeds` module — it's used only here for now, so don't pre-export it.
+- **Handler module layout:** `crates/simple-directory-app/src/commands/mod.rs` lists `pub mod backlinks;`, `pub mod blocks;`, `pub mod links;`, etc. Add `pub mod embeds;` in alphabetical order. The handler test harness uses `fresh_state_with_vault` + `seed_file(vault, rel, type_id)` from `commands::autocomplete::tests` — pattern to copy.
+- **Tauri shim + registration:** `crates/simple-directory-app/src/lib.rs` has one `#[tauri::command]` shim per handler, registered in `tauri::generate_handler![...]`. `block_id_autocomplete` is the recent precedent — copy it verbatim, renaming.
 - **IPC binding:** `ui/src/api/ipc.ts` mirrors wire types + exports `invoke("name", { req })`. `blockIdAutocomplete` is the recent precedent.
 
 ### Scope boundaries — do NOT do these
@@ -44,31 +44,31 @@ You have no prior context. Read this and the referenced files before starting.
 ## File Structure
 
 **Create:**
-- `crates/cubical-core/src/vault/embeds.rs` — `extract_section`, `extract_block`, `strip_frontmatter`, slug helper, tests.
-- `crates/cubical-app/src/commands/embeds.rs` — `get_embed` handler + tests.
+- `crates/simple-directory-core/src/vault/embeds.rs` — `extract_section`, `extract_block`, `strip_frontmatter`, slug helper, tests.
+- `crates/simple-directory-app/src/commands/embeds.rs` — `get_embed` handler + tests.
 
 **Modify:**
-- `crates/cubical-core/src/vault/mod.rs` — declare `pub mod embeds;`.
-- `crates/cubical-core/src/vault/links.rs` — widen `read_source_off_executor` from `pub(crate)` to `pub`.
-- `crates/cubical-app/src/commands/links.rs` — widen `split_target_anchor` from `fn` to `pub(crate) fn`.
-- `crates/cubical-app/src/api/types.rs` — `GetEmbedRequest`, `GetEmbedResponse`, `EmbedKind` enum.
-- `crates/cubical-app/src/commands/mod.rs` — `pub mod embeds;`.
-- `crates/cubical-app/src/lib.rs` — type imports, Tauri shim, registration.
+- `crates/simple-directory-core/src/vault/mod.rs` — declare `pub mod embeds;`.
+- `crates/simple-directory-core/src/vault/links.rs` — widen `read_source_off_executor` from `pub(crate)` to `pub`.
+- `crates/simple-directory-app/src/commands/links.rs` — widen `split_target_anchor` from `fn` to `pub(crate) fn`.
+- `crates/simple-directory-app/src/api/types.rs` — `GetEmbedRequest`, `GetEmbedResponse`, `EmbedKind` enum.
+- `crates/simple-directory-app/src/commands/mod.rs` — `pub mod embeds;`.
+- `crates/simple-directory-app/src/lib.rs` — type imports, Tauri shim, registration.
 - `ui/src/api/ipc.ts` — wire types + `getEmbed` binding.
 - `docs/layer-3-spec.md` — append §9.12.
 - `CLAUDE.md` — rewrite the Project state block.
 
 ---
 
-### Task 1: Pure extractors (`cubical-core::vault::embeds`)
+### Task 1: Pure extractors (`simple-directory-core::vault::embeds`)
 
 **Files:**
-- Create: `crates/cubical-core/src/vault/embeds.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs`
+- Create: `crates/simple-directory-core/src/vault/embeds.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs`
 
 - [ ] **Step 1: Declare the module**
 
-In `crates/cubical-core/src/vault/mod.rs`, add `pub mod embeds;` next to `pub mod blocks;` (alphabetical):
+In `crates/simple-directory-core/src/vault/mod.rs`, add `pub mod embeds;` next to `pub mod blocks;` (alphabetical):
 
 ```rust
 mod atomic;
@@ -83,12 +83,12 @@ mod watcher;
 
 - [ ] **Step 2: Write the failing tests**
 
-Create `crates/cubical-core/src/vault/embeds.rs` with the module doc-comment + tests + an empty `pub fn` for each so the file compiles to a failing assertion rather than a missing-symbol error:
+Create `crates/simple-directory-core/src/vault/embeds.rs` with the module doc-comment + tests + an empty `pub fn` for each so the file compiles to a failing assertion rather than a missing-symbol error:
 
 ```rust
 //! Pure embed content extractors (L3 Session H.1, spec §2.8). One slice
 //! per call — recursion / depth cap / cycle detection live on the
-//! frontend in H.2. The handler in `cubical-app::commands::embeds`
+//! frontend in H.2. The handler in `simple-directory-app::commands::embeds`
 //! routes by anchor kind.
 
 /// Lowercase + collapse non-alphanumeric runs to `-` + trim leading/
@@ -215,7 +215,7 @@ mod tests {
 
 - [ ] **Step 3: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-core vault::embeds::tests -- --nocapture 2>&1 | tail -20`
+Run: `cargo test -p simple-directory-core vault::embeds::tests -- --nocapture 2>&1 | tail -20`
 Expected: 9 of the 10 tests FAIL (the `slugify_collapses_and_lowercases` test passes because `slugify` is real; everything else returns the stubbed defaults).
 
 - [ ] **Step 4: Implement `extract_section`**
@@ -357,13 +357,13 @@ pub fn strip_frontmatter(source: &str) -> &str {
 
 - [ ] **Step 7: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-core vault::embeds 2>&1 | tail -15`
-Expected: PASS (10 tests). Then `cargo clippy -p cubical-core --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-core vault::embeds 2>&1 | tail -15`
+Expected: PASS (10 tests). Then `cargo clippy -p simple-directory-core --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/embeds.rs crates/cubical-core/src/vault/mod.rs
+git add crates/simple-directory-core/src/vault/embeds.rs crates/simple-directory-core/src/vault/mod.rs
 git commit -m "feat(core): pure embed extractors — section, block, frontmatter strip"
 ```
 
@@ -372,12 +372,12 @@ git commit -m "feat(core): pure embed extractors — section, block, frontmatter
 ### Task 2: Widen visibility of reused helpers
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/links.rs`
-- Modify: `crates/cubical-app/src/commands/links.rs`
+- Modify: `crates/simple-directory-core/src/vault/links.rs`
+- Modify: `crates/simple-directory-app/src/commands/links.rs`
 
 - [ ] **Step 1: Widen `read_source_off_executor` to `pub`**
 
-In `crates/cubical-core/src/vault/links.rs`, find the line:
+In `crates/simple-directory-core/src/vault/links.rs`, find the line:
 
 ```rust
 pub(crate) async fn read_source_off_executor(abs_path: &std::path::Path) -> Option<String> {
@@ -391,7 +391,7 @@ pub async fn read_source_off_executor(abs_path: &std::path::Path) -> Option<Stri
 
 - [ ] **Step 2: Widen `split_target_anchor` to `pub(crate)`**
 
-In `crates/cubical-app/src/commands/links.rs:63`, change:
+In `crates/simple-directory-app/src/commands/links.rs:63`, change:
 
 ```rust
 fn split_target_anchor(target_raw: &str) -> (String, Option<ResolvedAnchor>) {
@@ -405,13 +405,13 @@ pub(crate) fn split_target_anchor(target_raw: &str) -> (String, Option<ResolvedA
 
 - [ ] **Step 3: Build to verify nothing broke**
 
-Run: `cargo build --workspace 2>&1 | tail -3 && cargo test -p cubical-core --lib links 2>&1 | grep -E "test result" | tail`
+Run: `cargo build --workspace 2>&1 | tail -3 && cargo test -p simple-directory-core --lib links 2>&1 | grep -E "test result" | tail`
 Expected: clean build; existing `links` tests still green.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs crates/cubical-app/src/commands/links.rs
+git add crates/simple-directory-core/src/vault/links.rs crates/simple-directory-app/src/commands/links.rs
 git commit -m "refactor: widen read_source_off_executor + split_target_anchor for embed reuse"
 ```
 
@@ -420,11 +420,11 @@ git commit -m "refactor: widen read_source_off_executor + split_target_anchor fo
 ### Task 3: Wire types
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
 
 - [ ] **Step 1: Append the wire types**
 
-At the end of `crates/cubical-app/src/api/types.rs`, append:
+At the end of `crates/simple-directory-app/src/api/types.rs`, append:
 
 ```rust
 // -- get_embed (L3 Session H.1) ----------------------------------------
@@ -468,13 +468,13 @@ pub struct GetEmbedResponse {
 
 - [ ] **Step 2: Build to verify it compiles**
 
-Run: `cargo build -p cubical-app 2>&1 | tail -3`
+Run: `cargo build -p simple-directory-app 2>&1 | tail -3`
 Expected: clean.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs
+git add crates/simple-directory-app/src/api/types.rs
 git commit -m "feat(app): wire types for get_embed (L3 Session H.1)"
 ```
 
@@ -483,12 +483,12 @@ git commit -m "feat(app): wire types for get_embed (L3 Session H.1)"
 ### Task 4: `get_embed` handler
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/embeds.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
+- Create: `crates/simple-directory-app/src/commands/embeds.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
 
 - [ ] **Step 1: Declare the module**
 
-In `crates/cubical-app/src/commands/mod.rs`, add `pub mod embeds;` in alphabetical order with the existing `pub mod blocks; / links; / tags;` lines:
+In `crates/simple-directory-app/src/commands/mod.rs`, add `pub mod embeds;` in alphabetical order with the existing `pub mod blocks; / links; / tags;` lines:
 
 ```rust
 pub mod autocomplete;
@@ -502,32 +502,32 @@ pub mod vault;
 
 - [ ] **Step 2: Write the failing tests + handler skeleton**
 
-Create `crates/cubical-app/src/commands/embeds.rs` with the handler signature returning `MissingAnchor` so the file compiles and tests run (and fail loudly with mismatch messages):
+Create `crates/simple-directory-app/src/commands/embeds.rs` with the handler signature returning `MissingAnchor` so the file compiles and tests run (and fail loudly with mismatch messages):
 
 ```rust
 //! Embed content extractor (L3 Session H.1, spec §9.12). Returns one
 //! slice per call — recursion / depth / cycle handling live on the
 //! frontend in H.2. The handler is the thin orchestrator; the pure
-//! extractors live in `cubical_core::vault::embeds`.
+//! extractors live in `simple_directory_core::vault::embeds`.
 
-use cubical_core::vault::embeds::{extract_block, extract_section, strip_frontmatter};
-use cubical_core::vault::links::{read_source_off_executor, resolve_target};
-use cubical_index::blocks_for_file;
+use simple_directory_core::vault::embeds::{extract_block, extract_section, strip_frontmatter};
+use simple_directory_core::vault::links::{read_source_off_executor, resolve_target};
+use simple_directory_index::blocks_for_file;
 
 use crate::api::types::{EmbedKind, GetEmbedRequest, GetEmbedResponse, ResolvedAnchor};
 use crate::commands::links::split_target_anchor;
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// Extract the content to inline for `target_raw`. See spec §9.12.
 pub async fn get_embed(
     state: &AppState,
     req: GetEmbedRequest,
-) -> Result<GetEmbedResponse, CubicalError> {
+) -> Result<GetEmbedResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
     let vault = open.vault.clone();
     drop(guard);
 
@@ -603,8 +603,8 @@ pub async fn get_embed(
 mod tests {
     use super::*;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
-    use cubical_index::{replace_blocks_for_file, BlockRow};
+    use simple_directory_core::Vault;
+    use simple_directory_index::{replace_blocks_for_file, BlockRow};
     use tempfile::tempdir;
     use tokio_util::sync::CancellationToken;
 
@@ -625,7 +625,7 @@ mod tests {
 
     async fn scan(vault: &Vault) {
         let (tx, _rx) = tokio::sync::mpsc::channel(8);
-        cubical_core::vault::scan(vault.clone(), CancellationToken::new(), tx)
+        simple_directory_core::vault::scan(vault.clone(), CancellationToken::new(), tx)
             .await
             .expect("scan");
     }
@@ -754,13 +754,13 @@ mod tests {
 
 - [ ] **Step 3: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-app commands::embeds 2>&1 | tail -15`
-Expected: PASS (5 tests). Then `cargo clippy -p cubical-app --all-targets -- -D warnings` + `cargo fmt --all`.
+Run: `cargo test -p simple-directory-app commands::embeds 2>&1 | tail -15`
+Expected: PASS (5 tests). Then `cargo clippy -p simple-directory-app --all-targets -- -D warnings` + `cargo fmt --all`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/embeds.rs crates/cubical-app/src/commands/mod.rs
+git add crates/simple-directory-app/src/commands/embeds.rs crates/simple-directory-app/src/commands/mod.rs
 git commit -m "feat(app): get_embed handler — routes target → section/block/note slice"
 ```
 
@@ -769,12 +769,12 @@ git commit -m "feat(app): get_embed handler — routes target → section/block/
 ### Task 5: Tauri shim + registration + IPC binding
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 - Modify: `ui/src/api/ipc.ts`
 
 - [ ] **Step 1: Import the wire types**
 
-In `crates/cubical-app/src/lib.rs`, extend the `use api::types::{...}` block to add the new types alphabetically (next to other `Get*` types):
+In `crates/simple-directory-app/src/lib.rs`, extend the `use api::types::{...}` block to add the new types alphabetically (next to other `Get*` types):
 
 ```rust
     GetEmbedRequest, GetEmbedResponse,
@@ -784,7 +784,7 @@ In `crates/cubical-app/src/lib.rs`, extend the `use api::types::{...}` block to 
 
 - [ ] **Step 2: Add the shim + registration**
 
-In `crates/cubical-app/src/lib.rs`, add the shim near the other `get_*` shims (e.g. after `get_backlinks`):
+In `crates/simple-directory-app/src/lib.rs`, add the shim near the other `get_*` shims (e.g. after `get_backlinks`):
 
 ```rust
 /// Tauri shim — see [`commands::embeds::get_embed`].
@@ -792,7 +792,7 @@ In `crates/cubical-app/src/lib.rs`, add the shim near the other `get_*` shims (e
 async fn get_embed(
     state: tauri::State<'_, AppState>,
     req: GetEmbedRequest,
-) -> Result<GetEmbedResponse, CubicalError> {
+) -> Result<GetEmbedResponse, SimpleDirectoryError> {
     commands::embeds::get_embed(state.inner(), req).await
 }
 ```
@@ -805,7 +805,7 @@ And register it in `tauri::generate_handler![...]` next to `get_backlinks,`:
 
 - [ ] **Step 3: Build to verify wiring**
 
-Run: `cargo build -p cubical-app 2>&1 | tail -3`
+Run: `cargo build -p simple-directory-app 2>&1 | tail -3`
 Expected: clean (the `generate_handler!` macro fails loudly on a missing name or non-Serde type).
 
 - [ ] **Step 4: Add the IPC binding**
@@ -855,7 +855,7 @@ Expected: clean (the binding is unused for now — that's fine; the widget arriv
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs ui/src/api/ipc.ts
+git add crates/simple-directory-app/src/lib.rs ui/src/api/ipc.ts
 git commit -m "feat: register get_embed Tauri command + IPC binding"
 ```
 
@@ -882,7 +882,7 @@ Expected: Rust 288 (was 273 + 15 new: 10 extractor + 5 handler) green; clippy cl
 There is no editor surface this session — `get_embed` is reachable only via dev-console invocation. Optional best-effort:
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open the sandbox vault.
 #  - Dev console:
 #      __TAURI__.core.invoke("get_embed", { req: { vault_id: <id>, target_raw: "Daily" } })
@@ -895,7 +895,7 @@ Otherwise: the extractor + handler tests cover every branch end-to-end — the s
 
 - [ ] **Step 3: Update docs + state**
 
-- Append `### 9.12 Session H.1 — Embed content extractor + IPC` to `docs/layer-3-spec.md` (mirror §9.11 style): pure `extract_section` / `extract_block` / `strip_frontmatter` in `cubical-core::vault::embeds`; slug-based heading match; per-line walk to blank-line boundaries for blocks; `get_embed` handler resolving target like `resolve_link`, routing by anchor kind, folding unreadable files into `Unresolved`; `EmbedKind` enum with kebab-case serde rename; IPC binding unused until H.2. Note frontend embed widget is the H.2 follow-up.
+- Append `### 9.12 Session H.1 — Embed content extractor + IPC` to `docs/layer-3-spec.md` (mirror §9.11 style): pure `extract_section` / `extract_block` / `strip_frontmatter` in `simple-directory-core::vault::embeds`; slug-based heading match; per-line walk to blank-line boundaries for blocks; `get_embed` handler resolving target like `resolve_link`, routing by anchor kind, folding unreadable files into `Unresolved`; `EmbedKind` enum with kebab-case serde rename; IPC binding unused until H.2. Note frontend embed widget is the H.2 follow-up.
 - Rewrite the `CLAUDE.md` "Project state" block (do not append): Session H.1 done; update Rust test count (288); vitest unchanged (293); set "Next: **Session H.2 — embed widget** (live-preview block widget consuming `getEmbed`, depth cap, cycle detection, unresolved placeholder)."
 
 - [ ] **Step 4: Finish the branch**

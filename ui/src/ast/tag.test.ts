@@ -31,7 +31,7 @@ describe("scanTags", () => {
   });
 
   it("emits a nested tag as a single token", () => {
-    expect(scanTags("#project/cubical")).toEqual([tag("project/cubical")]);
+    expect(scanTags("#project/simple-directory")).toEqual([tag("project/simple-directory")]);
   });
 
   it("supports deeper nesting", () => {

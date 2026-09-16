@@ -24,15 +24,15 @@ The seam is clean: J.1's IPCs are the only surface J.2 touches. J.1 lands behind
 
 ## Background — relevant existing machinery
 
-- **Migrations.** `crates/cubical-index/migrations/001..005_*.sql` exist; runner in `crates/cubical-index/src/runner.rs` reads them from `MIGRATIONS` and gates the test constant `HIGHEST_KNOWN_VERSION` (currently `5`). Adding J.1 bumps it to `6` (one new migration file + one constant).
-- **Query module shape.** `cubical-index::{links,tags,blocks}` each ship `replace_X_for_file(tx, …)` + lookup helpers, all taking a borrowed connection and **not** opening their own transaction so callers can batch. J.1's `pending` module follows the same shape.
-- **Pure scanner pattern.** `cubical-core::vault::{links,tags,blocks,mentions}` are pure modules (extract + helpers, no I/O). The pending materializer is the same shape: `apply_pending(source, &[PendingRewrite]) -> String` is pure; `materialize_on_read(vault, path, on_disk) -> String` is the thin I/O wrapper that pulls rows and calls the pure helper.
-- **`cubical_ast::wikilink`** was promoted to `pub` in Session I (`scan_wikilinks`). J.1 uses it to rewrite wiki-link targets while preserving `|display` and `#anchor`/`#^block` suffixes.
-- **Read paths.** `cubical-app::commands::vault::read_file_text` (`vault.rs:284`) is the editor's read surface. `get_canonical_ast`, `get_embed`, `get_unlinked_mentions` (source-file read) are the other "effective content" consumers. The **scan** + **watcher** dispatcher (`cubical-core::vault::scan`, `vault::watcher::apply_watch_event_to_db`) also read source bytes for the link/tag/block extractors.
-- **Atomic write.** `cubical_core::atomic_write` (used by `write_file_text`, `link_mention`). J.1 uses it for both the file move (rename) and the flush rewrites.
+- **Migrations.** `crates/simple-directory-index/migrations/001..005_*.sql` exist; runner in `crates/simple-directory-index/src/runner.rs` reads them from `MIGRATIONS` and gates the test constant `HIGHEST_KNOWN_VERSION` (currently `5`). Adding J.1 bumps it to `6` (one new migration file + one constant).
+- **Query module shape.** `simple-directory-index::{links,tags,blocks}` each ship `replace_X_for_file(tx, …)` + lookup helpers, all taking a borrowed connection and **not** opening their own transaction so callers can batch. J.1's `pending` module follows the same shape.
+- **Pure scanner pattern.** `simple-directory-core::vault::{links,tags,blocks,mentions}` are pure modules (extract + helpers, no I/O). The pending materializer is the same shape: `apply_pending(source, &[PendingRewrite]) -> String` is pure; `materialize_on_read(vault, path, on_disk) -> String` is the thin I/O wrapper that pulls rows and calls the pure helper.
+- **`simple_directory_ast::wikilink`** was promoted to `pub` in Session I (`scan_wikilinks`). J.1 uses it to rewrite wiki-link targets while preserving `|display` and `#anchor`/`#^block` suffixes.
+- **Read paths.** `simple-directory-app::commands::vault::read_file_text` (`vault.rs:284`) is the editor's read surface. `get_canonical_ast`, `get_embed`, `get_unlinked_mentions` (source-file read) are the other "effective content" consumers. The **scan** + **watcher** dispatcher (`simple-directory-core::vault::scan`, `vault::watcher::apply_watch_event_to_db`) also read source bytes for the link/tag/block extractors.
+- **Atomic write.** `simple_directory_core::atomic_write` (used by `write_file_text`, `link_mention`). J.1 uses it for both the file move (rename) and the flush rewrites.
 - **`write_file_text`'s hash gate.** Editor-side `last_written_hash` lives in the *frontend* (`ui/src/api/ipc.ts`'s autosave path) and is matched against on the backend write — i.e. the editor's own write doesn't surprise the editor. Flush has no editor. J.1 introduces a **backend-side** own-write suppression: a per-vault `HashSet<(PathBuf, ContentHash)>` that flush populates before writing and the watcher dispatcher drains before emitting `vault:file-changed`. This means a flush write does not bounce back to the frontend as an external edit. Existing editor `last_written_hash` flow is unchanged.
 - **`rename_op_id` storage.** L0's `config` table is the existing single-row counter store (`config(key TEXT PRIMARY KEY, value TEXT)`). J.1 reserves key `pending_rewrites.next_rename_op_id`; integer parsed/stored as string for consistency with existing config rows.
-- **Vault open/close.** `cubical-app::commands::vault::{open_vault, close_vault}` (or equivalent) manage per-vault state. The periodic-flush task spawns inside `open_vault`'s success path and is cancelled in `close_vault`. The mandatory close-time flush runs `flush_pending_rewrites` synchronously *before* the index handle is dropped.
+- **Vault open/close.** `simple-directory-app::commands::vault::{open_vault, close_vault}` (or equivalent) manage per-vault state. The periodic-flush task spawns inside `open_vault`'s success path and is cancelled in `close_vault`. The mandatory close-time flush runs `flush_pending_rewrites` synchronously *before* the index handle is dropped.
 
 ---
 
@@ -64,9 +64,9 @@ CREATE INDEX idx_pending_op     ON pending_rewrites(rename_op_id);
 
 `HIGHEST_KNOWN_VERSION` in `runner.rs` tests bumps to `6`. The existing `fresh_db_applies_all_known_migrations` test extends to assert the new table + two indexes; one new test (`v6_applies_on_top_of_existing_v5_database`) seeds a `v5` database and verifies the migration applies cleanly.
 
-### Query module `cubical-index::pending`
+### Query module `simple-directory-index::pending`
 
-Mirrors `cubical-index::blocks`. Public surface:
+Mirrors `simple-directory-index::blocks`. Public surface:
 
 ```rust
 pub struct PendingRewriteRow {
@@ -120,7 +120,7 @@ pub async fn list_recent_rename_ops(
 
 Unit tests: round-trip (enqueue+list), order is `created_at` then `id`, delete-by-op removes only matching rows, delete-by-target removes only matching target, count-by-target is correct, count-breakdown is DESC by count.
 
-### Pure materializer `cubical-core::vault::pending`
+### Pure materializer `simple-directory-core::vault::pending`
 
 A new module sibling to `vault::mentions`. Three public items.
 
@@ -141,10 +141,10 @@ pub async fn materialize_on_read(
 
 `apply_pending` walks `rewrites` in slice order (caller passes them in `created_at` order). For each rewrite, dispatch by kind:
 
-- **`WikiLink`** — `old_token` and `new_token` are bare target paths (vault-relative, no `[[` / `|display` / `#anchor`). Walk the source via `cubical_ast::wikilink::scan_wikilinks`; for each `WikiLinkToken` whose `target` matches `old_token` (case-sensitive — wiki-link resolution is case-aware in the lower layers' on-disk form even though the *resolver* normalizes), rewrite only the `target` field and re-emit the token with its original `embed` (`!`-prefix), `|display`, and `#anchor` parts preserved. Plain text between tokens passes through unchanged. Implementation: rebuild the string by walking `TokenizedRun`s and reformatting `WikiLink` tokens that hit.
+- **`WikiLink`** — `old_token` and `new_token` are bare target paths (vault-relative, no `[[` / `|display` / `#anchor`). Walk the source via `simple_directory_ast::wikilink::scan_wikilinks`; for each `WikiLinkToken` whose `target` matches `old_token` (case-sensitive — wiki-link resolution is case-aware in the lower layers' on-disk form even though the *resolver* normalizes), rewrite only the `target` field and re-emit the token with its original `embed` (`!`-prefix), `|display`, and `#anchor` parts preserved. Plain text between tokens passes through unchanged. Implementation: rebuild the string by walking `TokenizedRun`s and reformatting `WikiLink` tokens that hit.
 - **`Tag`** — `old_token` and `new_token` are tag paths without the leading `#` (e.g. `"work/active"`). Two passes:
   1. **Inline body.** Walk the source line-by-line, skip frontmatter lines + fenced code blocks (` ``` ` / `~~~`), then for each remaining line find `#<tag>` occurrences with the same boundary rules used by L3 Session D's `extract_tags` (start = line-start or whitespace; end = `!is_alphanumeric() && != '_' && != '-' && != '/'`). For each hit: if the tag text equals `old_token` rewrite to `new_token`; otherwise if it starts with `old_token + "/"` rewrite the prefix and keep the suffix (nested rename). Hits inside inline code spans are excluded the same way Session D excludes them (`vault::tags::extract_tags` is the canonical reference).
-  2. **Frontmatter `tags:` list.** Parse the frontmatter block via the existing YAML loader (`cubical-core::vault::frontmatter`); rewrite each string entry that equals `old_token` or starts with `old_token + "/"`. Re-emit the frontmatter block. Non-string entries (rare; would be a malformed `tags:` list) pass through untouched.
+  2. **Frontmatter `tags:` list.** Parse the frontmatter block via the existing YAML loader (`simple-directory-core::vault::frontmatter`); rewrite each string entry that equals `old_token` or starts with `old_token + "/"`. Re-emit the frontmatter block. Non-string entries (rare; would be a malformed `tags:` list) pass through untouched.
 - **`BlockRef`** — `old_token` and `new_token` are bare block ids without `^` (e.g. `"intro"`). Two patterns:
   1. **Referrer pattern:** `[[X#^old_id]]` / `[[X#^old_id|display]]` / `![[…]]`. Walk via `scan_wikilinks`; rewrite the `Anchor::Block { value }` when `value == old_token`.
   2. **Defining line pattern:** `^old_id` at the end of a line in the *defining* file. Walk line-by-line; on a line whose trailing token (after stripping trailing whitespace) is `^old_id` and `old_id` matches an allowed-block-id charset (Unicode letters / digits / `_` / `-`), rewrite that token to `^new_id`. The enqueue side (`rename_block_id`) is responsible for enqueuing a `BlockRef` row against both the *referrer* files (for pattern 1) AND the *defining* file (for pattern 2); the materializer treats both patterns uniformly by always trying both substitutions per row, which is safe because the defining-line pattern can only match in the defining file's source.
@@ -168,13 +168,13 @@ Every IPC that returns "effective file content" wraps its on-disk read with `mat
 - `commands::embeds::get_embed` — MUST materialize. (Embed bodies reflect renames.)
 - `commands::mentions::get_unlinked_mentions` — source files: MUST materialize. (Materialized text is what the user sees; an unlinked-mention scan over stale text would offer to link wrong spans.)
 - `commands::mentions::link_mention` — MUST materialize before computing the splice, then write the post-splice content as a new on-disk version *and* drop any pending rows for that file (the splice is atomic; pending rewrites for that file are now baked in). Detail: easier to flush the file's pending rows first, then re-read the now-up-to-date disk content, then splice. Either is correct; the spec leans flush-first because it avoids the "splice into materialized but write non-materialized" trap.
-- **Scan** (`cubical-core::vault::scan` bulk + watcher path) — MUST materialize before passing to the link/tag/block extractors. Otherwise backlinks reflect the *old* tokens until flush. The shared-parse refactor for §5.5 is deferred to L5 regardless; this change adds one indexed query per file-scan iteration on top of the existing four reads.
+- **Scan** (`simple-directory-core::vault::scan` bulk + watcher path) — MUST materialize before passing to the link/tag/block extractors. Otherwise backlinks reflect the *old* tokens until flush. The shared-parse refactor for §5.5 is deferred to L5 regardless; this change adds one indexed query per file-scan iteration on top of the existing four reads.
 - **Watcher `content_hash` recomputation** (`apply_watch_event_to_db`'s hash pass) — reads raw bytes, NOT materialized. The hash represents the *on-disk* state, which is what the watcher's purpose is to track.
 - **Raw-source toggle** (`raw_source_visibility` editor compartment from L2) — does not change. The toggle reveals the editor's *current buffer*; `read_file_text` is upstream of that and already materialized.
 
 Implementation: each of the above call sites adds a `let content = materialize_on_read(idx, path, &on_disk).await?` between the read and the next consumer. Tests for each handler add a "materializes pending rewrites" case: seed a `pending_rewrites` row, observe the IPC returns the post-rewrite content.
 
-### Rename IPCs — `cubical-app::commands::rename` (new module)
+### Rename IPCs — `simple-directory-app::commands::rename` (new module)
 
 Three handlers + a shared `mint_rename_op_id` helper that reads `config['pending_rewrites.next_rename_op_id']`, increments it, writes it back, all inside a single transaction. First call defaults the counter to 1.
 
@@ -186,7 +186,7 @@ pub struct RenameFileRequest  { vault_id, from_path, to_path }
 pub struct RenameFileResponse { rename_op_id: i64 }
 
 pub async fn rename_file(state: &AppState, req: RenameFileRequest)
-    -> Result<RenameFileResponse, CubicalError>
+    -> Result<RenameFileResponse, SimpleDirectoryError>
 {
     // 1. Resolve vault; reject if from_path == to_path, if to_path already exists,
     //    or if from_path isn't a known markdown file.
@@ -297,14 +297,14 @@ The whole flush is wrapped in a single `Mutex<()>` per-vault `flush_in_progress`
 
 ### IPC registration
 
-`crates/cubical-app/src/lib.rs` `generate_handler!` block gains seven entries:
+`crates/simple-directory-app/src/lib.rs` `generate_handler!` block gains seven entries:
 
 - `rename_file`, `rename_tag`, `rename_block_id`
 - `flush_pending_rewrites`
 - `get_pending_rewrites_count`, `get_pending_rewrites_breakdown`, `list_recent_rename_ops`
 - `undo_rename`
 
-Wire types in `crates/cubical-app/src/api/types.rs` (or `commands/rename.rs` and re-exported, matching recent precedent).
+Wire types in `crates/simple-directory-app/src/api/types.rs` (or `commands/rename.rs` and re-exported, matching recent precedent).
 
 ### J.1 frontend stub
 

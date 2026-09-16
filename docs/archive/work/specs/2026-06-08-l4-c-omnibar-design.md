@@ -84,7 +84,7 @@ The only backend code in L4-C. `tag_autocomplete("")` returns only a
 capped first page, so it can't feed client-side fuzzy over the full set.
 
 - **Command:** `list_tags { vault_id } -> { tags: string[] }` in
-  `crates/cubical-app/src/commands/` (alongside `tag_autocomplete`).
+  `crates/simple-directory-app/src/commands/` (alongside `tag_autocomplete`).
 - **Query:** `SELECT DISTINCT tag_path FROM tags ORDER BY tag_path`
   against the open vault's libSQL index. `tag_path` is stored
   case-as-written (no leading `#`); return it verbatim to preserve the
@@ -95,7 +95,7 @@ capped first page, so it can't feed client-side fuzzy over the full set.
 - **Registration:** add to the Tauri `invoke_handler`; TS wrapper
   `listTags(req)` + `ListTagsRequest`/`ListTagsResponse` types in
   `ui/src/api/ipc.ts`.
-- **Tests (Rust, `cubical-app`):** distinct + sorted output; empty vault
+- **Tests (Rust, `simple-directory-app`):** distinct + sorted output; empty vault
   → `[]`; dedupes a tag carried by multiple files.
 
 ## 5. Ranker — `ui/src/omnibar/ranker.ts` (pure; the heart)
@@ -204,7 +204,7 @@ Keyboard *is* the primary mode, so a11y is core, not a pass:
   `matchedIndices` correctness; case-insensitivity; tie-breaks
   (shorter → note-before-tag → alpha); cap; empty/whitespace query;
   unicode-safe indexing.
-- **`list_tags` (Rust, `cubical-app`):** distinct + sorted; empty vault;
+- **`list_tags` (Rust, `simple-directory-app`):** distinct + sorted; empty vault;
   multi-file dedupe.
 - **IPC wrapper type-shape smoke** (vitest), consistent with
   `ui/src/api/search.test.ts`.
@@ -226,13 +226,13 @@ Keyboard *is* the primary mode, so a11y is core, not a pass:
 ## 12. File touch-list & Definition of Done
 
 **New:**
-- `crates/cubical-app/src/commands/…` — `list_tags` command (+ tests)
+- `crates/simple-directory-app/src/commands/…` — `list_tags` command (+ tests)
 - `ui/src/omnibar/ranker.ts` + `ranker.test.ts`
 - `ui/src/omnibar/OmniBar.tsx`
 - (maybe) `ui/src/omnibar/types.ts`
 
 **Modified:**
-- `crates/cubical-app/src/lib.rs` (or wherever the invoke_handler lives) — register `list_tags`
+- `crates/simple-directory-app/src/lib.rs` (or wherever the invoke_handler lives) — register `list_tags`
 - `ui/src/api/ipc.ts` (+ `search.test.ts`-style shape smoke) — `listTags` wrapper + types
 - `ui/src/App.tsx` — hotkey, tag cache, render `OmniBar`, navigation callbacks
 - `docs/layer-4-spec.md` — §6 L4-C tick, §9.4 closeout

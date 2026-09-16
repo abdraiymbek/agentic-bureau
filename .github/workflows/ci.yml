@@ -15,7 +15,7 @@ name: CI
 # The `static` job lists its gates explicitly because it is a fast subset, not
 # a second definition — if the two ever disagree, check.sh wins.
 #
-# `gates` runs on three operating systems, because Cubical ships to three. Until
+# `gates` runs on three operating systems, because simple.directory ships to three. Until
 # it did, Linux was verified continuously, macOS only on the maintainer's own
 # machine, and Windows by nothing at all — so every portability break waited for
 # release day. The matrix is conditional; see the comment on the job itself.
@@ -102,7 +102,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Tauri 2 Linux build dependencies — required to compile cubical-app
+      # Tauri 2 Linux build dependencies — required to compile simple-directory-app
       # (and therefore for cargo clippy / test / build across the workspace).
       # macOS and Windows carry their webview in the OS and need no equivalent.
       - name: Install Tauri system dependencies
@@ -163,7 +163,7 @@ jobs:
         with:
           python-version: "3.x"
 
-      # The perf gate inside check.sh is opt-out by default (CUBICAL_PERF unset)
+      # The perf gate inside check.sh is opt-out by default (SIMPLE_DIRECTORY_PERF unset)
       # and is deliberately not enabled here: roughly a third of the scan budget
       # is Tantivy at min(cores, 8) threads, so a small hosted runner would flake
       # against a budget measured on a 10-core machine. The gate refuses to

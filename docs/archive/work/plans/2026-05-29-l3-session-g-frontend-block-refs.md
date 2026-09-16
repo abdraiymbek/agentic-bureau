@@ -504,7 +504,7 @@ Expected: PASS, 271 (no backend edits this session). (If `runner::tests::schema_
 - [ ] **Step 3: Real-app smoke (best-effort)**
 
 ```bash
-cargo build -p cubical-app
+cargo build -p simple-directory-app
 # then: cargo tauri dev, open a sandbox vault.
 #  - Put the cursor on a paragraph, press Cmd/Ctrl+Shift+B.
 #  - Confirm the clipboard holds `[[note#^id]]` (paste somewhere).

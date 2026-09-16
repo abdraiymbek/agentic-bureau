@@ -181,7 +181,7 @@ describe("tagPathFromSlice", () => {
   });
 
   it("preserves nested tag separators", () => {
-    expect(tagPathFromSlice("#project/cubical/l3")).toBe("project/cubical/l3");
+    expect(tagPathFromSlice("#project/simple-directory/l3")).toBe("project/simple-directory/l3");
   });
 
   it("preserves casing", () => {

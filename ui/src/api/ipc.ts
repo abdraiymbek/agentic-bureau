@@ -265,7 +265,7 @@ export interface SetSettingRequest {
   value: unknown;
 }
 
-export interface CubicalError {
+export interface SimpleDirectoryError {
   code: string;
   message: string;
 }

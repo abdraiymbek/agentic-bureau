@@ -6,9 +6,9 @@
 
 **Goal:** Ship a second right-sidebar panel that surfaces every plain-text occurrence of the open note's title or any frontmatter `aliases` value that isn't already a link, with a per-row "link it" action that rewrites the matched text into `[[…]]` on disk.
 
-**Architecture:** Pure on-demand scan (no new index table). A pure `cubical-core::vault::mentions` module walks the source text outside of frontmatter / code / wiki-links / markdown links, then finds whole-word case-insensitive needle occurrences. Two new IPC handlers (`get_unlinked_mentions` + `link_mention`) follow the L0 §8 pure-handler + thin-shim pattern. Frontend mirrors the Session C Backlinks pattern verbatim: state signal + Solid panel + segment selector inside the existing `RightSidebar` shell, with the new `ui.right_sidebar_panel` vault-local setting persisting the selected segment.
+**Architecture:** Pure on-demand scan (no new index table). A pure `simple-directory-core::vault::mentions` module walks the source text outside of frontmatter / code / wiki-links / markdown links, then finds whole-word case-insensitive needle occurrences. Two new IPC handlers (`get_unlinked_mentions` + `link_mention`) follow the L0 §8 pure-handler + thin-shim pattern. Frontend mirrors the Session C Backlinks pattern verbatim: state signal + Solid panel + segment selector inside the existing `RightSidebar` shell, with the new `ui.right_sidebar_panel` vault-local setting persisting the selected segment.
 
-**Tech Stack:** Rust 2021 (`cubical-core`, `cubical-app`, `cubical-index`), TypeScript strict (`ui/`), Solid signals, libSQL (no new migration), Tauri 2 IPC.
+**Tech Stack:** Rust 2021 (`simple-directory-core`, `simple-directory-app`, `simple-directory-index`), TypeScript strict (`ui/`), Solid signals, libSQL (no new migration), Tauri 2 IPC.
 
 ---
 
@@ -26,7 +26,7 @@ These are locked at plan time. If a step encounters a reality that contradicts o
 | Live-refresh route | Piggyback the existing `vault:file-changed` debounced listener; rename `BACKLINKS_REFRESH_DEBOUNCE_MS` → `RIGHT_SIDEBAR_REFRESH_DEBOUNCE_MS` and fan it out to both panels | Spec is explicit that no new `vault:index-changed` event ships in I. |
 | Segment selector location | Inside `RightSidebar` (the shell owns the tab chrome) | Keeps `App.tsx` flatter and lets `RightSidebar` continue to be the single chrome owner. |
 | Group by source vs. flat list | Flat list, ordered `(source_path, position)`. Identical to Backlinks (which is also flat). | Symmetry across the two panels. |
-| Snippet helper sharing | Lift `build_snippet` (currently in `crates/cubical-app/src/commands/backlinks.rs:19`) into a new `crates/cubical-app/src/commands/snippet.rs` module; both backlinks + mentions import it | Identical-looking context across the two panels; pure function with no I/O. |
+| Snippet helper sharing | Lift `build_snippet` (currently in `crates/simple-directory-app/src/commands/backlinks.rs:19`) into a new `crates/simple-directory-app/src/commands/snippet.rs` module; both backlinks + mentions import it | Identical-looking context across the two panels; pure function with no I/O. |
 | Open note exclusion | The open note's `path` is excluded from the candidate list inside the handler — its own mentions of itself never surface | Spec §2.9 wording: "for the open note, every plain-text occurrence … in vault text." |
 | Source casing for needles | Always include both the title and every alias, deduped case-insensitively, blank entries dropped | Aliases of wrong shape (non-string in the YAML list) are silently dropped. |
 
@@ -36,18 +36,18 @@ These are locked at plan time. If a step encounters a reality that contradicts o
 
 ### New Rust files
 
-- `crates/cubical-core/src/vault/mentions.rs` — pure scanner: `extract_text_runs` + `find_mention_occurrences` + their shared `MentionHit` type. No I/O. Heavy unit tests.
-- `crates/cubical-app/src/commands/mentions.rs` — `get_unlinked_mentions` and `link_mention` pure handlers + tests.
-- `crates/cubical-app/src/commands/snippet.rs` — `build_snippet` lifted out of `backlinks.rs` (verbatim, no behaviour change); both backlinks + mentions import it.
+- `crates/simple-directory-core/src/vault/mentions.rs` — pure scanner: `extract_text_runs` + `find_mention_occurrences` + their shared `MentionHit` type. No I/O. Heavy unit tests.
+- `crates/simple-directory-app/src/commands/mentions.rs` — `get_unlinked_mentions` and `link_mention` pure handlers + tests.
+- `crates/simple-directory-app/src/commands/snippet.rs` — `build_snippet` lifted out of `backlinks.rs` (verbatim, no behaviour change); both backlinks + mentions import it.
 
 ### Modified Rust files
 
-- `crates/cubical-ast/src/lib.rs` — promote `mod wikilink` to `pub mod wikilink` and re-export `scan_wikilinks` + `TokenizedRun` so `cubical-core` can call them without copying the tokenizer.
-- `crates/cubical-core/src/vault/mod.rs` — `pub mod mentions;` plus re-exports for what the app uses.
-- `crates/cubical-app/src/api/types.rs` — add `GetUnlinkedMentionsRequest/Response`, `Mention`, `LinkMentionRequest/Response`.
-- `crates/cubical-app/src/commands/mod.rs` — `pub mod mentions;` + `pub mod snippet;`.
-- `crates/cubical-app/src/commands/backlinks.rs` — delete the inlined `build_snippet` + its tests; replace with `use crate::commands::snippet::build_snippet;` (the unit tests for the helper move with it).
-- `crates/cubical-app/src/lib.rs` — register both new shims in `generate_handler!`.
+- `crates/simple-directory-ast/src/lib.rs` — promote `mod wikilink` to `pub mod wikilink` and re-export `scan_wikilinks` + `TokenizedRun` so `simple-directory-core` can call them without copying the tokenizer.
+- `crates/simple-directory-core/src/vault/mod.rs` — `pub mod mentions;` plus re-exports for what the app uses.
+- `crates/simple-directory-app/src/api/types.rs` — add `GetUnlinkedMentionsRequest/Response`, `Mention`, `LinkMentionRequest/Response`.
+- `crates/simple-directory-app/src/commands/mod.rs` — `pub mod mentions;` + `pub mod snippet;`.
+- `crates/simple-directory-app/src/commands/backlinks.rs` — delete the inlined `build_snippet` + its tests; replace with `use crate::commands::snippet::build_snippet;` (the unit tests for the helper move with it).
+- `crates/simple-directory-app/src/lib.rs` — register both new shims in `generate_handler!`.
 
 ### New TypeScript files
 
@@ -63,15 +63,15 @@ These are locked at plan time. If a step encounters a reality that contradicts o
 
 ---
 
-## Task 1: Promote `cubical-ast::wikilink` to a public module
+## Task 1: Promote `simple-directory-ast::wikilink` to a public module
 
 **Files:**
-- Modify: `crates/cubical-ast/src/lib.rs:38`
-- Test: existing `crates/cubical-ast/tests/*` continue to pass (no new test needed — the module's own tests already exercise `scan_wikilinks`).
+- Modify: `crates/simple-directory-ast/src/lib.rs:38`
+- Test: existing `crates/simple-directory-ast/tests/*` continue to pass (no new test needed — the module's own tests already exercise `scan_wikilinks`).
 
 - [ ] **Step 1: Promote the module to `pub`**
 
-Edit `crates/cubical-ast/src/lib.rs`. Change line 38 from `mod wikilink;` to `pub mod wikilink;`, and add to the `pub use` block right after `pub use types::{...}`:
+Edit `crates/simple-directory-ast/src/lib.rs`. Change line 38 from `mod wikilink;` to `pub mod wikilink;`, and add to the `pub use` block right after `pub use types::{...}`:
 
 ```rust
 pub use wikilink::{scan_wikilinks, TokenizedRun};
@@ -79,7 +79,7 @@ pub use wikilink::{scan_wikilinks, TokenizedRun};
 
 - [ ] **Step 2: Verify the crate still builds + tests pass**
 
-Run: `cargo test -p cubical-ast`
+Run: `cargo test -p simple-directory-ast`
 Expected: PASS (same count as before; no new tests).
 
 - [ ] **Step 3: Verify no downstream crate broke**
@@ -90,7 +90,7 @@ Expected: PASS, no warnings.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-ast/src/lib.rs
+git add crates/simple-directory-ast/src/lib.rs
 git commit -m "refactor(ast): expose scan_wikilinks + TokenizedRun publicly
 
 Session I's mentions scanner needs to walk the same wiki-link
@@ -104,19 +104,19 @@ copying the tokenizer."
 ## Task 2: Pure scanner — `extract_text_runs`
 
 **Files:**
-- Create: `crates/cubical-core/src/vault/mentions.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs:24` (add `pub mod mentions;`)
+- Create: `crates/simple-directory-core/src/vault/mentions.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs:24` (add `pub mod mentions;`)
 - Test: inline `#[cfg(test)]` block in `mentions.rs`
 
 The scanner walks `source` byte-by-byte and yields every text region that is *outside* all of: YAML frontmatter, fenced code (` ``` ` / `~~~`), inline code spans (`` `…` ``), wiki-links (`[[…]]` / `![[…]]`), and markdown links (`[…](…)` for both display and url segments). Heading marker chars (`#` runs at line start, `===`/`---` underlines) are excluded so a heading whose text matches a title is still indexed as text. Raw URLs auto-linked by the editor are *not* a separate token in pulldown-cmark — they're text — so we don't filter them; the whole-word boundary filter at match time handles the surrounding `://`.
 
 - [ ] **Step 1: Add the module declaration**
 
-Edit `crates/cubical-core/src/vault/mod.rs`. Add `pub mod mentions;` next to the existing `pub mod blocks;` / `pub mod links;` lines.
+Edit `crates/simple-directory-core/src/vault/mod.rs`. Add `pub mod mentions;` next to the existing `pub mod blocks;` / `pub mod links;` lines.
 
 - [ ] **Step 2: Write the failing tests for `extract_text_runs`**
 
-Create `crates/cubical-core/src/vault/mentions.rs` with this initial content:
+Create `crates/simple-directory-core/src/vault/mentions.rs` with this initial content:
 
 ```rust
 //! On-demand unlinked-mention scanner (L3 Session I, spec §2.9).
@@ -126,7 +126,7 @@ Create `crates/cubical-core/src/vault/mentions.rs` with this initial content:
 //! and markdown links), then matches needles against those regions
 //! with whole-word case-insensitive comparison.
 
-use cubical_ast::wikilink::{scan_wikilinks, TokenizedRun};
+use simple_directory_ast::wikilink::{scan_wikilinks, TokenizedRun};
 
 /// A contiguous slice of source bytes that is plain text — i.e. NOT
 /// inside frontmatter, fenced code, inline code, a wiki-link, or a
@@ -268,7 +268,7 @@ mod tests {
 
 - [ ] **Step 3: Run the failing tests**
 
-Run: `cargo test -p cubical-core --lib vault::mentions`
+Run: `cargo test -p simple-directory-core --lib vault::mentions`
 Expected: tests fail with `not yet implemented` (the `todo!()` body).
 
 - [ ] **Step 4: Implement `extract_text_runs`**
@@ -289,7 +289,7 @@ pub fn extract_text_runs(source: &str) -> Vec<TextRun<'_>> {
     let mut fence_marker: &str = "";
 
     // Frontmatter: a `---\n` at byte 0, terminated by the next `\n---\n`
-    // or `\n---` at end of file. Mirrors `cubical_ast::split_frontmatter`
+    // or `\n---` at end of file. Mirrors `simple_directory_ast::split_frontmatter`
     // semantics at the byte level — we only need to find the end offset.
     if source.starts_with("---\n") || source.starts_with("---\r\n") {
         let after_open = if source.starts_with("---\r\n") { 5 } else { 4 };
@@ -505,13 +505,13 @@ fn push_run<'a>(out: &mut Vec<TextRun<'a>>, source: &'a str, start: usize, end: 
 
 - [ ] **Step 5: Re-run the tests; iterate until green**
 
-Run: `cargo test -p cubical-core --lib vault::mentions`
+Run: `cargo test -p simple-directory-core --lib vault::mentions`
 Expected: all text-run tests PASS. (The mention-hit tests still error at `todo!()` — that's Task 3.)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/mod.rs crates/cubical-core/src/vault/mentions.rs
+git add crates/simple-directory-core/src/vault/mod.rs crates/simple-directory-core/src/vault/mentions.rs
 git commit -m "feat(core): pure text-run scanner for unlinked mentions
 
 vault::mentions::extract_text_runs walks markdown source and yields
@@ -525,13 +525,13 @@ and markdown links. Foundation for the on-demand Session I scan
 ## Task 3: Pure scanner — `find_mention_occurrences`
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/mentions.rs`
+- Modify: `crates/simple-directory-core/src/vault/mentions.rs`
 
 The matcher iterates each text run and, for each needle, walks character boundaries looking for case-insensitive substring matches whose preceding + following codepoints (or the run edges) satisfy the whole-word boundary rule.
 
 - [ ] **Step 1: Add failing tests for the matcher**
 
-Append to the `tests` module in `crates/cubical-core/src/vault/mentions.rs`:
+Append to the `tests` module in `crates/simple-directory-core/src/vault/mentions.rs`:
 
 ```rust
     // ---- find_mention_occurrences --------------------------------
@@ -646,7 +646,7 @@ Append to the `tests` module in `crates/cubical-core/src/vault/mentions.rs`:
 
 - [ ] **Step 2: Run the new tests; they should fail at `todo!()`**
 
-Run: `cargo test -p cubical-core --lib vault::mentions::tests::finds_simple_whole_word_match_case_insensitive`
+Run: `cargo test -p simple-directory-core --lib vault::mentions::tests::finds_simple_whole_word_match_case_insensitive`
 Expected: FAIL with `not yet implemented`.
 
 - [ ] **Step 3: Implement `find_mention_occurrences`**
@@ -805,12 +805,12 @@ fn map_lower_span_to_original(
 
 - [ ] **Step 4: Run all `mentions` tests**
 
-Run: `cargo test -p cubical-core --lib vault::mentions`
+Run: `cargo test -p simple-directory-core --lib vault::mentions`
 Expected: all PASS.
 
 - [ ] **Step 5: Update the `pub use` exports**
 
-Edit `crates/cubical-core/src/vault/mod.rs`. Add after the existing `pub use` block:
+Edit `crates/simple-directory-core/src/vault/mod.rs`. Add after the existing `pub use` block:
 
 ```rust
 pub use mentions::{extract_text_runs, find_mention_occurrences, MentionHit, TextRun};
@@ -824,7 +824,7 @@ Expected: clean. Fix anything that fires.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/mod.rs crates/cubical-core/src/vault/mentions.rs
+git add crates/simple-directory-core/src/vault/mod.rs crates/simple-directory-core/src/vault/mentions.rs
 git commit -m "feat(core): whole-word case-insensitive mention finder
 
 find_mention_occurrences walks the plain-text runs produced by
@@ -841,19 +841,19 @@ multi-word needles)."
 ## Task 4: Lift `build_snippet` into a shared module
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/snippet.rs` (verbatim move of `build_snippet` + helpers + its unit tests from `backlinks.rs`)
-- Modify: `crates/cubical-app/src/commands/mod.rs` — add `pub mod snippet;`
-- Modify: `crates/cubical-app/src/commands/backlinks.rs` — delete the inlined `build_snippet`, `char_boundary_floor`, `char_boundary_ceil`, and the 9 unit tests for them; replace usages with `use crate::commands::snippet::build_snippet;`
+- Create: `crates/simple-directory-app/src/commands/snippet.rs` (verbatim move of `build_snippet` + helpers + its unit tests from `backlinks.rs`)
+- Modify: `crates/simple-directory-app/src/commands/mod.rs` — add `pub mod snippet;`
+- Modify: `crates/simple-directory-app/src/commands/backlinks.rs` — delete the inlined `build_snippet`, `char_boundary_floor`, `char_boundary_ceil`, and the 9 unit tests for them; replace usages with `use crate::commands::snippet::build_snippet;`
 
 No new behaviour. This is a pure refactor so backlinks + mentions produce identical-looking snippets.
 
 - [ ] **Step 1: Read the current shape**
 
-Open `crates/cubical-app/src/commands/backlinks.rs`. The helper to lift spans lines 19–101 (`build_snippet`, `char_boundary_floor`, `char_boundary_ceil`). The tests to lift span the `#[cfg(test)]` block lines 152–224 (the `empty_source_returns_empty`, `short_source_returns_full_text_no_ellipses`, `near_start_no_leading_ellipsis`, `near_end_no_trailing_ellipsis`, `middle_position_has_both_ellipses`, `newlines_collapse_to_single_spaces`, `runs_of_whitespace_collapse`, `utf8_does_not_panic_at_boundary`, `position_beyond_source_clamps_to_end` tests). The end-to-end `get_backlinks` tests stay in `backlinks.rs`.
+Open `crates/simple-directory-app/src/commands/backlinks.rs`. The helper to lift spans lines 19–101 (`build_snippet`, `char_boundary_floor`, `char_boundary_ceil`). The tests to lift span the `#[cfg(test)]` block lines 152–224 (the `empty_source_returns_empty`, `short_source_returns_full_text_no_ellipses`, `near_start_no_leading_ellipsis`, `near_end_no_trailing_ellipsis`, `middle_position_has_both_ellipses`, `newlines_collapse_to_single_spaces`, `runs_of_whitespace_collapse`, `utf8_does_not_panic_at_boundary`, `position_beyond_source_clamps_to_end` tests). The end-to-end `get_backlinks` tests stay in `backlinks.rs`.
 
 - [ ] **Step 2: Create the new module**
 
-Create `crates/cubical-app/src/commands/snippet.rs`:
+Create `crates/simple-directory-app/src/commands/snippet.rs`:
 
 ```rust
 //! Shared context-snippet helper for the sidebar panels (Backlinks +
@@ -1021,15 +1021,15 @@ mod tests {
 
 - [ ] **Step 3: Register the module**
 
-Open `crates/cubical-app/src/commands/mod.rs` and add `pub mod snippet;` next to the other module declarations.
+Open `crates/simple-directory-app/src/commands/mod.rs` and add `pub mod snippet;` next to the other module declarations.
 
 - [ ] **Step 4: Strip the now-duplicated code from `backlinks.rs`**
 
-In `crates/cubical-app/src/commands/backlinks.rs`:
+In `crates/simple-directory-app/src/commands/backlinks.rs`:
 
 - Delete lines 19–101 (`build_snippet`, `char_boundary_floor`, `char_boundary_ceil`).
 - Delete the 9 unit tests for the snippet helper in the `#[cfg(test)]` block (lines 156–224 in the original).
-- Above the `use cubical_index::backlinks_for;` line, add: `use crate::commands::snippet::build_snippet;`.
+- Above the `use simple_directory_index::backlinks_for;` line, add: `use crate::commands::snippet::build_snippet;`.
 
 - [ ] **Step 5: Run the cargo tests; verify the count is unchanged**
 
@@ -1039,7 +1039,7 @@ Expected: 289 (the 9 tests moved, not deleted; total unchanged).
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/snippet.rs crates/cubical-app/src/commands/mod.rs crates/cubical-app/src/commands/backlinks.rs
+git add crates/simple-directory-app/src/commands/snippet.rs crates/simple-directory-app/src/commands/mod.rs crates/simple-directory-app/src/commands/backlinks.rs
 git commit -m "refactor(app): lift build_snippet into commands::snippet
 
 Session I adds a second panel that wants identical-looking context
@@ -1053,11 +1053,11 @@ panels render the same shape. No behaviour change."
 ## Task 5: Wire types — `get_unlinked_mentions` + `link_mention`
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs` — add request/response structs (at the bottom, after `GetEmbedResponse`).
+- Modify: `crates/simple-directory-app/src/api/types.rs` — add request/response structs (at the bottom, after `GetEmbedResponse`).
 
 - [ ] **Step 1: Add wire types**
 
-Append to `crates/cubical-app/src/api/types.rs`:
+Append to `crates/simple-directory-app/src/api/types.rs`:
 
 ```rust
 // -- get_unlinked_mentions (L3 Session I) ------------------------------
@@ -1125,13 +1125,13 @@ pub struct LinkMentionResponse {
 
 - [ ] **Step 2: Verify the crate compiles**
 
-Run: `cargo build -p cubical-app`
+Run: `cargo build -p simple-directory-app`
 Expected: PASS (no handlers yet, but types compile against `serde_json` already in scope).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs
+git add crates/simple-directory-app/src/api/types.rs
 git commit -m "feat(app): wire types for get_unlinked_mentions + link_mention"
 ```
 
@@ -1140,18 +1140,18 @@ git commit -m "feat(app): wire types for get_unlinked_mentions + link_mention"
 ## Task 6: Handler — `get_unlinked_mentions`
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/mentions.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs` (add `pub mod mentions;`)
+- Create: `crates/simple-directory-app/src/commands/mentions.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs` (add `pub mod mentions;`)
 
 The handler snapshots `files.path` (markdown only — same shape as `commands::backlinks` uses), pulls the open note's title (basename - `.md`) + its `aliases` from the `frontmatter` table, then walks every other markdown file and runs `find_mention_occurrences`.
 
 - [ ] **Step 1: Register the module**
 
-Edit `crates/cubical-app/src/commands/mod.rs`. Add `pub mod mentions;`.
+Edit `crates/simple-directory-app/src/commands/mod.rs`. Add `pub mod mentions;`.
 
 - [ ] **Step 2: Write the handler with stub `link_mention`**
 
-Create `crates/cubical-app/src/commands/mentions.rs`:
+Create `crates/simple-directory-app/src/commands/mentions.rs`:
 
 ```rust
 //! Pure async command handlers for `get_unlinked_mentions` and
@@ -1166,17 +1166,17 @@ Create `crates/cubical-app/src/commands/mentions.rs`:
 //! `[[Title]]` (or `[[Title|alias]]` when the alias casing differs
 //! from the title). Atomic write with on-disk hash gate.
 
-use cubical_core::atomic_write;
-use cubical_core::sha256_bytes_hex;
-use cubical_core::vault::mentions::{find_mention_occurrences, MentionHit};
-use cubical_core::vault::links::read_source_off_executor;
+use simple_directory_core::atomic_write;
+use simple_directory_core::sha256_bytes_hex;
+use simple_directory_core::vault::mentions::{find_mention_occurrences, MentionHit};
+use simple_directory_core::vault::links::read_source_off_executor;
 
 use crate::api::types::{
     GetUnlinkedMentionsRequest, GetUnlinkedMentionsResponse, LinkMentionRequest,
     LinkMentionResponse, Mention,
 };
 use crate::commands::snippet::build_snippet;
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// Maximum markdown files scanned per request. Acts as a safety fuse
@@ -1190,12 +1190,12 @@ const MAX_SCAN_FILES: usize = 50_000;
 pub async fn get_unlinked_mentions(
     state: &AppState,
     req: GetUnlinkedMentionsRequest,
-) -> Result<GetUnlinkedMentionsResponse, CubicalError> {
+) -> Result<GetUnlinkedMentionsResponse, SimpleDirectoryError> {
     let (root, conn) = {
         let guard = state.vaults().read().await;
         let open = guard
             .get(&req.vault_id)
-            .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+            .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
         (
             open.vault.root().to_path_buf(),
             open.vault.index().connection().clone(),
@@ -1252,8 +1252,8 @@ pub async fn get_unlinked_mentions(
 pub async fn link_mention(
     _state: &AppState,
     _req: LinkMentionRequest,
-) -> Result<LinkMentionResponse, CubicalError> {
-    Err(CubicalError::InvalidRequest("link_mention not yet implemented".into()))
+) -> Result<LinkMentionResponse, SimpleDirectoryError> {
+    Err(SimpleDirectoryError::InvalidRequest("link_mention not yet implemented".into()))
 }
 
 /// Compute the canonical title for a vault-relative path — its basename
@@ -1292,9 +1292,9 @@ fn build_needles(title: &str, aliases: &[String]) -> Vec<String> {
 /// are silently dropped (per "Decisions": "frontmatter aliases of wrong
 /// shape silently dropped").
 async fn aliases_for(
-    conn: &cubical_index::IndexConn,
+    conn: &simple_directory_index::IndexConn,
     path: &str,
-) -> Result<Vec<String>, CubicalError> {
+) -> Result<Vec<String>, SimpleDirectoryError> {
     let mut rows = conn
         .connection()
         .query(
@@ -1324,9 +1324,9 @@ async fn aliases_for(
 
 /// Every markdown `files.path` except `exclude_path`, in stable order.
 async fn list_markdown_candidates(
-    conn: &cubical_index::IndexConn,
+    conn: &simple_directory_index::IndexConn,
     exclude_path: &str,
-) -> Result<Vec<String>, CubicalError> {
+) -> Result<Vec<String>, SimpleDirectoryError> {
     let mut rows = conn
         .connection()
         .query(
@@ -1352,7 +1352,7 @@ Append to the same file:
 mod tests {
     use super::*;
     use crate::state::{OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
+    use simple_directory_core::Vault;
     use tempfile::{tempdir, TempDir};
     use tokio_util::sync::CancellationToken;
 
@@ -1570,25 +1570,25 @@ mod tests {
         )
         .await
         .expect_err("expected VaultNotOpen");
-        assert!(matches!(err, CubicalError::VaultNotOpen(v) if v == "ghost"));
+        assert!(matches!(err, SimpleDirectoryError::VaultNotOpen(v) if v == "ghost"));
     }
 }
 ```
 
 - [ ] **Step 3: Run the handler tests**
 
-Run: `cargo test -p cubical-app --lib commands::mentions::tests`
+Run: `cargo test -p simple-directory-app --lib commands::mentions::tests`
 Expected: all PASS.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/mod.rs crates/cubical-app/src/commands/mentions.rs
+git add crates/simple-directory-app/src/commands/mod.rs crates/simple-directory-app/src/commands/mentions.rs
 git commit -m "feat(app): get_unlinked_mentions IPC handler (L3 §2.9)
 
 Snapshots every markdown file except the open note, pulls the
 note's title + aliases (from the §9.4 frontmatter index), and
-runs the pure cubical-core::vault::mentions scanner. Returns
+runs the pure simple-directory-core::vault::mentions scanner. Returns
 mentions sorted by (source_path, position). Open note's own
 mentions of itself are excluded.
 
@@ -1600,13 +1600,13 @@ link_mention is stubbed; lands in the next commit."
 ## Task 7: Handler — `link_mention`
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/mentions.rs` — replace the stub with the real implementation.
+- Modify: `crates/simple-directory-app/src/commands/mentions.rs` — replace the stub with the real implementation.
 
 The rewrite reads the file fresh just-in-time, verifies the byte range still spells one of the needles (case-insensitive — the user might have edited around it but not inside it), splices `[[Title]]` or `[[Title|alias]]` over the span, hashes the result, and writes atomically. The atomic write itself doesn't gate on a seen-hash since the frontend doesn't track one for arbitrary source files; instead we read + write in one call and rely on the atomic-rename semantics for crash safety. A racing external edit between read and write is accepted — the user will see the same panel refresh after `vault:file-changed` lands.
 
 - [ ] **Step 1: Add the failing test for the success path**
 
-Append to the `tests` module in `crates/cubical-app/src/commands/mentions.rs`:
+Append to the `tests` module in `crates/simple-directory-app/src/commands/mentions.rs`:
 
 ```rust
     // ---- link_mention --------------------------------------------
@@ -1636,7 +1636,7 @@ Append to the `tests` module in `crates/cubical-app/src/commands/mentions.rs`:
         assert_eq!(on_disk, "I worked on the [[Daily]] today.\n");
         assert_eq!(
             resp.new_hash,
-            cubical_core::sha256_bytes_hex(on_disk.as_bytes())
+            simple_directory_core::sha256_bytes_hex(on_disk.as_bytes())
         );
     }
 
@@ -1712,7 +1712,7 @@ Append to the `tests` module in `crates/cubical-app/src/commands/mentions.rs`:
         )
         .await
         .expect_err("expected InvalidRequest");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 
     #[tokio::test]
@@ -1733,7 +1733,7 @@ Append to the `tests` module in `crates/cubical-app/src/commands/mentions.rs`:
         )
         .await
         .expect_err("expected InvalidRequest");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 
     #[tokio::test]
@@ -1751,29 +1751,29 @@ Append to the `tests` module in `crates/cubical-app/src/commands/mentions.rs`:
         )
         .await
         .expect_err("expected VaultNotOpen");
-        assert!(matches!(err, CubicalError::VaultNotOpen(v) if v == "ghost"));
+        assert!(matches!(err, SimpleDirectoryError::VaultNotOpen(v) if v == "ghost"));
     }
 ```
 
 - [ ] **Step 2: Run the failing tests**
 
-Run: `cargo test -p cubical-app --lib commands::mentions::tests::link_mention_rewrites_span_and_returns_new_hash`
+Run: `cargo test -p simple-directory-app --lib commands::mentions::tests::link_mention_rewrites_span_and_returns_new_hash`
 Expected: FAIL (current stub returns `InvalidRequest`).
 
 - [ ] **Step 3: Replace the stub with the real implementation**
 
-Replace the `link_mention` body in `crates/cubical-app/src/commands/mentions.rs` with:
+Replace the `link_mention` body in `crates/simple-directory-app/src/commands/mentions.rs` with:
 
 ```rust
 pub async fn link_mention(
     state: &AppState,
     req: LinkMentionRequest,
-) -> Result<LinkMentionResponse, CubicalError> {
+) -> Result<LinkMentionResponse, SimpleDirectoryError> {
     let abs = {
         let guard = state.vaults().read().await;
         let open = guard
             .get(&req.vault_id)
-            .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+            .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
         open.vault.root().join(&req.source_path)
     };
 
@@ -1784,19 +1784,19 @@ pub async fn link_mention(
         move || std::fs::read_to_string(&abs)
     })
     .await
-    .map_err(|e| CubicalError::Io(format!("read task join error: {e}")))?
-    .map_err(|e| CubicalError::Io(e.to_string()))?;
+    .map_err(|e| SimpleDirectoryError::Io(format!("read task join error: {e}")))?
+    .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
 
     // Bounds check.
     let start = req.position as usize;
     let end = start.saturating_add(req.byte_len as usize);
     if end > source.len() {
-        return Err(CubicalError::InvalidRequest(
+        return Err(SimpleDirectoryError::InvalidRequest(
             "mention span out of bounds (file changed since fetch)".into(),
         ));
     }
     if !source.is_char_boundary(start) || !source.is_char_boundary(end) {
-        return Err(CubicalError::InvalidRequest(
+        return Err(SimpleDirectoryError::InvalidRequest(
             "mention span does not land on UTF-8 boundaries".into(),
         ));
     }
@@ -1804,7 +1804,7 @@ pub async fn link_mention(
     let matched = &source[start..end];
     let title = req.target_title.trim();
     if title.is_empty() {
-        return Err(CubicalError::InvalidRequest(
+        return Err(SimpleDirectoryError::InvalidRequest(
             "target_title must not be empty".into(),
         ));
     }
@@ -1815,14 +1815,14 @@ pub async fn link_mention(
     //   * the byte char immediately before/after is a non-word char
     //     (or the file edge)
     if matched.chars().all(|c| !c.is_alphanumeric() && c != '_') {
-        return Err(CubicalError::InvalidRequest(
+        return Err(SimpleDirectoryError::InvalidRequest(
             "mention span no longer contains a word".into(),
         ));
     }
     let prev_ok = matched_neighbor_ok(&source, start, /*before=*/ true);
     let next_ok = matched_neighbor_ok(&source, end, /*before=*/ false);
     if !prev_ok || !next_ok {
-        return Err(CubicalError::InvalidRequest(
+        return Err(SimpleDirectoryError::InvalidRequest(
             "mention has moved (whole-word boundary lost)".into(),
         ));
     }
@@ -1848,7 +1848,7 @@ pub async fn link_mention(
     let bytes_for_write = new_bytes.clone();
     tokio::task::spawn_blocking(move || atomic_write(&abs_for_write, &bytes_for_write))
         .await
-        .map_err(|e| CubicalError::Io(format!("write task join error: {e}")))??;
+        .map_err(|e| SimpleDirectoryError::Io(format!("write task join error: {e}")))??;
 
     // Mirror write_file_text's eager files-row update so the next
     // `get_unlinked_mentions` refresh sees the new hash. Best-effort —
@@ -1857,7 +1857,7 @@ pub async fn link_mention(
         let guard = state.vaults().read().await;
         let open = guard
             .get(&req.vault_id)
-            .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+            .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
         let conn = open.vault.index().connection();
         if let Err(e) = conn
             .execute(
@@ -1897,7 +1897,7 @@ fn matched_neighbor_ok(source: &str, byte_idx: usize, before: bool) -> bool {
 
 - [ ] **Step 4: Re-run the handler tests; all green**
 
-Run: `cargo test -p cubical-app --lib commands::mentions::tests`
+Run: `cargo test -p simple-directory-app --lib commands::mentions::tests`
 Expected: every test in the module PASSES.
 
 - [ ] **Step 5: Workspace + clippy**
@@ -1908,7 +1908,7 @@ Expected: clean, all green.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/mentions.rs
+git add crates/simple-directory-app/src/commands/mentions.rs
 git commit -m "feat(app): link_mention rewrite handler (L3 §2.9)
 
 Reads the source file fresh just-in-time, verifies the byte range
@@ -1924,11 +1924,11 @@ panel and retries cleanly."
 ## Task 8: Wire the Tauri shims + register handlers
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 
 - [ ] **Step 1: Add the shims**
 
-In `crates/cubical-app/src/lib.rs`, locate the existing `get_embed` shim (around line 207) and add immediately after it:
+In `crates/simple-directory-app/src/lib.rs`, locate the existing `get_embed` shim (around line 207) and add immediately after it:
 
 ```rust
 /// Tauri shim — see [`commands::mentions::get_unlinked_mentions`].
@@ -1936,7 +1936,7 @@ In `crates/cubical-app/src/lib.rs`, locate the existing `get_embed` shim (around
 async fn get_unlinked_mentions(
     state: tauri::State<'_, crate::state::AppState>,
     req: crate::api::types::GetUnlinkedMentionsRequest,
-) -> Result<crate::api::types::GetUnlinkedMentionsResponse, crate::error::CubicalError> {
+) -> Result<crate::api::types::GetUnlinkedMentionsResponse, crate::error::SimpleDirectoryError> {
     commands::mentions::get_unlinked_mentions(state.inner(), req).await
 }
 
@@ -1945,7 +1945,7 @@ async fn get_unlinked_mentions(
 async fn link_mention(
     state: tauri::State<'_, crate::state::AppState>,
     req: crate::api::types::LinkMentionRequest,
-) -> Result<crate::api::types::LinkMentionResponse, crate::error::CubicalError> {
+) -> Result<crate::api::types::LinkMentionResponse, crate::error::SimpleDirectoryError> {
     commands::mentions::link_mention(state.inner(), req).await
 }
 ```
@@ -1962,7 +1962,7 @@ Expected: 289 + (8 mentions scanner + 8 handler) = 305+. Exact count documented 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs
+git add crates/simple-directory-app/src/lib.rs
 git commit -m "feat(app): register get_unlinked_mentions + link_mention IPC shims"
 ```
 
@@ -2886,13 +2886,13 @@ Add (after the last paragraph of §9.13 in `docs/layer-3-spec.md`):
 
 **Done 2026-05-30.** A second right-sidebar panel ("Unlinked Mentions") lands beside Backlinks. For the open note, every plain-text occurrence of its title or any frontmatter `aliases` value that is NOT already a link surfaces with a context snippet; a per-row "Link it" button rewrites the matched text into `[[…]]` on disk. The scan is on-demand (per IPC call) — no new index table.
 
-**Pure scanner — `cubical-core::vault::mentions`.** Two pure functions sit beside `vault::blocks` and `vault::tags`. `extract_text_runs(source) -> Vec<TextRun<'_>>` walks the source byte-by-byte, yielding plain-text regions (with their original byte offsets) outside frontmatter, fenced code (` ``` ` / `~~~`), inline code spans (`` `…` `` — multi-line aware, multi-tick aware), wiki-links (`[[…]]` / `![[…]]` — pre-`!` byte included in the exclusion zone), and markdown links (`[…](…)` — both display and url segments excluded). Unterminated fences / spans / brackets fall through as text. `find_mention_occurrences(source, needles) -> Vec<MentionHit>` walks each text run, lowercases it once, and runs a linear case-insensitive substring scan per needle. The whole-word boundary rule is `!c.is_alphanumeric() && c != '_'` on both sides (Rust's locale-independent `char::is_alphanumeric` — mirrors Tantivy's default tokenizer boundary so the eventual L4 search agrees). Empty / whitespace-only needles skip silently. Hits sort by `byte_offset` so callers don't need to. A separate `map_lower_span_to_original` helper handles the (rare) case where casefolding expands the source bytes (e.g. `ß` → `ss`) so byte offsets remain correct on the original source.
+**Pure scanner — `simple-directory-core::vault::mentions`.** Two pure functions sit beside `vault::blocks` and `vault::tags`. `extract_text_runs(source) -> Vec<TextRun<'_>>` walks the source byte-by-byte, yielding plain-text regions (with their original byte offsets) outside frontmatter, fenced code (` ``` ` / `~~~`), inline code spans (`` `…` `` — multi-line aware, multi-tick aware), wiki-links (`[[…]]` / `![[…]]` — pre-`!` byte included in the exclusion zone), and markdown links (`[…](…)` — both display and url segments excluded). Unterminated fences / spans / brackets fall through as text. `find_mention_occurrences(source, needles) -> Vec<MentionHit>` walks each text run, lowercases it once, and runs a linear case-insensitive substring scan per needle. The whole-word boundary rule is `!c.is_alphanumeric() && c != '_'` on both sides (Rust's locale-independent `char::is_alphanumeric` — mirrors Tantivy's default tokenizer boundary so the eventual L4 search agrees). Empty / whitespace-only needles skip silently. Hits sort by `byte_offset` so callers don't need to. A separate `map_lower_span_to_original` helper handles the (rare) case where casefolding expands the source bytes (e.g. `ß` → `ss`) so byte offsets remain correct on the original source.
 
-**Snippet helper lifted.** `build_snippet` moved out of `commands/backlinks.rs` into the new `cubical_app::commands::snippet` module (verbatim — same 9 unit tests) so the Backlinks panel and the Mentions panel produce identical-looking context.
+**Snippet helper lifted.** `build_snippet` moved out of `commands/backlinks.rs` into the new `simple_directory_app::commands::snippet` module (verbatim — same 9 unit tests) so the Backlinks panel and the Mentions panel produce identical-looking context.
 
 **Handler: `get_unlinked_mentions`.** Pure handler + Tauri shim + `generate_handler!` registration (mirroring `get_backlinks`). Steps: snapshot every markdown `files.path` except the open note (`type_id = 'markdown' AND path != ?1 ORDER BY path` — the `path != ?1` is the open-note self-exclusion); load the note's title (basename minus `.md`) and aliases (`SELECT value FROM frontmatter WHERE file_path = ?1 AND key = 'aliases'`, JSON-decoded — non-list / non-string entries silently dropped); build a deduped needle list (title first, aliases case-insensitively deduped against title, blanks dropped); for each candidate file read it off the tokio runtime (`vault::links::read_source_off_executor` — already widened to `pub` for H.1) and call `find_mention_occurrences`; emit `Mention { source_path, context, position, byte_len, needle }` per hit; sort `(source_path, position)`. A `MAX_SCAN_FILES = 50_000` fuse caps the worst case at a known bound — a vault past that size gets a partial answer rather than a frozen UI; documented here so the next reader can find it.
 
-**Handler: `link_mention`.** Reads the source file fresh just-in-time (so a same-millisecond external edit is reflected), validates the byte range is in bounds and falls on UTF-8 boundaries, re-checks the whole-word boundary at the span's edges (so an external edit that moved the match raises `InvalidRequest` and the frontend re-fetches), then splices `[[Title]]` (when matched ≡ target_title case-insensitively) or `[[Title|matched]]` (otherwise — the alias-display case) over the span. Atomic write via `cubical_core::atomic_write` off the executor; mirrors `write_file_text`'s blocking-task pattern. The `files.content_hash` is eagerly updated post-write so the next mentions refresh sees the new hash (best-effort — the watcher will also catch up). Returns `{ new_hash }`. No `expected_seen_hash` parameter — for arbitrary source files the frontend has no seen-hash, and the just-in-time read is sufficient for the spec's "responsive on a large vault" DoD.
+**Handler: `link_mention`.** Reads the source file fresh just-in-time (so a same-millisecond external edit is reflected), validates the byte range is in bounds and falls on UTF-8 boundaries, re-checks the whole-word boundary at the span's edges (so an external edit that moved the match raises `InvalidRequest` and the frontend re-fetches), then splices `[[Title]]` (when matched ≡ target_title case-insensitively) or `[[Title|matched]]` (otherwise — the alias-display case) over the span. Atomic write via `simple_directory_core::atomic_write` off the executor; mirrors `write_file_text`'s blocking-task pattern. The `files.content_hash` is eagerly updated post-write so the next mentions refresh sees the new hash (best-effort — the watcher will also catch up). Returns `{ new_hash }`. No `expected_seen_hash` parameter — for arbitrary source files the frontend has no seen-hash, and the just-in-time read is sufficient for the spec's "responsive on a large vault" DoD.
 
 **Frontend.**
 - `ui/src/api/ipc.ts` — `getUnlinkedMentions` + `linkMention` bindings + the `Mention` type. `Setting` union gains `ui.right_sidebar_panel`.
@@ -2965,7 +2965,7 @@ Open `CLAUDE.md`. Find the `## Project state` heading. Replace the entire block 
 ```markdown
 ## Project state
 
-Current layer: 3 — Knowledge Graph (Sessions A–F done + scan perf fix + Session G full + `[[#^` block-id autocomplete + Sessions H.1 + H.2 + I done; Sessions J + K pending). Session I (`l3-session-i-unlinked-mentions`, spec §9.14): on-demand vault scan surfaces every plain-text occurrence of the open note's title / aliases that isn't already a link, in a second right-sidebar panel beside Backlinks; per-row "Link it" rewrites the span to `[[…]]` on disk. Pure scanner (`cubical-core::vault::mentions`) yields plain-text runs outside frontmatter / fenced+inline code / wiki-links / markdown links, then runs whole-word case-insensitive substring matches (`!c.is_alphanumeric() && != '_'` boundary — Tantivy-compatible for L4). Snippet helper lifted to `commands::snippet` so Backlinks + Mentions render identical context. `get_unlinked_mentions` + `link_mention` IPC handlers register via the pure-handler + thin-shim pattern; `link_mention` reads fresh just-in-time, re-validates the whole-word boundary, splices `[[Title]]` (matched ≡ title case-insensitively) or `[[Title|matched]]` (alias-display case), and writes atomically — no `expected_seen_hash` since the frontend has no seen-hash for non-open source files. Frontend mirrors Session C: `unlinkedMentionsState` reducer (+ `mention:linked` optimistic removal), `UnlinkedMentions.tsx` panel (reuses the untrack-guarded fetch effect from Session C), tabbed segment selector inside `RightSidebar` (Backlinks ↔ Unlinked Mentions, persisted as `ui.right_sidebar_panel`, default `backlinks`). `BACKLINKS_REFRESH_DEBOUNCE_MS` renamed → `RIGHT_SIDEBAR_REFRESH_DEBOUNCE_MS`; same tick fans out to both panels via the existing `vault:file-changed` listener (no new event). `MAX_SCAN_FILES=50_000` fuse for the worst case; documented in §9.14.
+Current layer: 3 — Knowledge Graph (Sessions A–F done + scan perf fix + Session G full + `[[#^` block-id autocomplete + Sessions H.1 + H.2 + I done; Sessions J + K pending). Session I (`l3-session-i-unlinked-mentions`, spec §9.14): on-demand vault scan surfaces every plain-text occurrence of the open note's title / aliases that isn't already a link, in a second right-sidebar panel beside Backlinks; per-row "Link it" rewrites the span to `[[…]]` on disk. Pure scanner (`simple-directory-core::vault::mentions`) yields plain-text runs outside frontmatter / fenced+inline code / wiki-links / markdown links, then runs whole-word case-insensitive substring matches (`!c.is_alphanumeric() && != '_'` boundary — Tantivy-compatible for L4). Snippet helper lifted to `commands::snippet` so Backlinks + Mentions render identical context. `get_unlinked_mentions` + `link_mention` IPC handlers register via the pure-handler + thin-shim pattern; `link_mention` reads fresh just-in-time, re-validates the whole-word boundary, splices `[[Title]]` (matched ≡ title case-insensitively) or `[[Title|matched]]` (alias-display case), and writes atomically — no `expected_seen_hash` since the frontend has no seen-hash for non-open source files. Frontend mirrors Session C: `unlinkedMentionsState` reducer (+ `mention:linked` optimistic removal), `UnlinkedMentions.tsx` panel (reuses the untrack-guarded fetch effect from Session C), tabbed segment selector inside `RightSidebar` (Backlinks ↔ Unlinked Mentions, persisted as `ui.right_sidebar_panel`, default `backlinks`). `BACKLINKS_REFRESH_DEBOUNCE_MS` renamed → `RIGHT_SIDEBAR_REFRESH_DEBOUNCE_MS`; same tick fans out to both panels via the existing `vault:file-changed` listener (no new event). `MAX_SCAN_FILES=50_000` fuse for the worst case; documented in §9.14.
 Earlier L3 (unchanged): backend block-refs (Session G, spec §9.8) — `create_block_ref` mints `^id`, migration 005, etc. Session H.1 (`embeds::{extract_section,extract_block,strip_frontmatter,slugify}` + `commands::embeds::get_embed`). Session H.2 (CM6 embed-widget extension, per-vault `EmbedResolver`, pure `renderEmbedBody`).
 Tests: 306 Rust (+17 Session I — 16 scanner + 1 baseline parity from the snippet move) + 328 vitest (+7 Session I). L0 closed 2026-05-13 (`l0`); L1 closed 2026-05-09 (`l1`); L2 closed 2026-05-22 (`l2`).
 Next: Session J — Rename → Pending Rewrites Cache (spec §2.10, §3.4, §8 Session J). Then K (closeout: hands-on smoke of ALL L3 surfaces incl. the I smoke vault, `l3` tag). H.3 polish (rich markdown inside embed body, click nav, `⎘` retirement) deferred — not on §2.8 DoD critical path. Smoke for Session I still pending hands-on (automated-context constraint; recipe in §9.14): vault with `Daily.md` (aliases: [diary, journal]), `Project.md` (mixed mentions + linked + code-span), `Notes.md` (cross-line mentions).
@@ -3026,7 +3026,7 @@ Report back: every DoD box's status, every decision deferred to / resolved in th
 
 | Session prompt step (STEP 2) | Plan task |
 |---|---|
-| 1. Pure scanner — `cubical-core::vault::mentions` | Tasks 1, 2, 3 |
+| 1. Pure scanner — `simple-directory-core::vault::mentions` | Tasks 1, 2, 3 |
 | 2. IPC handler — `get_unlinked_mentions` | Tasks 4, 5, 6, 8 |
 | 3. Rewrite action — `link_mention` | Tasks 5, 7, 8 |
 | 4. Backend wiring (lib.rs, no migration, reuse `vault:file-changed`) | Task 8 (registration); refresh route in Task 13 |

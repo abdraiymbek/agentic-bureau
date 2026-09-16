@@ -2,7 +2,7 @@
 
 # Kickoff — finish L4-B, then the rename/pending-rewrites architecture decision
 
-> Copy everything under the horizontal rule into a fresh Cubical session
+> Copy everything under the horizontal rule into a fresh simple.directory session
 > as the opening message. Two distinct threads: (A) close out L4-B
 > (mechanical — re-smoke + one small fix, then merge/tag) and (B) a
 > deliberate **architecture decision** about rename ↔ wikilink sync for
@@ -10,7 +10,7 @@
 
 ---
 
-You are continuing Cubical. Read `CLAUDE.md` first (non-negotiables,
+You are continuing simple.directory. Read `CLAUDE.md` first (non-negotiables,
 session protocol). All work happens in the single checkout on branches —
 **never** `git worktree`. Six gates green at every commit boundary:
 `cargo test --workspace`, `cargo clippy --workspace --all-targets --
@@ -42,7 +42,7 @@ banner; click navigates via `handleNavigateWikilink`. Pure logic
 unit-tested (`debounce`/`snippet`/`searchQuery`/`relativeTime`); the
 component is operator-smoke-only (no Solid render lib; Contract E).
 
-§5 deviation #1 resolved (option a): `cubical-search` stores
+§5 deviation #1 resolved (option a): `simple-directory-search` stores
 `headings`/`body`/`code`/`frontmatter` and bumped `SCHEMA_VERSION 1→2`
 (auto wipe+rebuild) so snippets cover every field.
 
@@ -98,7 +98,7 @@ Bugs found + fixed during iterative operator smoke (all committed):
    re-open `LockBusy` smoke (`docs/superpowers/specs/2026-06-06-idempotent-open-vault-design.md`)
    + flip its CLAUDE.md "smoke pending" line; search-bar UX incl. fixed
    width; virtualised scroll + navigation; indexing banner; ~2-3× disk;
-   L4-A recipes 1–11 against `~/Developer/sandbox/cubical-l4a-smoke/`.
+   L4-A recipes 1–11 against `~/Developer/sandbox/simple-directory-l4a-smoke/`.
 3. **Then:** tick §6 L4-B + the session-close gate rows in
    `docs/layer-4-spec.md`, rewrite the CLAUDE.md Project state, use
    `superpowers:finishing-a-development-branch` to merge to `main`, and
@@ -127,7 +127,7 @@ in-sync without flushing. Spec:
 
 **The conclusion reached this session (the operator agreed the coalesced
 model is right *for an agent host*, but the implementation needs
-hardening):** Cubical is meant to host AI agents (sandboxed WASI/WASM
+hardening):** simple.directory is meant to host AI agents (sandboxed WASI/WASM
 plugin ABI). That makes bulk renames/refactors common (so coalescing's
 write-batching is genuinely valuable, and at L7 it batches CRDT/sync
 ops), and the pending/materialize layer doubles as a **staging +

@@ -8,7 +8,7 @@
 
 ## Goal
 
-A `cubical` terminal frontend that can perform every mutating action the GUI can —
+A `simple-directory` terminal frontend that can perform every mutating action the GUI can —
 create/edit files and folders, rename, delete, change settings — routed through the
 **same engine command functions** the Tauri app uses, so the app's bookkeeping
 (index, link graph, rename-durability journal, search) stays correct. Usable from an
@@ -22,7 +22,7 @@ This single rule delivers both properties the user asked for: *won't collide* (o
 writer → one index, one journal) and *always up to date* (one live state, broadcast to
 whoever is attached). "Exactly the same backend logic" is already true today — the
 engine command functions (`create_file`, `rename_file`, `set_setting`, …) are the sole
-choke point; `cubical-app` is a frontend that also *hosts* the engine in-process. The
+choke point; `simple-directory-app` is a frontend that also *hosts* the engine in-process. The
 open question this design answers is only **who hosts the live state and how a second
 frontend attaches**.
 
@@ -41,13 +41,13 @@ keeps Option B reachable later without the CLI noticing.
 
 ## The ownership lock — the one new primitive
 
-A `vault_lock` module in `cubical-engine`, so **both** frontends participate
+A `vault_lock` module in `simple-directory-engine`, so **both** frontends participate
 automatically (the GUI taking the lock is what lets the CLI detect it).
 
-- **Location:** OS runtime/cache dir, **not** inside `.cubical/`. A socket path or PID
-  advertised in a Dropbox-synced `.cubical/` file would be poison on another machine.
+- **Location:** OS runtime/cache dir, **not** inside `.simple-directory/`. A socket path or PID
+  advertised in a Dropbox-synced `.simple-directory/` file would be poison on another machine.
   Mirrors the `recent_vaults.json` precedent (machine-local state → OS dir). The dir is
-  overridable via `CUBICAL_RUNTIME_DIR` (used by tests for hermeticity, and available to
+  overridable via `SIMPLE_DIRECTORY_RUNTIME_DIR` (used by tests for hermeticity, and available to
   the CLI).
 - **Filename:** keyed by a hash of the vault's canonicalized path (`<hash>.lock`).
 - **Enforcement:** an **OS advisory exclusive lock** (`fs4::FileExt::try_lock_exclusive`)
@@ -60,7 +60,7 @@ automatically (the GUI taking the lock is what lets the CLI detect it).
   inside `close_vault` (guard drop). The existing in-process
   `find_open_vault_by_canonical_path` stays as the fast path; the lockfile is its
   cross-process extension.
-- **New error:** `CubicalError::VaultLocked { pid, socket_path }` returned by
+- **New error:** `SimpleDirectoryError::VaultLocked { pid, socket_path }` returned by
   `open_vault` when the exclusive lock is already held by another process.
 
 ## Phase 1 — command surface & lifecycle
@@ -95,7 +95,7 @@ non-zero (release the lock, flush what's done).
 
 - **Vault free:** acquire lock, run, reconcile-on-next-open. Full Tier A.
 - **App owns the vault** (`open_vault` → `VaultLocked`): decline cleanly —
-  `"Cubical has this vault open. Live routing arrives in Phase 2."` — **exit code 2**.
+  `"simple.directory has this vault open. Live routing arrives in Phase 2."` — **exit code 2**.
   Never a second writer. Phase 2 flips this branch from *decline* to *attach*. Note this
   decline is coarse in Phase 1: it covers read commands too, because `open_vault` always
   runs a scan that writes the index, so even a "read" is not a safe concurrent op. Phase
@@ -113,14 +113,14 @@ non-zero (release the lock, flush what's done).
   server over the *same* command dispatch; the CLI's decline branch becomes "connect &
   route through the running engine" → live Tier B, `TauriEventSink` fires, UI updates. A
   shared dispatch layer so the local and socket paths call identical code.
-- **Phase 3:** an embedded terminal panel in the app running the same `cubical` binary
+- **Phase 3:** an embedded terminal panel in the app running the same `simple-directory` binary
   against the socket (subsumes the deferred "terminal" backlog item).
 
 ## Testing
 
 - **Lock unit tests** (engine): acquire succeeds on a free vault; a second acquire on the
   same canonical path fails with `VaultLocked`; releasing (drop) lets a subsequent
-  acquire succeed; a different vault path is independent; `CUBICAL_RUNTIME_DIR` override
+  acquire succeed; a different vault path is independent; `SIMPLE_DIRECTORY_RUNTIME_DIR` override
   is honored.
 - **Lifecycle test:** `open_vault` on an already-locked path returns `VaultLocked`;
   `open_vault`→`close_vault`→`open_vault` on the same path succeeds twice (release works).
@@ -137,19 +137,19 @@ non-zero (release the lock, flush what's done).
 
 ## What was built (Phase 1 — 2026-07-24)
 
-- **`cubical-engine::vault_lock`** — OS advisory-lock ownership primitive (`fs4` +
-  `dirs`, SHA-256 path key, `CUBICAL_RUNTIME_DIR` override). 6 unit tests.
-- **`CubicalError::VaultLocked { pid, socket_path }`**; `OpenVault.lock_guard`
+- **`simple-directory-engine::vault_lock`** — OS advisory-lock ownership primitive (`fs4` +
+  `dirs`, SHA-256 path key, `SIMPLE_DIRECTORY_RUNTIME_DIR` override). 6 unit tests.
+- **`SimpleDirectoryError::VaultLocked { pid, socket_path }`**; `OpenVault.lock_guard`
   field (defaulted `None`, so the 16 `OpenVault::new` callers were untouched).
 - **`open_vault` acquires the lock before `Vault::open`; `close_vault` releases it.**
   Both frontends now participate (the GUI takes the lock too). 1 integration test.
-- **`cubical` CLI** rebuilt from the read-only PoC into a write-capable frontend:
+- **`simple-directory` CLI** rebuilt from the read-only PoC into a write-capable frontend:
   `list`, `resolve`, `backlinks`, `new note|folder`, `write` (stdin), `rename`
   (file/folder auto-detect), `rm`, `set`, `get`, `undo-rename`; `--json` global;
   lifecycle opens→scan→dispatch→**close (flushes referrer rewrites)**; declines
   with **exit 2** when the app owns the vault. 7 integration tests (incl. the
   referrer-rewrite proving close-flush lands, and the exit-2 decline).
-- Gate green (`scripts/check.sh`), modulo the pre-existing `cubical-core` watcher
+- Gate green (`scripts/check.sh`), modulo the pre-existing `simple-directory-core` watcher
   flake.
 
 **Not built (Phase 2/3, deferred):** the socket server + CLI attach, and the

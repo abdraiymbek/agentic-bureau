@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Architecture: Concurrency
+# simple.directory — Architecture: Concurrency
 
 ## 6. Concurrency model
 
@@ -31,4 +31,4 @@ Three load-bearing calls introduced by L4-A, promoted here at L4 close. The orig
 
 2. **The search state cell holds exactly three values — `Building`, `Ready`, `Error` — and never a stuck `Building`.** While indexing, `search` returns whatever the current reader sees with `still_indexing: true`, never an error. A scan cancelled mid-flight must not leave the cell in `Building`: the search refresher short-circuits when its `CancellationToken` fires, preserving the L0/L1 100ms cancellation budget. UI relies on the cell always resolving out of `Building`.
 
-3. **Prose fields are `STORED` in the search index; the index is rebuildable derived state.** `body`, `headings`, `code`, and `frontmatter` (alongside `path`, `title`, `tags`, `mtime_secs`, `size_bytes`) are stored, so Tantivy's snippet generator yields tokenizer-correct `<mark>` highlights for *every* matched field, not just `title` (L4-B resolved the original L4-A store-vs-reread choice in favour of storing — ~2-3× index disk, accepted). The index lives only under `<vault>/.cubical/search/`, never injects identity into `.md` source, and carries a `schema_version` stamp; a version mismatch or missing stamp wipes and rebuilds the index on open.
+3. **Prose fields are `STORED` in the search index; the index is rebuildable derived state.** `body`, `headings`, `code`, and `frontmatter` (alongside `path`, `title`, `tags`, `mtime_secs`, `size_bytes`) are stored, so Tantivy's snippet generator yields tokenizer-correct `<mark>` highlights for *every* matched field, not just `title` (L4-B resolved the original L4-A store-vs-reread choice in favour of storing — ~2-3× index disk, accepted). The index lives only under `<vault>/.simple-directory/search/`, never injects identity into `.md` source, and carries a `schema_version` stamp; a version mismatch or missing stamp wipes and rebuilds the index on open.

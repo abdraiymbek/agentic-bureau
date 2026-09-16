@@ -29,9 +29,9 @@ state, never written back into the file.
    scope, and our own error messages. Keyword surface mirrors DQL
    (`LIST`/`TABLE`/`COUNT`, `FROM`, `WHERE`, `SORT`) so muscle memory
    carries, but it is documented as a focused subset.
-2. **New crate `cubical-query`**, depending on `cubical-index`. A query
+2. **New crate `simple-directory-query`**, depending on `simple-directory-index`. A query
    *language* (AST + parser + planner) is a distinct concern from
-   "schema + queries"; isolating it keeps `cubical-index` focused, lets
+   "schema + queries"; isolating it keeps `simple-directory-index` focused, lets
    parser tests run with no DB, and matches the repo's small-focused-unit
    ethos. Auto-included via the existing `members = ["crates/*"]`.
 3. **Render path mirrors the L3 embed widget.** A CodeMirror live-preview
@@ -97,7 +97,7 @@ specific message (e.g. "expected a frontmatter key after WHERE") — not a
 silent empty result. This is a deliberate improvement over Dataview's
 most-reported failure mode (queries that silently return nothing).
 
-## 4. Crate `cubical-query`
+## 4. Crate `simple-directory-query`
 
 No Tauri deps; buildable/testable standalone. Three modules behind a thin
 `lib.rs` surface.
@@ -183,19 +183,19 @@ pub enum QueryResult {
 
 `NoteRef` carries the path and a display title (filename stem — no `# H1`
 injection, per the non-negotiables). Tested against an in-memory
-`cubical-index` seeded with files + frontmatter + tags covering each
+`simple-directory-index` seeded with files + frontmatter + tags covering each
 command, the operators, tag vs folder sources, sort direction, and the
 missing-key (empty cell / sort-last) cases.
 
 ## 5. IPC
 
-One Tauri command in `cubical-app`, registered alongside L4-A's four:
+One Tauri command in `simple-directory-app`, registered alongside L4-A's four:
 
 ```
 dataview_query { vault_id, source: String } -> DataviewResult
 ```
 
-- Resolve the vault's `IndexConn`, `cubical_query::parse(source)` then
+- Resolve the vault's `IndexConn`, `simple_directory_query::parse(source)` then
   `run(...)`. Map both `ParseError` and `QueryError` into the
   `DataviewResult::Error { message }` variant so the renderer always gets
   a structured answer (no thrown IPC error for a bad query).
@@ -234,7 +234,7 @@ ui/src/dataview/
 
 ## 7. Testing & contracts
 
-- `cubical-query`: parser, plan, and exec unit-tested as pure modules
+- `simple-directory-query`: parser, plan, and exec unit-tested as pure modules
   (no Tauri, no app harness) — the standing crate-isolation contract.
 - `dataviewRender.ts`: jsdom unit tests for each result shape + the error
   branch. IPC wrapper: type-and-shape smoke.
@@ -250,12 +250,12 @@ Deferred, not designed away — each is an additive layer later:
 - `GROUP BY` / `FLATTEN`.
 - Typed dates / relative dates (lexical ISO compare suffices for v1).
 - Computed/formula columns (the Bases-style direction).
-- Inline (`key:: value`) field syntax — Cubical uses YAML frontmatter.
+- Inline (`key:: value`) field syntax — simple.directory uses YAML frontmatter.
 - Writing results back into the file. Never — derived state only.
 
 ## 9. Definition of Done
 
-- `cubical-query` crate: parse + plan + exec, unit-tested.
+- `simple-directory-query` crate: parse + plan + exec, unit-tested.
 - `dataview_query` IPC + TS wrapper + shape smoke.
 - Editor widget detects ```` ```query ````, renders list/table/count,
   reveals raw source on cursor entry, re-evals on `searchRefreshTick`.

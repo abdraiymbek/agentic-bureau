@@ -2,7 +2,7 @@
 
 # Kickoff — L3/L4-A consolidation session
 
-> Copy the body below (everything under the horizontal rule) into a fresh Cubical session as the opening message.
+> Copy the body below (everything under the horizontal rule) into a fresh simple.directory session as the opening message.
 
 ---
 
@@ -14,7 +14,7 @@ L4-A closed at tag `l4a` (commit `99cd0ff`). `docs/layer-4-spec.md` §9.1 has th
 
 ## What surfaced
 
-Interactive smoke against `~/Developer/sandbox/cubical-l4a-smoke/` (built on the L3 smoke vault) turned up six visible bugs that map back to L3 sessions B / G / H — none of which had interactive smoke run at their close. Reproducible behaviors:
+Interactive smoke against `~/Developer/sandbox/simple-directory-l4a-smoke/` (built on the L3 smoke vault) turned up six visible bugs that map back to L3 sessions B / G / H — none of which had interactive smoke run at their close. Reproducible behaviors:
 
 1. `^block-id` markers render literally (muted-styled) in Live Preview rather than being hidden — visible from any file with a referenced block (e.g. `^abc123` in `A.md`).
 2. `[[Aliased Note#Heading section]]` from inside `Aliased Note.md` doesn't scroll to the heading.

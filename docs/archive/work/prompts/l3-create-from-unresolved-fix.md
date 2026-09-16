@@ -2,13 +2,13 @@
 
 # Bug fix — "Create" from an unresolved wiki-link errors with `FileNotFound`
 
-Small focused bug-fix session for the Cubical project. A real user flow is broken: clicking an unresolved wiki-link offers to create the target file (good), but clicking "Create" raises `file not found in vault: folder/NoteC.md` (bad). Root cause: `acceptCreateOffer` reuses `writeFileText`, which by design gates on the file already being indexed (`commands::vault::write_file_text`, `crates/cubical-app/src/commands/vault.rs:374-377` — `CubicalError::FileNotFound` is the explicit guard). No dedicated "create file" path exists. Add one and switch the caller. Do NOT start L3 Session H.2 in this session — the bug fix is the only surface.
+Small focused bug-fix session for the simple.directory project. A real user flow is broken: clicking an unresolved wiki-link offers to create the target file (good), but clicking "Create" raises `file not found in vault: folder/NoteC.md` (bad). Root cause: `acceptCreateOffer` reuses `writeFileText`, which by design gates on the file already being indexed (`commands::vault::write_file_text`, `crates/simple-directory-app/src/commands/vault.rs:374-377` — `SimpleDirectoryError::FileNotFound` is the explicit guard). No dedicated "create file" path exists. Add one and switch the caller. Do NOT start L3 Session H.2 in this session — the bug fix is the only surface.
 
 ---
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state" block (currently points at Session H.2 as next; this bug fix lands ahead of it).
@@ -16,18 +16,18 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/migration-touchpoints.md` — Tauri IPC chokepoints.
 
 2. Read for context (you'll come back to specific lines):
-   - `crates/cubical-app/src/commands/vault.rs` — `pub async fn write_file_text` (the gate that's currently wrong for create) and the rest of the vault commands (model for the new handler).
-   - `crates/cubical-app/src/lib.rs` — Tauri shim + `generate_handler!` registration pattern. The recent `get_embed` entry is the freshest precedent.
-   - `crates/cubical-app/src/api/types.rs` — wire-type style (recent precedents: `GetEmbedRequest/Response`, `CreateBlockRefRequest/Response`).
-   - `crates/cubical-app/src/error.rs` — `CubicalError` variants (use `InvalidRequest` for "file already exists"; `Io` for filesystem errors).
-   - `crates/cubical-core/src/vault/atomic.rs` — `atomic_write(path, bytes)` is the sole write primitive (sync; call via `tokio::task::spawn_blocking`, exactly like `write_file_text` does at lines ~395-400).
+   - `crates/simple-directory-app/src/commands/vault.rs` — `pub async fn write_file_text` (the gate that's currently wrong for create) and the rest of the vault commands (model for the new handler).
+   - `crates/simple-directory-app/src/lib.rs` — Tauri shim + `generate_handler!` registration pattern. The recent `get_embed` entry is the freshest precedent.
+   - `crates/simple-directory-app/src/api/types.rs` — wire-type style (recent precedents: `GetEmbedRequest/Response`, `CreateBlockRefRequest/Response`).
+   - `crates/simple-directory-app/src/error.rs` — `SimpleDirectoryError` variants (use `InvalidRequest` for "file already exists"; `Io` for filesystem errors).
+   - `crates/simple-directory-core/src/vault/atomic.rs` — `atomic_write(path, bytes)` is the sole write primitive (sync; call via `tokio::task::spawn_blocking`, exactly like `write_file_text` does at lines ~395-400).
    - `ui/src/App.tsx` — `acceptCreateOffer` (~line 619) is the broken caller; `handleNavigateWikilink` is what runs after a successful create.
    - `ui/src/api/ipc.ts` — IPC binding style; the recent `getEmbed` is the freshest precedent.
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` →
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` →
      `merge: L3 Session H.1 — embed content extractor + IPC` (commit `~7a08…` — verify against `git log`).
    - CLAUDE.md "Project state" reports Session H.1 done (most recent merge).
 
@@ -37,7 +37,7 @@ Working directory: `/Users/user/Developer/Cubical`
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b bugfix-create-from-unresolved-wikilink`
+   `git -C /Users/user/Developer/simple.directory checkout -b bugfix-create-from-unresolved-wikilink`
 
 ---
 
@@ -62,7 +62,7 @@ The whole session is ~4 commits. Do them in this order.
 ### Commit 1 — `feat(app): create_file handler — atomic empty-file create with mkdir -p`
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs` — append:
+- Modify: `crates/simple-directory-app/src/api/types.rs` — append:
 
   ```rust
   // -- create_file ---------------------------------------------------------
@@ -84,7 +84,7 @@ The whole session is ~4 commits. Do them in this order.
   }
   ```
 
-- Modify: `crates/cubical-app/src/commands/vault.rs` — add a new handler after
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` — add a new handler after
   `write_file_text`. The whole point is "no gate on `files` row existence —
   the file is *new*." The watcher's `Created` event will then insert the
   `files` row + run frontmatter/links/tags/blocks refresh on its own.
@@ -103,12 +103,12 @@ The whole session is ~4 commits. Do them in this order.
   pub async fn create_file(
       state: &AppState,
       req: CreateFileRequest,
-  ) -> Result<CreateFileResponse, CubicalError> {
+  ) -> Result<CreateFileResponse, SimpleDirectoryError> {
       let abs_path = {
           let guard = state.vaults().read().await;
           let open = guard
               .get(&req.vault_id)
-              .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+              .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
           open.vault.root().join(&req.path)
       };
 
@@ -116,9 +116,9 @@ The whole session is ~4 commits. Do them in this order.
       // (`write_file_text`) for updates.
       if tokio::fs::try_exists(&abs_path)
           .await
-          .map_err(|e| CubicalError::Io(format!("try_exists failed: {e}")))?
+          .map_err(|e| SimpleDirectoryError::Io(format!("try_exists failed: {e}")))?
       {
-          return Err(CubicalError::InvalidRequest(format!(
+          return Err(SimpleDirectoryError::InvalidRequest(format!(
               "file already exists: {}",
               req.path
           )));
@@ -130,7 +130,7 @@ The whole session is ~4 commits. Do them in this order.
       if let Some(parent) = abs_path.parent() {
           tokio::fs::create_dir_all(parent)
               .await
-              .map_err(|e| CubicalError::Io(format!("create_dir_all failed: {e}")))?;
+              .map_err(|e| SimpleDirectoryError::Io(format!("create_dir_all failed: {e}")))?;
       }
 
       // Atomic write of empty bytes. Pushed off the runtime, mirroring
@@ -138,7 +138,7 @@ The whole session is ~4 commits. Do them in this order.
       let abs_for_write = abs_path.clone();
       tokio::task::spawn_blocking(move || atomic_write(&abs_for_write, b""))
           .await
-          .map_err(|e| CubicalError::Io(format!("write task join error: {e}")))??;
+          .map_err(|e| SimpleDirectoryError::Io(format!("write task join error: {e}")))??;
 
       Ok(CreateFileResponse { path: req.path })
   }
@@ -155,12 +155,12 @@ The whole session is ~4 commits. Do them in this order.
 
   2. **`create_file_rejects_existing_path_with_invalid_request`** —
      pre-create `existing.md` on disk, call `create_file` with that
-     path, assert error matches `CubicalError::InvalidRequest`.
+     path, assert error matches `SimpleDirectoryError::InvalidRequest`.
 
-  Run: `cargo test -p cubical-app commands::vault::tests::create_file`
+  Run: `cargo test -p simple-directory-app commands::vault::tests::create_file`
   → both PASS.
 
-- Run: `cargo clippy -p cubical-app --all-targets -- -D warnings` and
+- Run: `cargo clippy -p simple-directory-app --all-targets -- -D warnings` and
   `cargo fmt --all` → clean.
 
 - Commit.
@@ -168,7 +168,7 @@ The whole session is ~4 commits. Do them in this order.
 ### Commit 2 — `feat: register create_file Tauri command + IPC binding`
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`:
+- Modify: `crates/simple-directory-app/src/lib.rs`:
   - Add `CreateFileRequest, CreateFileResponse,` to the
     `use api::types::{...}` block (alphabetical with other `Create*`).
   - Add the shim near the other vault shims:
@@ -179,7 +179,7 @@ The whole session is ~4 commits. Do them in this order.
     async fn create_file(
         state: tauri::State<'_, AppState>,
         req: CreateFileRequest,
-    ) -> Result<CreateFileResponse, CubicalError> {
+    ) -> Result<CreateFileResponse, SimpleDirectoryError> {
         commands::vault::create_file(state.inner(), req).await
     }
     ```
@@ -214,7 +214,7 @@ The whole session is ~4 commits. Do them in this order.
   }
   ```
 
-- Run: `cargo build -p cubical-app && ( cd ui && npx tsc --noEmit )`
+- Run: `cargo build -p simple-directory-app && ( cd ui && npx tsc --noEmit )`
   → both clean.
 
 - Commit.

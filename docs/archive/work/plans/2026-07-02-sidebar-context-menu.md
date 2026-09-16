@@ -8,7 +8,7 @@
 
 **Architecture:** One new engine command (`delete_path`, backed by the `trash` crate) plumbed through the existing Tauri-shim pattern. On the frontend, the existing file-rows-only context menu (currently one item: Rename) grows a `kind` field (`"file" | "folder" | "empty"`) and branches its menu items accordingly; a new hand-rolled confirm dialog gates delete.
 
-**Tech Stack:** Rust (`cubical-engine`, `cubical-app`), `trash` crate v5, Solid.js/TypeScript (`ui/src/App.tsx`, `ui/src/sidebar/fileTree.ts`, `ui/src/api/ipc.ts`).
+**Tech Stack:** Rust (`simple-directory-engine`, `simple-directory-app`), `trash` crate v5, Solid.js/TypeScript (`ui/src/App.tsx`, `ui/src/sidebar/fileTree.ts`, `ui/src/api/ipc.ts`).
 
 ## Global Constraints
 
@@ -24,14 +24,14 @@
 
 **Files:**
 - Modify: `Cargo.toml:37-38` (workspace deps — add `trash` after `tempfile`)
-- Modify: `crates/cubical-engine/Cargo.toml` (add `trash = { workspace = true }` to `[dependencies]`)
-- Modify: `crates/cubical-engine/src/api/types.rs` (add `DeletePathRequest`, after `CreateFolderResponse`)
-- Modify: `crates/cubical-engine/src/commands/vault.rs` (add `delete_path` handler + tests, after `create_folder`)
-- Modify: `crates/cubical-app/src/lib.rs` (register the Tauri shim)
+- Modify: `crates/simple-directory-engine/Cargo.toml` (add `trash = { workspace = true }` to `[dependencies]`)
+- Modify: `crates/simple-directory-engine/src/api/types.rs` (add `DeletePathRequest`, after `CreateFolderResponse`)
+- Modify: `crates/simple-directory-engine/src/commands/vault.rs` (add `delete_path` handler + tests, after `create_folder`)
+- Modify: `crates/simple-directory-app/src/lib.rs` (register the Tauri shim)
 
 **Interfaces:**
-- Consumes: `normalize_rel_file_path(path: &str) -> Result<String, CubicalError>` and `clone_vault(state: &AppState, vault_id: &str) -> Result<Vault, CubicalError>` — both already exist in `vault.rs`.
-- Produces: `pub async fn delete_path(state: &AppState, req: DeletePathRequest) -> Result<(), CubicalError>` — Task 3's frontend calls this indirectly via the `deleteFile` IPC wrapper Task 2 builds.
+- Consumes: `normalize_rel_file_path(path: &str) -> Result<String, SimpleDirectoryError>` and `clone_vault(state: &AppState, vault_id: &str) -> Result<Vault, SimpleDirectoryError>` — both already exist in `vault.rs`.
+- Produces: `pub async fn delete_path(state: &AppState, req: DeletePathRequest) -> Result<(), SimpleDirectoryError>` — Task 3's frontend calls this indirectly via the `deleteFile` IPC wrapper Task 2 builds.
 
 - [ ] **Step 1: Add the `trash` dependency**
 
@@ -43,7 +43,7 @@ In `Cargo.toml`, in `[workspace.dependencies]`, insert immediately after the `te
 trash = "5"
 ```
 
-In `crates/cubical-engine/Cargo.toml`, in `[dependencies]`, insert after the `sha2 = { workspace = true }` line:
+In `crates/simple-directory-engine/Cargo.toml`, in `[dependencies]`, insert after the `sha2 = { workspace = true }` line:
 
 ```toml
 # OS trash/recycle bin — see delete_path in commands/vault.rs.
@@ -52,7 +52,7 @@ trash = { workspace = true }
 
 - [ ] **Step 2: Write the failing tests**
 
-In `crates/cubical-engine/src/commands/vault.rs`, inside `mod tests` (the module starting at `#[cfg(test)] mod tests {`), add these four tests immediately after the `create_folder_makes_untitled_folder_and_tracks_it` test (i.e. right before the `/// Insert a \`files\` row...` doc comment that precedes `seed_file_with_frontmatter`):
+In `crates/simple-directory-engine/src/commands/vault.rs`, inside `mod tests` (the module starting at `#[cfg(test)] mod tests {`), add these four tests immediately after the `create_folder_makes_untitled_folder_and_tracks_it` test (i.e. right before the `/// Insert a \`files\` row...` doc comment that precedes `seed_file_with_frontmatter`):
 
 ```rust
     #[tokio::test]
@@ -105,7 +105,7 @@ In `crates/cubical-engine/src/commands/vault.rs`, inside `mod tests` (the module
         )
         .await
         .expect_err("must reject a path that doesn't exist");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 
     #[tokio::test]
@@ -120,18 +120,18 @@ In `crates/cubical-engine/src/commands/vault.rs`, inside `mod tests` (the module
         )
         .await
         .expect_err("must reject ..");
-        assert!(matches!(err, CubicalError::InvalidRequest(_)));
+        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)));
     }
 ```
 
 - [ ] **Step 3: Run the tests to verify they fail (compile error)**
 
-Run: `cargo test -p cubical-engine delete_path`
+Run: `cargo test -p simple-directory-engine delete_path`
 Expected: compile error — `cannot find function \`delete_path\` in this scope` and `cannot find struct \`DeletePathRequest\``. This is the correct RED for a wholly new Rust function: there's no runtime test to fail yet because the code doesn't exist.
 
 - [ ] **Step 4: Add the `DeletePathRequest` type**
 
-In `crates/cubical-engine/src/api/types.rs`, insert immediately after the `CreateFolderResponse` struct (after its closing `}`, before the `/// Per-file row returned by \`list_files\`.` doc comment):
+In `crates/simple-directory-engine/src/api/types.rs`, insert immediately after the `CreateFolderResponse` struct (after its closing `}`, before the `/// Per-file row returned by \`list_files\`.` doc comment):
 
 ```rust
 /// Request payload for `delete_path`.
@@ -144,11 +144,11 @@ pub struct DeletePathRequest {
 }
 ```
 
-No response type — mirrors `CloseVaultRequest`/`CancelVaultScanRequest`, which return `Result<(), CubicalError>` with no payload.
+No response type — mirrors `CloseVaultRequest`/`CancelVaultScanRequest`, which return `Result<(), SimpleDirectoryError>` with no payload.
 
 - [ ] **Step 5: Implement `delete_path`**
 
-In `crates/cubical-engine/src/commands/vault.rs`, add `DeletePathRequest` to the `use crate::api::types::{...}` import block (alphabetically, after `CreateFolderResponse`):
+In `crates/simple-directory-engine/src/commands/vault.rs`, add `DeletePathRequest` to the `use crate::api::types::{...}` import block (alphabetically, after `CreateFolderResponse`):
 
 ```rust
 use crate::api::types::{
@@ -173,37 +173,37 @@ Then add the handler immediately after `create_folder` (after its closing `}`, b
 /// Finder while the app is open) and drives the `files`/`folders` cleanup
 /// and the `vault:file-changed` refresh. `trash::delete` moves a
 /// directory's full contents in one call — no manual recursion needed.
-pub async fn delete_path(state: &AppState, req: DeletePathRequest) -> Result<(), CubicalError> {
+pub async fn delete_path(state: &AppState, req: DeletePathRequest) -> Result<(), SimpleDirectoryError> {
     let vault = clone_vault(state, &req.vault_id).await?;
     let rel_path = normalize_rel_file_path(&req.path)?;
     let abs_path = vault.root().join(&rel_path);
     if !abs_path.exists() {
-        return Err(CubicalError::InvalidRequest(format!(
+        return Err(SimpleDirectoryError::InvalidRequest(format!(
             "path does not exist: {rel_path}"
         )));
     }
     tokio::task::spawn_blocking(move || trash::delete(&abs_path))
         .await
-        .map_err(|e| CubicalError::Io(format!("delete_path task join error: {e}")))?
-        .map_err(|e| CubicalError::Io(e.to_string()))?;
+        .map_err(|e| SimpleDirectoryError::Io(format!("delete_path task join error: {e}")))?
+        .map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
     Ok(())
 }
 ```
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-engine delete_path`
+Run: `cargo test -p simple-directory-engine delete_path`
 Expected: 4 passed (`delete_path_removes_a_file`, `delete_path_removes_a_folder_with_contents`, `delete_path_rejects_missing_path`, `delete_path_rejects_escape`).
 
-Then run the full engine suite to confirm no regressions: `cargo test -p cubical-engine`
+Then run the full engine suite to confirm no regressions: `cargo test -p simple-directory-engine`
 Expected: all tests pass (555+ tests, per `CLAUDE.md`'s current count, plus the 4 new ones).
 
 - [ ] **Step 7: Register the Tauri shim**
 
-In `crates/cubical-app/src/lib.rs`, add `DeletePathRequest` to the `use cubical_engine::api::types::{...}` import block (alphabetically, after `DataviewResult`):
+In `crates/simple-directory-app/src/lib.rs`, add `DeletePathRequest` to the `use simple_directory_engine::api::types::{...}` import block (alphabetically, after `DataviewResult`):
 
 ```rust
-use cubical_engine::api::types::{
+use simple_directory_engine::api::types::{
     BlockIdAutocompleteRequest, BlockIdAutocompleteResponse, CancelVaultScanRequest,
     CloseVaultRequest, CreateBlockRefRequest, CreateBlockRefResponse, CreateFileAtPathRequest,
     CreateFileAtPathResponse, CreateFileRequest, CreateFileResponse, CreateFolderRequest,
@@ -246,7 +246,7 @@ Add the shim function immediately after the `create_folder` shim (after its clos
 async fn delete_path(
     state: tauri::State<'_, AppState>,
     req: DeletePathRequest,
-) -> Result<(), CubicalError> {
+) -> Result<(), SimpleDirectoryError> {
     commands::vault::delete_path(state.inner(), req).await
 }
 ```
@@ -262,7 +262,7 @@ Expected: all tests pass.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add Cargo.toml crates/cubical-engine/Cargo.toml crates/cubical-engine/src/api/types.rs crates/cubical-engine/src/commands/vault.rs crates/cubical-app/src/lib.rs
+git add Cargo.toml crates/simple-directory-engine/Cargo.toml crates/simple-directory-engine/src/api/types.rs crates/simple-directory-engine/src/commands/vault.rs crates/simple-directory-app/src/lib.rs
 git commit -m "$(cat <<'EOF'
 feat(engine): add delete_path — move a file/folder to the OS trash
 

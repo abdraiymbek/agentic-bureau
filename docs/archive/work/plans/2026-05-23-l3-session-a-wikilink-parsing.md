@@ -8,7 +8,7 @@
 
 **Architecture:** Wiki-links are not CommonMark. The Rust parser (`pulldown-cmark`) and the editor's Lezer markdown parser both emit `[[…]]` runs as plain text — neither knows the syntax. L3 introduces a **post-processing tokenizer** that runs once on every `Inline::Text` produced by either pipeline, splits text-runs containing wiki-links into `Text + WikiLink + Text…` sequences, and adds the new `Inline::WikiLink` variant + `Anchor` enum to the canonical AST. Both sides ship a parallel tokenizer with the same grammar so the L1 cross-language parity contract (`parity.json` fixtures) is extended, not broken. The `links` table is a flat row-per-link index keyed by `source_path` and (when resolved) `target_path`; extraction happens inside the existing scan + watcher write paths so the index stays consistent without a separate refresh job.
 
-**Tech Stack:** Rust (`cubical-ast`, `cubical-index`, `cubical-core`, `cubical-app`); TypeScript / Solid (`ui/src/ast`, `ui/src/api`); libSQL (`crates/cubical-index/migrations/*.sql`); pulldown-cmark (Rust parse) + Lezer (TS parse, untouched in Session A); Tauri 2 IPC.
+**Tech Stack:** Rust (`simple-directory-ast`, `simple-directory-index`, `simple-directory-core`, `simple-directory-app`); TypeScript / Solid (`ui/src/ast`, `ui/src/api`); libSQL (`crates/simple-directory-index/migrations/*.sql`); pulldown-cmark (Rust parse) + Lezer (TS parse, untouched in Session A); Tauri 2 IPC.
 
 ---
 
@@ -16,7 +16,7 @@
 
 - [`docs/layer-3-spec.md`](../../../layer-3-spec.md) §1 goal 1, §2.1, §3.1, §4, §5 deviations #1–2, §8 Session A.
 - [`docs/architecture/document-model.md`](../../../architecture/document-model.md) §5.2 (wiki-links), §5.5 (canonical AST, "Editor decorations are a sanctioned exception" paragraph).
-- L1 parity harness: `crates/cubical-ast/tests/fixtures/parity.json` (load-bearing) + `crates/cubical-ast/tests/parity_fixtures.rs` (Rust runner) + `ui/src/ast/parity.test.ts` (TS runner).
+- L1 parity harness: `crates/simple-directory-ast/tests/fixtures/parity.json` (load-bearing) + `crates/simple-directory-ast/tests/parity_fixtures.rs` (Rust runner) + `ui/src/ast/parity.test.ts` (TS runner).
 
 ---
 
@@ -25,11 +25,11 @@
 **Create:**
 
 ```
-crates/cubical-ast/src/wikilink.rs              # pure Rust wiki-link tokenizer
-crates/cubical-index/migrations/003_links.sql   # links table schema
-crates/cubical-index/src/links.rs               # links table queries
-crates/cubical-core/src/vault/links.rs          # extraction from a Document
-crates/cubical-app/src/commands/links.rs        # resolve_link pure handler
+crates/simple-directory-ast/src/wikilink.rs              # pure Rust wiki-link tokenizer
+crates/simple-directory-index/migrations/003_links.sql   # links table schema
+crates/simple-directory-index/src/links.rs               # links table queries
+crates/simple-directory-core/src/vault/links.rs          # extraction from a Document
+crates/simple-directory-app/src/commands/links.rs        # resolve_link pure handler
 
 ui/src/ast/wikilink.ts                          # pure TS wiki-link tokenizer
 ui/src/ast/wikilink.test.ts                     # vitest cases for the TS tokenizer
@@ -38,18 +38,18 @@ ui/src/ast/wikilink.test.ts                     # vitest cases for the TS tokeni
 **Modify:**
 
 ```
-crates/cubical-ast/src/types.rs                 # add Anchor enum + Inline::WikiLink variant
-crates/cubical-ast/src/lib.rs                   # re-export wikilink module + Anchor
-crates/cubical-ast/src/normalize.rs             # post-process Text inlines through tokenizer
-crates/cubical-ast/tests/parity_fixtures.rs     # (no code change — drives the JSON fixtures)
-crates/cubical-ast/tests/fixtures/parity.json   # add wiki-link fixtures
-crates/cubical-index/src/lib.rs                 # re-export link queries
-crates/cubical-index/src/migrations.rs          # register 003_links.sql
-crates/cubical-core/src/vault/mod.rs            # re-export vault::links
-crates/cubical-core/src/vault/scan.rs           # call link extraction during scan
-crates/cubical-core/src/vault/watcher.rs        # call link extraction on file change
-crates/cubical-app/src/api/types.rs             # ResolveLinkRequest/Response + ResolvedAnchor
-crates/cubical-app/src/lib.rs                   # register resolve_link Tauri shim
+crates/simple-directory-ast/src/types.rs                 # add Anchor enum + Inline::WikiLink variant
+crates/simple-directory-ast/src/lib.rs                   # re-export wikilink module + Anchor
+crates/simple-directory-ast/src/normalize.rs             # post-process Text inlines through tokenizer
+crates/simple-directory-ast/tests/parity_fixtures.rs     # (no code change — drives the JSON fixtures)
+crates/simple-directory-ast/tests/fixtures/parity.json   # add wiki-link fixtures
+crates/simple-directory-index/src/lib.rs                 # re-export link queries
+crates/simple-directory-index/src/migrations.rs          # register 003_links.sql
+crates/simple-directory-core/src/vault/mod.rs            # re-export vault::links
+crates/simple-directory-core/src/vault/scan.rs           # call link extraction during scan
+crates/simple-directory-core/src/vault/watcher.rs        # call link extraction on file change
+crates/simple-directory-app/src/api/types.rs             # ResolveLinkRequest/Response + ResolvedAnchor
+crates/simple-directory-app/src/lib.rs                   # register resolve_link Tauri shim
 
 ui/src/ast/types.ts                             # add Anchor + WikiLink to Inline union
 ui/src/ast/normalize.ts                         # post-process text inlines through tokenizer
@@ -94,13 +94,13 @@ These two changes must land in the same commit so the parity harness compiles on
 
 **Files:**
 
-- Modify: `crates/cubical-ast/src/types.rs`
-- Modify: `crates/cubical-ast/src/lib.rs` (re-export `Anchor`)
+- Modify: `crates/simple-directory-ast/src/types.rs`
+- Modify: `crates/simple-directory-ast/src/lib.rs` (re-export `Anchor`)
 - Modify: `ui/src/ast/types.ts`
 
 - [ ] **Step 1: Write a failing Rust round-trip test for the new variant.**
 
-In `crates/cubical-ast/src/lib.rs` `#[cfg(test)] mod tests`:
+In `crates/simple-directory-ast/src/lib.rs` `#[cfg(test)] mod tests`:
 
 ```rust
 #[test]
@@ -123,7 +123,7 @@ fn wikilink_round_trips_through_serde_json() {
 - [ ] **Step 2: Run it; expect a compile failure.**
 
 ```bash
-cargo test -p cubical-ast wikilink_round_trips_through_serde_json
+cargo test -p simple-directory-ast wikilink_round_trips_through_serde_json
 ```
 
 Expected: compile error — `Inline::WikiLink` and `types::Anchor` do not exist.
@@ -184,13 +184,13 @@ pub use types::{Anchor, Block, Document, Frontmatter, Inline, ListItem, Span};
 - [ ] **Step 5: Run the Rust test, expect it to pass.**
 
 ```bash
-cargo test -p cubical-ast wikilink_round_trips_through_serde_json
+cargo test -p simple-directory-ast wikilink_round_trips_through_serde_json
 ```
 
 Expected: PASS. Also run the whole crate to confirm no regression:
 
 ```bash
-cargo test -p cubical-ast
+cargo test -p simple-directory-ast
 ```
 
 Expected: all existing tests still green.
@@ -202,7 +202,7 @@ Append to the file:
 ```ts
 /**
  * Wiki-link anchor — a heading reference or a block-id reference.
- * The `kind` discriminator mirrors `cubical_ast::Anchor`.
+ * The `kind` discriminator mirrors `simple_directory_ast::Anchor`.
  */
 export type Anchor =
   | { kind: "heading"; value: string }
@@ -240,7 +240,7 @@ Expected: tsc clean, vitest still 104 (no new behaviour yet — only the type ad
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add crates/cubical-ast/src/types.rs crates/cubical-ast/src/lib.rs ui/src/ast/types.ts
+git add crates/simple-directory-ast/src/types.rs crates/simple-directory-ast/src/lib.rs ui/src/ast/types.ts
 git commit -m "feat(ast): add Anchor + Inline::WikiLink variants (Rust + TS)"
 ```
 
@@ -252,12 +252,12 @@ A single pure function `scan_wikilinks(input: &str) -> Vec<TokenizedRun>` that w
 
 **Files:**
 
-- Create: `crates/cubical-ast/src/wikilink.rs`
-- Modify: `crates/cubical-ast/src/lib.rs` (add `mod wikilink;`)
+- Create: `crates/simple-directory-ast/src/wikilink.rs`
+- Modify: `crates/simple-directory-ast/src/lib.rs` (add `mod wikilink;`)
 
 - [ ] **Step 1: Write the failing test file.**
 
-Create `crates/cubical-ast/src/wikilink.rs`:
+Create `crates/simple-directory-ast/src/wikilink.rs`:
 
 ```rust
 //! Pure wiki-link tokenizer. Scans an `Inline::Text` value for
@@ -455,7 +455,7 @@ mod tests {
 
 - [ ] **Step 2: Wire the module into `lib.rs`.**
 
-In `crates/cubical-ast/src/lib.rs`, alongside the other `mod` declarations:
+In `crates/simple-directory-ast/src/lib.rs`, alongside the other `mod` declarations:
 
 ```rust
 mod wikilink;
@@ -466,7 +466,7 @@ mod wikilink;
 - [ ] **Step 3: Run the tests; confirm they fail for the right reason.**
 
 ```bash
-cargo test -p cubical-ast wikilink::
+cargo test -p simple-directory-ast wikilink::
 ```
 
 Expected: all 13 tests in `wikilink::tests` FAIL (the stub returns `Text(input)` for every non-empty case). The "plain text" and "empty input" tests will PASS — that is correct.
@@ -597,7 +597,7 @@ fn parse_body(body: &str, is_embed: bool) -> Option<TokenizedRun> {
 - [ ] **Step 5: Run the tokenizer tests; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-ast wikilink::
+cargo test -p simple-directory-ast wikilink::
 ```
 
 Expected: all 13 tests PASS.
@@ -605,7 +605,7 @@ Expected: all 13 tests PASS.
 - [ ] **Step 6: Run the whole crate to confirm no regression.**
 
 ```bash
-cargo test -p cubical-ast
+cargo test -p simple-directory-ast
 ```
 
 Expected: all tests green.
@@ -613,7 +613,7 @@ Expected: all tests green.
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-ast/src/wikilink.rs crates/cubical-ast/src/lib.rs
+git add crates/simple-directory-ast/src/wikilink.rs crates/simple-directory-ast/src/lib.rs
 git commit -m "feat(ast): pure Rust wiki-link tokenizer (scan_wikilinks)"
 ```
 
@@ -625,7 +625,7 @@ Post-process every `Inline::Text` emitted by the pulldown-cmark walk and split i
 
 **Files:**
 
-- Modify: `crates/cubical-ast/src/normalize.rs`
+- Modify: `crates/simple-directory-ast/src/normalize.rs`
 
 - [ ] **Step 1: Find the spot in `normalize.rs` where text inlines are flushed/emitted.**
 
@@ -633,7 +633,7 @@ Read the file (it produces `Inline::Text` somewhere in the inline walk). Identif
 
 - [ ] **Step 2: Write the failing parse-level test in `lib.rs`.**
 
-In `crates/cubical-ast/src/lib.rs` `#[cfg(test)] mod tests`:
+In `crates/simple-directory-ast/src/lib.rs` `#[cfg(test)] mod tests`:
 
 ```rust
 #[test]
@@ -691,7 +691,7 @@ fn inline_code_text_is_not_scanned_for_wikilinks() {
 - [ ] **Step 3: Run the tests; confirm FAIL.**
 
 ```bash
-cargo test -p cubical-ast wikilink_in_paragraph_is_extracted embed_wikilink_in_paragraph inline_code_text_is_not_scanned_for_wikilinks
+cargo test -p simple-directory-ast wikilink_in_paragraph_is_extracted embed_wikilink_in_paragraph inline_code_text_is_not_scanned_for_wikilinks
 ```
 
 Expected: the two extraction tests FAIL (no WikiLink emitted yet). The code-span test PASSES (the negative case already holds because we don't scan yet).
@@ -773,7 +773,7 @@ Block::Paragraph {
 - [ ] **Step 6: Run the three tests; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-ast wikilink_in_paragraph_is_extracted embed_wikilink_in_paragraph inline_code_text_is_not_scanned_for_wikilinks
+cargo test -p simple-directory-ast wikilink_in_paragraph_is_extracted embed_wikilink_in_paragraph inline_code_text_is_not_scanned_for_wikilinks
 ```
 
 Expected: all PASS.
@@ -781,7 +781,7 @@ Expected: all PASS.
 - [ ] **Step 7: Run the full crate suite.**
 
 ```bash
-cargo test -p cubical-ast
+cargo test -p simple-directory-ast
 ```
 
 Expected: every existing test still green (the only behaviour change is that text containing `[[…]]` now splits — none of the existing fixtures use wiki-link syntax in body text).
@@ -789,7 +789,7 @@ Expected: every existing test still green (the only behaviour change is that tex
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add crates/cubical-ast/src/normalize.rs crates/cubical-ast/src/lib.rs
+git add crates/simple-directory-ast/src/normalize.rs crates/simple-directory-ast/src/lib.rs
 git commit -m "feat(ast): post-process Inline::Text through wiki-link tokenizer"
 ```
 
@@ -929,7 +929,7 @@ Create `ui/src/ast/wikilink.ts`:
 ```ts
 /**
  * Pure TS wiki-link tokenizer — behavioural mirror of
- * `crates/cubical-ast/src/wikilink.rs::scan_wikilinks`.
+ * `crates/simple-directory-ast/src/wikilink.rs::scan_wikilinks`.
  *
  * Scans an `Inline::Text` value for `[[…]]` / `![[…]]` runs and yields a
  * sequence of `TokenizedRun`s. Grammar is locked by the L1 parity
@@ -1149,7 +1149,7 @@ Add a helper at the bottom of the file:
 ```ts
 /**
  * Walk an inline sequence and split every text run through the
- * wiki-link tokenizer. Mirrors `cubical_ast::normalize::split_wikilinks`.
+ * wiki-link tokenizer. Mirrors `simple_directory_ast::normalize::split_wikilinks`.
  */
 function splitWikilinks(inlines: Inline[]): Inline[] {
   const out: Inline[] = [];
@@ -1230,16 +1230,16 @@ git commit -m "feat(ast): post-process text inlines through wiki-link tokenizer 
 
 ### Task 6: Extend the parity harness — wiki-link fixtures
 
-The cross-language parity harness in `crates/cubical-ast/tests/fixtures/parity.json` is the load-bearing test that the Rust parse and the TS normalize produce identical canonical AST for the same source. L3 extends the fixture set with wiki-link cases.
+The cross-language parity harness in `crates/simple-directory-ast/tests/fixtures/parity.json` is the load-bearing test that the Rust parse and the TS normalize produce identical canonical AST for the same source. L3 extends the fixture set with wiki-link cases.
 
 **Files:**
 
-- Modify: `crates/cubical-ast/tests/fixtures/parity.json`
+- Modify: `crates/simple-directory-ast/tests/fixtures/parity.json`
 
 - [ ] **Step 1: Read the existing fixture file to learn its shape.**
 
 ```bash
-head -40 crates/cubical-ast/tests/fixtures/parity.json
+head -40 crates/simple-directory-ast/tests/fixtures/parity.json
 ```
 
 Note the shape — each fixture has `name`, `source`, and `expected` (a serialized `Document`). Use the same shape.
@@ -1355,7 +1355,7 @@ Append (inside the top-level array) the following entries (`expected.source_len`
 - [ ] **Step 3: Run the Rust parity test.**
 
 ```bash
-cargo test -p cubical-ast --test parity_fixtures
+cargo test -p simple-directory-ast --test parity_fixtures
 ```
 
 Expected: PASS — the Rust parser now emits these structures.
@@ -1371,7 +1371,7 @@ Expected: PASS — the TS normalizer produces the same structures.
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add crates/cubical-ast/tests/fixtures/parity.json
+git add crates/simple-directory-ast/tests/fixtures/parity.json
 git commit -m "test(ast): add wiki-link fixtures to the parity harness"
 ```
 
@@ -1381,20 +1381,20 @@ git commit -m "test(ast): add wiki-link fixtures to the parity harness"
 
 **Files:**
 
-- Create: `crates/cubical-index/migrations/003_links.sql`
-- Modify: `crates/cubical-index/src/migrations.rs`
+- Create: `crates/simple-directory-index/migrations/003_links.sql`
+- Modify: `crates/simple-directory-index/src/migrations.rs`
 
 - [ ] **Step 1: Read the existing migrations module to learn the registration pattern.**
 
 ```bash
-cat crates/cubical-index/src/migrations.rs
+cat crates/simple-directory-index/src/migrations.rs
 ```
 
 Notice how `001_initial.sql` and `002_frontmatter.sql` are registered. The new migration follows the same shape.
 
 - [ ] **Step 2: Write the failing migration test.**
 
-Add to `crates/cubical-index/src/migrations.rs` `#[cfg(test)] mod tests` (or wherever the existing migration tests sit):
+Add to `crates/simple-directory-index/src/migrations.rs` `#[cfg(test)] mod tests` (or wherever the existing migration tests sit):
 
 ```rust
 #[test]
@@ -1414,14 +1414,14 @@ fn migration_003_creates_links_table() {
 - [ ] **Step 3: Run; confirm FAIL.**
 
 ```bash
-cargo test -p cubical-index migration_003_creates_links_table
+cargo test -p simple-directory-index migration_003_creates_links_table
 ```
 
 Expected: FAIL — the migration is not registered.
 
 - [ ] **Step 4: Create the migration file.**
 
-Create `crates/cubical-index/migrations/003_links.sql`:
+Create `crates/simple-directory-index/migrations/003_links.sql`:
 
 ```sql
 -- Layer 3 wiki-link index. See docs/architecture/document-model.md §5.2
@@ -1469,7 +1469,7 @@ Migration {
 - [ ] **Step 6: Run the test; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-index
+cargo test -p simple-directory-index
 ```
 
 Expected: all green incl. the new test. The schema migration runner also runs against an in-memory libSQL during tests — confirm those pass too.
@@ -1477,7 +1477,7 @@ Expected: all green incl. the new test. The schema migration runner also runs ag
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-index/migrations/003_links.sql crates/cubical-index/src/migrations.rs
+git add crates/simple-directory-index/migrations/003_links.sql crates/simple-directory-index/src/migrations.rs
 git commit -m "feat(index): 003_links.sql — L3 wiki-link index schema"
 ```
 
@@ -1489,12 +1489,12 @@ Insert / replace / delete / lookup queries against the new table.
 
 **Files:**
 
-- Create: `crates/cubical-index/src/links.rs`
-- Modify: `crates/cubical-index/src/lib.rs` (re-export)
+- Create: `crates/simple-directory-index/src/links.rs`
+- Modify: `crates/simple-directory-index/src/lib.rs` (re-export)
 
 - [ ] **Step 1: Write the failing test.**
 
-Create `crates/cubical-index/src/links.rs` with a stub `pub struct LinkRow` + `pub fn replace_links_for_file(…)` returning a hardcoded value, and the test:
+Create `crates/simple-directory-index/src/links.rs` with a stub `pub struct LinkRow` + `pub fn replace_links_for_file(…)` returning a hardcoded value, and the test:
 
 ```rust
 //! Queries against the L3 `links` table.
@@ -1546,7 +1546,7 @@ mod tests {
         // Use the established test-harness helper for an in-memory
         // index. If the crate has a `for_tests()` constructor, use it;
         // otherwise open a tmpfile via `tempfile::NamedTempFile`.
-        let path = std::env::temp_dir().join(format!("cubical-index-test-{}.db",
+        let path = std::env::temp_dir().join(format!("simple-directory-index-test-{}.db",
             std::process::id()));
         let _ = std::fs::remove_file(&path);
         open_index(&path).expect("open")
@@ -1615,7 +1615,7 @@ mod tests {
 
 - [ ] **Step 2: Wire the module + run; confirm FAIL.**
 
-In `crates/cubical-index/src/lib.rs`:
+In `crates/simple-directory-index/src/lib.rs`:
 
 ```rust
 mod links;
@@ -1625,7 +1625,7 @@ pub use links::{links_from, links_to, replace_links_for_file, LinkRow};
 Then:
 
 ```bash
-cargo test -p cubical-index links::
+cargo test -p simple-directory-index links::
 ```
 
 Expected: the three new tests FAIL (the functions are `todo!()`).
@@ -1708,7 +1708,7 @@ Adjust the libSQL API calls to match what `IndexConn` actually exposes (the test
 - [ ] **Step 4: Run; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-index
+cargo test -p simple-directory-index
 ```
 
 Expected: all green.
@@ -1716,7 +1716,7 @@ Expected: all green.
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add crates/cubical-index/src/links.rs crates/cubical-index/src/lib.rs
+git add crates/simple-directory-index/src/links.rs crates/simple-directory-index/src/lib.rs
 git commit -m "feat(index): links query module (replace / from / to)"
 ```
 
@@ -1724,26 +1724,26 @@ git commit -m "feat(index): links query module (replace / from / to)"
 
 ### Task 9: Extract links from a parsed `Document`
 
-A pure function in `cubical-core` that walks a `Document` and produces `Vec<LinkExtraction>` carrying everything `replace_links_for_file` needs.
+A pure function in `simple-directory-core` that walks a `Document` and produces `Vec<LinkExtraction>` carrying everything `replace_links_for_file` needs.
 
 **Files:**
 
-- Create: `crates/cubical-core/src/vault/links.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs`
+- Create: `crates/simple-directory-core/src/vault/links.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs`
 
 - [ ] **Step 1: Write the failing test.**
 
-Create `crates/cubical-core/src/vault/links.rs`:
+Create `crates/simple-directory-core/src/vault/links.rs`:
 
 ```rust
-//! Extract wiki-link occurrences from a parsed `cubical_ast::Document`.
+//! Extract wiki-link occurrences from a parsed `simple_directory_ast::Document`.
 //!
 //! Pure: takes only the parsed document; emits one `LinkExtraction`
 //! per `Inline::WikiLink` in source order. Resolution to a vault path
 //! happens in the caller (the scan/watcher pipeline), which has the
 //! file-list context the extractor lacks.
 
-use cubical_ast::{Anchor, Block, Document, Inline, ListItem};
+use simple_directory_ast::{Anchor, Block, Document, Inline, ListItem};
 
 /// One wiki-link occurrence extracted from a `Document`.
 #[derive(Debug, Clone, PartialEq)]
@@ -1814,7 +1814,7 @@ fn walk_inlines(inlines: &[Inline], pos: u64, out: &mut Vec<LinkExtraction>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cubical_ast::parse;
+    use simple_directory_ast::parse;
 
     #[test]
     fn extracts_simple_wikilink() {
@@ -1847,7 +1847,7 @@ mod tests {
 
 - [ ] **Step 2: Wire the module.**
 
-In `crates/cubical-core/src/vault/mod.rs`:
+In `crates/simple-directory-core/src/vault/mod.rs`:
 
 ```rust
 pub mod links;
@@ -1856,7 +1856,7 @@ pub mod links;
 - [ ] **Step 3: Run; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-core vault::links::
+cargo test -p simple-directory-core vault::links::
 ```
 
 Expected: all three tests PASS (the implementation is complete in the test file).
@@ -1864,7 +1864,7 @@ Expected: all three tests PASS (the implementation is complete in the test file)
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs crates/cubical-core/src/vault/mod.rs
+git add crates/simple-directory-core/src/vault/links.rs crates/simple-directory-core/src/vault/mod.rs
 git commit -m "feat(core): extract_links — walk a Document for WikiLink occurrences"
 ```
 
@@ -1876,11 +1876,11 @@ A pure resolver. Given a `target_raw` and a slice of known vault-relative file p
 
 **Files:**
 
-- Modify: `crates/cubical-core/src/vault/links.rs` (add `resolve_target` + tests)
+- Modify: `crates/simple-directory-core/src/vault/links.rs` (add `resolve_target` + tests)
 
 - [ ] **Step 1: Add the failing test.**
 
-Append to `crates/cubical-core/src/vault/links.rs` `#[cfg(test)] mod tests`:
+Append to `crates/simple-directory-core/src/vault/links.rs` `#[cfg(test)] mod tests`:
 
 ```rust
 #[test]
@@ -1930,14 +1930,14 @@ fn resolve_missing_returns_none() {
 - [ ] **Step 2: Run; confirm FAIL.**
 
 ```bash
-cargo test -p cubical-core vault::links::tests::resolve_
+cargo test -p simple-directory-core vault::links::tests::resolve_
 ```
 
 Expected: compile error — `resolve_target` not defined.
 
 - [ ] **Step 3: Implement `resolve_target`.**
 
-Add to `crates/cubical-core/src/vault/links.rs` (above the `#[cfg(test)]` block):
+Add to `crates/simple-directory-core/src/vault/links.rs` (above the `#[cfg(test)]` block):
 
 ```rust
 /// Resolve a wiki-link `target_raw` against the known vault file list.
@@ -1951,7 +1951,7 @@ Add to `crates/cubical-core/src/vault/links.rs` (above the `#[cfg(test)]` block)
 ///
 /// Returns `None` for no match or for ambiguous matches at levels 2/3.
 /// The file list is borrowed; the caller owns it (typically a snapshot
-/// from `files` table or a `cubical-core::vault::Vault::list_files()`).
+/// from `files` table or a `simple-directory-core::vault::Vault::list_files()`).
 pub fn resolve_target(target_raw: &str, files: &[String]) -> Option<String> {
     let target = target_raw.trim();
     if target.is_empty() {
@@ -1999,7 +1999,7 @@ pub fn resolve_target(target_raw: &str, files: &[String]) -> Option<String> {
 - [ ] **Step 4: Run; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-core vault::links::
+cargo test -p simple-directory-core vault::links::
 ```
 
 Expected: all tests (extract_* + resolve_*) PASS.
@@ -2007,7 +2007,7 @@ Expected: all tests (extract_* + resolve_*) PASS.
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/links.rs
+git add crates/simple-directory-core/src/vault/links.rs
 git commit -m "feat(core): resolve_target — exact / basename-ci / unique-suffix"
 ```
 
@@ -2019,8 +2019,8 @@ When a file is scanned or modified, parse it, extract links, resolve each one ag
 
 **Files:**
 
-- Modify: `crates/cubical-core/src/vault/scan.rs`
-- Modify: `crates/cubical-core/src/vault/watcher.rs`
+- Modify: `crates/simple-directory-core/src/vault/scan.rs`
+- Modify: `crates/simple-directory-core/src/vault/watcher.rs`
 
 - [ ] **Step 1: Read both files to find the existing write site.**
 
@@ -2028,13 +2028,13 @@ The L2 work landed link-less inserts into the `files` table during scan and on w
 
 - [ ] **Step 2: Write a failing integration test.**
 
-In `crates/cubical-core/src/vault/scan.rs` (or wherever existing scan tests live), add:
+In `crates/simple-directory-core/src/vault/scan.rs` (or wherever existing scan tests live), add:
 
 ```rust
 #[test]
 fn scan_populates_links_table() {
     use crate::vault::Vault;
-    use cubical_index::links_from;
+    use simple_directory_index::links_from;
     let tmp = tempfile::tempdir().expect("tmp");
     std::fs::write(tmp.path().join("a.md"), "see [[b]] for more\n").unwrap();
     std::fs::write(tmp.path().join("b.md"), "body\n").unwrap();
@@ -2053,7 +2053,7 @@ fn scan_populates_links_table() {
 - [ ] **Step 3: Run; confirm FAIL.**
 
 ```bash
-cargo test -p cubical-core scan_populates_links_table
+cargo test -p simple-directory-core scan_populates_links_table
 ```
 
 Expected: FAIL (extraction not wired yet).
@@ -2064,22 +2064,22 @@ Inside the existing per-file scan handler (after the `files`-table upsert for a 
 
 ```rust
 // Extract wiki-links and update the link index for this file.
-let doc = cubical_ast::parse(&file_contents);
+let doc = simple_directory_ast::parse(&file_contents);
 let extractions = crate::vault::links::extract_links(&doc);
 let known_files: Vec<String> = list_known_paths(conn)?;  // or whatever helper
-let rows: Vec<cubical_index::LinkRow> = extractions
+let rows: Vec<simple_directory_index::LinkRow> = extractions
     .into_iter()
     .map(|e| {
         let target_path = crate::vault::links::resolve_target(&e.target_raw, &known_files);
-        cubical_index::LinkRow {
+        simple_directory_index::LinkRow {
             target_raw: e.target_raw,
             target_path,
             anchor_kind: e.anchor.as_ref().map(|a| match a {
-                cubical_ast::Anchor::Heading { .. } => "heading".to_string(),
-                cubical_ast::Anchor::Block { .. } => "block".to_string(),
+                simple_directory_ast::Anchor::Heading { .. } => "heading".to_string(),
+                simple_directory_ast::Anchor::Block { .. } => "block".to_string(),
             }),
             anchor_value: e.anchor.map(|a| match a {
-                cubical_ast::Anchor::Heading { value } | cubical_ast::Anchor::Block { value } => value,
+                simple_directory_ast::Anchor::Heading { value } | simple_directory_ast::Anchor::Block { value } => value,
             }),
             display_text: e.display,
             is_embed: e.is_embed,
@@ -2087,10 +2087,10 @@ let rows: Vec<cubical_index::LinkRow> = extractions
         }
     })
     .collect();
-cubical_index::replace_links_for_file(conn, &path_str, &rows)?;
+simple_directory_index::replace_links_for_file(conn, &path_str, &rows)?;
 ```
 
-Use the existing helper for listing known file paths if one exists; otherwise add a small one in `crates/cubical-index/src/files.rs` (or wherever `files` queries live).
+Use the existing helper for listing known file paths if one exists; otherwise add a small one in `crates/simple-directory-index/src/files.rs` (or wherever `files` queries live).
 
 - [ ] **Step 5: Wire the same call into `watcher.rs` for Created + Modified events.**
 
@@ -2101,7 +2101,7 @@ For `Renamed`, the existing rename handler should update the `files.path` first;
 - [ ] **Step 6: Run; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-core scan_populates_links_table
+cargo test -p simple-directory-core scan_populates_links_table
 cargo test --workspace
 ```
 
@@ -2110,7 +2110,7 @@ Expected: the new test PASSES, the whole workspace stays green.
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/scan.rs crates/cubical-core/src/vault/watcher.rs
+git add crates/simple-directory-core/src/vault/scan.rs crates/simple-directory-core/src/vault/watcher.rs
 git commit -m "feat(core): extract + index wiki-links on scan and file change"
 ```
 
@@ -2122,14 +2122,14 @@ A request/response IPC that takes a `target_raw` and (optionally) a `source_path
 
 **Files:**
 
-- Modify: `crates/cubical-app/src/api/types.rs`
-- Create: `crates/cubical-app/src/commands/links.rs`
-- Modify: `crates/cubical-app/src/lib.rs` (register the Tauri shim)
-- Modify: `crates/cubical-app/src/commands/mod.rs` (if such a module exists; otherwise the `commands` directory) to expose `links`.
+- Modify: `crates/simple-directory-app/src/api/types.rs`
+- Create: `crates/simple-directory-app/src/commands/links.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs` (register the Tauri shim)
+- Modify: `crates/simple-directory-app/src/commands/mod.rs` (if such a module exists; otherwise the `commands` directory) to expose `links`.
 
 - [ ] **Step 1: Write the failing IPC test.**
 
-In `crates/cubical-app/src/commands/links.rs` (new file) write the pure handler + tests stub:
+In `crates/simple-directory-app/src/commands/links.rs` (new file) write the pure handler + tests stub:
 
 ```rust
 //! `resolve_link` IPC — looks up a wiki-link target against the live
@@ -2141,15 +2141,15 @@ use crate::api::types::{ResolveLinkRequest, ResolveLinkResponse, ResolvedAnchor}
 
 /// Pure handler for `resolve_link`. Splits the request's `target_raw`
 /// into its anchor (if any) and resolves the target against the vault's
-/// known files via `cubical_core::vault::links::resolve_target`.
+/// known files via `simple_directory_core::vault::links::resolve_target`.
 pub fn resolve_link(
     state: &crate::CommandsState,
     req: ResolveLinkRequest,
-) -> Result<ResolveLinkResponse, crate::CubicalError> {
+) -> Result<ResolveLinkResponse, crate::SimpleDirectoryError> {
     let vault = state.vault(&req.vault_id)?;
     let known: Vec<String> = vault.list_paths()?;
     // Reuse the same grammar parsing from the AST tokenizer — invoke
-    // `cubical_ast::wikilink::scan_wikilinks` and pick the first
+    // `simple_directory_ast::wikilink::scan_wikilinks` and pick the first
     // (and only) WikiLink in a synthesised "[[REQ]]" input.
     // (Alternative: implement a tiny anchor splitter here. The test
     // suite below pins the behaviour either way.)
@@ -2183,7 +2183,7 @@ mod tests {
 }
 ```
 
-In `crates/cubical-app/src/api/types.rs`, add the wire types:
+In `crates/simple-directory-app/src/api/types.rs`, add the wire types:
 
 ```rust
 /// Request for `resolve_link`.
@@ -2207,7 +2207,7 @@ pub struct ResolveLinkResponse {
     pub anchor: Option<ResolvedAnchor>,
 }
 
-/// IPC-shape mirror of `cubical_ast::Anchor`.
+/// IPC-shape mirror of `simple_directory_ast::Anchor`.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ResolvedAnchor {
@@ -2219,7 +2219,7 @@ pub enum ResolvedAnchor {
 - [ ] **Step 2: Run; confirm FAIL.**
 
 ```bash
-cargo test -p cubical-app resolve_link
+cargo test -p simple-directory-app resolve_link
 ```
 
 Expected: compile error (`todo!()` + missing impl).
@@ -2232,21 +2232,21 @@ Replace the `todo!()` body. The cleanest version reuses the AST tokenizer:
 pub fn resolve_link(
     state: &crate::CommandsState,
     req: ResolveLinkRequest,
-) -> Result<ResolveLinkResponse, crate::CubicalError> {
-    use cubical_ast::{Anchor as AstAnchor};
+) -> Result<ResolveLinkResponse, crate::SimpleDirectoryError> {
+    use simple_directory_ast::{Anchor as AstAnchor};
     let vault = state.vault(&req.vault_id)?;
     let known: Vec<String> = vault.list_paths()?;
     // Parse the target by feeding "[[REQ]]" through the same tokenizer
     // that the AST uses. This guarantees identical grammar.
     let synthetic = format!("[[{}]]", req.target_raw);
-    let runs = cubical_ast::wikilink::scan_wikilinks(&synthetic);
+    let runs = simple_directory_ast::wikilink::scan_wikilinks(&synthetic);
     let (target_raw, anchor) = match runs.into_iter().next() {
-        Some(cubical_ast::wikilink::TokenizedRun::WikiLink { target, anchor, .. }) => {
+        Some(simple_directory_ast::wikilink::TokenizedRun::WikiLink { target, anchor, .. }) => {
             (target, anchor)
         }
         _ => (req.target_raw.clone(), None),
     };
-    let target_path = cubical_core::vault::links::resolve_target(&target_raw, &known);
+    let target_path = simple_directory_core::vault::links::resolve_target(&target_raw, &known);
     let resolved_anchor = anchor.map(|a| match a {
         AstAnchor::Heading { value } => ResolvedAnchor::Heading { value },
         AstAnchor::Block { value } => ResolvedAnchor::Block { value },
@@ -2258,20 +2258,20 @@ pub fn resolve_link(
 }
 ```
 
-If `cubical_ast::wikilink` is not `pub`, expose just the needed surface: add `pub mod wikilink;` in `crates/cubical-ast/src/lib.rs` (replacing the bare `mod wikilink;` from Task 2) and document that this is the L3 grammar-reuse contract.
+If `simple_directory_ast::wikilink` is not `pub`, expose just the needed surface: add `pub mod wikilink;` in `crates/simple-directory-ast/src/lib.rs` (replacing the bare `mod wikilink;` from Task 2) and document that this is the L3 grammar-reuse contract.
 
 Flesh out the three test bodies using the same `CommandsState` test harness L2 used in `write_file_text` tests — set up a vault with `b.md` (and for the anchor test, just rely on `resolve_target` returning `b.md` regardless of anchor).
 
 - [ ] **Step 4: Register the Tauri shim.**
 
-In `crates/cubical-app/src/lib.rs`, add the shim function and register it in `invoke_handler`:
+In `crates/simple-directory-app/src/lib.rs`, add the shim function and register it in `invoke_handler`:
 
 ```rust
 #[tauri::command]
 async fn resolve_link(
     state: tauri::State<'_, CommandsState>,
     req: ResolveLinkRequest,
-) -> Result<ResolveLinkResponse, CubicalError> {
+) -> Result<ResolveLinkResponse, SimpleDirectoryError> {
     crate::commands::links::resolve_link(&state, req)
 }
 ```
@@ -2281,7 +2281,7 @@ async fn resolve_link(
 - [ ] **Step 5: Run; confirm GREEN.**
 
 ```bash
-cargo test -p cubical-app
+cargo test -p simple-directory-app
 cargo test --workspace
 ```
 
@@ -2290,9 +2290,9 @@ Expected: green.
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs crates/cubical-app/src/commands/links.rs \
-        crates/cubical-app/src/commands/mod.rs crates/cubical-app/src/lib.rs \
-        crates/cubical-ast/src/lib.rs
+git add crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/commands/links.rs \
+        crates/simple-directory-app/src/commands/mod.rs crates/simple-directory-app/src/lib.rs \
+        crates/simple-directory-ast/src/lib.rs
 git commit -m "feat(app): resolve_link IPC (pure handler + Tauri shim)"
 ```
 
@@ -2313,7 +2313,7 @@ There is no vitest case for IPC wrappers (they call `@tauri-apps/api/core` `invo
 Add to `ui/src/api/ipc.ts` (matching the existing `writeFileText` pattern):
 
 ```ts
-/** Mirror of cubical_app::api::types::ResolvedAnchor. */
+/** Mirror of simple_directory_app::api::types::ResolvedAnchor. */
 export type ResolvedAnchor =
   | { kind: "heading"; value: string }
   | { kind: "block"; value: string };
@@ -2399,7 +2399,7 @@ Expected: all green. Record the exact counts (Rust + vitest).
 
 Replace the `*Pending.*` under "### 9.1 Session A — Wiki-link parsing + link index" with a write-up matching the L2 §9.x voice:
 
-- Subsections to cover: AST changes (Anchor + WikiLink variant + parity), the Rust + TS tokenizers (`scan_wikilinks` / `scanWikilinks`), `normalize` integration, parity-fixture additions, the `003_links.sql` migration, the `links` query module, `extract_links` + `resolve_target` in cubical-core, the scan/watcher wiring, the `resolve_link` IPC, and the `resolveLink` TS wrapper.
+- Subsections to cover: AST changes (Anchor + WikiLink variant + parity), the Rust + TS tokenizers (`scan_wikilinks` / `scanWikilinks`), `normalize` integration, parity-fixture additions, the `003_links.sql` migration, the `links` query module, `extract_links` + `resolve_target` in simple-directory-core, the scan/watcher wiring, the `resolve_link` IPC, and the `resolveLink` TS wrapper.
 - Include the final test counts and a single-line per noteworthy decision (e.g. grammar precedence — anchor before pipe; resolution order — exact / basename-ci / unique suffix).
 
 - [ ] **Step 3: Rewrite the `CLAUDE.md` "Project state" block.**
@@ -2437,9 +2437,9 @@ L2 sessions did not tag per session (only the layer tag `l2`). Skip a per-sessio
   - Task 11 references vault constructor names (`Vault::open`, `vault.scan()`, `vault.index()`) that may not match the local API; the plan flags this in step 2.
   - Neither is a placeholder for missing design — both are honest "match the existing call site" pointers.
 
-- **Type consistency.** `Inline::WikiLink { target, display, anchor, embed }` is the same shape in Rust and TS, and the IPC `ResolvedAnchor` mirrors `cubical_ast::Anchor` with `#[serde(tag = "kind", rename_all = "snake_case")]`. `LinkRow` fields match the `003_links.sql` columns one-for-one. `scan_wikilinks` (Rust) and `scanWikilinks` (TS) take a string and return the same `TokenizedRun` shape.
+- **Type consistency.** `Inline::WikiLink { target, display, anchor, embed }` is the same shape in Rust and TS, and the IPC `ResolvedAnchor` mirrors `simple_directory_ast::Anchor` with `#[serde(tag = "kind", rename_all = "snake_case")]`. `LinkRow` fields match the `003_links.sql` columns one-for-one. `scan_wikilinks` (Rust) and `scanWikilinks` (TS) take a string and return the same `TokenizedRun` shape.
 
-- **Migration number.** `003_links.sql` confirmed against the actual `crates/cubical-index/migrations/` contents (002 is `frontmatter.sql` from L1).
+- **Migration number.** `003_links.sql` confirmed against the actual `crates/simple-directory-index/migrations/` contents (002 is `frontmatter.sql` from L1).
 
 ---
 

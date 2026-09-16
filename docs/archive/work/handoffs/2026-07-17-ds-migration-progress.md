@@ -243,7 +243,7 @@ in Phase C/D can be verified the same way — see `[[project-tauri-live-verify-s
   low-value) — the campaign's structural goals are met.
 
 ## Gotchas
-- **Flaky test, not yours:** `cubical-core`'s
+- **Flaky test, not yours:** `simple-directory-core`'s
   `watcher::tests::dropping_handle_stops_event_delivery_within_100ms` fails under
   full-workspace load (measured 870ms vs a 100ms budget) and passes 3/3 in
   isolation. It flaked across multiple sessions here; zero Rust was touched.

@@ -1,0 +1,19 @@
+[package]
+name = "simple-directory-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+simple-directory-ast = { path = "../simple-directory-ast" }
+simple-directory-index = { path = "../simple-directory-index" }
+simple-directory-table = { path = "../simple-directory-table" }
+libsql.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tempfile.workspace = true

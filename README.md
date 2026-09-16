@@ -1,4 +1,4 @@
-# Cubical
+# simple.directory
 
 **A blazing-fast, strictly local-first Personal Knowledge Management app.**
 Point it at a folder of plain `.md` files — a *vault* — and get a fast editor, a
@@ -14,9 +14,9 @@ No Electron. No Node.js runtime in the shipped app. No required cloud account. B
 
 ---
 
-## Why Cubical
+## Why simple.directory
 
-Cubical answers three predictable failures of knowledge tools:
+simple.directory answers three predictable failures of knowledge tools:
 
 - **No lock-in.** Your content is *only* plain Markdown. The vault is fully
   portable — zip it, send it, open it elsewhere. It keeps working with the app
@@ -37,7 +37,7 @@ local-first believers who care about privacy, offline use, and portability.
 
 ## What it can do today
 
-Cubical is built in **layers**, each a shippable increment. Layers 0–4 are built
+simple.directory is built in **layers**, each a shippable increment. Layers 0–4 are built
 and merged; Layer 5 (the v1.0 polish cut) is in progress.
 
 - **Editor** — writable CodeMirror 6 editor with debounced autosave, a Live
@@ -51,11 +51,11 @@ and merged; Layer 5 (the v1.0 polish cut) is in progress.
   unlinked mentions. Renames propagate through a pending-rewrites cache.
 - **Search** — Tantivy full-text search (BM25, stemming, typo tolerance) with a
   persistent results panel and a `Cmd/Ctrl+K` Omni-Bar, plus Dataview-style
-  structured queries over the libSQL index. The index lives under `.cubical/` and
+  structured queries over the libSQL index. The index lives under `.simple-directory/` and
   never touches your `.md` files.
 - **Vault basics** — create files and folders, vault validation and scan-on-open,
   a debounced file watcher, atomic writes, and portable vault-local settings in
-  `.cubical/config.toml`.
+  `.simple-directory/config.toml`.
 
 A fuller, always-current status lives in the [Master PRD](prd.md) and
 [`docs/architecture/layers.md`](docs/architecture/layers.md).
@@ -77,18 +77,18 @@ Mobile is deferred — but the architecture is built not to preclude it.
 ## Architecture at a glance
 
 ```
-cubical/
+simple-directory/
 ├── crates/
-│   ├── cubical-core/    # vault, file watcher, file-type registry, frontmatter I/O
-│   ├── cubical-ast/     # canonical Markdown AST (no Tauri deps)
-│   ├── cubical-index/   # libSQL schema and queries
-│   ├── cubical-query/   # dataview-style query parser + evaluator
-│   ├── cubical-search/  # Tantivy full-text search
-│   ├── cubical-sync/    # CrdtBackend trait + Loro impl (sync lands later)
-│   ├── cubical-engine/  # transport-free engine: commands, AppState, EventSink
-│   ├── cubical-ipc/     # wire boundary: Command/Outcome/Response, dispatch()
-│   ├── cubical-cli/     # `cubical` terminal frontend
-│   └── cubical-app/     # Tauri app, depends on the above
+│   ├── simple-directory-core/    # vault, file watcher, file-type registry, frontmatter I/O
+│   ├── simple-directory-ast/     # canonical Markdown AST (no Tauri deps)
+│   ├── simple-directory-index/   # libSQL schema and queries
+│   ├── simple-directory-query/   # dataview-style query parser + evaluator
+│   ├── simple-directory-search/  # Tantivy full-text search
+│   ├── simple-directory-sync/    # CrdtBackend trait + Loro impl (sync lands later)
+│   ├── simple-directory-engine/  # transport-free engine: commands, AppState, EventSink
+│   ├── simple-directory-ipc/     # wire boundary: Command/Outcome/Response, dispatch()
+│   ├── simple-directory-cli/     # `simple-directory` terminal frontend
+│   └── simple-directory-app/     # Tauri app, depends on the above
 ├── ui/                  # Solid + TypeScript + Vite frontend
 ├── design-system/       # @ds — component library + canonical design tokens
 ├── docs/                # architecture, conventions, layer specs (start here)
@@ -111,7 +111,7 @@ queued is not re-derivable, so that queue is journalled to disk separately.
 ### Installing
 
 **There are no pre-built installers yet.** Building from source, below, is
-currently the only way to run Cubical. Signed and notarized downloads for macOS,
+currently the only way to run simple.directory. Signed and notarized downloads for macOS,
 Windows and Linux are being built in
 [#97](https://github.com/simple-techdev/simple.directory/issues/97); this section becomes a
 download table when they land.
@@ -170,11 +170,11 @@ cargo test --workspace     # Rust
 - [`CLAUDE.md`](CLAUDE.md) — the session primer: identity, non-negotiables, and
   current state. Start here.
 - [`docs/README.md`](docs/README.md) — the documentation index and doc map.
-- [`prd.md`](prd.md) — the Master PRD: what Cubical is, who it's for, what exists
+- [`prd.md`](prd.md) — the Master PRD: what simple.directory is, who it's for, what exists
   today, and what ships next.
 
 ---
 
 ## License
 
-Cubical is open source under the [MIT License](LICENSE).
+simple.directory is open source under the [MIT License](LICENSE).

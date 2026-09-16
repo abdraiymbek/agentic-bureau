@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Layers
+# simple.directory — Layers
 
 **Owner of layer status.** Which layers are closed, what each delivered, and
 where its frozen spec is. Nothing else restates this — update it at layer close
@@ -45,7 +45,7 @@ record.
 - **0 — Bedrock.** Tauri scaffold, libSQL + migration runner, debounced file
   watcher, vault validation + scan-on-open, file-type registry, frontmatter
   I/O, atomic writes, typed Tauri command surface. **No UUID injection.**
-- **1 — Document Model.** Canonical AST (`cubical-ast`), Lezer grammar,
+- **1 — Document Model.** Canonical AST (`simple-directory-ast`), Lezer grammar,
   `get_canonical_ast` IPC, frontmatter → libSQL, the TS normalizer, and the
   cross-language parity harness that holds the two parsers in lockstep.
 - **2 — Editing.** Writable editor with debounced autosave, Live Preview
@@ -58,7 +58,7 @@ record.
   rename → the Pending Rewrites Cache.
 - **4 — Search.** Tantivy full-text (BM25, stemming, typo tolerance),
   persistent results panel, `Cmd/Ctrl+K` Omni-Bar, and Dataview-style
-  structured libSQL queries. The index lives under `.cubical/search/` with a
+  structured libSQL queries. The index lives under `.simple-directory/search/` with a
   schema-version stamp — a mismatch wipes and rebuilds — and never touches
   `.md`.
 - **5 — Daily-Driver Polish.** In progress. The command/keymap registry and

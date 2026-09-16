@@ -1,4 +1,4 @@
-# Cubical — Product Requirements
+# simple.directory — Product Requirements
 
 > **Contributor-facing.** What the product is, what it currently guarantees,
 > what has to be true to call v1.0 done, and where it does not yet keep its own
@@ -8,7 +8,7 @@
 
 ## 1. What this document is
 
-This is the single read for someone who needs to know what Cubical is supposed
+This is the single read for someone who needs to know what simple.directory is supposed
 to do before changing it. It sits outside the four documentation tiers described
 in [`README.md`](README.md) — it is not a principle, not a locked architectural
 decision, not an implementation rationale, and not generated.
@@ -35,7 +35,7 @@ Omni-Bar, block reference, layer — is defined once in
 
 ## 2. The product
 
-Cubical is a local-first personal knowledge management app. It opens a directory
+simple.directory is a local-first personal knowledge management app. It opens a directory
 of plain `.md` files — a vault — and provides an editor, a knowledge graph of
 links, backlinks, tags and embeds, and full-text plus structured search.
 
@@ -48,7 +48,7 @@ than merely promised.
 **Who it is for:** people who already think in Markdown, wiki-links and tags and
 who intend to own their files — researchers, writers, engineers, students — plus
 local-first users who care about privacy, offline use and portability. Later,
-developers extending Cubical through a sandboxed plugin ABI.
+developers extending simple.directory through a sandboxed plugin ABI.
 
 **Who it is not for, in v1:** mobile-first users, teams wanting a shared cloud
 workspace, and anyone expecting one-click import from another PKM tool. The
@@ -67,7 +67,7 @@ the line here is what it means for a *user*.
   nothing but time. — [`derived-state-disposable`](principles/derived-state-disposable.md),
   [`architecture/vault.md`](architecture/vault.md) §3
 - **Converge, don't intercept.** Edit, move or delete files with any other tool
-  at any time; Cubical catches up rather than fighting you. Where it cannot
+  at any time; simple.directory catches up rather than fighting you. Where it cannot
   recover the semantics it says so — silent rot is the one unacceptable
   outcome. — [`convergence-over-interception`](principles/convergence-over-interception.md)
 - **Performance is measured, not asserted.** Speed claims are wall-clock medians
@@ -78,14 +78,14 @@ the line here is what it means for a *user*.
   to external code is a *gateway* and must be opt-in, non-corrupting and
   auditable. — [`native-capability-gateway`](principles/native-capability-gateway.md)
 - **The vault is portable and self-contained.** No external service is required
-  to open it, and nothing Cubical owns lives outside `.cubical/` and
+  to open it, and nothing simple.directory owns lives outside `.simple-directory/` and
   `.assets/`. — [`architecture/vault.md`](architecture/vault.md)
 - **Features are composable blocks over an always-on substrate.** Switching a
   feature off changes behaviour and derived state only, and leaves the `.md`
   byte-identical. — [`composability`](principles/composability.md)
 
 Two supporting rules are invisible to users but shape everything: only
-`cubical-app` may depend on Tauri ([`crate-separation`](principles/crate-separation.md)),
+`simple-directory-app` may depend on Tauri ([`crate-separation`](principles/crate-separation.md)),
 which is what makes a second frontend possible at all; and the webview never
 gets shell or broad filesystem access
 ([`backend-frontend-boundary`](principles/backend-frontend-boundary.md)).
@@ -100,16 +100,16 @@ defects are in §9.
 
 **Does.** Opens and validates a user-chosen directory, scans it into an index,
 and watches it for changes. Creates files and folders. Writes atomically.
-Vault-local settings live in `.cubical/config.toml`; machine-local session state
+Vault-local settings live in `.simple-directory/config.toml`; machine-local session state
 lives in the index. One vault per window, multiple windows allowed.
 
-**Guarantees.** `.cubical/` is the only state Cubical owns inside the vault, and
+**Guarantees.** `.simple-directory/` is the only state simple.directory owns inside the vault, and
 splits cleanly into durable config (`config.toml`, `themes/`) and rebuildable
 cache (everything else). No app identifier is written into any `.md` file — path
 is the only identity until sync onboarding. External edits made while the app is
 closed are handled: an external rename is *adopted*, running the same rename
 transaction so referrer links follow. When an open buffer has unsaved edits and
-the file changes underneath, the prior buffer is written to `.cubical/recovery/`
+the file changes underneath, the prior buffer is written to `.simple-directory/recovery/`
 and a three-way merge is offered — the user's work is never silently
 overwritten. A malformed note is logged and skipped, and heals on the next scan
 without special recovery. A second process cannot become a concurrent writer: a
@@ -139,7 +139,7 @@ RTL. Each is a filed idea, not an oversight.
 
 ### Document model
 
-**Does.** Parses Markdown into a canonical AST defined in `cubical-ast`, with no
+**Does.** Parses Markdown into a canonical AST defined in `simple-directory-ast`, with no
 Tauri or webview dependency, and mirrors it in TypeScript. A cross-language
 parity harness holds the two parsers in lockstep.
 
@@ -170,7 +170,7 @@ the row is still stored, so unresolved links surface in the UI and a later renam
 can re-resolve them. Renames are instant and the referrer rewrites are coalesced
 and deferred; reads materialize pending rewrites, the status bar always shows the
 unflushed count, and undo is instant inside that window. The queue is the one
-piece of non-re-derivable state, so it is journalled to `.cubical/renames.jsonl`.
+piece of non-re-derivable state, so it is journalled to `.simple-directory/renames.jsonl`.
 Where a rename pairing is ambiguous the engine **refuses to pair** and sends the
 residue to the Integrity panel — a missed rename is recoverable, a wrong rewrite
 corrupts Markdown. There is deliberately no repair-all.
@@ -185,7 +185,7 @@ results panel and the `Cmd/Ctrl+K` Omni-Bar. Dataview-style `LIST`/`TABLE`/`COUN
 queries with `FROM`/`WHERE`/`SORT` over notes and over `.csv`, `.tsv`, `.xlsx`
 and `.xlsm` files.
 
-**Guarantees.** The index lives only under `.cubical/search/` with a
+**Guarantees.** The index lives only under `.simple-directory/search/` with a
 schema-version stamp; a mismatch wipes and rebuilds, and it never writes to
 `.md`. While indexing, search returns current results flagged as still-indexing
 rather than an error. Every literal and key in a user-authored query is a bound
@@ -230,10 +230,10 @@ is not a GPU compute pass.
 
 ### CLI and embedded terminal
 
-**Does.** A `cubical` terminal frontend, and an embedded PTY terminal inside the
+**Does.** A `simple-directory` terminal frontend, and an embedded PTY terminal inside the
 app. Both reach the engine through the same wire boundary as the GUI.
 
-**Guarantees.** `cubical-ipc` owns the wire in both directions, so every frontend
+**Guarantees.** `simple-directory-ipc` owns the wire in both directions, so every frontend
 parses and prints identically. Rust owns the PTY and the child process; the
 webview receives an opaque byte stream and sends keystrokes, and never gains
 shell or filesystem access. The terminal is default-off, and disabling it
@@ -248,7 +248,7 @@ Windows is a stub.
 **Does.** Every control the app renders comes from `design-system/` through the
 `@ds` alias, spending one canonical token surface. Light and dark themes, with
 the editor's own chrome theme generated from the same computed tokens. User
-themes are plain CSS files under `.cubical/themes/`.
+themes are plain CSS files under `.simple-directory/themes/`.
 
 **Guarantees.** No hardcoded colours, fonts or spacings outside the token
 surface, enforced by a gate rather than by review; the baseline is zero raw
@@ -304,7 +304,7 @@ already performs. Migrations are atomic and idempotent, a future schema is
 refused untouched, and a shipped migration is never edited.
 
 **Portability.** The vault survives the app being uninstalled and the company
-disappearing. Nothing Cubical writes into a vault is required to read it. Asset
+disappearing. Nothing simple.directory writes into a vault is required to read it. Asset
 storage is per-vault and content-hashed; cross-vault deduplication is refused
 because it breaks the ability to zip a vault and send it.
 
@@ -386,7 +386,7 @@ platform conditionals outside the seam so parity cannot silently decay
 enshrines the end state rather than the conditionals being removed.
 
 **Shippability.** There are no installers today; building from source is the only
-way to run Cubical. The parent is
+way to run simple.directory. The parent is
 [#97](https://github.com/simple-techdev/simple.directory/issues/97) and it needs: real icons,
 which are currently 1×1 placeholders
 ([#112](https://github.com/simple-techdev/simple.directory/issues/112)); a tag-triggered release
@@ -432,7 +432,7 @@ position in a sequence.
 
 **Sync — Loro CRDT, P2P, optional E2EE relay.**
 [#62](https://github.com/simple-techdev/simple.directory/issues/62). Constrains today:
-`cubical-sync` exports nothing and nothing may depend on it, because a dependency
+`simple-directory-sync` exports nothing and nothing may depend on it, because a dependency
 on an empty crate constrains the design of whatever fills it; two schema names
 are reserved and not created; and no file-identity UUID may be minted early "to
 make later work easier". Onboarding is the single batch-write moment in a vault's
@@ -450,7 +450,7 @@ Unresolved, and the reason it is filed rather than planned.
 
 **Mobile.** [#66](https://github.com/simple-techdev/simple.directory/issues/66). Not a v1 target,
 but must not be precluded. Constrains today, and this is enforced: no crate other
-than `cubical-app` may depend on Tauri. The CLI is standing proof the engine is
+than `simple-directory-app` may depend on Tauri. The CLI is standing proof the engine is
 frontend-agnostic. The test is whether a change makes a non-app crate depend on a
 desktop-only capability.
 
@@ -480,7 +480,7 @@ Deliberate non-decisions, owned by
 
 Rejected approaches are recorded so the rationale does not have to be
 re-litigated: end-of-file HTML-comment UUIDs, a four-tier external-edit recovery
-waterfall, and a `.cubical/quarantine/` directory.
+waterfall, and a `.simple-directory/quarantine/` directory.
 
 ## 9. Known gaps and risks
 

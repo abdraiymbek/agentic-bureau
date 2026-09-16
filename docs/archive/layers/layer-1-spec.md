@@ -1,12 +1,12 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../architecture/) and [`docs/implementation/`](../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical — Layer 1: Document Model
+# simple.directory — Layer 1: Document Model
 
 > **Historical record**, frozen at layer close (tag + date in [`build-order.md`](build-order.md)). The plan and "what was built" below are the state *as of then*; current canonical truth lives in [`architecture/`](architecture/README.md). Where work later diverged, it's noted inline as a deviation — not silently overwritten.
 
 The canonical Markdown AST, frontmatter indexing, and the editor's Lezer integration.
 
-> **Before starting Session B:** Read `docs/layer-0-spec.md §14.2` — L0 deviated from the original spec in two ways that affect this layer's code: the crate dependency direction is reversed (`cubical-core` depends on `cubical-index`, not the other way around), and `CubicalError` lives in `cubical-app`, not `cubical-core`.
+> **Before starting Session B:** Read `docs/layer-0-spec.md §14.2` — L0 deviated from the original spec in two ways that affect this layer's code: the crate dependency direction is reversed (`simple-directory-core` depends on `simple-directory-index`, not the other way around), and `SimpleDirectoryError` lives in `simple-directory-app`, not `simple-directory-core`.
 
 ---
 
@@ -14,7 +14,7 @@ The canonical Markdown AST, frontmatter indexing, and the editor's Lezer integra
 
 By end of L1:
 
-1. `cubical-ast` has a fully typed canonical AST with `parse(source) -> Document` entry point.
+1. `simple-directory-ast` has a fully typed canonical AST with `parse(source) -> Document` entry point.
 2. Frontmatter indexed into libSQL `frontmatter` table on scan + watcher Created/Modified events.
 3. `get_frontmatter` IPC returns structured frontmatter for any tracked `.md` file.
 4. CodeMirror 6 with Lezer markdown grammar running in the editor webview.
@@ -28,7 +28,7 @@ See `docs/architecture/document-model.md` for the design spec this layer impleme
 
 ## 2. Session A — What was built (2026-05-09)
 
-### cubical-ast (`crates/cubical-ast/src/`)
+### simple-directory-ast (`crates/simple-directory-ast/src/`)
 
 Files: `lib.rs`, `types.rs`, `frontmatter.rs`, `normalize.rs`
 
@@ -54,9 +54,9 @@ Files: `lib.rs`, `types.rs`, `frontmatter.rs`, `normalize.rs`
 
 **Tests:** 25 — frontmatter split, YAML parsing, all Block/Inline variants, idempotence, span coverage.
 
-### cubical-index migration v2
+### simple-directory-index migration v2
 
-File: `crates/cubical-index/migrations/002_frontmatter.sql`
+File: `crates/simple-directory-index/migrations/002_frontmatter.sql`
 
 ```sql
 CREATE TABLE frontmatter (
@@ -71,26 +71,26 @@ CREATE INDEX idx_frontmatter_key ON frontmatter(key);
 
 `PRAGMA foreign_keys = ON` now executed on every connection open.
 
-### cubical-core (`crates/cubical-core/src/vault/frontmatter.rs`)
+### simple-directory-core (`crates/simple-directory-core/src/vault/frontmatter.rs`)
 
 `refresh_frontmatter(vault, abs_path, rel_str)`:
 - Reads + parses + DELETE-then-INSERT keyed on `file_path`. Idempotent.
 - Runs in `tokio::task::spawn_blocking`.
 - Called from `scan` (markdown only) + `apply_watch_event_to_db` (Created/Modified).
 
-### cubical-app
+### simple-directory-app
 
 - `get_frontmatter`: pure handler in `commands/vault.rs`; returns `FileNotFound` if path untracked.
-- `CubicalError::FileNotFound(String)` variant added.
+- `SimpleDirectoryError::FileNotFound(String)` variant added.
 - Frontend typed wrapper in `ui/src/api/ipc.ts`.
 
-**Test counts (cumulative):** cubical-ast 25 · cubical-core 42 · cubical-index 6 · cubical-app 10 = **83 total**
+**Test counts (cumulative):** simple-directory-ast 25 · simple-directory-core 42 · simple-directory-index 6 · simple-directory-app 10 = **83 total**
 
 ---
 
 ## 3. Session B — What shipped (2026-05-09)
 
-Goals 4–5 closed end-to-end. Rust `cubical_ast::parse` and the editor's Lezer-backed TS normalizer now produce the same `Document` JSON shape from the same source string, verified by a cross-language parity harness with shared fixtures.
+Goals 4–5 closed end-to-end. Rust `simple_directory_ast::parse` and the editor's Lezer-backed TS normalizer now produce the same `Document` JSON shape from the same source string, verified by a cross-language parity harness with shared fixtures.
 
 ### 3.1 Lezer/pulldown-cmark reconciliation decision
 
@@ -98,9 +98,9 @@ Goals 4–5 closed end-to-end. Rust `cubical_ast::parse` and the editor's Lezer-
 
 The two parsers are *not* equivalent by construction — they differ in span trailing-newline rules, inline content emission (Lezer leaves text in "gaps" between marker children; pulldown-cmark emits explicit text events), list-item-blank-line handling, and heading-marker boundaries. The reconciliation strategy:
 
-1. **Rust `cubical_ast::parse` is the single source of truth for the canonical shape.** The TS normalizer (`ui/src/ast/normalize.ts`) is responsible for matching Rust's output exactly.
-2. **Shared parity fixtures** at `crates/cubical-ast/tests/fixtures/parity.json`. Each entry is `{name, input, expected}`. Both [`crates/cubical-ast/tests/parity_fixtures.rs`](../crates/cubical-ast/tests/parity_fixtures.rs) and [`ui/src/ast/parity.test.ts`](../ui/src/ast/parity.test.ts) assert their parser produces `expected` for each `input`.
-3. **The Rust integration test is also the regenerator.** `CUBICAL_UPDATE_PARITY_FIXTURES=1 cargo test -p cubical-ast --test parity_fixtures` rewrites `expected` from current Rust output. Workflow when the AST shape intentionally changes: regenerate via Rust, then re-run the TS suite — if it fails, fix the TS normalizer. Never edit `expected` by hand.
+1. **Rust `simple_directory_ast::parse` is the single source of truth for the canonical shape.** The TS normalizer (`ui/src/ast/normalize.ts`) is responsible for matching Rust's output exactly.
+2. **Shared parity fixtures** at `crates/simple-directory-ast/tests/fixtures/parity.json`. Each entry is `{name, input, expected}`. Both [`crates/simple-directory-ast/tests/parity_fixtures.rs`](../crates/simple-directory-ast/tests/parity_fixtures.rs) and [`ui/src/ast/parity.test.ts`](../ui/src/ast/parity.test.ts) assert their parser produces `expected` for each `input`.
+3. **The Rust integration test is also the regenerator.** `SIMPLE_DIRECTORY_UPDATE_PARITY_FIXTURES=1 cargo test -p simple-directory-ast --test parity_fixtures` rewrites `expected` from current Rust output. Workflow when the AST shape intentionally changes: regenerate via Rust, then re-run the TS suite — if it fails, fix the TS normalizer. Never edit `expected` by hand.
 
 `docs/architecture/document-model.md` §5.5 still reads "Lezer trees are normalized into canonical AST on the Rust side." That's accurate for non-editor consumers (indexers, exporters, plugins call `get_canonical_ast` → Rust). The editor speaks Lezer locally and uses the TS normalizer only for the in-process `onAstChange` callback path so the editor doesn't have to round-trip through Rust on every keystroke. No spec change.
 
@@ -108,7 +108,7 @@ The two parsers are *not* equivalent by construction — they differ in span tra
 
 ## 4. Definition of done — closed 2026-05-09
 
-- [x] `cargo test --all` passes (83+ baseline) — 92 Rust tests across the workspace (cubical-ast 26 + 1 parity integration · cubical-core 42 · cubical-index 6 · cubical-app 17)
+- [x] `cargo test --all` passes (83+ baseline) — 92 Rust tests across the workspace (simple-directory-ast 26 + 1 parity integration · simple-directory-core 42 · simple-directory-index 6 · simple-directory-app 17)
 - [x] `cargo clippy --all-targets --all-features -- -D warnings` clean
 - [x] `cargo fmt --check` clean
 - [x] `npm run build` clean; `npm test` adds 23 vitest tests (8 parity-harness + 15 normalizer/frontmatter unit tests)
@@ -124,16 +124,16 @@ The two parsers are *not* equivalent by construction — they differ in span tra
 
 ### AST shape fix (load-bearing prerequisite)
 
-Session A's `Inline::Text(String)` and `Inline::Code(String)` were tuple newtype variants on an internally-tagged enum (`#[serde(tag = "kind", rename_all = "snake_case")]`). `serde_json` panics at serialization time for that combination — a latent bug that would have detonated the moment `get_canonical_ast` tried to ship a paragraph through IPC. Both variants are now struct-shaped (`Text { value: String }`, `Code { value: String }`), bringing the wire shape in line with the other Inline variants. The `document_round_trips_through_serde_json` test in [`crates/cubical-ast/src/lib.rs`](../crates/cubical-ast/src/lib.rs) is the regression guard. All Session-A normalizer code + tests updated to the new pattern; nothing else in the AST changed. The wire-shape contract is documented inline on the `Inline` enum rustdoc.
+Session A's `Inline::Text(String)` and `Inline::Code(String)` were tuple newtype variants on an internally-tagged enum (`#[serde(tag = "kind", rename_all = "snake_case")]`). `serde_json` panics at serialization time for that combination — a latent bug that would have detonated the moment `get_canonical_ast` tried to ship a paragraph through IPC. Both variants are now struct-shaped (`Text { value: String }`, `Code { value: String }`), bringing the wire shape in line with the other Inline variants. The `document_round_trips_through_serde_json` test in [`crates/simple-directory-ast/src/lib.rs`](../crates/simple-directory-ast/src/lib.rs) is the regression guard. All Session-A normalizer code + tests updated to the new pattern; nothing else in the AST changed. The wire-shape contract is documented inline on the `Inline` enum rustdoc.
 
 ### Rust IPC commands
 
-`read_file_text` and `get_canonical_ast` landed in [`crates/cubical-app/src/commands/vault.rs`](../crates/cubical-app/src/commands/vault.rs) following the §8 pure-handler / thin-shim pattern.
+`read_file_text` and `get_canonical_ast` landed in [`crates/simple-directory-app/src/commands/vault.rs`](../crates/simple-directory-app/src/commands/vault.rs) following the §8 pure-handler / thin-shim pattern.
 
 - `read_file_text`: coarse-grained "give me a markdown file's contents as text". Existence check (`files.path` lookup), type check (`type_id == "markdown"` only — binary rejected with `InvalidRequest`), on-disk read inside `tokio::task::spawn_blocking`.
-- `get_canonical_ast`: reuses `read_file_text` for the disk fetch, pushes `cubical_ast::parse` through `spawn_blocking` (CPU-bound, mirrors the hashing dispatch in `scan.rs`). Pre-L7 the AST is recomputed on every call; the only AST-derived storage at L1 is the frontmatter index.
+- `get_canonical_ast`: reuses `read_file_text` for the disk fetch, pushes `simple_directory_ast::parse` through `spawn_blocking` (CPU-bound, mirrors the hashing dispatch in `scan.rs`). Pre-L7 the AST is recomputed on every call; the only AST-derived storage at L1 is the frontmatter index.
 
-New error variant: `CubicalError::InvalidRequest(String)` for argument-validation failures. Wire shapes mirror Session A's pattern (typed request/response structs in `api/types.rs`); the `get_canonical_ast` response carries a `cubical_ast::Document` directly so the AST has exactly one source-of-truth definition. Tauri shims in [`crates/cubical-app/src/lib.rs`](../crates/cubical-app/src/lib.rs); `invoke_handler` updated. Pure modules (`commands/`, `api/`, `state.rs`) remain Tauri-free.
+New error variant: `SimpleDirectoryError::InvalidRequest(String)` for argument-validation failures. Wire shapes mirror Session A's pattern (typed request/response structs in `api/types.rs`); the `get_canonical_ast` response carries a `simple_directory_ast::Document` directly so the AST has exactly one source-of-truth definition. Tauri shims in [`crates/simple-directory-app/src/lib.rs`](../crates/simple-directory-app/src/lib.rs); `invoke_handler` updated. Pure modules (`commands/`, `api/`, `state.rs`) remain Tauri-free.
 
 ### Frontend stack
 
@@ -141,9 +141,9 @@ New error variant: `CubicalError::InvalidRequest(String)` for argument-validatio
 
 ### TypeScript canonical AST + normalizer
 
-- [`ui/src/ast/types.ts`](../ui/src/ast/types.ts): wire-shape mirror of `cubical_ast::Document` — discriminated unions on `kind` with `snake_case` tag values, exactly matching `#[serde(tag = "kind", rename_all = "snake_case")]`.
+- [`ui/src/ast/types.ts`](../ui/src/ast/types.ts): wire-shape mirror of `simple_directory_ast::Document` — discriminated unions on `kind` with `snake_case` tag values, exactly matching `#[serde(tag = "kind", rename_all = "snake_case")]`.
 - [`ui/src/ast/frontmatter.ts`](../ui/src/ast/frontmatter.ts): strict frontmatter splitter (CRLF-tolerant, leading-whitespace-rejecting, `---`-on-its-own-line closer); YAML parsing delegated to the `yaml` package.
-- [`ui/src/ast/normalize.ts`](../ui/src/ast/normalize.ts): walks the Lezer tree (`@lezer/markdown`'s `parser.parse`) and produces the same `CanonicalDocument` shape as `cubical_ast::parse`.
+- [`ui/src/ast/normalize.ts`](../ui/src/ast/normalize.ts): walks the Lezer tree (`@lezer/markdown`'s `parser.parse`) and produces the same `CanonicalDocument` shape as `simple_directory_ast::parse`.
 
 Non-trivial pieces of parity, all of which the TS normalizer encodes explicitly:
 
@@ -157,7 +157,7 @@ L1's AST doesn't model wiki-links, embeds, block IDs, tags, tables, footnotes, d
 
 ### Cross-language parity harness
 
-[`crates/cubical-ast/tests/fixtures/parity.json`](../crates/cubical-ast/tests/fixtures/parity.json) is a single committed file with `[{name, input, expected}]` entries; both [`crates/cubical-ast/tests/parity_fixtures.rs`](../crates/cubical-ast/tests/parity_fixtures.rs) and [`ui/src/ast/parity.test.ts`](../ui/src/ast/parity.test.ts) verify their respective parser produces `expected` for each `input`. The Rust test is also the regenerator (see §3.1). 8 fixtures cover heading + paragraph, fenced code, loose list, blockquote, link + image, frontmatter (with nested mapping), thematic break, and inline code + hard break.
+[`crates/simple-directory-ast/tests/fixtures/parity.json`](../crates/simple-directory-ast/tests/fixtures/parity.json) is a single committed file with `[{name, input, expected}]` entries; both [`crates/simple-directory-ast/tests/parity_fixtures.rs`](../crates/simple-directory-ast/tests/parity_fixtures.rs) and [`ui/src/ast/parity.test.ts`](../ui/src/ast/parity.test.ts) verify their respective parser produces `expected` for each `input`. The Rust test is also the regenerator (see §3.1). 8 fixtures cover heading + paragraph, fenced code, loose list, blockquote, link + image, frontmatter (with nested mapping), thematic break, and inline code + hard break.
 
 ### CodeMirror 6 editor surface
 
@@ -174,7 +174,7 @@ L1's AST doesn't model wiki-links, embeds, block IDs, tags, tables, footnotes, d
 
 ### Test counts (cumulative)
 
-**Rust:** cubical-ast 26 (Session A's 25 + 1 round-trip serde test) + 1 parity_fixtures integration test · cubical-core 42 · cubical-index 6 · cubical-app 17 (Session A's 10 + 7 read_file_text / get_canonical_ast happy + error paths) = **92 Rust tests across the workspace, all green**.
+**Rust:** simple-directory-ast 26 (Session A's 25 + 1 round-trip serde test) + 1 parity_fixtures integration test · simple-directory-core 42 · simple-directory-index 6 · simple-directory-app 17 (Session A's 10 + 7 read_file_text / get_canonical_ast happy + error paths) = **92 Rust tests across the workspace, all green**.
 
 **UI:** 23 vitest tests (8 parity-harness fixtures + 15 normalizer / frontmatter unit tests).
 

@@ -18,7 +18,7 @@ const tag = (t: string): OmniItem => ({ kind: "tag", tag: t });
 describe("matchText", () => {
   it("uses title for notes and tag for tags", () => {
     expect(matchText(note("Red King"))).toBe("Red King");
-    expect(matchText(tag("project/cubical"))).toBe("project/cubical");
+    expect(matchText(tag("project/simple-directory"))).toBe("project/simple-directory");
   });
 });
 

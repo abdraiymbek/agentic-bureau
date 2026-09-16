@@ -1,0 +1,51 @@
+[package]
+name = "simple-directory-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Frontend-agnostic engine: command handlers, state, events, and IPC types. No Tauri — consumed by the Tauri shell and (future) CLI."
+
+[dependencies]
+# Workspace crates
+simple-directory-core   = { path = "../simple-directory-core" }
+simple-directory-ast    = { path = "../simple-directory-ast" }
+simple-directory-index  = { path = "../simple-directory-index" }
+simple-directory-graph  = { path = "../simple-directory-graph" }
+simple-directory-search = { path = "../simple-directory-search" }
+simple-directory-query  = { path = "../simple-directory-query" }
+simple-directory-table  = { path = "../simple-directory-table" }
+
+# Database — From<libsql::Error> on SimpleDirectoryError + libsql::params! in handlers.
+libsql = { workspace = true }
+
+# Async runtime + utilities
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Hashing — deterministic block-id generation in create_block_ref (L3);
+# also the vault-lock filename (canonical-path digest) in vault_lock.rs.
+sha2 = { workspace = true }
+
+# Cross-process vault ownership lock — OS advisory file lock + runtime-dir resolution.
+dirs = "6"
+
+# OS trash/recycle bin — see delete_path in commands/vault.rs.
+trash = { workspace = true }
+
+# Binary payload encoding for read_file_bytes — the IPC boundary is JSON.
+base64 = "0.23"
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

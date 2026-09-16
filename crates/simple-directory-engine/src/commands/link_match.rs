@@ -1,0 +1,219 @@
+use simple_directory_ast::{note_title, strip_markdown_extension};
+use simple_directory_index::names_eq_folded;
+
+pub(crate) fn link_name_forms(path: &str) -> (String, String) {
+    (
+        note_title(path).to_string(),
+        strip_markdown_extension(path).to_string(),
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum CandidateRank {
+    ExactPath,
+    ExactBasename,
+    CaseInsensitivePath,
+    CaseInsensitiveBasename,
+    FrontmatterTitle,
+}
+
+impl CandidateRank {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            CandidateRank::ExactPath => "exact_path",
+            CandidateRank::ExactBasename => "exact_basename",
+            CandidateRank::CaseInsensitivePath => "case_insensitive_path",
+            CandidateRank::CaseInsensitiveBasename => "case_insensitive_basename",
+            CandidateRank::FrontmatterTitle => "frontmatter_title",
+        }
+    }
+}
+
+pub(crate) fn classify_candidate(candidate_path: &str, token: &str) -> Option<CandidateRank> {
+    if token.is_empty() {
+        return None;
+    }
+    let (basename, path_no_md) = link_name_forms(candidate_path);
+    if token == path_no_md {
+        return Some(CandidateRank::ExactPath);
+    }
+    if token == basename {
+        return Some(CandidateRank::ExactBasename);
+    }
+    if names_eq_folded(token, &path_no_md) {
+        return Some(CandidateRank::CaseInsensitivePath);
+    }
+    if names_eq_folded(token, &basename) {
+        return Some(CandidateRank::CaseInsensitiveBasename);
+    }
+    None
+}
+
+pub(crate) fn derive_reattach_token(target_raw: &str, to_path: &str) -> String {
+    let basename = note_title(to_path);
+    if !target_raw.contains('/') && basename != target_raw {
+        basename.to_string()
+    } else {
+        strip_markdown_extension(to_path).to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::rename::reconnect_broken_links_to;
+    use simple_directory_core::Vault;
+    use libsql::params;
+    use tempfile::tempdir;
+
+    #[test]
+    fn exact_path_outranks_exact_basename() {
+        assert_eq!(
+            classify_candidate("notes/plan.md", "notes/plan"),
+            Some(CandidateRank::ExactPath)
+        );
+        assert_eq!(
+            classify_candidate("notes/plan.md", "plan"),
+            Some(CandidateRank::ExactBasename)
+        );
+    }
+
+    #[test]
+    fn case_insensitive_forms_rank_below_exact() {
+        assert_eq!(
+            classify_candidate("notes/Plan.md", "notes/plan"),
+            Some(CandidateRank::CaseInsensitivePath)
+        );
+        assert_eq!(
+            classify_candidate("notes/Plan.md", "PLAN"),
+            Some(CandidateRank::CaseInsensitiveBasename)
+        );
+        assert!(CandidateRank::ExactPath < CandidateRank::CaseInsensitivePath);
+        assert!(CandidateRank::CaseInsensitiveBasename < CandidateRank::FrontmatterTitle);
+    }
+
+    #[test]
+    fn unrelated_and_empty_tokens_do_not_match() {
+        assert!(classify_candidate("notes/plan.md", "roadmap").is_none());
+        assert!(classify_candidate("notes/plan.md", "   ").is_none());
+        assert!(classify_candidate("notes/plan.md", "plan.md").is_none());
+    }
+
+    #[test]
+    fn reattach_token_keeps_bare_tokens_bare_and_disambiguates_collisions() {
+        assert_eq!(
+            derive_reattach_token("plan", "archive/roadmap.md"),
+            "roadmap"
+        );
+        assert_eq!(
+            derive_reattach_token("notes/plan", "archive/roadmap.md"),
+            "archive/roadmap"
+        );
+        assert_eq!(derive_reattach_token("Dup", "other/Dup.md"), "other/Dup");
+    }
+
+    #[test]
+    fn classification_folds_the_way_path_resolution_folds() {
+        use simple_directory_core::vault::links::PathResolver;
+
+        for (path, token) in [
+            ("café.md", "CAFÉ"),
+            ("Straße.md", "straße"),
+            ("Plan.md", "plan"),
+            ("ÅNGSTRÖM.md", "ångström"),
+        ] {
+            let resolver = PathResolver::build(vec![path.to_string()]);
+            assert_eq!(
+                resolver.resolve(token).as_deref(),
+                Some(path),
+                "resolution folds {token} onto {path}"
+            );
+            assert!(
+                classify_candidate(path, token).is_some(),
+                "reattachment must fold {token} onto {path} too"
+            );
+        }
+    }
+
+    const MATRIX_PATHS: [&str; 5] = [
+        "notes/plan.md",
+        "Plan.md",
+        "archive/old plan.md",
+        "café.md",
+        "notes/Straße.md",
+    ];
+    const MATRIX_TOKENS: [&str; 14] = [
+        "plan",
+        "Plan",
+        "PLAN",
+        "notes/plan",
+        "notes/Plan",
+        "old plan",
+        "archive/old plan",
+        "roadmap",
+        "café",
+        "CAFÉ",
+        "notes/straße",
+        "notes/STRASSE",
+        "notes/Straße",
+        "  plan  ",
+    ];
+
+    #[tokio::test]
+    async fn classification_agrees_with_the_reattachment_predicate() {
+        for candidate in MATRIX_PATHS {
+            let dir = tempdir().unwrap();
+            let vault = Vault::open(dir.path()).await.expect("open");
+            let conn = vault.index().connection();
+            conn.execute(
+                "INSERT INTO files (
+                     path, type_id, size_bytes, mtime_unix, content_hash,
+                     inode, last_seen, created_at, updated_at
+                 ) VALUES ('src.md', 'markdown', 0, 0, '', NULL, 0, 0, 0)",
+                (),
+            )
+            .await
+            .unwrap();
+            for (i, token) in MATRIX_TOKENS.iter().enumerate() {
+                conn.execute(
+                    "INSERT INTO links \
+                     (source_path, target_raw, target_path, is_embed, position) \
+                     VALUES ('src.md', ?1, NULL, 0, ?2)",
+                    params![*token, i as i64],
+                )
+                .await
+                .unwrap();
+            }
+
+            let (basename, path_no_md) = link_name_forms(candidate);
+            let tx = conn.transaction().await.unwrap();
+            reconnect_broken_links_to(&tx, "reattached.md", &basename, &path_no_md)
+                .await
+                .unwrap();
+            tx.commit().await.unwrap();
+
+            let mut rows = conn
+                .query(
+                    "SELECT target_raw FROM links WHERE target_path = 'reattached.md' \
+                     ORDER BY target_raw",
+                    (),
+                )
+                .await
+                .unwrap();
+            let mut sql_matched: Vec<String> = Vec::new();
+            while let Some(row) = rows.next().await.unwrap() {
+                sql_matched.push(row.get(0).unwrap());
+            }
+            sql_matched.sort();
+
+            let mut classified: Vec<String> = MATRIX_TOKENS
+                .iter()
+                .filter(|t| classify_candidate(candidate, t).is_some())
+                .map(|t| (*t).to_string())
+                .collect();
+            classified.sort();
+
+            assert_eq!(sql_matched, classified, "candidate {candidate}");
+        }
+    }
+}

@@ -4,11 +4,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Tantivy-backed full-text search to Cubical as a backend-only session: new content in `cubical-search`, indexing piped through the existing scan + watcher fan-out, query exposed via four Tauri IPC commands. No UI ships; the index is exercised through dev-console IPC during smoke.
+**Goal:** Add Tantivy-backed full-text search to simple.directory as a backend-only session: new content in `simple-directory-search`, indexing piped through the existing scan + watcher fan-out, query exposed via four Tauri IPC commands. No UI ships; the index is exercised through dev-console IPC during smoke.
 
-**Architecture:** `cubical-search` becomes the Tantivy wrapper (depends only on `cubical-ast` + `tantivy`). One Tantivy doc per `.md` file, with structural fields (`title`, `headings`, `body`, `code`, `tags`, `frontmatter`) plus `mtime_secs` / `size_bytes` / `path`. Two tokenizers: `en_stem` for prose, `code` (`SimpleTokenizer` + lowercase, no stemmer) for symbol-heavy code. Indexing rides the existing `vault/scan.rs` Pass 1 loop as a fifth refresher (`refresh_search_index`) after blocks; the watcher's `apply_watch_event_to_db` dispatcher gets the same fan-out plus a delete path. Schema-version stamp at `<vault>/.cubical/search/schema.json`; mismatch wipes and rebuilds. Single `IndexWriter`, `IndexReader` with `ReloadPolicy::Manual` reloaded after each commit.
+**Architecture:** `simple-directory-search` becomes the Tantivy wrapper (depends only on `simple-directory-ast` + `tantivy`). One Tantivy doc per `.md` file, with structural fields (`title`, `headings`, `body`, `code`, `tags`, `frontmatter`) plus `mtime_secs` / `size_bytes` / `path`. Two tokenizers: `en_stem` for prose, `code` (`SimpleTokenizer` + lowercase, no stemmer) for symbol-heavy code. Indexing rides the existing `vault/scan.rs` Pass 1 loop as a fifth refresher (`refresh_search_index`) after blocks; the watcher's `apply_watch_event_to_db` dispatcher gets the same fan-out plus a delete path. Schema-version stamp at `<vault>/.simple-directory/search/schema.json`; mismatch wipes and rebuilds. Single `IndexWriter`, `IndexReader` with `ReloadPolicy::Manual` reloaded after each commit.
 
-**Tech Stack:** Rust (`cubical-search`, `cubical-core`, `cubical-app`); TypeScript / Solid (`ui/src/ipc`); Tantivy 0.22.x; Tauri 2 IPC; existing libSQL `config` table for hidden commit-interval settings.
+**Tech Stack:** Rust (`simple-directory-search`, `simple-directory-core`, `simple-directory-app`); TypeScript / Solid (`ui/src/ipc`); Tantivy 0.22.x; Tauri 2 IPC; existing libSQL `config` table for hidden commit-interval settings.
 
 ---
 
@@ -27,39 +27,39 @@
 **Create:**
 
 ```
-crates/cubical-search/src/error.rs              # SearchError
-crates/cubical-search/src/schema.rs             # Tantivy schema + field handles + tokenizer registration
-crates/cubical-search/src/doc.rs                # IndexDoc projector (frontmatter + body walker)
-crates/cubical-search/src/index.rs              # SearchIndex: open/upsert/delete/reader/commit
-crates/cubical-search/src/status.rs             # IndexState, IndexStatus, IndexHealth
-crates/cubical-search/src/query.rs              # SearchQuery, SearchHit, FieldScope, run_search
+crates/simple-directory-search/src/error.rs              # SearchError
+crates/simple-directory-search/src/schema.rs             # Tantivy schema + field handles + tokenizer registration
+crates/simple-directory-search/src/doc.rs                # IndexDoc projector (frontmatter + body walker)
+crates/simple-directory-search/src/index.rs              # SearchIndex: open/upsert/delete/reader/commit
+crates/simple-directory-search/src/status.rs             # IndexState, IndexStatus, IndexHealth
+crates/simple-directory-search/src/query.rs              # SearchQuery, SearchHit, FieldScope, run_search
 
-crates/cubical-core/src/vault/search_refresh.rs # async refresh_search_index wrapper
+crates/simple-directory-core/src/vault/search_refresh.rs # async refresh_search_index wrapper
 
-crates/cubical-app/src/commands/search.rs       # four IPC handlers
+crates/simple-directory-app/src/commands/search.rs       # four IPC handlers
 
 ui/src/ipc/search.ts                            # TS wrappers + types
 ui/src/ipc/search.test.ts                       # vitest smoke
 
 docs/layer-4-spec.md                            # NEW — layer-4 spec scaffold, §9.1 filled at close
-~/Developer/sandbox/cubical-l4a-smoke/          # NEW smoke vault (built in Task 14)
+~/Developer/sandbox/simple-directory-l4a-smoke/          # NEW smoke vault (built in Task 14)
 ```
 
 **Modify:**
 
 ```
-crates/cubical-search/Cargo.toml                # add tantivy = "0.22", serde for IndexHealth
-crates/cubical-search/src/lib.rs                # replace skeleton, re-export modules
+crates/simple-directory-search/Cargo.toml                # add tantivy = "0.22", serde for IndexHealth
+crates/simple-directory-search/src/lib.rs                # replace skeleton, re-export modules
 
-crates/cubical-core/Cargo.toml                  # add cubical-search dependency
-crates/cubical-core/src/vault/mod.rs            # add `search: Arc<SearchIndex>` field, open it, accessor
-crates/cubical-core/src/vault/scan.rs           # call refresh_search_index after refresh_blocks; commit search every 5000 docs
-crates/cubical-core/src/vault/watcher.rs        # fan out to search refresh + delete in apply_watch_event_to_db
+crates/simple-directory-core/Cargo.toml                  # add simple-directory-search dependency
+crates/simple-directory-core/src/vault/mod.rs            # add `search: Arc<SearchIndex>` field, open it, accessor
+crates/simple-directory-core/src/vault/scan.rs           # call refresh_search_index after refresh_blocks; commit search every 5000 docs
+crates/simple-directory-core/src/vault/watcher.rs        # fan out to search refresh + delete in apply_watch_event_to_db
 
-crates/cubical-app/Cargo.toml                   # add cubical-search dependency
-crates/cubical-app/src/api/types.rs             # IPC request/response DTOs
-crates/cubical-app/src/lib.rs                   # register four Tauri shims
-crates/cubical-app/src/commands/mod.rs          # `pub mod search;`
+crates/simple-directory-app/Cargo.toml                   # add simple-directory-search dependency
+crates/simple-directory-app/src/api/types.rs             # IPC request/response DTOs
+crates/simple-directory-app/src/lib.rs                   # register four Tauri shims
+crates/simple-directory-app/src/commands/mod.rs          # `pub mod search;`
 
 CLAUDE.md                                       # rewrite "Project state" at session close
 ```
@@ -87,27 +87,27 @@ Tokenizers registered on the index's `TokenizerManager`:
 - `en_stem`: `SimpleTokenizer` + `LowerCaser` + `Stemmer::new(Language::English)`. No stop-word filter.
 - `code`: `SimpleTokenizer` + `LowerCaser`. No stemmer.
 
-Schema-version stamp: `<vault>/.cubical/search/schema.json` containing `{"version": 1}`. Mismatch / missing / unparseable → wipe `search/` directory and rebuild.
+Schema-version stamp: `<vault>/.simple-directory/search/schema.json` containing `{"version": 1}`. Mismatch / missing / unparseable → wipe `search/` directory and rebuild.
 
 ---
 
 ## Tasks
 
-### Task 1: Workspace deps + `cubical-search` lib scaffold
+### Task 1: Workspace deps + `simple-directory-search` lib scaffold
 
-Bring Tantivy into the workspace and prepare `cubical-search`'s module tree. No feature code yet — this task just makes everything compile.
+Bring Tantivy into the workspace and prepare `simple-directory-search`'s module tree. No feature code yet — this task just makes everything compile.
 
 **Files:**
-- Modify: `crates/cubical-search/Cargo.toml`
-- Modify: `crates/cubical-search/src/lib.rs`
-- Modify: `crates/cubical-core/Cargo.toml`
-- Modify: `crates/cubical-app/Cargo.toml`
+- Modify: `crates/simple-directory-search/Cargo.toml`
+- Modify: `crates/simple-directory-search/src/lib.rs`
+- Modify: `crates/simple-directory-core/Cargo.toml`
+- Modify: `crates/simple-directory-app/Cargo.toml`
 
-- [ ] **Step 1: Add deps to `crates/cubical-search/Cargo.toml`.**
+- [ ] **Step 1: Add deps to `crates/simple-directory-search/Cargo.toml`.**
 
 ```toml
 [package]
-name = "cubical-search"
+name = "simple-directory-search"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -116,7 +116,7 @@ authors.workspace = true
 description = "Tantivy wrapper. Full-text search over the canonical AST (L4-A)."
 
 [dependencies]
-cubical-ast = { path = "../cubical-ast" }
+simple-directory-ast = { path = "../simple-directory-ast" }
 tantivy = "0.22"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -127,10 +127,10 @@ tracing = { workspace = true }
 tempfile = { workspace = true }
 ```
 
-- [ ] **Step 2: Replace `crates/cubical-search/src/lib.rs`.**
+- [ ] **Step 2: Replace `crates/simple-directory-search/src/lib.rs`.**
 
 ```rust
-//! `cubical-search` — Tantivy wrapper.
+//! `simple-directory-search` — Tantivy wrapper.
 //!
 //! Full-text search over the canonical AST. One Tantivy document per
 //! `.md` file with structural fields (`title`, `headings`, `body`,
@@ -156,7 +156,7 @@ pub use status::{IndexHealth, IndexState, IndexStatus};
 
 - [ ] **Step 3: Create empty module stubs so the lib compiles.**
 
-For each of `doc.rs`, `error.rs`, `index.rs`, `query.rs`, `schema.rs`, `status.rs` under `crates/cubical-search/src/`, write:
+For each of `doc.rs`, `error.rs`, `index.rs`, `query.rs`, `schema.rs`, `status.rs` under `crates/simple-directory-search/src/`, write:
 
 ```rust
 //! Stub — populated in a later task.
@@ -164,30 +164,30 @@ For each of `doc.rs`, `error.rs`, `index.rs`, `query.rs`, `schema.rs`, `status.r
 
 This will fail to compile because of the `pub use` statements. That's expected; fix it temporarily by replacing each `pub use` line in `lib.rs` with a `#[allow(dead_code)] use` reference OR by populating Task 2/3/etc. before re-running `cargo build`. Simplest: comment the `pub use` lines out for now and uncomment as each module is fleshed out. **Add a TODO comment in `lib.rs`** noting which tasks restore each re-export.
 
-- [ ] **Step 4: Add `cubical-search` as a dependency of `cubical-core` and `cubical-app`.**
+- [ ] **Step 4: Add `simple-directory-search` as a dependency of `simple-directory-core` and `simple-directory-app`.**
 
-In `crates/cubical-core/Cargo.toml` `[dependencies]`:
+In `crates/simple-directory-core/Cargo.toml` `[dependencies]`:
 
 ```toml
-cubical-search = { path = "../cubical-search" }
+simple-directory-search = { path = "../simple-directory-search" }
 ```
 
-In `crates/cubical-app/Cargo.toml` `[dependencies]`:
+In `crates/simple-directory-app/Cargo.toml` `[dependencies]`:
 
 ```toml
-cubical-search = { path = "../cubical-search" }
+simple-directory-search = { path = "../simple-directory-search" }
 ```
 
 - [ ] **Step 5: Verify workspace compiles.**
 
 Run: `cargo build --workspace`
-Expected: clean build, no errors. Warnings about unused imports in `cubical-search/src/lib.rs` are acceptable for this commit.
+Expected: clean build, no errors. Warnings about unused imports in `simple-directory-search/src/lib.rs` are acceptable for this commit.
 
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add crates/cubical-search/Cargo.toml crates/cubical-search/src/ crates/cubical-core/Cargo.toml crates/cubical-app/Cargo.toml
-git commit -m "feat(l4-a): cubical-search crate scaffold + tantivy workspace dep"
+git add crates/simple-directory-search/Cargo.toml crates/simple-directory-search/src/ crates/simple-directory-core/Cargo.toml crates/simple-directory-app/Cargo.toml
+git commit -m "feat(l4-a): simple-directory-search crate scaffold + tantivy workspace dep"
 ```
 
 ---
@@ -195,13 +195,13 @@ git commit -m "feat(l4-a): cubical-search crate scaffold + tantivy workspace dep
 ### Task 2: `SearchError` type
 
 **Files:**
-- Modify: `crates/cubical-search/src/error.rs`
-- Modify: `crates/cubical-search/src/lib.rs` (re-enable `pub use error::SearchError;`)
+- Modify: `crates/simple-directory-search/src/error.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs` (re-enable `pub use error::SearchError;`)
 
-- [ ] **Step 1: Write a failing test in `crates/cubical-search/src/error.rs`.**
+- [ ] **Step 1: Write a failing test in `crates/simple-directory-search/src/error.rs`.**
 
 ```rust
-//! Error type for `cubical-search`.
+//! Error type for `simple-directory-search`.
 
 use thiserror::Error;
 
@@ -253,17 +253,17 @@ mod tests {
 
 - [ ] **Step 2: Re-enable the re-export.**
 
-In `crates/cubical-search/src/lib.rs`, uncomment `pub use error::SearchError;`.
+In `crates/simple-directory-search/src/lib.rs`, uncomment `pub use error::SearchError;`.
 
 - [ ] **Step 3: Run the test.**
 
-Run: `cargo test -p cubical-search error::tests`
+Run: `cargo test -p simple-directory-search error::tests`
 Expected: PASS (1 test).
 
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-search/src/error.rs crates/cubical-search/src/lib.rs
+git add crates/simple-directory-search/src/error.rs crates/simple-directory-search/src/lib.rs
 git commit -m "feat(l4-a): SearchError type"
 ```
 
@@ -274,12 +274,12 @@ git commit -m "feat(l4-a): SearchError type"
 Define the field handles once; every later task imports them.
 
 **Files:**
-- Modify: `crates/cubical-search/src/schema.rs`
-- Modify: `crates/cubical-search/src/lib.rs`
+- Modify: `crates/simple-directory-search/src/schema.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs`
 
 - [ ] **Step 1: Write the failing test.**
 
-In `crates/cubical-search/src/schema.rs`:
+In `crates/simple-directory-search/src/schema.rs`:
 
 ```rust
 //! Tantivy schema definition for the search index.
@@ -403,13 +403,13 @@ mod tests {
 
 - [ ] **Step 2: Run the tests.**
 
-Run: `cargo test -p cubical-search schema::tests`
+Run: `cargo test -p simple-directory-search schema::tests`
 Expected: PASS (2 tests).
 
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add crates/cubical-search/src/schema.rs crates/cubical-search/src/lib.rs
+git add crates/simple-directory-search/src/schema.rs crates/simple-directory-search/src/lib.rs
 git commit -m "feat(l4-a): Tantivy schema + en_stem/code tokenizers"
 ```
 
@@ -420,15 +420,15 @@ git commit -m "feat(l4-a): Tantivy schema + en_stem/code tokenizers"
 The "simple" fields are everything except the AST body walker: `path`, `title`, `tags`, `frontmatter`, `mtime_secs`, `size_bytes`. Body walker is Task 5.
 
 **Files:**
-- Modify: `crates/cubical-search/src/doc.rs`
-- Modify: `crates/cubical-search/src/lib.rs`
+- Modify: `crates/simple-directory-search/src/doc.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs`
 
 - [ ] **Step 1: Write the failing test first.**
 
 ```rust
 //! Project an on-disk markdown file into Tantivy fields.
 
-use cubical_ast::{frontmatter::parse_frontmatter, parse, Document};
+use simple_directory_ast::{frontmatter::parse_frontmatter, parse, Document};
 
 /// Projection of one `.md` file into the search schema.
 #[derive(Debug, Clone, PartialEq)]
@@ -457,7 +457,7 @@ pub struct IndexDoc {
 /// AST is parsed locally so the caller hands only `(path, source, mtime, size)`.
 ///
 /// `tags` are collected from frontmatter `tags:` plus inline `#tag`
-/// occurrences (via `cubical_ast::tag::scan_tags`). They are lowercased
+/// occurrences (via `simple_directory_ast::tag::scan_tags`). They are lowercased
 /// at projection time so the `tag:` field-prefix query parses to the
 /// same form as the indexed value.
 pub fn project(path: &str, source: &str, mtime_secs: i64, size_bytes: u64) -> IndexDoc {
@@ -492,7 +492,7 @@ fn derive_title(path: &str, doc: &Document, source: &str) -> String {
 }
 
 fn collect_tags(_doc: &Document, source: &str) -> Vec<String> {
-    use cubical_ast::tag::scan_tags;
+    use simple_directory_ast::tag::scan_tags;
     let mut out: Vec<String> = Vec::new();
     if let Some(fm) = parse_frontmatter(source) {
         for t in fm.get_string_list("tags") {
@@ -549,9 +549,9 @@ mod tests {
 
     #[test]
     fn tags_collected_lowercased_deduped_sorted() {
-        let src = "---\ntags: [Project/Cubical, Notes]\n---\n\n#project/cubical and #Notes again\n";
+        let src = "---\ntags: [Project/simple.directory, Notes]\n---\n\n#project/simple-directory and #Notes again\n";
         let d = project("x.md", src, 0, 0);
-        assert_eq!(d.tags, vec!["notes".to_string(), "project/cubical".to_string()]);
+        assert_eq!(d.tags, vec!["notes".to_string(), "project/simple-directory".to_string()]);
     }
 
     #[test]
@@ -575,9 +575,9 @@ mod tests {
 
 - [ ] **Step 2: Check the frontmatter API surface this test depends on.**
 
-The test calls `parse_frontmatter`, `fm.get_string`, `fm.get_string_list`, `fm.flattened_scalars`. Check that those exist in `crates/cubical-ast/src/frontmatter.rs`:
+The test calls `parse_frontmatter`, `fm.get_string`, `fm.get_string_list`, `fm.flattened_scalars`. Check that those exist in `crates/simple-directory-ast/src/frontmatter.rs`:
 
-Run: `grep -n "pub fn get_string\|pub fn get_string_list\|pub fn flattened_scalars\|pub fn parse_frontmatter" crates/cubical-ast/src/frontmatter.rs`
+Run: `grep -n "pub fn get_string\|pub fn get_string_list\|pub fn flattened_scalars\|pub fn parse_frontmatter" crates/simple-directory-ast/src/frontmatter.rs`
 
 If any of `get_string`, `get_string_list`, or `flattened_scalars` are missing, **add them** before continuing. Each addition is small (3–15 lines) — they're thin wrappers over the existing YAML value type. The test above is the contract.
 
@@ -585,17 +585,17 @@ If `flattened_scalars` doesn't exist, implement it as: depth-first walk over the
 
 - [ ] **Step 3: Re-enable the re-export.**
 
-In `crates/cubical-search/src/lib.rs`, uncomment `pub use doc::IndexDoc;`.
+In `crates/simple-directory-search/src/lib.rs`, uncomment `pub use doc::IndexDoc;`.
 
 - [ ] **Step 4: Run the tests.**
 
-Run: `cargo test -p cubical-search doc::tests`
+Run: `cargo test -p simple-directory-search doc::tests`
 Expected: 5 PASS.
 
 - [ ] **Step 5: Commit.**
 
 ```bash
-git add crates/cubical-search/src/doc.rs crates/cubical-search/src/lib.rs crates/cubical-ast/src/frontmatter.rs
+git add crates/simple-directory-search/src/doc.rs crates/simple-directory-search/src/lib.rs crates/simple-directory-ast/src/frontmatter.rs
 git commit -m "feat(l4-a): IndexDoc simple-field projector (title, tags, frontmatter, mtime, size)"
 ```
 
@@ -611,11 +611,11 @@ This walks the canonical `Document` and produces three strings. The rules from t
 - `code` = fenced + inline code text joined with `\n`.
 
 **Files:**
-- Modify: `crates/cubical-search/src/doc.rs`
+- Modify: `crates/simple-directory-search/src/doc.rs`
 
 - [ ] **Step 1: Write the failing test (extend the existing `tests` module).**
 
-Add these tests to `crates/cubical-search/src/doc.rs`'s `tests` module:
+Add these tests to `crates/simple-directory-search/src/doc.rs`'s `tests` module:
 
 ```rust
 #[test]
@@ -696,7 +696,7 @@ fn body_excludes_raw_tags_and_block_ids() {
 
 - [ ] **Step 2: Replace `collect_headings` and add `walk_body_code`.**
 
-Replace the body of `crates/cubical-search/src/doc.rs`'s `collect_headings` stub and add a `walk_body_code(doc, source) -> (String, String)` plus rewrite `project` to use it. The walker iterates `cubical_ast::Block` + `Inline` and dispatches per variant:
+Replace the body of `crates/simple-directory-search/src/doc.rs`'s `collect_headings` stub and add a `walk_body_code(doc, source) -> (String, String)` plus rewrite `project` to use it. The walker iterates `simple_directory_ast::Block` + `Inline` and dispatches per variant:
 
 - `Block::Heading { text, .. }` → append `text` (+ `\n` separator) to `headings`. **Do not** descend into headings for body text.
 - `Block::Paragraph { inlines }`, `Block::Blockquote`, list items, table cells → walk inlines into `body`.
@@ -710,19 +710,19 @@ Replace the body of `crates/cubical-search/src/doc.rs`'s `collect_headings` stub
 - `Inline::Image { alt, .. }` (standard markdown image) → append `alt` + ' ' to `body`.
 - `Inline::Tag(_)` → skip (tags belong to the `tags` field).
 
-Use the actual variant names from `cubical_ast::types`. Check them with `grep -n "pub enum Inline\|pub enum Block" crates/cubical-ast/src/types.rs` first; adapt the dispatch if any variant differs (e.g. some codebases use `BlockId(String)` for `^id` markers — skip those too).
+Use the actual variant names from `simple_directory_ast::types`. Check them with `grep -n "pub enum Inline\|pub enum Block" crates/simple-directory-ast/src/types.rs` first; adapt the dispatch if any variant differs (e.g. some codebases use `BlockId(String)` for `^id` markers — skip those too).
 
 Update `project` to call `walk_body_code` and `collect_headings` from the same single AST walk where practical (one pass is enough). Headings already trimmed: each heading text on its own line, joined with `\n`, no trailing newline. Body and code trimmed of trailing whitespace on commit.
 
 - [ ] **Step 3: Run the tests.**
 
-Run: `cargo test -p cubical-search doc::tests`
+Run: `cargo test -p simple-directory-search doc::tests`
 Expected: 13 PASS (5 from Task 4 + 8 new).
 
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-search/src/doc.rs
+git add crates/simple-directory-search/src/doc.rs
 git commit -m "feat(l4-a): body+headings+code walker honoring spec exclusions"
 ```
 
@@ -733,8 +733,8 @@ git commit -m "feat(l4-a): body+headings+code walker honoring spec exclusions"
 The heart of the wrapper. Schema-version stamp + tokenizer registration on open. `IndexWriter` held internally, `IndexReader` with `ReloadPolicy::Manual` reloaded after every commit.
 
 **Files:**
-- Modify: `crates/cubical-search/src/index.rs`
-- Modify: `crates/cubical-search/src/lib.rs`
+- Modify: `crates/simple-directory-search/src/index.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests first.**
 
@@ -753,7 +753,7 @@ use tantivy::schema::{IndexRecordOption, Schema, Value};
 use tantivy::{doc, Index, IndexReader, IndexWriter, ReloadPolicy, Term};
 
 /// Current on-disk schema version. Bump on any schema change; mismatch
-/// wipes `<vault>/.cubical/search/` and forces a rebuild.
+/// wipes `<vault>/.simple-directory/search/` and forces a rebuild.
 pub const SCHEMA_VERSION: u32 = 1;
 
 const SCHEMA_JSON: &str = "schema.json";
@@ -989,17 +989,17 @@ mod tests {
 
 - [ ] **Step 2: Re-enable the re-export.**
 
-In `crates/cubical-search/src/lib.rs`, uncomment `pub use index::SearchIndex;`.
+In `crates/simple-directory-search/src/lib.rs`, uncomment `pub use index::SearchIndex;`.
 
 - [ ] **Step 3: Run the tests.**
 
-Run: `cargo test -p cubical-search index::tests`
+Run: `cargo test -p simple-directory-search index::tests`
 Expected: 6 PASS.
 
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-search/src/index.rs crates/cubical-search/src/lib.rs
+git add crates/simple-directory-search/src/index.rs crates/simple-directory-search/src/lib.rs
 git commit -m "feat(l4-a): SearchIndex open/upsert/delete/commit + schema-version wipe"
 ```
 
@@ -1010,8 +1010,8 @@ git commit -m "feat(l4-a): SearchIndex open/upsert/delete/commit + schema-versio
 Simple data types; their state-transitions live with the IPC layer in Task 12. This task just nails the shapes.
 
 **Files:**
-- Modify: `crates/cubical-search/src/status.rs`
-- Modify: `crates/cubical-search/src/lib.rs`
+- Modify: `crates/simple-directory-search/src/status.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs`
 
 - [ ] **Step 1: Write `status.rs` with tests.**
 
@@ -1078,17 +1078,17 @@ mod tests {
 
 - [ ] **Step 2: Re-enable the re-export.**
 
-In `crates/cubical-search/src/lib.rs`, uncomment `pub use status::{IndexHealth, IndexState, IndexStatus};`.
+In `crates/simple-directory-search/src/lib.rs`, uncomment `pub use status::{IndexHealth, IndexState, IndexStatus};`.
 
 - [ ] **Step 3: Run the tests.**
 
-Run: `cargo test -p cubical-search status::tests`
+Run: `cargo test -p simple-directory-search status::tests`
 Expected: 1 PASS.
 
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-search/src/status.rs crates/cubical-search/src/lib.rs
+git add crates/simple-directory-search/src/status.rs crates/simple-directory-search/src/lib.rs
 git commit -m "feat(l4-a): IndexState/IndexStatus/IndexHealth DTOs"
 ```
 
@@ -1099,8 +1099,8 @@ git commit -m "feat(l4-a): IndexState/IndexStatus/IndexHealth DTOs"
 `QueryParser` over the schema with field boosts; `FieldScope` swaps the parser's default fields; `fuzzy: true` rewrites single-term queries; snippets per matched field.
 
 **Files:**
-- Modify: `crates/cubical-search/src/query.rs`
-- Modify: `crates/cubical-search/src/lib.rs`
+- Modify: `crates/simple-directory-search/src/query.rs`
+- Modify: `crates/simple-directory-search/src/lib.rs`
 
 - [ ] **Step 1: Write the failing tests first.**
 
@@ -1392,7 +1392,7 @@ mod tests {
         for (p, title, body, code, tags, head) in [
             ("a.md", "Alpha Notes", "the quick brown fox", "fn alpha() {}", vec!["foo"], "Heading One"),
             ("b.md", "Beta Notes", "another lazy dog", "fn beta() {}", vec!["bar"], "Heading Two"),
-            ("c.md", "Cubical", "cubical search proof", "let _ = cubical::query();", vec!["project/cubical"], "Search"),
+            ("c.md", "simple.directory", "simple-directory search proof", "let _ = simple-directory::query();", vec!["project/simple-directory"], "Search"),
         ] {
             idx.upsert(&IndexDoc {
                 path: p.into(), title: title.into(), headings: head.into(),
@@ -1464,7 +1464,7 @@ mod tests {
         let (_t, idx) = fixture_index();
         let r = run_search(&idx, &SearchQuery {
             text: "anything".into(), limit: 0, offset: 0,
-            fields: FieldScope::Tags { tags: vec!["Project/Cubical".into()] },
+            fields: FieldScope::Tags { tags: vec!["Project/simple.directory".into()] },
             fuzzy: false, sort: SortMode::Relevance,
         }).unwrap();
         assert_eq!(r.hits.len(), 1);
@@ -1509,11 +1509,11 @@ mod tests {
 
 - [ ] **Step 2: Re-enable the re-export.**
 
-In `crates/cubical-search/src/lib.rs`, uncomment `pub use query::{FieldScope, MatchedField, SearchHit, SearchQuery, SearchResponse, SortMode};`.
+In `crates/simple-directory-search/src/lib.rs`, uncomment `pub use query::{FieldScope, MatchedField, SearchHit, SearchQuery, SearchResponse, SortMode};`.
 
 - [ ] **Step 3: Run the tests.**
 
-Run: `cargo test -p cubical-search query::tests`
+Run: `cargo test -p simple-directory-search query::tests`
 Expected: 9 PASS.
 
 > **If Tantivy's `Snippet::to_html` uses `<b>` not `<mark>`,** the assertion accepts either. Spec calls for `<mark>`; if Tantivy 0.22 hard-codes `<b>`, post-process the HTML in `collect_snippets` by replacing `<b>`/`</b>` with `<mark>`/`</mark>`.
@@ -1521,7 +1521,7 @@ Expected: 9 PASS.
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-search/src/query.rs crates/cubical-search/src/lib.rs
+git add crates/simple-directory-search/src/query.rs crates/simple-directory-search/src/lib.rs
 git commit -m "feat(l4-a): SearchQuery + QueryParser + FieldScope + snippets"
 ```
 
@@ -1532,11 +1532,11 @@ git commit -m "feat(l4-a): SearchQuery + QueryParser + FieldScope + snippets"
 `Vault::open` already opens libSQL; extend it to open the Tantivy index after. Add a `search()` accessor.
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/mod.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs`
 
 - [ ] **Step 1: Add the field.**
 
-Edit `crates/cubical-core/src/vault/mod.rs` `pub struct Vault`:
+Edit `crates/simple-directory-core/src/vault/mod.rs` `pub struct Vault`:
 
 ```rust
 #[derive(Clone)]
@@ -1544,7 +1544,7 @@ pub struct Vault {
     root: Arc<PathBuf>,
     registry: Arc<FileTypeRegistry>,
     index: Arc<IndexConn>,
-    search: Arc<cubical_search::SearchIndex>,
+    search: Arc<simple_directory_search::SearchIndex>,
 }
 ```
 
@@ -1553,8 +1553,8 @@ pub struct Vault {
 After `let index = open_index(&db_path).await?;` add:
 
 ```rust
-        let search_dir = cubical_dir.join("search");
-        let search = cubical_search::SearchIndex::open(&search_dir)
+        let search_dir = simple_directory_dir.join("search");
+        let search = simple_directory_search::SearchIndex::open(&search_dir)
             .map_err(|e| VaultError::Search(e.to_string()))?;
 ```
 
@@ -1584,7 +1584,7 @@ Locate the `VaultError` enum (likely in the same file or a sibling); add:
 ```rust
     /// The open Tantivy search index.
     #[must_use]
-    pub fn search(&self) -> &cubical_search::SearchIndex {
+    pub fn search(&self) -> &simple_directory_search::SearchIndex {
         &self.search
     }
 ```
@@ -1596,7 +1596,7 @@ Locate the `VaultError` enum (likely in the same file or a sibling); add:
     async fn vault_open_creates_search_dir_and_stamp() {
         let tmp = tempfile::TempDir::new().unwrap();
         let vault = Vault::open(tmp.path()).await.unwrap();
-        let search_dir = tmp.path().join(".cubical").join("search");
+        let search_dir = tmp.path().join(".simple-directory").join("search");
         assert!(search_dir.exists());
         assert!(search_dir.join("schema.json").exists());
         // Accessor returns a usable handle.
@@ -1606,13 +1606,13 @@ Locate the `VaultError` enum (likely in the same file or a sibling); add:
 
 - [ ] **Step 6: Run.**
 
-Run: `cargo test -p cubical-core vault_open_creates_search_dir_and_stamp`
+Run: `cargo test -p simple-directory-core vault_open_creates_search_dir_and_stamp`
 Expected: PASS.
 
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/mod.rs
+git add crates/simple-directory-core/src/vault/mod.rs
 git commit -m "feat(l4-a): open Tantivy index inside Vault::open; expose vault.search()"
 ```
 
@@ -1623,24 +1623,24 @@ git commit -m "feat(l4-a): open Tantivy index inside Vault::open; expose vault.s
 The fifth refresher. Adds to scan Pass 1 after `refresh_blocks`. Adds a per-N-doc commit inside the scan loop so memory stays bounded on large vaults.
 
 **Files:**
-- Create: `crates/cubical-core/src/vault/search_refresh.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs` (`pub mod search_refresh;`)
-- Modify: `crates/cubical-core/src/vault/scan.rs`
+- Create: `crates/simple-directory-core/src/vault/search_refresh.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs` (`pub mod search_refresh;`)
+- Modify: `crates/simple-directory-core/src/vault/scan.rs`
 
-- [ ] **Step 1: Create `crates/cubical-core/src/vault/search_refresh.rs`.**
+- [ ] **Step 1: Create `crates/simple-directory-core/src/vault/search_refresh.rs`.**
 
 ```rust
-//! Wire `cubical-search` into the scan + watcher refresher fan-out.
+//! Wire `simple-directory-search` into the scan + watcher refresher fan-out.
 //!
 //! Signature matches the L3 peers (`refresh_links`, `refresh_tags`,
 //! `refresh_blocks`): `(vault, rel, source: &str)`. The function parses
-//! the source locally via `cubical_ast::parse`, projects an `IndexDoc`,
+//! the source locally via `simple_directory_ast::parse`, projects an `IndexDoc`,
 //! upserts it. Caller commits — either every 5000 docs during scan
 //! (see `scan.rs::SEARCH_COMMIT_EVERY`) or on the watcher's debounced
 //! cadence (Task 11).
 
 use crate::vault::Vault;
-use cubical_search::{IndexDoc, SearchError};
+use simple_directory_search::{IndexDoc, SearchError};
 
 /// Upsert one file into the Tantivy index. Does not commit.
 pub async fn refresh_search_index(
@@ -1650,7 +1650,7 @@ pub async fn refresh_search_index(
     mtime_secs: i64,
     size_bytes: u64,
 ) -> Result<(), SearchError> {
-    let doc = cubical_search::doc::project(rel, source, mtime_secs, size_bytes);
+    let doc = simple_directory_search::doc::project(rel, source, mtime_secs, size_bytes);
     vault.search().upsert(&doc)
 }
 
@@ -1689,11 +1689,11 @@ mod tests {
 
 - [ ] **Step 2: Register the module.**
 
-In `crates/cubical-core/src/vault/mod.rs`, add `pub mod search_refresh;` next to the other refreshers.
+In `crates/simple-directory-core/src/vault/mod.rs`, add `pub mod search_refresh;` next to the other refreshers.
 
 - [ ] **Step 3: Wire into scan Pass 1.**
 
-In `crates/cubical-core/src/vault/scan.rs`:
+In `crates/simple-directory-core/src/vault/scan.rs`:
 
 1. Add a constant near the top:
 
@@ -1752,7 +1752,7 @@ Declare `let mut search_batch_count = 0usize;` before the loop.
 
 - [ ] **Step 4: Write a scan-integration test.**
 
-In `crates/cubical-core/src/vault/scan.rs` `#[cfg(test)] mod tests` (or wherever scan integration tests already live):
+In `crates/simple-directory-core/src/vault/scan.rs` `#[cfg(test)] mod tests` (or wherever scan integration tests already live):
 
 ```rust
     #[tokio::test]
@@ -1775,13 +1775,13 @@ In `crates/cubical-core/src/vault/scan.rs` `#[cfg(test)] mod tests` (or wherever
 
 - [ ] **Step 5: Run.**
 
-Run: `cargo test -p cubical-core --test scan` (or the appropriate suite path).
+Run: `cargo test -p simple-directory-core --test scan` (or the appropriate suite path).
 Expected: PASS plus all pre-existing scan tests still pass.
 
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/search_refresh.rs crates/cubical-core/src/vault/mod.rs crates/cubical-core/src/vault/scan.rs
+git add crates/simple-directory-core/src/vault/search_refresh.rs crates/simple-directory-core/src/vault/mod.rs crates/simple-directory-core/src/vault/scan.rs
 git commit -m "feat(l4-a): scan integration + refresh_search_index + 5000-doc commit boundary"
 ```
 
@@ -1792,11 +1792,11 @@ git commit -m "feat(l4-a): scan integration + refresh_search_index + 5000-doc co
 `apply_watch_event_to_db` already dispatches to L3 refreshers. Extend it: add search refresh on create/modify, search delete on delete, delete-old + add-new on rename. Commit at the end of each dispatcher invocation (the watcher's debounce is upstream — each invocation here is already debounced).
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/watcher.rs`
+- Modify: `crates/simple-directory-core/src/vault/watcher.rs`
 
 - [ ] **Step 1: Locate the dispatcher.**
 
-Run: `grep -n "apply_watch_event_to_db\|refresh_frontmatter\|refresh_tags\|refresh_blocks" crates/cubical-core/src/vault/watcher.rs | head -20`
+Run: `grep -n "apply_watch_event_to_db\|refresh_frontmatter\|refresh_tags\|refresh_blocks" crates/simple-directory-core/src/vault/watcher.rs | head -20`
 
 Find the branches: created, modified, deleted, renamed.
 
@@ -1853,7 +1853,7 @@ After the dispatcher's existing `tx.commit()` for libSQL, add:
 
 - [ ] **Step 4: Write integration tests.**
 
-In `crates/cubical-core/src/vault/watcher.rs` `#[cfg(test)] mod tests`:
+In `crates/simple-directory-core/src/vault/watcher.rs` `#[cfg(test)] mod tests`:
 
 ```rust
     #[tokio::test]
@@ -1873,10 +1873,10 @@ In `crates/cubical-core/src/vault/watcher.rs` `#[cfg(test)] mod tests`:
         // ... apply_watch_event_to_db(&vault, modified_event).await.unwrap();
 
         // After dispatch, the new content should be queryable.
-        let r = cubical_search::query::run_search(vault.search(), &cubical_search::SearchQuery {
+        let r = simple_directory_search::query::run_search(vault.search(), &simple_directory_search::SearchQuery {
             text: "marker".into(), limit: 0, offset: 0,
-            fields: cubical_search::FieldScope::Default, fuzzy: false,
-            sort: cubical_search::SortMode::Relevance,
+            fields: simple_directory_search::FieldScope::Default, fuzzy: false,
+            sort: simple_directory_search::SortMode::Relevance,
         }).unwrap();
         assert_eq!(r.hits.len(), 1);
         assert_eq!(r.hits[0].path, "a.md");
@@ -1893,13 +1893,13 @@ In `crates/cubical-core/src/vault/watcher.rs` `#[cfg(test)] mod tests`:
 
 - [ ] **Step 5: Run.**
 
-Run: `cargo test -p cubical-core watcher`
+Run: `cargo test -p simple-directory-core watcher`
 Expected: PASS for new tests + all existing watcher tests still pass.
 
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add crates/cubical-core/src/vault/watcher.rs
+git add crates/simple-directory-core/src/vault/watcher.rs
 git commit -m "feat(l4-a): watcher fan-out — search refresh on create/modify, delete on delete/rename"
 ```
 
@@ -1910,20 +1910,20 @@ git commit -m "feat(l4-a): watcher fan-out — search refresh on create/modify, 
 Four Tauri shims: `search`, `search_index_status`, `search_rebuild_index`, `search_get_health`.
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/search.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
-- Modify: `crates/cubical-app/src/lib.rs`
-- Modify: `crates/cubical-app/src/api/types.rs`
+- Create: `crates/simple-directory-app/src/commands/search.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
 
 - [ ] **Step 1: Add the IPC DTOs.**
 
-In `crates/cubical-app/src/api/types.rs`, add:
+In `crates/simple-directory-app/src/api/types.rs`, add:
 
 ```rust
-use cubical_search::{IndexHealth, IndexStatus, SearchQuery, SearchResponse};
+use simple_directory_search::{IndexHealth, IndexStatus, SearchQuery, SearchResponse};
 
 /// Re-export so the frontend can derive TS types from a single source.
-pub use cubical_search::{
+pub use simple_directory_search::{
     FieldScope as SearchFieldScope, MatchedField as SearchMatchedField,
     SearchHit, SortMode as SearchSortMode,
 };
@@ -1943,14 +1943,14 @@ pub type SearchHealthDto = IndexHealth;
 
 - [ ] **Step 2: Write the handlers.**
 
-`crates/cubical-app/src/commands/search.rs`:
+`crates/simple-directory-app/src/commands/search.rs`:
 
 ```rust
 //! IPC handlers for L4-A search.
 
 use crate::error::IpcError;
 use crate::state::AppState;
-use cubical_search::{
+use simple_directory_search::{
     query::run_search, IndexHealth, IndexState, IndexStatus, SearchQuery, SearchResponse,
 };
 
@@ -1983,7 +1983,7 @@ pub async fn search_rebuild_index(
 ) -> Result<(), IpcError> {
     let vault = state.vault().ok_or(IpcError::NoVaultOpen)?;
     state.set_search_state(IndexState::Building);
-    let search_dir = vault.root().join(".cubical").join("search");
+    let search_dir = vault.root().join(".simple-directory").join("search");
     // The Tantivy directory must be wiped before reopening.
     std::fs::remove_dir_all(&search_dir).ok();
     // Trigger a re-scan asynchronously.
@@ -2007,7 +2007,7 @@ pub async fn search_get_health(
     let vault = state.vault().ok_or(IpcError::NoVaultOpen)?;
     let idx = vault.search();
     Ok(IndexHealth {
-        schema_version: cubical_search::index::SCHEMA_VERSION,
+        schema_version: simple_directory_search::index::SCHEMA_VERSION,
         segments: idx.reader_clone().map(|r| r.searcher().segment_readers().len() as u64).unwrap_or(0),
         doc_count: idx.doc_count().unwrap_or(0),
         disk_bytes: dir_size(idx.dir()).unwrap_or(0),
@@ -2037,10 +2037,10 @@ mod tests {
 
 - [ ] **Step 3: Add `AppState` plumbing.**
 
-In `crates/cubical-app/src/state.rs`, add a search-state cell:
+In `crates/simple-directory-app/src/state.rs`, add a search-state cell:
 
 ```rust
-use cubical_search::IndexState;
+use simple_directory_search::IndexState;
 use std::sync::Mutex;
 use std::time::SystemTime;
 
@@ -2065,8 +2065,8 @@ impl Default for SearchStateCell {
 impl AppState {
     pub fn search_state(&self) -> IndexState { *self.search_cell.state.lock().unwrap() }
     pub fn set_search_state(&self, s: IndexState) { *self.search_cell.state.lock().unwrap() = s; }
-    pub fn search_status(&self) -> cubical_search::IndexStatus {
-        cubical_search::IndexStatus {
+    pub fn search_status(&self) -> simple_directory_search::IndexStatus {
+        simple_directory_search::IndexStatus {
             state: self.search_state(),
             indexed_files: *self.search_cell.indexed_files.lock().unwrap(),
             total_files: *self.search_cell.total_files.lock().unwrap(),
@@ -2082,13 +2082,13 @@ Add `search_cell: SearchStateCell` to `AppState`, initialised `Default::default(
 
 - [ ] **Step 4: Register the commands.**
 
-In `crates/cubical-app/src/commands/mod.rs`:
+In `crates/simple-directory-app/src/commands/mod.rs`:
 
 ```rust
 pub mod search;
 ```
 
-In `crates/cubical-app/src/lib.rs`'s `tauri::generate_handler!` macro list, add:
+In `crates/simple-directory-app/src/lib.rs`'s `tauri::generate_handler!` macro list, add:
 
 ```rust
             commands::search::search,
@@ -2099,7 +2099,7 @@ In `crates/cubical-app/src/lib.rs`'s `tauri::generate_handler!` macro list, add:
 
 - [ ] **Step 5: Add `IpcError::NoVaultOpen` + `From<SearchError>`.**
 
-In `crates/cubical-app/src/error.rs`:
+In `crates/simple-directory-app/src/error.rs`:
 
 ```rust
     /// No vault currently open — search/etc. cannot run.
@@ -2113,8 +2113,8 @@ In `crates/cubical-app/src/error.rs`:
 And:
 
 ```rust
-impl From<cubical_search::SearchError> for IpcError {
-    fn from(e: cubical_search::SearchError) -> Self {
+impl From<simple_directory_search::SearchError> for IpcError {
+    fn from(e: simple_directory_search::SearchError) -> Self {
         IpcError::Search(e.to_string())
     }
 }
@@ -2124,7 +2124,7 @@ impl From<cubical_search::SearchError> for IpcError {
 
 - [ ] **Step 6: Write IPC tests.**
 
-In `crates/cubical-app/src/commands/search.rs` `#[cfg(test)] mod tests`:
+In `crates/simple-directory-app/src/commands/search.rs` `#[cfg(test)] mod tests`:
 
 ```rust
     #[tokio::test]
@@ -2151,17 +2151,17 @@ In `crates/cubical-app/src/commands/search.rs` `#[cfg(test)] mod tests`:
     }
 ```
 
-(Reuse the existing `commands::*::tests` setup helpers — `grep -n "fn fixture_state\|fn test_vault" crates/cubical-app/src/commands/*.rs | head` to find them.)
+(Reuse the existing `commands::*::tests` setup helpers — `grep -n "fn fixture_state\|fn test_vault" crates/simple-directory-app/src/commands/*.rs | head` to find them.)
 
 - [ ] **Step 7: Run.**
 
-Run: `cargo test -p cubical-app commands::search`
+Run: `cargo test -p simple-directory-app commands::search`
 Expected: 4 PASS.
 
 - [ ] **Step 8: Commit.**
 
 ```bash
-git add crates/cubical-app/src/commands/search.rs crates/cubical-app/src/commands/mod.rs crates/cubical-app/src/lib.rs crates/cubical-app/src/api/types.rs crates/cubical-app/src/state.rs crates/cubical-app/src/error.rs
+git add crates/simple-directory-app/src/commands/search.rs crates/simple-directory-app/src/commands/mod.rs crates/simple-directory-app/src/lib.rs crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/state.rs crates/simple-directory-app/src/error.rs
 git commit -m "feat(l4-a): four search IPC commands + AppState plumbing"
 ```
 
@@ -2327,7 +2327,7 @@ git commit -m "feat(l4-a): TS IPC wrappers for the four search commands"
 **Files:**
 - Create: `docs/layer-4-spec.md`
 - Modify: `CLAUDE.md`
-- Smoke vault: `~/Developer/sandbox/cubical-l4a-smoke/`
+- Smoke vault: `~/Developer/sandbox/simple-directory-l4a-smoke/`
 
 - [ ] **Step 1: Create `docs/layer-4-spec.md`.**
 
@@ -2345,7 +2345,7 @@ Use the L3 spec's top matter as a template. Sections:
 
 - [ ] **Step 2: Run the carry-over smoke against the L3 vault.**
 
-Run: `cargo tauri dev` against `~/Developer/sandbox/cubical-l3-smoke/`.
+Run: `cargo tauri dev` against `~/Developer/sandbox/simple-directory-l3-smoke/`.
 
 Manual checks (record observations in `§9.1`):
 - Wiki-link navigation still works
@@ -2359,12 +2359,12 @@ If any L3 surface regresses, **stop and triage** — do not advance to L4-A new 
 
 - [ ] **Step 3: Build the L4-A new smoke vault.**
 
-Build `~/Developer/sandbox/cubical-l4a-smoke/` by copying the L3 smoke vault and adding:
+Build `~/Developer/sandbox/simple-directory-l4a-smoke/` by copying the L3 smoke vault and adding:
 
 - `code/rust_examples.md` — three fenced Rust code blocks with distinctive symbols (`fn parse_canonical_ast`, `struct PendingRewrites`, etc.)
 - `code/python_examples.md` — fenced Python (`def search_query`, `class SearchIndex`)
-- `data/frontmatter_rich.md` — frontmatter with nested keys (`author.name: jane`, `author.email: jane@example.com`), list values (`tags: [project/cubical, archived]`), numeric/date scalars
-- `Aliased Note.md` — frontmatter `aliases: ["Aliased", "AliasedNote"]` with body referencing several Cubical-specific terms so the wiki-link display-text test has material
+- `data/frontmatter_rich.md` — frontmatter with nested keys (`author.name: jane`, `author.email: jane@example.com`), list values (`tags: [project/simple-directory, archived]`), numeric/date scalars
+- `Aliased Note.md` — frontmatter `aliases: ["Aliased", "AliasedNote"]` with body referencing several simple.directory-specific terms so the wiki-link display-text test has material
 
 - [ ] **Step 4: Issue the smoke queries via dev console.**
 
@@ -2375,7 +2375,7 @@ const q = (fields, text, extra={}) =>
   window.__TAURI__.invoke('search', { request: { text, limit: 0, offset: 0, fields, fuzzy: false, sort: "relevance", ...extra } });
 
 // 1) Default scope, single term that lives in body
-await q({kind:"default"}, "cubical");
+await q({kind:"default"}, "simple-directory");
 
 // 2) HeadingsOnly
 await q({kind:"headings_only"}, "search");
@@ -2384,10 +2384,10 @@ await q({kind:"headings_only"}, "search");
 await q({kind:"code_only"}, "PendingRewrites");
 
 // 4) Tags filter
-await q({kind:"tags", tags:["project/cubical"]}, "*");
+await q({kind:"tags", tags:["project/simple-directory"]}, "*");
 
 // 5) Fuzzy on
-await q({kind:"default"}, "cubicall", { fuzzy: true });
+await q({kind:"default"}, "simple-directoryl", { fuzzy: true });
 
 // 6) Health snapshot
 await window.__TAURI__.invoke('search_get_health');
@@ -2402,7 +2402,7 @@ Record observed JSON for each query in `§9.1` of the L4 spec.
 
 - [ ] **Step 5: Record the perf benchmark.**
 
-Run a 200-query benchmark against `~/Developer/sandbox/cubical-cancel-test/` (the §5.6 30k-file vault). Use a small driver in `crates/cubical-search/benches/` or `examples/` that opens the vault's `.cubical/search/`, issues the 200-query mix from the spec, records `took_ms` per query, prints p50/p99 + initial-scan throughput. Record numbers in `§9.1`.
+Run a 200-query benchmark against `~/Developer/sandbox/simple-directory-cancel-test/` (the §5.6 30k-file vault). Use a small driver in `crates/simple-directory-search/benches/` or `examples/` that opens the vault's `.simple-directory/search/`, issues the 200-query mix from the spec, records `took_ms` per query, prints p50/p99 + initial-scan throughput. Record numbers in `§9.1`.
 
 If p99 is > 80 ms, do **not** gate the merge — record as observed and tag as "L5 perf-pass candidate."
 
@@ -2426,7 +2426,7 @@ Rewrite the four-to-six-line block. Template:
 ```
 Current layer: 4 — Search (in progress).
 
-**L4-A closed YYYY-MM-DD** (`l4a` tag). Tantivy backend live: per-file index with structural fields, five-refresher scan loop, watcher fan-out (create/modify/delete/rename), four IPCs (`search`, `search_index_status`, `search_rebuild_index`, `search_get_health`). Schema-version stamp at `<vault>/.cubical/search/schema.json` (v1). Smoke vault `~/Developer/sandbox/cubical-l4a-smoke/`. Final L4-A test counts: <Rust> Rust + <vitest> vitest. All gates green at close.
+**L4-A closed YYYY-MM-DD** (`l4a` tag). Tantivy backend live: per-file index with structural fields, five-refresher scan loop, watcher fan-out (create/modify/delete/rename), four IPCs (`search`, `search_index_status`, `search_rebuild_index`, `search_get_health`). Schema-version stamp at `<vault>/.simple-directory/search/schema.json` (v1). Smoke vault `~/Developer/sandbox/simple-directory-l4a-smoke/`. Final L4-A test counts: <Rust> Rust + <vitest> vitest. All gates green at close.
 
 Deferred: persistent panel UI (L4-B), Cmd/Ctrl+K Omni-Bar (L4-C), Dataview libSQL queries (L4-D), regex / NEAR / date-range query syntax, multi-term fuzzy (L4-D).
 
@@ -2463,7 +2463,7 @@ Running the four checks the writing-plans skill prescribes:
 - §L3 carry-over smoke + L4-A new smoke + dev-console recipes + perf record → Task 14
 - §Migration touchpoints (none) — trivially satisfied (no migrations added)
 - §Non-goals — encoded as omissions; explicitly listed in Task 14 step 7's project-state block
-- §Resolved-in-spec decisions — encoded in Task 5 (private walker, no `cubical_ast::prose`) and Task 3 (`code` tokenizer = `SimpleTokenizer` + `LowerCaser`)
+- §Resolved-in-spec decisions — encoded in Task 5 (private walker, no `simple_directory_ast::prose`) and Task 3 (`code` tokenizer = `SimpleTokenizer` + `LowerCaser`)
 
 **2. Placeholder scan.** Two intentional "adapt to existing code" notes remain — Task 5 step 2 ("check variant names with `grep`"), Task 11 step 2 (renamed-event helper), Task 12 step 6 (test-fixture helpers). These are not placeholders for *new* code; they point the engineer at existing code patterns to mirror. Acceptable — the alternative would be guessing function names that may not match.
 

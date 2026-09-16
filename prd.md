@@ -1,7 +1,7 @@
-# Cubical — Product
+# simple.directory — Product
 
 > **Human-facing. Not agent-loaded.** This is the product narrative: what
-> Cubical is, who it is for, and the vocabulary. It deliberately owns **no**
+> simple.directory is, who it is for, and the vocabulary. It deliberately owns **no**
 > technical fact — every one of those has an owner in
 > [`docs/`](docs/README.md), and this file used to restate eight of them.
 >
@@ -10,7 +10,7 @@
 
 ## Summary
 
-**Cubical is a blazing-fast, strictly local-first Personal Knowledge Management
+**simple.directory is a blazing-fast, strictly local-first Personal Knowledge Management
 app.** Point it at a folder of plain `.md` files — a *vault* — and get a fast
 editor, a knowledge graph (links, backlinks, tags, embeds), and full-text plus
 structured search.
@@ -28,7 +28,7 @@ Desktop only for v1 (macOS, Windows, Linux).
 
 ## Problem & users
 
-Cubical answers three predictable failures of knowledge tools:
+simple.directory answers three predictable failures of knowledge tools:
 
 1. **Lock-in** — proprietary formats and inaccessible cloud databases. Content
    is *only* plain Markdown; the vault works with the app uninstalled and the
@@ -43,16 +43,16 @@ Cubical answers three predictable failures of knowledge tools:
 **Target users:** power note-takers who own their data and think in Markdown,
 wiki-links and tags — researchers, writers, engineers, students; local-first
 believers who care about privacy, offline use and portability; eventually
-developers extending Cubical through a sandboxed plugin ecosystem.
+developers extending simple.directory through a sandboxed plugin ecosystem.
 
 **Not v1:** mobile-first users, centralized-cloud teams, and users wanting
 cross-app import baked into the core — that is left to plugins.
 
 ## Glossary
 
-**Vault** — the user-chosen Markdown directory Cubical operates on.
+**Vault** — the user-chosen Markdown directory simple.directory operates on.
 
-**`.cubical/`** — the only Cubical-owned state inside a vault: durable config
+**`.simple-directory/`** — the only simple.directory-owned state inside a vault: durable config
 plus a rebuildable cache.
 
 **Canonical AST** — the single normalized syntax tree every non-editor system
@@ -79,7 +79,7 @@ Web Worker plugins.
 **Core plugin** — a built-in toggleable feature block, the seed of the full
 plugin ABI, gated by a `plugins.*` setting.
 
-**`cubical_id`** — the per-file frontmatter UUID, minted only at sync
+**`simple_directory_id`** — the per-file frontmatter UUID, minted only at sync
 onboarding and never before.
 
 ---

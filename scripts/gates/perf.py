@@ -3,11 +3,11 @@
 
 Opt-in by default: a 10k-note cold scan takes minutes, so running it on every
 `check.sh` would make the gate too slow to run, which is the surest way to stop
-people running the gate. Enable with CUBICAL_PERF=1.
+people running the gate. Enable with SIMPLE_DIRECTORY_PERF=1.
 
-    CUBICAL_PERF=1 python3 scripts/gates/perf.py                          # 1k scan bar
-    CUBICAL_PERF=1 python3 scripts/gates/perf.py --size 10000
-    CUBICAL_PERF=1 python3 scripts/gates/perf.py --benchmark graph_layout
+    SIMPLE_DIRECTORY_PERF=1 python3 scripts/gates/perf.py                          # 1k scan bar
+    SIMPLE_DIRECTORY_PERF=1 python3 scripts/gates/perf.py --size 10000
+    SIMPLE_DIRECTORY_PERF=1 python3 scripts/gates/perf.py --benchmark graph_layout
 
 Which benchmarks exist, how to drive them and what they may cost is declared in
 scripts/perf-budget.json; this file knows how to run one, not which ones there
@@ -51,8 +51,8 @@ def run() -> int:
                   f"declare it in scripts/perf-budget.json and in {OWNER}.")
         return gate.finish("")
 
-    if not os.environ.get("CUBICAL_PERF"):
-        print("perf: skipped — set CUBICAL_PERF=1 to measure. "
+    if not os.environ.get("SIMPLE_DIRECTORY_PERF"):
+        print("perf: skipped — set SIMPLE_DIRECTORY_PERF=1 to measure. "
               f"The bar is owned by {OWNER}.")
         return 0
 
@@ -78,7 +78,7 @@ def run() -> int:
                   f"to {OWNER}.")
         return gate.finish("")
 
-    with tempfile.TemporaryDirectory(prefix="cubical-perf-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="simple-directory-perf-") as tmp:
         argv = [a.format(tmpdir=tmp, size=size, runs=budget["runs"])
                 for a in bench["args"]]
         proc = subprocess.run(

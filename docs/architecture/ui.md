@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Architecture: UI
+# simple.directory — Architecture: UI
 
 ## 11. UI
 
@@ -40,7 +40,7 @@ The canonical CSS-variable token surface lives in `design-system/src/styles/toke
 
 **Built-in themes** ship with the app: Light, Dark, optionally High-Contrast.
 
-**User themes** live at `<vault>/.cubical/themes/<theme-name>.css`. Cubical scans this folder on startup and populates the theme picker.
+**User themes** live at `<vault>/.simple-directory/themes/<theme-name>.css`. simple.directory scans this folder on startup and populates the theme picker.
 
 **Plugin themes** are registered via the plugin manifest's `themes` field. They plug into the same token surface — they are CSS files that override token values.
 
@@ -56,7 +56,7 @@ Cross-vault search, tabs and command-palette are explicitly out of scope: little
 
 ### 11.6 Component library
 
-The app's UI primitives are **not** hand-rolled in `ui/` — they come from the shared design system at [`design-system/`](../../design-system/), consumed through the `@ds` alias (wired in `ui/vite.config.ts` + `tsconfig`, with `dedupe: ["solid-js"]` keeping one Solid instance across the boundary). `design-system/` is the single source of truth for **tokens and components**: editing one there changes it everywhere. It also stands alone as its own SolidJS package with a Gallery/Workspace playground — see [`design-system/README.md`](../../design-system/README.md). Because the app consumes it as **source**, `design-system/package.json` is a playground manifest, not a shipped one: nothing it declares reaches a Cubical build unless `ui/package.json` declares it too. The playground's own editor packages are therefore `devDependencies` there — build-time tooling under [`techstack`](../principles/techstack.md) — and `ui/` declares its own copies of what the app imports.
+The app's UI primitives are **not** hand-rolled in `ui/` — they come from the shared design system at [`design-system/`](../../design-system/), consumed through the `@ds` alias (wired in `ui/vite.config.ts` + `tsconfig`, with `dedupe: ["solid-js"]` keeping one Solid instance across the boundary). `design-system/` is the single source of truth for **tokens and components**: editing one there changes it everywhere. It also stands alone as its own SolidJS package with a Gallery/Workspace playground — see [`design-system/README.md`](../../design-system/README.md). Because the app consumes it as **source**, `design-system/package.json` is a playground manifest, not a shipped one: nothing it declares reaches a simple.directory build unless `ui/package.json` declares it too. The playground's own editor packages are therefore `devDependencies` there — build-time tooling under [`techstack`](../principles/techstack.md) — and `ui/` declares its own copies of what the app imports.
 
 **Icons** come from the design system's `Icon` component (`components/graphics/Icon`), backed by SVG artwork **vendored inline from Lucide** (ISC). No runtime icon dependency ships — `lucide-static` is a build-time source only. Icons render outline-only on a 24-unit grid at 16px via `currentColor`, decorative by default (the accessible name comes from the wrapping control). Conventions and how to add one: [`design-system/README.md`](../../design-system/README.md) → Iconography.
 
@@ -107,7 +107,7 @@ Two tiers, per [`vault.md`](vault.md) §3: `config.toml` is durable and travels
 with the vault; the libSQL `config` table is transient, per-machine workspace
 state. The tier is chosen by a **literal key prefix** — any key beginning `ui.`
 is routed to the index, everything else to `config.toml`
-(`cubical_core::vault::settings::is_workspace_key`).
+(`simple_directory_core::vault::settings::is_workspace_key`).
 
 This is a silent trap: naming a durable preference `ui.something` compiles, type-checks,
 passes tests, and quietly makes the setting per-machine and non-portable. Choosing

@@ -25,17 +25,17 @@ durable rationale recorded in
 
 ## What this is
 
-A **Cubical command console**: a collapsible bottom panel in the app window with an input
-line and a scrollback log, running the same verbs as the `cubical` binary against the
+A **simple.directory command console**: a collapsible bottom panel in the app window with an input
+line and a scrollback log, running the same verbs as the `simple-directory` binary against the
 already-open vault.
 
 The Phase-3 handoff framed this as "an in-app terminal panel" and named the fork it left
-open — *general shell vs. Cubical-only console*. This spec settles that fork on the
+open — *general shell vs. simple.directory-only console*. This spec settles that fork on the
 console. No PTY, no ANSI, no shell process, no `xterm.js`, and no requirement that the
-`cubical` binary be on `PATH` or bundled with the app.
+`simple-directory` binary be on `PATH` or bundled with the app.
 
-That last point is the decisive one. A general shell would reach Cubical by shelling out
-to `cubical`, which attaches over the Unix socket — elegant, but it makes the panel depend
+That last point is the decisive one. A general shell would reach simple.directory by shelling out
+to `simple-directory`, which attaches over the Unix socket — elegant, but it makes the panel depend
 on an unsolved packaging problem and inherits Phase 2's `#[cfg(unix)]` restriction. The
 console calls `dispatch` in-process instead, so it needs no binary and works on Windows,
 where sockets are deliberately deferred.
@@ -43,7 +43,7 @@ where sockets are deliberately deferred.
 ## Dependency: this is blocked on tabs
 
 The console is **a tab**, not a docked panel — it opens in the center workspace alongside
-open notes and is closed like any other tab. Cubical has no tabs today (issue #20; the
+open notes and is closed like any other tab. simple.directory has no tabs today (issue #20; the
 `topbar__tabs` markup in `App.tsx` renders exactly one placeholder `tab--active` div), so
 this spec cannot be implemented until that lands.
 
@@ -72,19 +72,19 @@ duplicating parsing or output formatting.
 
 ## 1. Rust changes
 
-### 1a. Move the clap parser into `cubical-ipc` (new `parse.rs`)
+### 1a. Move the clap parser into `simple-directory-ipc` (new `parse.rs`)
 
-Today `Cli`, `Cmd`, `NewWhat`, and `build_command` live in `crates/cubical-cli/src/main.rs`
-and cannot be reached by anything else. They move to `crates/cubical-ipc/src/parse.rs`.
+Today `Cli`, `Cmd`, `NewWhat`, and `build_command` live in `crates/simple-directory-cli/src/main.rs`
+and cannot be reached by anything else. They move to `crates/simple-directory-ipc/src/parse.rs`.
 
 The destination follows from symmetry. `render` (`Outcome` → text) already lives in
-`cubical-ipc` precisely so that every frontend produces identical output. `parse` (text →
+`simple-directory-ipc` precisely so that every frontend produces identical output. `parse` (text →
 `Command`) is the same boundary in the other direction, and it exists for the same reason.
-`cubical-ipc` owns the text boundary in both directions; `main.rs` shrinks to runtime,
+`simple-directory-ipc` owns the text boundary in both directions; `main.rs` shrinks to runtime,
 attach, and scan-wait logic.
 
-`clap = { version = "4", features = ["derive"] }` moves from `cubical-cli`'s manifest to
-`cubical-ipc`'s. It is not feature-gated: both dependents need it.
+`clap = { version = "4", features = ["derive"] }` moves from `simple-directory-cli`'s manifest to
+`simple-directory-ipc`'s. It is not feature-gated: both dependents need it.
 
 **The stdin read does not move.** `build_command`'s `Cmd::Write` arm currently reads
 `stdin` inline, which is a CLI-only concern. The split:
@@ -108,7 +108,7 @@ Every `println!`/`eprintln!` in `render.rs` becomes a `writeln!` to the correspo
 The CLI keeps calling `render` and is otherwise untouched. The console passes two `Vec<u8>`
 buffers and gets structured output back.
 
-### 1c. New Tauri command `console_exec` (`cubical-app`)
+### 1c. New Tauri command `console_exec` (`simple-directory-app`)
 
 ```rust
 #[tauri::command]
@@ -120,16 +120,16 @@ struct ConsoleResult { stdout: String, stderr: String, code: i32 }
 Steps, in order:
 
 1. **Tokenize** `line` with quote awareness.
-2. **Strip an optional leading `cubical` token**, so both `list` and `cubical list` work.
+2. **Strip an optional leading `simple-directory` token**, so both `list` and `simple-directory list` work.
 3. **Reject `--vault`** at the token level — the console is bound to the open vault (§3).
-4. **Parse** via `cubical_ipc::parse` — clap errors, including `--help`, are captured
+4. **Parse** via `simple_directory_ipc::parse` — clap errors, including `--help`, are captured
    rather than printed (§4).
 5. **Reject body-needing verbs** via `needs_body(&cmd)`, which is `write` today (§3).
    This is checked *after* parsing, not on the raw tokens, so the rule is expressed once
    in `parse.rs` and a future body-needing verb is rejected automatically.
 6. **Build** the `Command` via `to_command(cmd, vault_root, None)`.
-7. **Dispatch** through `cubical_ipc::dispatch(&vault_id, command, &state, sink)` using the
-   app's own **`TauriEventSink`** (`crates/cubical-app/src/tauri_sink.rs`).
+7. **Dispatch** through `simple_directory_ipc::dispatch(&vault_id, command, &state, sink)` using the
+   app's own **`TauriEventSink`** (`crates/simple-directory-app/src/tauri_sink.rs`).
 8. **Render** via `render_to` into two buffers → `ConsoleResult`.
 
 Step 7 is what makes the panel feel native: because it uses the same sink as the socket
@@ -169,7 +169,7 @@ monolith. `CORE_PLUGINS` gains:
 
 ```ts
 { id: "console", name: "Command console",
-  description: "Run cubical commands against the open vault in a tab.",
+  description: "Run simple-directory commands against the open vault in a tab.",
   settingKey: "plugins.console_enabled", defaultEnabled: false }
 ```
 
@@ -183,7 +183,7 @@ block must switch off cleanly.
 **Settings storage needs no Rust change.** Settings are stored generically as TOML
 key/value pairs; only the TS `Setting` union in `ui/src/api/ipc.ts` enumerates keys, so
 this is a one-line addition there. `is_workspace_key` is `key.starts_with("ui.")`, so a
-`plugins.*` key is vault-scoped and travels in the portable `.cubical/config.toml` —
+`plugins.*` key is vault-scoped and travels in the portable `.simple-directory/config.toml` —
 correct for a core plugin.
 
 **Scrollback and history are session state**, held in signals and discarded when the tab
@@ -193,12 +193,12 @@ closes or the vault changes. Not persisted.
 
 ## 3. Verbs the console rejects
 
-**`write`.** `cubical write <path>` replaces a file body with text read from stdin, and a
+**`write`.** `simple-directory write <path>` replaces a file body with text read from stdin, and a
 console has no stdin. It errors with a single line: *"write is not available in the console
 — use the editor, or pipe from a terminal."* Rejected rather than adapted: retyping a whole
 file body into a one-line input is a worse interaction than the editor the app already has,
 and adapting it would mean either a second input mode or widening the external CLI surface
-as a side effect of a UI decision. The external `cubical write` is unchanged.
+as a side effect of a UI decision. The external `simple-directory write` is unchanged.
 
 **`--vault`.** The console is bound to the vault the app has open. Passing `--vault` errors
 rather than being silently ignored, so the user is never misled about which vault a command
@@ -250,7 +250,7 @@ Phase 2's lesson was that the tests worth having had no fakes. Applied here:
   render test.
 
 Full gate is `scripts/check.sh`. Note the two standing gotchas: piping it to `tail` masks
-its exit code, and `cubical-core`'s `dropping_handle_stops_event_delivery_within_100ms` is
+its exit code, and `simple-directory-core`'s `dropping_handle_stops_event_delivery_within_100ms` is
 a known flake under full-workspace load.
 
 ---
@@ -258,9 +258,9 @@ a known flake under full-workspace load.
 ## 6. Out of scope
 
 Not in this spec, and not implied by it: a PTY or any shell process; ANSI or curses
-support; running arbitrary non-`cubical` programs; streaming or long-running commands;
+support; running arbitrary non-`simple-directory` programs; streaming or long-running commands;
 command cancellation; tab completion; persisted scrollback or history across restarts;
-bundling the `cubical` binary with the app; **splits** (a console tab and a note tab
+bundling the `simple-directory` binary with the app; **splits** (a console tab and a note tab
 visible at once) — deferred with the rest of issue #20.
 
 The general-shell fork is not foreclosed — the console does not make it harder to add a

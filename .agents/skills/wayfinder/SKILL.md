@@ -159,7 +159,7 @@ stays out of Decisions-so-far, which records the route actually walked.
 If the thing ruled out is a capability someone will ask for again, it is also a
 scope fact, and [`constraints.md`](../../../docs/architecture/constraints.md)
 owns those. Record it there and link; the map's Out-of-scope section is about
-*this effort*, not about Cubical.
+*this effort*, not about simple.directory.
 
 ## Invocation
 
@@ -207,7 +207,7 @@ binds every session, and charting a map does not exempt one.
 
 ## Local edits
 
-Cubical substitutions for upstream's generic tracker: native GitHub dependencies
+simple.directory substitutions for upstream's generic tracker: native GitHub dependencies
 became the `Blocked by #N` plus `blocked` convention this repo already owns; the
 sub-issue attach trap (internal id, not issue number) is written in because it
 fails silently; the uninstalled `research` and `domain-modeling` skills became

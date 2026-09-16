@@ -1,4 +1,4 @@
-# Implementation — engine command + event layer (`cubical-engine`)
+# Implementation — engine command + event layer (`simple-directory-engine`)
 
 Boundary inventory owner:
 `scripts/dependency-boundary.json` + [`../generated/ipc-surface.md`](../generated/ipc-surface.md).
@@ -6,7 +6,7 @@ Boundary inventory owner:
 ## Handler pattern
 
 Every command is a plain `async fn(&AppState, TypedRequest) -> Result<Response,
-CubicalError>` with **no Tauri import**. The Tauri shims in `cubical-app` are
+SimpleDirectoryError>` with **no Tauri import**. The Tauri shims in `simple-directory-app` are
 3-line forwarders that pull state and call in. Two reasons, both load-bearing:
 handlers stay unit-testable without booting Tauri, and a shell swap rewrites
 only the shims.
@@ -23,12 +23,12 @@ links, tags, rename, settings. Each block's types live in its own command
 module — which modules are blocks is the `engine_modules` table in
 `scripts/domain-boundaries.json` — and the shell crates import them from there.
 
-While every type sat in `api/types.rs`, that file re-exported `cubical_graph`
-and `cubical_search` and converted from `cubical_query`, so every substrate
+While every type sat in `api/types.rs`, that file re-exported `simple_directory_graph`
+and `simple_directory_search` and converted from `simple_directory_query`, so every substrate
 module that imported it compiled against three block crates. Nothing failed at
 runtime, but a block crate's change rebuilt and could break the substrate, and
 the domain gate could not see it because the engine crate is shell. The gate
-now also counts a workspace crate an engine module names (`cubical_search::…`)
+now also counts a workspace crate an engine module names (`simple_directory_search::…`)
 as an edge to that crate's census entry.
 
 `list_tags` lives in `commands::tags` for the same reason: listing the vault's
@@ -56,7 +56,7 @@ subdirectory escapes a purely textual check.
 Constraining only the source is not enough. `rename_file` once checked that
 `from_path` was tracked and nothing at all about `to_path`, which made it an
 arbitrary-write primitive over a `#[tauri::command]` that is also reachable on
-the `cubical-ipc` socket. Commands that resolve a path through the index first
+the `simple-directory-ipc` socket. Commands that resolve a path through the index first
 (`get_embed`, `get_backlinks`) are contained by that lookup — the scan walks
 with `follow_links(false)`, so no key in `files` can escape the root. Anything
 that joins a request path directly routes through `commands::paths` regardless,
@@ -80,10 +80,10 @@ than the one it named — a wrong-target `delete_path`, not merely a lax check.
 
 ## Error folding
 
-The IPC boundary speaks exactly one error type. `CubicalError` folds the
+The IPC boundary speaks exactly one error type. `SimpleDirectoryError` folds the
 crate-local errors into one enum with a stable JSON shape.
 
-It lives **downstream of both** `cubical-core` and `cubical-index` because the
+It lives **downstream of both** `simple-directory-core` and `simple-directory-index` because the
 dep graph requires it (core consumes index). The layer spec originally placed
 it in core; that placement is not achievable and the divergence is deliberate.
 
@@ -205,7 +205,7 @@ went stale. `find_rename_source` asks the same of each pairing candidate, so a
 case-only `Removed`/`Created` pair is unambiguous rather than filtered away.
 
 `commit_rename` performs **no filesystem mutation** — that is the invariant
-that lets one sequence serve both a rename Cubical is about to perform and one
+that lets one sequence serve both a rename simple.directory is about to perform and one
 it is discovering after the fact (a shell `mv`, Finder, vim). Duplicating the
 commit sequence for the watcher path would guarantee the two drift.
 
@@ -348,7 +348,7 @@ runs the real `UPDATE` against a real index and asserts the matched set equals
 layer exists to prevent — extend `link_match`, never re-derive.
 
 **Case-insensitive means one function, everywhere.**
-"Case-insensitive" above is `cubical_index::names_eq_folded`, and
+"Case-insensitive" above is `simple_directory_index::names_eq_folded`, and
 `PathResolver`, wikilink autocomplete and the graph's ghost interning all fold
 through the same `fold_name`. It cannot be SQL: `LOWER()` in libSQL is ASCII-only
 under the core-only pin ([`Cargo.toml`](../../Cargo.toml)), so a SQL-side fold
@@ -358,13 +358,13 @@ rewrite. Every query that folds therefore reads its candidates and folds them in
 Rust. `classification_folds_the_way_path_resolution_folds` is what holds the two
 sides together.
 
-The fold lives in `cubical-index` rather than beside the path validators in
-`vault::relpath` for one reason: the layering. `cubical-graph` and
-`cubical-index` sit below `cubical-core`, so a fold owned by core is a fold they
+The fold lives in `simple-directory-index` rather than beside the path validators in
+`vault::relpath` for one reason: the layering. `simple-directory-graph` and
+`simple-directory-index` sit below `simple-directory-core`, so a fold owned by core is a fold they
 cannot call — and each site that cannot call it writes its own. Layer 0 is the
 lowest place all four callers share.
 
-**Whitespace is trimmed at the boundary, never by a matcher.** `cubical_ast::wikilink`
+**Whitespace is trimmed at the boundary, never by a matcher.** `simple_directory_ast::wikilink`
 (and its TypeScript twin, held together by the parity fixtures) yields the
 trimmed target, so `[[  Daily  ]]` is the token `Daily` everywhere the index
 carries it. Requests are the other boundary: the engine has more than one
@@ -411,7 +411,7 @@ into the source of truth.
 **Anchors:** audit_log
 
 `audit_log` is capped at the newest `AUDIT_LOG_MAX_ROWS` (10 000) rows, per
-layer-0-spec §7. `cubical_index::prune_audit_log` is called from two places,
+layer-0-spec §7. `simple_directory_index::prune_audit_log` is called from two places,
 both **best-effort** — a prune failure is logged and never blocks the caller:
 
 - `open_index`, so growth is bounded across sessions;
@@ -479,7 +479,7 @@ rescan cannot rebuild —
 [`derived-state-disposable`](../principles/derived-state-disposable.md) names
 the pending-rewrites queue as its single exception. So a timer that stops is
 not a degraded convenience: referrer links stay unrewritten with nothing
-saying so, and `.cubical/renames.jsonl` exists precisely because that queue is
+saying so, and `.simple-directory/renames.jsonl` exists precisely because that queue is
 worth a sidecar.
 
 It is therefore structured in two nested pieces rather than one detached
@@ -505,7 +505,7 @@ the two drift on level or payload shape.
 ## Settings routing
 
 Writes are routed by key: durable (non-`ui.*`) keys go to the portable
-`.cubical/config.toml` via an atomic fsync+rename inside `spawn_blocking`;
+`.simple-directory/config.toml` via an atomic fsync+rename inside `spawn_blocking`;
 `ui.*` workspace keys upsert the index `config` table. Session-local layout
 state must not land in the portable vault file.
 
@@ -528,7 +528,7 @@ off drops its derived state and rebuilds it if it comes back — so keeping it
 current costs a little work and makes the toggle instant, and skipping it would
 buy nothing a rescan does not already provide.
 
-Commands are refused. `cubical_engine::plugins::Feature` maps a feature to its
+Commands are refused. `simple_directory_engine::plugins::Feature` maps a feature to its
 setting key, its default and what it requires, and `open_vault_cloned_for`
 applies the check as part of the vault lookup every command already performs.
 The gate is one chokepoint rather than a check per command because the reason
@@ -562,7 +562,7 @@ coupling, not a per-vault one. `tokio::sync::RwLock` is write-preferring:
 a read guard held across a slow await blocks a pending writer
 (`open_vault`, `close_vault`, the scan dispatcher's terminal status write),
 and every later reader then queues behind that writer. A dataview query holding
-the guard across `cubical_query::run` stalled `list_files`, `search` and
+the guard across `simple_directory_query::run` stalled `list_files`, `search` and
 `read_file_text` together — one slow feature stalling unrelated ones.
 
 So the guard is a **lookup**, never a work scope. `with_open_vault` takes a
@@ -620,8 +620,8 @@ lives on `OpenVault`, so `close_vault` (and process exit) releases it.
   locking crate what contention looks like on this platform rather than
   hardcoding one spelling of it.
 - **The lockfile lives in the OS runtime dir**, keyed by a SHA-256 of the
-  canonical vault path — never in `.cubical/`. A socket path or PID synced to
-  another machine via Dropbox would be poison. `CUBICAL_RUNTIME_DIR` overrides
+  canonical vault path — never in `.simple-directory/`. A socket path or PID synced to
+  another machine via Dropbox would be poison. `SIMPLE_DIRECTORY_RUNTIME_DIR` overrides
   the dir (tests, and headless CLI use). This mirrors `recent_vaults.json`:
   machine-local state belongs outside the portable vault.
 - **The lockfile is not deleted on release**, only unlocked — unlinking it races
@@ -637,12 +637,12 @@ CLI's `VaultLocked` branch from *decline* into *attach* over `socket_path`.
 
 ### Socket boundary (Phase 2)
 
-The wire boundary lives in a new crate, `cubical-ipc`, not in `cubical-engine`
+The wire boundary lives in a new crate, `simple-directory-ipc`, not in `simple-directory-engine`
 — the engine stays free of serialization concerns, matching the Handler
-pattern's reason for framework-free IPC types above. `cubical-ipc` owns the
+pattern's reason for framework-free IPC types above. `simple-directory-ipc` owns the
 `Command`/`Outcome`/`Response` wire types, the length-prefixed JSON framing,
 and a single `dispatch(vault_id, command, &AppState, &dyn EventSink) ->
-Result<Outcome, CubicalError>`. Both `cubical-cli` and `cubical-app` depend on
+Result<Outcome, SimpleDirectoryError>`. Both `simple-directory-cli` and `simple-directory-app` depend on
 it; the engine has no reverse dependency.
 
 `dispatch` is the same reasoning as the event-sink chokepoint above, applied
@@ -651,20 +651,20 @@ one layer up: there is exactly one command→engine-fn mapping and one
 the app's socket server (`TauriEventSink`), and the CLI attached as a client —
 so the three callers cannot drift apart.
 
-`cubical-app` advertises its socket path (`open_vault`'s `advertise_socket`
+`simple-directory-app` advertises its socket path (`open_vault`'s `advertise_socket`
 parameter, threaded into `vault_lock::acquire`/`write_payload`) rather than a
 fixed location, because the path is keyed by the app's own pid
-(`cubical-<pid>.sock`) — the same machine-local reasoning that keeps the
-lockfile itself out of `.cubical/`, above. The server is a
+(`simple-directory-<pid>.sock`) — the same machine-local reasoning that keeps the
+lockfile itself out of `.simple-directory/`, above. The server is a
 `.setup()`-spawned, **sequential** accept loop (not one task per connection):
 `handle_connection` borrows `&AppState`, and `AppState`'s own locks already
 serialize mutations (see Lock discipline above), so a second concurrency
 layer here would be redundant. A transient `accept` error backs off and
 retries rather than ending the loop, and a panicking handler is caught, so
 neither can silently take CLI attach offline for the app's lifetime. Both
-sides of a connection read under a deadline (`cubical_ipc::IO_TIMEOUT`): a
+sides of a connection read under a deadline (`simple_directory_ipc::IO_TIMEOUT`): a
 local process that connects and sends nothing would otherwise wedge the
-sequential loop for every later `cubical` invocation.
+sequential loop for every later `simple-directory` invocation.
 
 Routing an attached command through the app's real `AppState` and a real
 `TauriEventSink` — instead of a second engine — is what keeps the app's
@@ -676,7 +676,7 @@ so the app's file watcher sees the write as a change and fires — which is
 precisely what makes the GUI pick it up. Suppressing that echo would leave
 the GUI unaware of the CLI's write.
 
-`cubical set …` has no watcher to ride on — `.cubical/` is excluded from it,
+`simple-directory set …` has no watcher to ride on — `.simple-directory/` is excluded from it,
 and the workspace half of `set_setting` writes to libsql, not to a file at
 all — so it carries its own event, `vault:setting-changed`. That event is
 emitted from `dispatch`'s `Set` arm rather than from `set_setting` itself,
@@ -697,7 +697,7 @@ The socket's only auth boundary is filesystem permissions, so the app asserts
 them rather than inheriting whatever the runtime dir happens to have: `0o700`
 on the directory, `0o600` on the socket after bind. The `std::env::temp_dir()`
 fallback in `runtime_dir` can otherwise land in a world-writable `/tmp`. That
-`runtime_dir` is the engine's — `cubical-ipc` calls
+`runtime_dir` is the engine's — `simple-directory-ipc` calls
 `vault_lock::runtime_dir` rather than keeping a copy, because the two must
 resolve identically or the CLI attaches to a path nobody bound. A runtime
 directory is not a wire type, so this does not breach the engine's
@@ -710,7 +710,7 @@ attach to and falls back to the Phase-1 decline.
 
 The transport's error type is `TransportError`, split `Io` vs `Protocol`,
 because the CLI's user-facing message turns on exactly that distinction:
-"could not reach the running Cubical app" is a lie when the app was reached
+"could not reach the running simple.directory app" is a lie when the app was reached
 and answered with something unparseable. `Io` is the unreachable / timed-out /
 truncated case; `Protocol` covers a non-encodable message, an over-maximum
 frame, and a frame that is not valid JSON. Collapsing both into
@@ -718,9 +718,9 @@ frame, and a frame that is not valid JSON. Collapsing both into
 socket bug and sends debugging in the wrong direction.
 
 The CLI rejects a `--vault` that is not a directory *before* it builds the
-command, because `cubical write` reads stdin to EOF at build time (stdin is
+command, because `simple-directory write` reads stdin to EOF at build time (stdin is
 not seekable, and the `Command` has to exist before the lock check can run).
-Without the pre-check, `cubical --vault /nonexistent write x.md` sits waiting
+Without the pre-check, `simple-directory --vault /nonexistent write x.md` sits waiting
 for a body it will never use at an interactive terminal. The check is a plain
 `is_dir`, and it applies to every subcommand rather than just `write`.
 
@@ -730,9 +730,9 @@ this section records only why the boundary is shaped this way.
 
 ### The text boundary runs both ways (Phase 3)
 
-`cubical-ipc` owns the text boundary in **both** directions, not just the
+`simple-directory-ipc` owns the text boundary in **both** directions, not just the
 `Outcome`→text one above: `parse.rs` holds `Cli`/`Cmd`/`to_command` alongside
-`render`/`render_to`, moved there out of `cubical-cli`'s `main.rs`.
+`render`/`render_to`, moved there out of `simple-directory-cli`'s `main.rs`.
 Text→`Command` and `Command`→text are the same boundary in opposite
 directions, and both exist so every frontend produces identical parsing and
 output — the reasoning is one, not two.
@@ -746,7 +746,7 @@ An in-app command console was briefly a fourth caller of `dispatch`, calling it
 in-process against the app's own `AppState`. It was removed when the PTY
 terminal replaced it ([`2026-07-30-terminal-design.md`](../archive/work/specs/2026-07-30-terminal-design.md)
 → "Retiring the console"); the terminal reaches the same verbs by putting
-`cubical` on the child's `PATH`, so it is a client of the socket server rather
+`simple-directory` on the child's `PATH`, so it is a client of the socket server rather
 than a fifth in-process caller. That the removal touched only one wiring point
 in `lib.rs` is the payoff of having collapsed its surface in the first place.
 

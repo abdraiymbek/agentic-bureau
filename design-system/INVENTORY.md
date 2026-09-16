@@ -19,7 +19,7 @@ Regenerate with `python3 scripts/gen_ds_inventory.py`; `--check` fails if the fi
 
 ### CubeMark
 
-The Cubical cube logo, drawn inline as SVG at a caller-chosen size.
+The simple.directory cube logo, drawn inline as SVG at a caller-chosen size.
 
 ```ts
 import CubeMark from "@ds/components/brand/CubeMark/CubeMark";

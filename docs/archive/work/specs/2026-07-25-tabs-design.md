@@ -119,7 +119,7 @@ active tab pinned.**
 in the Settings modal's Editor tab alongside the other `editor.*` knobs. The default is a
 guess, not a measurement, which is precisely why it is a knob. Values are clamped to a
 minimum of 1 — the active tab is always live, so 0 is not a meaningful setting — and the
-clamp lives with the LRU policy so a hand-edited `.cubical/config.toml` cannot break the
+clamp lives with the LRU policy so a hand-edited `.simple-directory/config.toml` cannot break the
 workspace.
 
 It is a vault setting rather than machine-local state, matching
@@ -161,14 +161,14 @@ selling point is being blazing-fast.
 
 ## 5. Session restore
 
-New `crates/cubical-app/src/tab_sessions.rs`, mirroring `recent_vaults.rs` in structure:
+New `crates/simple-directory-app/src/tab_sessions.rs`, mirroring `recent_vaults.rs` in structure:
 pure functions over a `&Path`, JSON payload, atomic write via `.tmp` + rename, store path
 resolved from the Tauri app-data dir (`recent_vaults.rs`'s `recent_vaults_store` is the
 template; this one resolves `tab_sessions.json`).
 
 Keyed by vault path; stores the ordered tab list and the active id.
 
-**Machine-local, deliberately not `.cubical/config.toml`.** Which tabs you had open is not
+**Machine-local, deliberately not `.simple-directory/config.toml`.** Which tabs you had open is not
 something that should travel with a vault shared between machines or people. This follows
 the recent-vaults precedent, which established machine-local state as app-shell-owned.
 
@@ -197,7 +197,7 @@ of components so it can be tested without a DOM (`navHistory.ts`, `fileTree.ts`,
   close-active neighbour selection.
 - `ui/src/tabs/lru.test.ts` — eviction order, active-tab pinning, and the
   `editor.live_tab_limit` clamp (0 and negatives behave as 1).
-- `crates/cubical-app` `tab_sessions` tests — the shape `recent_vaults.rs` already uses,
+- `crates/simple-directory-app` `tab_sessions` tests — the shape `recent_vaults.rs` already uses,
   including dropping vanished files on restore.
 - A tab-strip render test.
 
@@ -210,7 +210,7 @@ silently corrupt user data rather than merely misbehave:
    the document and its nav history is intact.
 
 Full gate is `scripts/check.sh`. Two standing gotchas: piping it to `tail` masks its exit
-code, and `cubical-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known
+code, and `simple-directory-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known
 flake under full-workspace load.
 
 ---

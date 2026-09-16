@@ -2,7 +2,7 @@
 
 # L2 Session G — Interactive smoke + L2 closeout
 
-L2 Session G — Interactive smoke + L2 closeout for the Cubical project.
+L2 Session G — Interactive smoke + L2 closeout for the simple.directory project.
 This is the L2 closeout session. It ships **no new feature code** — it is
 the hands-on verification pass and the `l2` tag. Do NOT start any L3 work.
 
@@ -10,7 +10,7 @@ the hands-on verification pass and the `l2` tag. Do NOT start any L3 work.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state" block.
@@ -20,18 +20,18 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/conventions.md` — only if a smoke-pass bug forces a code fix.
 
 2. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0` and `l1`, does NOT contain `l2`.
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0` and `l1`, does NOT contain `l2`.
    - CLAUDE.md "Project state" reports Sessions A–F closed and L2 Session G pending. If not, STOP.
 
 3. Baseline test counts to confirm before starting (match the counts in CLAUDE.md "Project state"; update both numbers here if Project state has moved since this prompt was written):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace` → 121 Rust tests green.
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace` → 121 Rust tests green.
    - `cd ui && npx vitest run` → 103 vitest tests green.
    If either differs from Project state, STOP and report.
 
 4. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l2-session-g-closeout`
+   `git -C /Users/user/Developer/simple.directory checkout -b l2-session-g-closeout`
 
 ---
 
@@ -76,7 +76,7 @@ No new feature code. The deliverables:
 ## VERIFICATION (evidence required — never "should work")
 
 Run and paste actual output (match the counts in CLAUDE.md "Project state"):
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` → 121 green.
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` → 121 green.
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.
 - `cd ui && npx vitest run` → 103 green.

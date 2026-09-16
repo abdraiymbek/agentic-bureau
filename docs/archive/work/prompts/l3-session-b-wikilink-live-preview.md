@@ -2,7 +2,7 @@
 
 # L3 Session B — Wiki-link Live Preview + click-to-navigate
 
-L3 Session B for the Cubical project. The L2 Live Preview decoration
+L3 Session B for the simple.directory project. The L2 Live Preview decoration
 pipeline now extends to wiki-links; clicks on resolved links navigate;
 clicks on unresolved links offer to create the target note. Builds on
 the Session A index + `resolve_link` IPC. Do NOT start any further L3
@@ -12,7 +12,7 @@ work in this session.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state" block.
@@ -30,28 +30,28 @@ Working directory: `/Users/user/Developer/Cubical`
    - `ui/src/Editor.tsx` and `ui/src/App.tsx` — the editor host and the
      file-open path the click handler will call into.
    - `ui/src/api/ipc.ts` — `resolveLink` wrapper landed in Session A.
-   - `crates/cubical-ast/src/wikilink.rs` — internal tokenizer; useful
+   - `crates/simple-directory-ast/src/wikilink.rs` — internal tokenizer; useful
      reference for the grammar the Lezer inline rule must mirror.
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` →
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` →
      `Merge L3 Session A — wiki-link parsing + link index` (commit
      `f3e8cda`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`,
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`,
      `l1`, `l2`; does NOT contain `l3`.
    - CLAUDE.md "Project state" reports L3 Session A done, Sessions B–K
      pending. If not, STOP.
 
 4. Baseline test counts (must match CLAUDE.md "Project state"):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
      170 Rust tests green.
    - `cd ui && npx vitest run` → 127 vitest green.
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-b-wikilink-live-preview`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-b-wikilink-live-preview`
 
 ---
 
@@ -157,7 +157,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
   unchanged at 170 unless a Rust gap forced a test (document why).
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.

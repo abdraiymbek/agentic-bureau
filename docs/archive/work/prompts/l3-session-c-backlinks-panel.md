@@ -2,7 +2,7 @@
 
 # L3 Session C — Backlinks panel + right-sidebar shell
 
-L3 Session C for the Cubical project. The collapsible right-sidebar
+L3 Session C for the simple.directory project. The collapsible right-sidebar
 shell lands (per `ui.md` §11.1) with the Backlinks panel as its first
 occupant; for the open note, every note whose `links.target_path`
 resolves to it appears with a context snippet; a row click navigates;
@@ -14,7 +14,7 @@ further L3 work in this session.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state" block.
@@ -30,16 +30,16 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/conventions.md` — code style.
 
 2. Read for context (skim, you'll come back to specific lines):
-   - `crates/cubical-index/src/links.rs` — the `links_to` query landed
+   - `crates/simple-directory-index/src/links.rs` — the `links_to` query landed
      in Session A. Note that the existing SELECT does **not** project
      `source_path` (it returns the same `LinkRow` shape as
      `links_from`); the backlinks UI needs `source_path`, so Session C
      must extend the query module — either a new shape (e.g.
      `BacklinkRow { source_path, position, ... }`) or an enriched
      `links_to` that returns `(LinkRow, source_path)` tuples.
-   - `crates/cubical-app/src/commands/links.rs` — the Session A
+   - `crates/simple-directory-app/src/commands/links.rs` — the Session A
      `resolve_link` handler; mirror its shape for `get_backlinks`.
-   - `crates/cubical-app/src/events.rs` — emit helpers + the existing
+   - `crates/simple-directory-app/src/events.rs` — emit helpers + the existing
      `vault:file-changed` event. `vault:index-changed` is in the spec
      (§3.5) but not yet implemented; see the "Live refresh strategy"
      decision below.
@@ -53,24 +53,24 @@ Working directory: `/Users/user/Developer/Cubical`
      spacings); see `ui.md` §11.4.
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` →
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` →
      `Merge L3 Session B — wiki-link Live Preview + click-to-navigate`
      (commit `fce3341`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`,
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`,
      `l1`, `l2`; does NOT contain `l3`.
    - CLAUDE.md "Project state" reports L3 Sessions A + B done,
      Sessions C–K pending. If not, STOP.
 
 4. Baseline test counts (must match CLAUDE.md "Project state"):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
      170 Rust tests green.
    - `cd ui && npx vitest run` → 161 vitest green.
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-c-backlinks-panel`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-c-backlinks-panel`
 
 ---
 
@@ -108,7 +108,7 @@ expanding scope.
 In summary (full task breakdown lives in the plan written at STEP 1):
 
 1. **`get_backlinks` IPC.** Pure handler in
-   `crates/cubical-app/src/commands/`, Tauri shim in `lib.rs`, TS
+   `crates/simple-directory-app/src/commands/`, Tauri shim in `lib.rs`, TS
    wrapper in `ui/src/api/ipc.ts`. Request `{ vault_id, path }`,
    response `{ backlinks: [{ source_path, context, position }] }` per
    spec §3.1. The handler reads `links` rows where
@@ -116,7 +116,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
    short context snippet (a one-or-two-line window around `position`).
    Mirror the L0 §8 pure-handler + thin-shim pattern.
 
-2. **`links_to` query enrichment.** Extend `crates/cubical-index/src/links.rs`
+2. **`links_to` query enrichment.** Extend `crates/simple-directory-index/src/links.rs`
    so the backlinks query surfaces `source_path` (the existing
    `links_to` returns a `LinkRow` shape that omits it). Either:
    - Add a new `backlinks_for(target_path)` returning a dedicated
@@ -224,7 +224,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
   170 baseline + N new (document the new count: query + handler + snippet helper).
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.

@@ -3,7 +3,7 @@
 
 Three checks:
 
-  1. Tauri appears only in cubical-app. Every other crate stays buildable and
+  1. Tauri appears only in simple-directory-app. Every other crate stays buildable and
      testable without the desktop app harness, which is what keeps a second
      frontend (the CLI) and a future mobile shell from being a rewrite.
   2. ui/ reaches Tauri only through its typed IPC surface (ui/src/api/).
@@ -26,18 +26,18 @@ CONFIG = ROOT / "scripts" / "dependency-boundary.json"
 
 # Lower number = lower layer. A crate may depend on strictly lower layers only.
 LAYERS = {
-    "cubical-ast": 0,
-    "cubical-index": 0,
-    "cubical-table": 0,
-    "cubical-graph": 1,
-    "cubical-search": 1,
-    "cubical-query": 1,
-    "cubical-sync": 1,
-    "cubical-core": 2,
-    "cubical-engine": 3,
-    "cubical-ipc": 4,
-    "cubical-app": 5,
-    "cubical-cli": 5,
+    "simple-directory-ast": 0,
+    "simple-directory-index": 0,
+    "simple-directory-table": 0,
+    "simple-directory-graph": 1,
+    "simple-directory-search": 1,
+    "simple-directory-query": 1,
+    "simple-directory-sync": 1,
+    "simple-directory-core": 2,
+    "simple-directory-engine": 3,
+    "simple-directory-ipc": 4,
+    "simple-directory-app": 5,
+    "simple-directory-cli": 5,
 }
 
 TAURI_IMPORT = re.compile(r"""(?<!import type )from\s+["'](@tauri-apps/[^"']+)["']""")
@@ -48,7 +48,7 @@ def run() -> int:
     gate = Gate("dependency-boundary", "crate-separation.md")
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
 
-    # ---- 1. Tauri stays inside cubical-app ----
+    # ---- 1. Tauri stays inside simple-directory-app ----
     for f in tracked("crates/", suffixes=("Cargo.toml",)):
         crate = rel(f).split("/")[1]
         manifest = tomllib.loads(f.read_text(encoding="utf-8"))
@@ -69,7 +69,7 @@ def run() -> int:
         for n, line in enumerate(text.splitlines(), 1):
             if "tauri::" in line:
                 gate.fail(f"{rel(f)}:{n}: `tauri::` outside "
-                          f"{cfg['tauri_crates']} — route it through cubical-ipc.")
+                          f"{cfg['tauri_crates']} — route it through simple-directory-ipc.")
 
     # ---- 2. ui/ reaches Tauri only through ui/src/api/ ----
     for f in tracked("ui/src/", suffixes=(".ts", ".tsx")):
@@ -86,7 +86,7 @@ def run() -> int:
             gate.fail(
                 f"{r}:{n}: imports {m.group(1)} outside the typed IPC surface "
                 f"({', '.join(cfg['ipc_surface'])}). Add a command to "
-                f"cubical-ipc and call it through ui/src/api/ipc.ts, or declare "
+                f"simple-directory-ipc and call it through ui/src/api/ipc.ts, or declare "
                 f"the exception in scripts/dependency-boundary.json.")
 
     # ---- 3. layering ----

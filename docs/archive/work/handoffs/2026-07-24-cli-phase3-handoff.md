@@ -2,8 +2,8 @@
 
 # CLI frontend — Phase 3 handoff (2026-07-24)
 
-Phase 3 is the **in-app terminal panel**: a terminal inside the Cubical window running
-the same `cubical` binary against the app's own socket. It subsumes the long-deferred
+Phase 3 is the **in-app terminal panel**: a terminal inside the simple.directory window running
+the same `simple-directory` binary against the app's own socket. It subsumes the long-deferred
 "terminal" backlog item. Phases 1 and 2 were built so that this phase is nearly free —
 the backend work is done; what remains is a UI surface plus a PTY.
 
@@ -25,19 +25,19 @@ Merge commit `a0c9f46` (`--no-ff`); branch `feat/cli-attach` deleted. Full gate 
 Phase-2 session). Pushing is the user's call — ask, don't assume.
 
 The invariant is now fully realized: **one backend owns a vault at a time; frontends
-attach.** With the app running, `cubical` executes against its live in-process engine
+attach.** With the app running, `simple-directory` executes against its live in-process engine
 over a Unix socket; with the app closed it runs a standalone one-shot. Reads work either
 way.
 
 ## What Phases 1–2 left in place — the seams Phase 3 plugs into
 
-1. **The socket already exists and is already served.** `cubical-app`'s `.setup()` binds
-   `cubical_ipc::app_socket_path(pid)` and runs a sequential accept loop over
-   `cubical_ipc::handle_connection`. Phase 3 does **not** need new backend plumbing.
-2. **The `cubical` binary already attaches.** On `VaultLocked { socket_path: Some(..) }`
-   it connects and routes the command. A terminal panel that simply *runs `cubical`* in
+1. **The socket already exists and is already served.** `simple-directory-app`'s `.setup()` binds
+   `simple_directory_ipc::app_socket_path(pid)` and runs a sequential accept loop over
+   `simple_directory_ipc::handle_connection`. Phase 3 does **not** need new backend plumbing.
+2. **The `simple-directory` binary already attaches.** On `VaultLocked { socket_path: Some(..) }`
+   it connects and routes the command. A terminal panel that simply *runs `simple-directory`* in
    the app's own vault directory gets live behavior for free.
-3. **`cubical-ipc` is the whole wire boundary** — `Command`/`Request`/`Outcome`/
+3. **`simple-directory-ipc` is the whole wire boundary** — `Command`/`Request`/`Outcome`/
    `Response`, the single `dispatch()`, the single `render()` (all printing + exit
    codes), framing, `client_send`, `handle_connection`, `app_socket_path`, `IO_TIMEOUT`
    (10s). Architecture to preserve: **one `dispatch`, three callers** (CLI-local,
@@ -50,30 +50,30 @@ A terminal panel in the app. The backend is done; this is mostly frontend + proc
 management:
 
 - **A PTY host.** Tauri has no built-in terminal. Realistic options: the
-  `portable-pty` crate (mature, cross-platform) driving a shell, or spawning `cubical`
+  `portable-pty` crate (mature, cross-platform) driving a shell, or spawning `simple-directory`
   directly without a full shell. Decide whether the panel is a *general terminal* (full
-  shell, user can run anything) or a *Cubical command console* (only `cubical` verbs).
+  shell, user can run anything) or a *simple.directory command console* (only `simple-directory` verbs).
   These are very different products — settle it in brainstorming.
 - **A frontend terminal widget.** `xterm.js` is the obvious choice but is a new runtime
   dependency; check it against the no-Electron/no-Node non-negotiables (it's a browser
   lib, so it's fine, but it is a real dep). A DS-native minimal console is the
-  alternative if the scope is "Cubical commands only".
+  alternative if the scope is "simple.directory commands only".
 - **Wiring the panel to the vault.** The panel should default its cwd to the open
-  vault so bare `cubical <cmd>` resolves without `--vault`.
+  vault so bare `simple-directory <cmd>` resolves without `--vault`.
 - **Composability.** Per the CLAUDE.md non-negotiable, this must be a toggleable
   feature block, not a monolith — it switches off cleanly without touching the `.md`
   source of truth.
 
 ### Design decisions to settle in brainstorming (don't skip the process)
 
-- **General shell vs. Cubical-only console.** The biggest fork. A general shell is more
+- **General shell vs. simple.directory-only console.** The biggest fork. A general shell is more
   useful and much larger surface (PTY, ANSI, resize, signals, security); a
   command console is small and safe.
-- **Does the panel go through the socket at all?** If it shells out to `cubical`, it
+- **Does the panel go through the socket at all?** If it shells out to `simple-directory`, it
   attaches over the socket like any terminal — clean, zero new backend. If it calls
   `dispatch` in-process instead, it skips a hop but becomes a fourth caller to keep in
   sync. Prefer shelling out unless there's a concrete reason not to.
-- **Where the binary comes from.** A shipped app needs `cubical` on `PATH` or bundled
+- **Where the binary comes from.** A shipped app needs `simple-directory` on `PATH` or bundled
   alongside the app. Bundling is a packaging question that has not been touched.
 - **Concurrency.** The app's accept loop is **sequential** today (fine for one-shot CLI
   calls). A terminal panel can hold longer-lived commands, so a slow command would block
@@ -86,9 +86,9 @@ management:
 ## Testing approach
 
 - Follow the Phase-2 pattern: the valuable tests were the ones with **no fakes**.
-  `crates/cubical-cli/tests/attach_e2e.rs` is the template — the test process plays
+  `crates/simple-directory-cli/tests/attach_e2e.rs` is the template — the test process plays
   "the app" (real `AppState`, real `open_vault` advertising a real socket, real accept
-  loop via `tokio::join!`), and drives the **real `cubical` binary**. Only one engine
+  loop via `tokio::join!`), and drives the **real `simple-directory` binary**. Only one engine
   exists, so there's no tantivy index-lock conflict.
 - Full gate: `scripts/check.sh` (run it, not the pieces).
 
@@ -97,13 +97,13 @@ management:
 - **`scripts/check.sh | tail` masks the exit code.** A piped gate reports `tail`'s
   status, not the gate's. Redirect to a file and check `$?` directly, or you will
   believe a red gate is green. This actually happened.
-- **`cubical-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known
+- **`simple-directory-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known
   timing flake** under full-workspace load; it passes in isolation. Confirm by re-running
   it alone. Don't "fix" it.
-- **Tests that mutate `CUBICAL_RUNTIME_DIR` must serialize on a mutex guard.** Rust runs
+- **Tests that mutate `SIMPLE_DIRECTORY_RUNTIME_DIR` must serialize on a mutex guard.** Rust runs
   a crate's tests concurrently in one process. Unguarded `set_var`/`remove_var` races —
   in Phase 2 this manifested as a *hang*, not a failure. Engine uses
-  `vault_lock::RUNTIME_ENV_GUARD`; `cubical-ipc` has a crate-local one; integration test
+  `vault_lock::RUNTIME_ENV_GUARD`; `simple-directory-ipc` has a crate-local one; integration test
   files declare their own. Async tests holding it across `.await` need
   `#[allow(clippy::await_holding_lock)]`.
 - **Tauri stale-build phantom bugs.** A hot-reloaded frontend on a stale Rust binary
@@ -120,7 +120,7 @@ management:
 ## Known gaps and carry-overs (from the Phase-2 final review)
 
 **Functional:**
-- ~~**`cubical set …` doesn't refresh the running UI.**~~ **CLOSED 2026-07-24.** A new
+- ~~**`simple-directory set …` doesn't refresh the running UI.**~~ **CLOSED 2026-07-24.** A new
   `vault:setting-changed` event, emitted from `dispatch`'s `Set` arm (not from
   `set_setting`, so the GUI's own writes don't echo), drives a frontend re-hydration of
   the whole settings set. Rationale in
@@ -128,7 +128,7 @@ management:
 - **The Tauri GUI smoke was never run** (non-interactive session). Everything below
   `.setup()` is covered by the end-to-end tests; the ~15 lines of Tauri glue are
   inspection-only. A one-minute manual check closes it: launch the app, open a vault,
-  run `cubical --vault <that> new note --at Smoke.md`, watch it appear in the tree.
+  run `simple-directory --vault <that> new note --at Smoke.md`, watch it appear in the tree.
 - **CLI error text lost Phase-1's `anyhow` context** (`error: writing X.md: <cause>` →
   `error: <cause>`). Deliberate — it's what makes local and attach output identical —
   and the parity claim was narrowed to *success* output. Restore the context in `render`
@@ -136,9 +136,9 @@ management:
 
 **Cosmetic / deferred — both CLOSED 2026-07-24:**
 - ~~transport collapses every failure into `io::Error::other`~~ → `TransportError` is now
-  `Io` vs `Protocol`, and the CLI distinguishes "could not reach the running Cubical app"
-  from "the running Cubical app sent an unreadable response".
-- ~~`cubical write` hangs on stdin for a nonexistent vault~~ → the CLI now rejects a
+  `Io` vs `Protocol`, and the CLI distinguishes "could not reach the running simple.directory app"
+  from "the running simple.directory app sent an unreadable response".
+- ~~`simple-directory write` hangs on stdin for a nonexistent vault~~ → the CLI now rejects a
   `--vault` that is not a directory *before* building the command, for every subcommand.
 
 **Unrelated, still open:** intermittent `[[wikilink]]` non-render in Live Preview (raw
@@ -149,5 +149,5 @@ last DS primitive (the ranked `CommandPalette`/OmniBar) is the only net-new DS i
 ---
 
 **Phase 3 is optional.** Nothing depends on it, and the CLI is fully usable from an
-external terminal today. If the next session has higher-value work (the `cubical set`
+external terminal today. If the next session has higher-value work (the `simple-directory set`
 event, the GUI smoke, pushing `main`), do that first.

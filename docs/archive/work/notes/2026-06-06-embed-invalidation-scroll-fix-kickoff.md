@@ -3,7 +3,7 @@
 # Kickoff — Embed re-render scroll-jump fix (own-write invalidation)
 
 > Copy the body below (everything under the horizontal rule) into a
-> fresh Cubical session as the opening message. Short, focused bug-fix
+> fresh simple.directory session as the opening message. Short, focused bug-fix
 > session. It is gated **before L4-B** per `docs/layer-4-spec.md` §9.2.
 
 ---
@@ -109,7 +109,7 @@ commit boundary: `cargo test --workspace`, `cargo clippy --workspace
 messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
 
 **Executed interactive smoke before tagging** (Contract E):
-`cargo tauri dev`, open `~/Developer/sandbox/cubical-l4a-smoke/`
+`cargo tauri dev`, open `~/Developer/sandbox/simple-directory-l4a-smoke/`
 (A.md/B.md/C.md carry own-line embeds), type continuously in a file
 with a rendered embed for ~30 s, confirm the viewport no longer jumps
 while the embed stays rendered. Then confirm a genuine **external**

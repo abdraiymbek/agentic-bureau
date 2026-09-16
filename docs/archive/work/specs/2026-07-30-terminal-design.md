@@ -8,13 +8,13 @@
 
 ## Why
 
-The command console (CLI Phase 3) runs Cubical verbs in-process with no shell and no PTY. That was the right call for what it was, but it cannot do the thing actually wanted: run a **real terminal** — `cd`, `cat`, `grep`, `pwd`, `touch`, `git` — and in particular run **AI CLIs** (`claude`, `codex`, local models) against the vault **without restricting their tools**.
+The command console (CLI Phase 3) runs simple.directory verbs in-process with no shell and no PTY. That was the right call for what it was, but it cannot do the thing actually wanted: run a **real terminal** — `cd`, `cat`, `grep`, `pwd`, `touch`, `git` — and in particular run **AI CLIs** (`claude`, `codex`, local models) against the vault **without restricting their tools**.
 
 Stated goal: *"a way to use a terminal in ways that might break the vaults without breaking the vaults."*
 
 ## The honest constraint
 
-"All mutations route through the engine" and "run unrestricted AI CLIs" cannot both hold. When `claude` writes a file it issues an `open`/`write` syscall; nothing inside Cubical sees it. Interception would need FUSE or DYLD interposition — fragile, and contradictory to portability.
+"All mutations route through the engine" and "run unrestricted AI CLIs" cannot both hold. When `claude` writes a file it issues an `open`/`write` syscall; nothing inside simple.directory sees it. Interception would need FUSE or DYLD interposition — fragile, and contradictory to portability.
 
 So integrity is not achieved by interception. It is achieved by **Spec A's convergence layer**, which is why Spec A ships first: it is the safety net, and shipping the hazard before the net is the wrong order. See [`foundation.md`](../../architecture/foundation.md) §2.1–2.2 for the locked rules this feature must satisfy.
 
@@ -46,25 +46,25 @@ The real cost is a heavy frontend dependency the design system does not own. Two
 
 - **cwd:** vault root.
 - **Confinement:** none. Unrestricted was the explicit ask.
-- **`PATH`:** app binary dir prepended, so `cubical` resolves. This is the quiet win — the `cubical` binary already attaches to the running app over the Phase-2 Unix socket, so every console verb works inside the terminal *and hits the live engine*. Engine-routed operations are available by default; they are simply not mandatory.
-- **`CUBICAL_VAULT`:** vault root path.
+- **`PATH`:** app binary dir prepended, so `simple-directory` resolves. This is the quiet win — the `simple-directory` binary already attaches to the running app over the Phase-2 Unix socket, so every console verb works inside the terminal *and hits the live engine*. Engine-routed operations are available by default; they are simply not mandatory.
+- **`SIMPLE_DIRECTORY_VAULT`:** vault root path.
 - **Shell:** `$SHELL`, falling back to `/bin/sh`.
 
 ### Retiring the console
 
-The terminal subsumes the console: a real shell with `cubical` on `PATH` does everything `console_exec` did. Rather than delete working, tested code while its replacement is unproven, the console is **isolated first and removed later** — see "Sequencing" below.
+The terminal subsumes the console: a real shell with `simple-directory` on `PATH` does everything `console_exec` did. Rather than delete working, tested code while its replacement is unproven, the console is **isolated first and removed later** — see "Sequencing" below.
 
 ### Steering AI CLIs
 
-Interception is impossible, but *persuasion* works well on agents specifically. An agent told that `cubical rename-file` exists and that raw `mv` strands wikilinks will generally comply.
+Interception is impossible, but *persuasion* works well on agents specifically. An agent told that `simple-directory rename-file` exists and that raw `mv` strands wikilinks will generally comply.
 
 AI CLIs read a conventions file from their cwd — `CLAUDE.md` for Claude Code, `AGENTS.md` for most others. That means the file must sit at the **vault root** to function, which collides with the byte-for-byte commitment. Resolution:
 
-- Canonical generated text lives at **`.cubical/agent-instructions.md`** — Cubical's own territory, written freely, zero footprint in the user's vault.
+- Canonical generated text lives at **`.simple-directory/agent-instructions.md`** — simple.directory's own territory, written freely, zero footprint in the user's vault.
 - On **first** terminal open, ask once: *"Create `AGENTS.md` + `CLAUDE.md` at your vault root so AI CLIs understand this vault? These are yours to edit or delete."* Default **no**.
-- If accepted, the root files are a **one-line pointer** to `.cubical/agent-instructions.md` — a few bytes, and agents follow the reference. Cubical never rewrites them after creation.
+- If accepted, the root files are a **one-line pointer** to `.simple-directory/agent-instructions.md` — a few bytes, and agents follow the reference. simple.directory never rewrites them after creation.
 
-The only vault-root write is therefore an explicit user choice. (An earlier version of this design put the file only in `.cubical/` and claimed it would steer agents; that was wrong — agents do not look there.)
+The only vault-root write is therefore an explicit user choice. (An earlier version of this design put the file only in `.simple-directory/` and claimed it would steer agents; that was wrong — agents do not look there.)
 
 ### Gating
 
@@ -72,16 +72,16 @@ Opt-in core plugin `plugins.terminal_enabled`, **default off**, matching the con
 
 ## Known platform gap
 
-The Phase-2 socket is `#[cfg(unix)]` only. On Windows the terminal itself would work (ConPTY via `portable-pty`), but `cubical` inside it would hit the exit-2 decline, since the app holds the vault lock and there is no socket to attach to. Windows is already deferred; **recorded, not solved.**
+The Phase-2 socket is `#[cfg(unix)]` only. On Windows the terminal itself would work (ConPTY via `portable-pty`), but `simple-directory` inside it would hit the exit-2 decline, since the app holds the vault lock and there is no socket to attach to. Windows is already deferred; **recorded, not solved.**
 
 ## Known packaging gap
 
-**`cubical` on the child `PATH` does not survive bundling.** The prepended directory is `current_exe().parent()` — under `cargo tauri dev` that is `target/debug/`, which holds both `cubical-app` and `cubical`, so the win above is real in development. A bundled `.app` ships only `cubical-app` in `Contents/MacOS/`, and `tauri.conf.json` declares no `externalBin`, so in a release build `cubical` resolves only if the user installed it separately. Fixing it is release tooling — sidecar naming with a target-triple suffix and a build step to place the CLI — not terminal work. **Recorded, not solved.**
+**`simple-directory` on the child `PATH` does not survive bundling.** The prepended directory is `current_exe().parent()` — under `cargo tauri dev` that is `target/debug/`, which holds both `simple-directory-app` and `simple-directory`, so the win above is real in development. A bundled `.app` ships only `simple-directory-app` in `Contents/MacOS/`, and `tauri.conf.json` declares no `externalBin`, so in a release build `simple-directory` resolves only if the user installed it separately. Fixing it is release tooling — sidecar naming with a target-triple suffix and a build step to place the CLI — not terminal work. **Recorded, not solved.**
 
 ## Sequencing
 
 1. **Spec A lands first.** Non-negotiable — it is the safety net.
-2. **Isolate the console.** Collapse its surface to a single wiring point so terminal work cannot collide with it, without deleting anything. Console code today spans `ui/src/console/`, `ui/src/api/ipc.ts`, `ui/src/core/commands.ts`, `ui/src/settings/corePlugins.ts`, `ui/src/tabs/*`, `crates/cubical-app/src/lib.rs`, and `crates/cubical-ipc/`.
+2. **Isolate the console.** Collapse its surface to a single wiring point so terminal work cannot collide with it, without deleting anything. Console code today spans `ui/src/console/`, `ui/src/api/ipc.ts`, `ui/src/core/commands.ts`, `ui/src/settings/corePlugins.ts`, `ui/src/tabs/*`, `crates/simple-directory-app/src/lib.rs`, and `crates/simple-directory-ipc/`.
 3. **Build the terminal** behind its default-off toggle.
 4. **Remove the console** in one commit, once the terminal is proven — not before.
 
@@ -109,6 +109,6 @@ The console keeps working and keeps its tab. Sequencing step 4 — removing it �
 - PTY lifecycle: spawn, stream, resize, reap on tab close, reap on vault switch, reap on plugin disable.
 - No orphan processes after any close path — the failure mode here is a hidden `claude` mutating the vault with no visible tab.
 - Terminal tabs excluded from LRU eviction and from session persistence (mirrors the existing console `liveFileIds` suite).
-- `cubical` resolves on the child `PATH` and reaches the live engine.
+- `simple-directory` resolves on the child `PATH` and reaches the live engine.
 - Agent-instructions consent: declining writes nothing to the vault root; accepting writes the pointer files exactly once and never rewrites them.
 - **Verification caveat (resolved by the user, 2026-07-31):** the terminal is vault-gated and the plain `vite` preview has no Tauri backend, so the interactive surface cannot be exercised in a non-interactive session — Rust-side PTY lifecycle and reaping are testable without the GUI and are where the process-leak risk lives. The remaining interactive surface was smoke-tested by hand in the running app and works. The caveat still applies to *future* sessions touching this code.

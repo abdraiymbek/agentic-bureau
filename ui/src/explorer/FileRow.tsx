@@ -31,7 +31,7 @@ const FileRow: Component<FileRowProps> = (props) => {
   const nameTitle = () => {
     if (isDotted()) return noteNameError(props.name);
     if (isUnsupported()) {
-      return `Cubical has no viewer for .${parts().ext} files — the file is untouched on disk.`;
+      return `simple.directory has no viewer for .${parts().ext} files — the file is untouched on disk.`;
     }
     return undefined;
   };

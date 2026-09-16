@@ -7,7 +7,7 @@ body:
       value: >-
         The performance bar, the measurement method and the current medians are
         owned by `docs/architecture/foundation.md` §1 (commitment 2). The harness
-        is `crates/cubical-core/examples/scan_bench.rs`. **Measure before
+        is `crates/simple-directory-core/examples/scan_bench.rs`. **Measure before
         filing** — an unmeasured suspicion is an `idea`, not perf debt.
 
   - type: textarea

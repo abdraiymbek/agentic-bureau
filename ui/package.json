@@ -1,8 +1,8 @@
 {
-  "name": "cubical-ui",
+  "name": "simple-directory-ui",
   "version": "0.1.0",
   "private": true,
-  "description": "Solid + TypeScript + Vite frontend for Cubical. Owned by Vite; builds into ../crates/cubical-app/../../ui/dist consumed by Tauri.",
+  "description": "Solid + TypeScript + Vite frontend for simple.directory. Owned by Vite; builds into ../crates/simple-directory-app/../../ui/dist consumed by Tauri.",
   "type": "module",
   "scripts": {
     "dev": "vite",

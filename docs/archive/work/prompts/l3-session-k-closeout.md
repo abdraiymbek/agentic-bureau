@@ -2,7 +2,7 @@
 
 # L3 Session K — Interactive smoke + L3 closeout
 
-L3 Session K for the Cubical project. This is the L3 closeout session. It ships **no new feature code** — it is the hands-on verification pass across every L3 surface (with consolidated deferred smokes from G / H.2 / I / J riding along), the §5 architecture-deviation promotion, the `l3` tag, and the Project-state rewrite. Do NOT start any L4 work.
+L3 Session K for the simple.directory project. This is the L3 closeout session. It ships **no new feature code** — it is the hands-on verification pass across every L3 surface (with consolidated deferred smokes from G / H.2 / I / J riding along), the §5 architecture-deviation promotion, the `l3` tag, and the Project-state rewrite. Do NOT start any L4 work.
 
 Design and per-session prose are locked across `docs/layer-3-spec.md` §9.1–§9.16 and the design specs under `docs/superpowers/specs/`. K does not change them — it ticks the §6 DoD checklist and adds §9.17 documenting the smoke pass + deviation promotions.
 
@@ -34,7 +34,7 @@ K only verifies that everything above works end-to-end against `cargo tauri dev`
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — must report L3 Sessions A–F + G + H.1 + H.2 + I + **J done**; K pending. If not, STOP.
@@ -48,18 +48,18 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/layer-2-spec.md` §9.7 — L2 closeout's voice + structure for the §9.17 write-up.
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` → `merge: L3 Session J.2 — pending rewrites frontend` (commit `54765b6`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` → `merge: L3 Session J.2 — pending rewrites frontend` (commit `54765b6`).
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
 
 4. Baseline test counts (must match CLAUDE.md "Project state" post-J.2):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **406**.
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **406**.
    - `cd ui && npx vitest run` → **352**.
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-k-closeout`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-k-closeout`
 
 ---
 
@@ -191,7 +191,7 @@ Rewrite the Project state block to:
 
 Only after every §6 DoD box is ticked. Tag the closeout commit:
 ```
-git -C /Users/user/Developer/Cubical tag -a l3 -m "Layer 3 — Knowledge Graph closed (2026-06-01)"
+git -C /Users/user/Developer/simple.directory tag -a l3 -m "Layer 3 — Knowledge Graph closed (2026-06-01)"
 ```
 Adjust the date to the actual closeout date.
 
@@ -201,7 +201,7 @@ Adjust the date to the actual closeout date.
 
 Run and paste actual output. Counts must match CLAUDE.md "Project state" pre-K (no new code unless a bug forces it):
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` → **406** green.
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` → **406** green.
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.
 - `cd ui && npx vitest run` → **352** green.

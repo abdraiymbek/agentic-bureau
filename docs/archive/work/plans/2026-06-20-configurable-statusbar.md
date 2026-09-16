@@ -6,7 +6,7 @@
 
 **Goal:** Make the bottom status bar user-configurable — a master on/off that unmounts the footer, per-item visibility toggles for the four chrome segments, and an omnibar "Toggle status bar" command.
 
-**Architecture:** Five new durable `statusbar.*` boolean settings (per-vault, in `.cubical/config.toml`; no Rust changes — the settings layer is schemaless). Two new pure, unit-tested helper modules (`segments.ts`, `separators.ts`). App.tsx grows a `statusbarConfig` signal seeded on vault-open, mirrors the existing `corePlugins` pattern for persistence, rewrites the footer to interleave separators from the visible set, and gains a new Settings tab. The omnibar gains a `kind:"command"` variant seeded with one command.
+**Architecture:** Five new durable `statusbar.*` boolean settings (per-vault, in `.simple-directory/config.toml`; no Rust changes — the settings layer is schemaless). Two new pure, unit-tested helper modules (`segments.ts`, `separators.ts`). App.tsx grows a `statusbarConfig` signal seeded on vault-open, mirrors the existing `corePlugins` pattern for persistence, rewrites the footer to interleave separators from the visible set, and gains a new Settings tab. The omnibar gains a `kind:"command"` variant seeded with one command.
 
 **Tech Stack:** SolidJS + TypeScript (vitest) front end; Tauri IPC for settings persistence. Spec: `docs/superpowers/specs/2026-06-20-configurable-statusbar-design.md`.
 
@@ -937,7 +937,7 @@ Open a vault and verify:
 2. Settings ▸ Status bar: toggle Vault path off → it disappears, no dangling `·`.
 3. Toggle Word count off, Block count on → middle shows "N blocks" with no leading `·`.
 4. Master Off → the whole footer disappears (not an empty strip); the segment rows dim/disable.
-5. Reopen the vault → choices persist (durable in `.cubical/config.toml`).
+5. Reopen the vault → choices persist (durable in `.simple-directory/config.toml`).
 6. Cmd/Ctrl+K → type "toggle" → "⚡ Toggle status bar" appears → Enter flips the bar.
 
 Record the result honestly in the closeout; if `cargo tauri dev` can't run in this environment, report that the automated gate passed and the manual steps are pending an operator smoke (consistent with the existing `l4` close-tag protocol).
@@ -958,6 +958,6 @@ git commit -m "docs: record configurable status bar in project state"
 ## Notes for the implementer
 
 - **DRY:** the On/Off segmented-control markup is intentionally repeated from the Plugins tab rather than extracted — matches the existing house style (each tab inlines its own `seg-control`). Don't refactor the Plugins tab as part of this work.
-- **No Rust changes:** `crates/cubical-core/src/vault/settings.rs` is schemaless; durable `statusbar.*` keys route to `config.toml` automatically via `is_workspace_key` (non-`ui.` ⇒ durable). Do not add validation there.
+- **No Rust changes:** `crates/simple-directory-core/src/vault/settings.rs` is schemaless; durable `statusbar.*` keys route to `config.toml` automatically via `is_workspace_key` (non-`ui.` ⇒ durable). Do not add validation there.
 - **Defaults uniformly `true`:** every `statusbar.*` boolean defaults on, so the seeding fallback is a flat `?? STATUSBAR_DEFAULT`.
 - **Indices into `STATUSBAR_SEGMENTS`** in the footer (`[0]` vault_path, `[1]` file_path, `[2]` word_count, `[3]` block_count) match the array order defined in `segments.ts` Task 1 — keep them in sync if you reorder.

@@ -12,7 +12,7 @@ Do NOT start Session J.2 or K in this session.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — "Project state" must report J.1 partial (chains 1+2+3 landed, chain 4 pending). If not, STOP.
@@ -22,32 +22,32 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/conventions.md`, `docs/migration-touchpoints.md`.
 
 2. Read for context (skim; come back to specific lines):
-   - `crates/cubical-app/src/commands/rename.rs` — the J.1 chain-3 stub. The `flush_target_for_link_mention` helper inside is the per-target flush executor; rename it to `flush_pending_for_target` (`pub(crate)`) and call it from both new IPC shims (`flush_pending_rewrites` and `flush_pending_rewrites_for_target`).
-   - `crates/cubical-app/src/commands/mentions.rs` — `link_mention` already calls the stub; update its call site to the new name.
-   - `crates/cubical-app/src/state.rs` (per-vault state lives here; `OpenVault { … }` is the struct literal). **Critical:** there are 9 existing `OpenVault { … }` struct-literal call sites; the chain-4 attempt that ran on 2026-05-31 added three new fields (`flush_own_writes`, `flush_in_progress`, `flush_timer_cancel`) but did NOT migrate those call sites, which broke the build. Migrate ALL of them in the same commit as the field addition. Alternatively introduce an `OpenVault::new(...)` constructor and rewrite all literals to use it.
-   - `crates/cubical-app/src/events.rs` — the watcher dispatcher. The `Modified` branch needs the own-write hash gate check inserted just before the `vault:file-changed` emit (after the fresh raw-bytes hash is computed). Also defines / would define the new event names + payloads.
-   - `crates/cubical-app/src/lib.rs` — `generate_handler!` registration site. Nine new entries land here.
-   - `crates/cubical-app/src/commands/mentions.rs` — `get_unlinked_mentions` is the closest precedent for a vault-scoped read IPC; `link_mention` for read-modify-write.
-   - `crates/cubical-app/src/commands/vault.rs` — `open_vault` + `close_vault` are where the periodic-timer task is spawned + cancelled.
-   - `crates/cubical-core/src/atomic.rs` — `atomic_write` (used by the existing flush helper). For the file move in `rename_file`, use `tokio::fs::rename` (same-FS) with `atomic_write` + remove as the cross-FS fallback.
-   - `crates/cubical-index/src/pending.rs` (chain 1) — every query function the chain-4 handlers consume.
-   - `crates/cubical-index/src/error.rs` — `IndexError::UnknownEnum` already exists.
-   - `crates/cubical-core/src/vault/pending.rs` (chain 2) — `apply_pending` is what the flush executor calls; consider adding a sibling `apply_pending_with_counts(source, rows) -> (String, usize)` if a clean `refs_updated` count is needed (the chain-3 stub counted via the cmp; either approach is fine — pick one and be consistent).
+   - `crates/simple-directory-app/src/commands/rename.rs` — the J.1 chain-3 stub. The `flush_target_for_link_mention` helper inside is the per-target flush executor; rename it to `flush_pending_for_target` (`pub(crate)`) and call it from both new IPC shims (`flush_pending_rewrites` and `flush_pending_rewrites_for_target`).
+   - `crates/simple-directory-app/src/commands/mentions.rs` — `link_mention` already calls the stub; update its call site to the new name.
+   - `crates/simple-directory-app/src/state.rs` (per-vault state lives here; `OpenVault { … }` is the struct literal). **Critical:** there are 9 existing `OpenVault { … }` struct-literal call sites; the chain-4 attempt that ran on 2026-05-31 added three new fields (`flush_own_writes`, `flush_in_progress`, `flush_timer_cancel`) but did NOT migrate those call sites, which broke the build. Migrate ALL of them in the same commit as the field addition. Alternatively introduce an `OpenVault::new(...)` constructor and rewrite all literals to use it.
+   - `crates/simple-directory-app/src/events.rs` — the watcher dispatcher. The `Modified` branch needs the own-write hash gate check inserted just before the `vault:file-changed` emit (after the fresh raw-bytes hash is computed). Also defines / would define the new event names + payloads.
+   - `crates/simple-directory-app/src/lib.rs` — `generate_handler!` registration site. Nine new entries land here.
+   - `crates/simple-directory-app/src/commands/mentions.rs` — `get_unlinked_mentions` is the closest precedent for a vault-scoped read IPC; `link_mention` for read-modify-write.
+   - `crates/simple-directory-app/src/commands/vault.rs` — `open_vault` + `close_vault` are where the periodic-timer task is spawned + cancelled.
+   - `crates/simple-directory-core/src/atomic.rs` — `atomic_write` (used by the existing flush helper). For the file move in `rename_file`, use `tokio::fs::rename` (same-FS) with `atomic_write` + remove as the cross-FS fallback.
+   - `crates/simple-directory-index/src/pending.rs` (chain 1) — every query function the chain-4 handlers consume.
+   - `crates/simple-directory-index/src/error.rs` — `IndexError::UnknownEnum` already exists.
+   - `crates/simple-directory-core/src/vault/pending.rs` (chain 2) — `apply_pending` is what the flush executor calls; consider adding a sibling `apply_pending_with_counts(source, rows) -> (String, usize)` if a clean `refs_updated` count is needed (the chain-3 stub counted via the cmp; either approach is fine — pick one and be consistent).
    - `ui/src/api/ipc.ts` — IPC binding shape (chain-4 ships typed stubs only).
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` → `merge: L3 Session J.1 (partial) — pending rewrites infrastructure` (commit `1e26269`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` → `merge: L3 Session J.1 (partial) — pending rewrites infrastructure` (commit `1e26269`).
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
 
 4. Baseline test counts (must match CLAUDE.md "Project state" post-J.1 partial):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **381**.
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **381**.
    - `cd ui && npx vitest run` → **329** (unchanged through J.1 partial — no UI work yet).
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-j1-chain4-finish`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-j1-chain4-finish`
 
 ---
 
@@ -80,7 +80,7 @@ pub struct OpenVault {
 }
 ```
 
-**Migrate all 9 existing `OpenVault { … }` struct-literal call sites in the same commit** (or introduce `OpenVault::new(...)` and rewrite call sites to use it — likely cleaner). Add `tokio-util = { version = "0.7", features = ["rt"] }` to `crates/cubical-app/Cargo.toml` if not already present.
+**Migrate all 9 existing `OpenVault { … }` struct-literal call sites in the same commit** (or introduce `OpenVault::new(...)` and rewrite call sites to use it — likely cleaner). Add `tokio-util = { version = "0.7", features = ["rt"] }` to `crates/simple-directory-app/Cargo.toml` if not already present.
 
 ### 2. `mint_rename_op_id` helper (`commands/rename.rs`)
 
@@ -92,7 +92,7 @@ Per the design spec's pseudocode + §9.15's "what did NOT land" notes:
 
 - **`rename_file`** — `SELECT DISTINCT source_path, target_raw FROM links WHERE target_path = ?from`, derive old/new tokens per the spec's "Wiki-link old_token derivation" decision (basename form ↔ basename form, path form ↔ path form). **Explicit rekeys** for `links`, `tags`, `blocks`, `block_refs`, `frontmatter` BEFORE `UPDATE files SET path = ?to` (since no `ON UPDATE CASCADE`). `tokio::fs::rename` for the file move (cross-FS: `atomic_write` + remove). Re-extract the moved file's outbound `refresh_{links,tags,blocks,frontmatter}` under the new path. All inside one transaction. Emit `vault:pending-rewrites-changed`.
 - **`rename_tag`** — `SELECT DISTINCT file_path FROM tags WHERE tag_path = ?old OR tag_path LIKE ?old || '/%'`. One row per distinct file_path (kind = `Tag`). Emit event.
-- **`rename_block_id`** — referrer rows via `block_refs WHERE target_file_path = ?file AND target_block_id = ?old`, **plus** one extra row targeting `?file` itself (defining-line rewrite). Reject if `?old` block doesn't exist (`cubical_index::block_exists`). Emit event.
+- **`rename_block_id`** — referrer rows via `block_refs WHERE target_file_path = ?file AND target_block_id = ?old`, **plus** one extra row targeting `?file` itself (defining-line rewrite). Reject if `?old` block doesn't exist (`simple_directory_index::block_exists`). Emit event.
 
 ### 4. Flush IPCs (`commands/rename.rs`)
 
@@ -151,7 +151,7 @@ Add bindings + the two new listeners (`onVaultPendingRewritesChanged`, `onVaultF
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` → 381 baseline + new (rename × 3, flush × 2, count + breakdown + list-ops + undo, periodic timer, close-time flush, >50 fuse, own-write gate). Expected delta: ~25–40 new tests.
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` → 381 baseline + new (rename × 3, flush × 2, count + breakdown + list-ops + undo, periodic timer, close-time flush, >50 fuse, own-write gate). Expected delta: ~25–40 new tests.
 - `cd ui && npx tsc --noEmit && npm run build && npx vitest run` → all clean; vitest still 329.
 - `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check` → clean.
 - **Headless smoke recipe** documented (J.1 has no UI; full hands-on lives in J.2).

@@ -1,4 +1,4 @@
-# Implementation — vault core (`cubical-core`)
+# Implementation — vault core (`simple-directory-core`)
 
 Design owner: [`../architecture/vault.md`](../architecture/vault.md) and
 [`../architecture/concurrency.md`](../architecture/concurrency.md).
@@ -51,8 +51,8 @@ registries (tests, headless tooling) may omit it and accept `None`.
   budget; upsert is idempotent, so a skipped file converges on the next scan.
 - **The scan does not know search.** `scan` hands every Markdown file it reads
   to a caller-supplied `ScanSink` — path, parsed document, mtime, size — and
-  calls `finish(walk_complete)` once the walk ends. `cubical-core` is substrate
-  and `cubical-search` is a block, so indexing reaches the scan through this
+  calls `finish(walk_complete)` once the walk ends. `simple-directory-core` is substrate
+  and `simple-directory-search` is a block, so indexing reaches the scan through this
   seam and never through the core manifest
   ([`domain-scoped-dependencies`](../principles/domain-scoped-dependencies.md)).
   The periodic commit and the orphan reconcile are the sink's business, not
@@ -137,11 +137,11 @@ tests, so it measured the machine. Observed values ranged past 6 s under gate
 load. The remaining `timeout` is a **liveness** bound set far clear of
 scheduling noise — if it ever fires, the bridge genuinely did not close.
 
-**Exclusions** mirror the scan's skip set: anything under `.cubical/`, `.git/`,
+**Exclusions** mirror the scan's skip set: anything under `.simple-directory/`, `.git/`,
 `node_modules/`, or any dot-prefixed directory. Without this every libSQL write
-under `.cubical/` echoes back as an event and re-triggers a write.
+under `.simple-directory/` echoes back as an event and re-triggers a write.
 
-The `.cubical-tmp` suffix is filtered by **filename**: without it every autosave
+The `.simple-directory-tmp` suffix is filtered by **filename**: without it every autosave
 echoes three events (temp create + temp modify + target modify) and the temp
 path leaks into the `files` table before the rename.
 
@@ -204,7 +204,7 @@ each keep a private copy.
 
 Callers holding one file's source (scan, the watcher, both rename paths) parse
 once up front and call the `_with_doc` arm, so a file is parsed **once**, not
-once per consumer. Before this, a scanned file went through `cubical_ast::parse`
+once per consumer. Before this, a scanned file went through `simple_directory_ast::parse`
 four times — frontmatter, links, tags, and the search projection — plus three
 more `parse_frontmatter` passes inside the projection, each behind its own
 `spawn_blocking` hop and its own full copy of the source. On a 10k-note vault
@@ -303,7 +303,7 @@ immediately. So wiping the (otherwise disposable) index mid-rename would lose
 the `Old → New` mapping and strand referrers with broken links and no
 breadcrumb.
 
-The journal closes that hole: an append-only JSONL log in `.cubical/`, one
+The journal closes that hole: an append-only JSONL log in `.simple-directory/`, one
 object per rename op — zero `.md` bytes, no UUIDs, portable. The core module is
 pure (serialize / parse / compact); file I/O and scan integration live with the
 command layer. See [`engine-ipc.md`](engine-ipc.md) for replay.
@@ -343,7 +343,7 @@ entries survive; replay picks them up after the rescan repopulates `files` and
 SQLite primary result codes that mean the bytes are not a database this build
 can read — `SQLITE_CORRUPT` (11) and `SQLITE_NOTADB` (26), masked to the
 primary code so extended codes classify the same. Everything else stays
-terminal on purpose: `SchemaTooNew` means a *newer* Cubical wrote the file and
+terminal on purpose: `SchemaTooNew` means a *newer* simple.directory wrote the file and
 wiping it would destroy a forward-compatible index; `SQLITE_CANTOPEN` (14) is a
 directory in the way or a permission problem, not corruption; a failed
 migration returns its own error and the rolled-back database is still good.
@@ -351,7 +351,7 @@ migration returns its own error and the rolled-back database is still good.
 **Moved aside, not deleted.** The file goes to `index.db.corrupt` (and its
 `-wal` / `-shm` sidecars alongside, best-effort — SQLite usually removes them
 itself when the failed open closes). A single quarantine slot is overwritten by
-the next corruption: bounded junk in `.cubical/` beats an unbounded pile of
+the next corruption: bounded junk in `.simple-directory/` beats an unbounded pile of
 timestamped carcasses, and only the most recent failure is diagnostically
 interesting. The rebuild is recorded in `audit_log` at warn level under
 `index_rebuilt`, carrying the SQLite error, the quarantine path and how many

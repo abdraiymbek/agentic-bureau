@@ -6,9 +6,9 @@
 
 **Goal:** Build a persistent `Files | Search` left-panel search surface that runs the L4-A Tantivy index and shows ranked, `<mark>`-highlighted results, and promote the prose fields to `STORED` so snippets are tokenizer-correct (§5 deviation #1 → option (a)).
 
-**Architecture:** A narrow Rust change in `cubical-search` (flip STORED flags + bump `SCHEMA_VERSION`; the doc writer and `collect_snippets` already handle every field). A new Solid `SearchPanel.tsx` backed by three pure, unit-tested modules (`debounce`, `snippet`, `searchQuery`). `App.tsx` gains a left-pane mode toggle persisted as `ui.left_pane_mode`. No new IPC.
+**Architecture:** A narrow Rust change in `simple-directory-search` (flip STORED flags + bump `SCHEMA_VERSION`; the doc writer and `collect_snippets` already handle every field). A new Solid `SearchPanel.tsx` backed by three pure, unit-tested modules (`debounce`, `snippet`, `searchQuery`). `App.tsx` gains a left-pane mode toggle persisted as `ui.left_pane_mode`. No new IPC.
 
-**Tech Stack:** Rust + Tantivy 0.22 (`cubical-search`); Solid + TypeScript + Vite (`ui/`); vitest; existing Tauri IPC wrappers in `ui/src/api/ipc.ts`.
+**Tech Stack:** Rust + Tantivy 0.22 (`simple-directory-search`); Solid + TypeScript + Vite (`ui/`); vitest; existing Tauri IPC wrappers in `ui/src/api/ipc.ts`.
 
 **Spec:** `docs/superpowers/specs/2026-06-07-l4b-search-panel-design.md`
 
@@ -26,9 +26,9 @@
 
 ## File Structure
 
-- `crates/cubical-search/src/schema.rs` — **modify.** Promote `headings`/`body`/`frontmatter`/`code` to `STORED`; add a stored-flag test.
-- `crates/cubical-search/src/index.rs` — **modify.** `SCHEMA_VERSION` `1 → 2`.
-- `crates/cubical-search/src/query.rs` — **modify.** No logic change; update stale comment + add per-field snippet tests.
+- `crates/simple-directory-search/src/schema.rs` — **modify.** Promote `headings`/`body`/`frontmatter`/`code` to `STORED`; add a stored-flag test.
+- `crates/simple-directory-search/src/index.rs` — **modify.** `SCHEMA_VERSION` `1 → 2`.
+- `crates/simple-directory-search/src/query.rs` — **modify.** No logic change; update stale comment + add per-field snippet tests.
 - `ui/src/sidebar/debounce.ts` — **create.** Generic trailing-edge debounce with `.cancel()`.
 - `ui/src/sidebar/debounce.test.ts` — **create.**
 - `ui/src/sidebar/snippet.ts` — **create.** `pickSnippet` + `parseHighlights`.
@@ -45,13 +45,13 @@ Task order: Rust first (the snippet foundation the UI consumes), then the three 
 ## Task 1: Promote prose fields to STORED + bump schema version
 
 **Files:**
-- Modify: `crates/cubical-search/src/query.rs` (test first)
-- Modify: `crates/cubical-search/src/schema.rs`
-- Modify: `crates/cubical-search/src/index.rs:14`
+- Modify: `crates/simple-directory-search/src/query.rs` (test first)
+- Modify: `crates/simple-directory-search/src/schema.rs`
+- Modify: `crates/simple-directory-search/src/index.rs:14`
 
 - [ ] **Step 1: Write the failing test — body snippet is produced**
 
-Add to the `tests` module in `crates/cubical-search/src/query.rs` (after `snippet_contains_mark_tags`):
+Add to the `tests` module in `crates/simple-directory-search/src/query.rs` (after `snippet_contains_mark_tags`):
 
 ```rust
     #[test]
@@ -124,7 +124,7 @@ Add to the `tests` module in `crates/cubical-search/src/query.rs` (after `snippe
     }
 ```
 
-Add to the `tests` module in `crates/cubical-search/src/schema.rs`:
+Add to the `tests` module in `crates/simple-directory-search/src/schema.rs`:
 
 ```rust
     #[test]
@@ -142,12 +142,12 @@ Add to the `tests` module in `crates/cubical-search/src/schema.rs`:
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cargo test -p cubical-search`
+Run: `cargo test -p simple-directory-search`
 Expected: FAIL — `body_match_produces_highlighted_snippet` panics on the `.expect(...)` (body not stored → empty snippet), `headings_and_code_matches_produce_snippets` fails its asserts, and `prose_fields_are_stored` fails (`is_stored()` is false).
 
 - [ ] **Step 3: Promote the fields to STORED in `schema.rs`**
 
-In `crates/cubical-search/src/schema.rs`, replace the options block (the `en_stem_stored` / `en_stem_not_stored` / `code_not_stored` lets and the `add_text_field` calls) with:
+In `crates/simple-directory-search/src/schema.rs`, replace the options block (the `en_stem_stored` / `en_stem_not_stored` / `code_not_stored` lets and the `add_text_field` calls) with:
 
 ```rust
     let en_stem_stored = TextOptions::default()
@@ -185,7 +185,7 @@ Then update the four `Fields` doc comments so each reads `Stored.` instead of `N
 
 - [ ] **Step 4: Bump the schema version in `index.rs`**
 
-In `crates/cubical-search/src/index.rs`, change line 14:
+In `crates/simple-directory-search/src/index.rs`, change line 14:
 
 ```rust
 pub const SCHEMA_VERSION: u32 = 2;
@@ -193,7 +193,7 @@ pub const SCHEMA_VERSION: u32 = 2;
 
 - [ ] **Step 5: Update the now-stale comment in `query.rs`**
 
-In `crates/cubical-search/src/query.rs`, replace the multi-line comment at the top of `snippet_contains_mark_tags` (the block beginning `// `title` is the only stored text field…`) with:
+In `crates/simple-directory-search/src/query.rs`, replace the multi-line comment at the top of `snippet_contains_mark_tags` (the block beginning `// `title` is the only stored text field…`) with:
 
 ```rust
         // As of L4-B all prose fields are STORED, so any matched text
@@ -204,7 +204,7 @@ In `crates/cubical-search/src/query.rs`, replace the multi-line comment at the t
 
 - [ ] **Step 6: Run the tests to verify they pass**
 
-Run: `cargo test -p cubical-search`
+Run: `cargo test -p simple-directory-search`
 Expected: PASS — all new tests green; the existing `snippet_contains_mark_tags`, schema, and index tests still pass (the version bump exercises the existing wipe+rebuild branch on open).
 
 - [ ] **Step 7: Run the Rust gates**
@@ -215,7 +215,7 @@ Expected: all PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/cubical-search/src/schema.rs crates/cubical-search/src/index.rs crates/cubical-search/src/query.rs
+git add crates/simple-directory-search/src/schema.rs crates/simple-directory-search/src/index.rs crates/simple-directory-search/src/query.rs
 git commit -m "feat(search): store prose fields for snippets; SCHEMA_VERSION 2
 
 Resolves layer-4-spec §5 deviation #1 as option (a): promote
@@ -535,8 +535,8 @@ describe("buildSearchQuery", () => {
 
   it("splits the query box into tags for the tags scope", () => {
     expect(
-      buildSearchQuery({ text: "  project/cubical   urgent ", sort: "relevance", scope: "tags", limit: 50, offset: 0 }).fields,
-    ).toEqual({ kind: "tags", tags: ["project/cubical", "urgent"] });
+      buildSearchQuery({ text: "  project/simple-directory   urgent ", sort: "relevance", scope: "tags", limit: 50, offset: 0 }).fields,
+    ).toEqual({ kind: "tags", tags: ["project/simple-directory", "urgent"] });
   });
 
   it("yields an empty tag list when the query box is blank under tags scope", () => {
@@ -1323,7 +1323,7 @@ Open a fresh/large vault; while the scan runs, confirm the "Indexing… N/M" ban
 
 - [ ] **Step 6: L4-A search recipes 1–11 backfill**
 
-Run `docs/layer-4-spec.md` §9.1 Recipes 1–11 against `~/Developer/sandbox/cubical-l4a-smoke/`. Record results in the L4-B closeout.
+Run `docs/layer-4-spec.md` §9.1 Recipes 1–11 against `~/Developer/sandbox/simple-directory-l4a-smoke/`. Record results in the L4-B closeout.
 
 - [ ] **Step 7: Update docs + project state**
 

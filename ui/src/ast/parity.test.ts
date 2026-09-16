@@ -15,12 +15,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const FIXTURES_PATH = resolve(
   __dirname,
-  "../../../crates/cubical-ast/tests/fixtures/parity.json",
+  "../../../crates/simple-directory-ast/tests/fixtures/parity.json",
 );
 
 const fixtures: Fixture[] = JSON.parse(readFileSync(FIXTURES_PATH, "utf8"));
 
-describe("AST parity with cubical_ast::parse", () => {
+describe("AST parity with simple_directory_ast::parse", () => {
   for (const f of fixtures) {
     it(f.name, () => {
       const actual = JSON.parse(JSON.stringify(normalize(f.input)));

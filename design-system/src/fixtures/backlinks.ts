@@ -5,7 +5,7 @@ export interface Backlink {
 }
 
 export const backlinks: Backlink[] = [
-  { id: 'roadmap-1', noteTitle: 'Cubical roadmap', snippet: 'Design notes cover the accent-as-state rule in depth.' },
+  { id: 'roadmap-1', noteTitle: 'simple.directory roadmap', snippet: 'Design notes cover the accent-as-state rule in depth.' },
   { id: 'daily-1', noteTitle: '2026-07-12', snippet: 'Reviewed design notes before standup.' },
 ];
 

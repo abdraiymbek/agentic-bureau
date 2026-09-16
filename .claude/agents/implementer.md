@@ -27,7 +27,7 @@ These are what a model's priors override, so they are stated as prohibitions:
 - **Don't hand-roll a UI control before reading `design-system/INVENTORY.md`.**
   The design system ships components nothing imports because nobody looked.
 - **Don't reach across the IPC boundary.** `ui/` talks to Rust through
-  `ui/src/api/`; only `cubical-app` may depend on Tauri.
+  `ui/src/api/`; only `simple-directory-app` may depend on Tauri.
 - **Don't restate a fact that has an owner.** The ownership block in
   `docs/README.md` is the list. Link instead.
 - **Don't record file lists, build logs or test counts** in any doc. Counts are

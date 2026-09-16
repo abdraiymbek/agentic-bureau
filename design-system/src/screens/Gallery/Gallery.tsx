@@ -251,7 +251,7 @@ const Gallery = () => {
           <Tag label="#design" tag />
           <Tag label="draft" onRemove={() => {}} />
           <Tag
-            label="#cubical"
+            label="#simple-directory"
             tag
             onClick={() => {}}
             onEdit={() => {}}
@@ -272,7 +272,7 @@ const Gallery = () => {
       <section class="gallery-section stack">
         <div class="eyebrow">Data — BacklinkRow</div>
         <div class="stack divided-list" style={{ width: '320px', border: '1px solid var(--c-border-subtle)' }}>
-          <BacklinkRow noteTitle="Cubical roadmap" snippet="Design notes cover the accent-as-state rule in depth." matchQuery="accent" />
+          <BacklinkRow noteTitle="simple.directory roadmap" snippet="Design notes cover the accent-as-state rule in depth." matchQuery="accent" />
           <BacklinkRow noteTitle="2026-07-12" snippet="Reviewed design notes before standup." />
         </div>
       </section>

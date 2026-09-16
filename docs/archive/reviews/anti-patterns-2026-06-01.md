@@ -27,8 +27,8 @@ is now `scan.rs:406`, the decoration `tree.iterate` calls are
 ## 1. N+1 query in scan Pass 2 — block-ref derivation
 
 **Where**
-- [`crates/cubical-core/src/vault/scan.rs:342`](../crates/cubical-core/src/vault/scan.rs) — Pass-2 per-file loop calls `refresh_block_refs_for_file(&vault, &source_path)`.
-- [`crates/cubical-core/src/vault/blocks.rs:40–65`](../crates/cubical-core/src/vault/blocks.rs) — helper issues `SELECT target_path, anchor_value FROM links WHERE source_path = ?` once per file, then a per-row `INSERT` into `block_refs`.
+- [`crates/simple-directory-core/src/vault/scan.rs:342`](../crates/simple-directory-core/src/vault/scan.rs) — Pass-2 per-file loop calls `refresh_block_refs_for_file(&vault, &source_path)`.
+- [`crates/simple-directory-core/src/vault/blocks.rs:40–65`](../crates/simple-directory-core/src/vault/blocks.rs) — helper issues `SELECT target_path, anchor_value FROM links WHERE source_path = ?` once per file, then a per-row `INSERT` into `block_refs`.
 
 **The smell.** Classic N+1 read. Pass 2 already has every source file in memory (the `pending_links` buffer) and is sitting inside its own transaction (`link_tx`). Inside that loop, the helper goes back to the DB once per file to ask "what are this file's block-anchored links?" — when one sweep `SELECT source_path, target_path, anchor_value FROM links WHERE anchor_kind='block' AND target_path IS NOT NULL AND anchor_value IS NOT NULL ORDER BY source_path` plus a streaming group-by-source gives the same answer in one round-trip.
 
@@ -36,7 +36,7 @@ is now `scan.rs:406`, the decoration `tree.iterate` calls are
 
 **Recommended shape.** Keep `refresh_block_refs_for_file` for the watcher (single-file callers genuinely need per-file semantics). Add a sibling `derive_all_block_refs_in_tx(&link_tx) -> Result<(), …>` that scan Pass 2 calls once after the link writes, replacing the per-file call at `scan.rs:342`. The watcher path is unchanged.
 
-**Blast radius.** `cubical-core::vault::blocks` (one new fn), `cubical-core::vault::scan` (one call-site swap), one new integration test asserting "Pass 2 produces the same block_refs row set as N per-file calls." No `cubical-index` schema change. No frontend ripple.
+**Blast radius.** `simple-directory-core::vault::blocks` (one new fn), `simple-directory-core::vault::scan` (one call-site swap), one new integration test asserting "Pass 2 produces the same block_refs row set as N per-file calls." No `simple-directory-index` schema change. No frontend ripple.
 
 ---
 
@@ -71,30 +71,30 @@ Same shape for `findBlockIds` — `view.visibleRanges` → derive `startLn`/`end
 ## 3. Row-at-a-time INSERTs after a bulk DELETE
 
 **Where**
-- [`crates/cubical-index/src/links.rs:57–80`](../crates/cubical-index/src/links.rs) — `replace_links_for_file`.
-- [`crates/cubical-index/src/tags.rs:65–74`](../crates/cubical-index/src/tags.rs) — `replace_tags_for_file`.
-- [`crates/cubical-index/src/blocks.rs:52–63`](../crates/cubical-index/src/blocks.rs) — `replace_blocks_for_file`.
-- [`crates/cubical-index/src/blocks.rs:122–133`](../crates/cubical-index/src/blocks.rs) — `replace_block_refs_for_file`.
-- [`crates/cubical-index/src/pending.rs:125–128`](../crates/cubical-index/src/pending.rs) — `enqueue_pending_rewrites`.
+- [`crates/simple-directory-index/src/links.rs:57–80`](../crates/simple-directory-index/src/links.rs) — `replace_links_for_file`.
+- [`crates/simple-directory-index/src/tags.rs:65–74`](../crates/simple-directory-index/src/tags.rs) — `replace_tags_for_file`.
+- [`crates/simple-directory-index/src/blocks.rs:52–63`](../crates/simple-directory-index/src/blocks.rs) — `replace_blocks_for_file`.
+- [`crates/simple-directory-index/src/blocks.rs:122–133`](../crates/simple-directory-index/src/blocks.rs) — `replace_block_refs_for_file`.
+- [`crates/simple-directory-index/src/pending.rs:125–128`](../crates/simple-directory-index/src/pending.rs) — `enqueue_pending_rewrites`.
 
 **The smell.** Five separate `DELETE ... WHERE owner = ?` + `for r in rows { c.execute("INSERT … VALUES (?,?,?)") }` pairs. libSQL/SQLite supports multi-row `INSERT … VALUES (...), (...), …` (and prepared-statement reuse inside the loop), both of which collapse N statements into 1. For `Big.md` in the K smoke vault (51 links) the scan currently fires 52 statements where a single multi-row INSERT does the same work in one. Multiplied across the scan's per-file (frontmatter + links + tags + blocks) refreshes, the constant factor is real.
 
 **Intent.** Session A plan ([`docs/superpowers/archive/plans/2026-05-23-l3-session-a-wikilink-parsing.md`](superpowers/archive/plans/2026-05-23-l3-session-a-wikilink-parsing.md) line ~1645) literally specifies the single-row form. Every later table-introducing session (D, G, J) copied that model — the `replace_links_for_file` doc-comment even says "mirrors `refresh_frontmatter`," documenting the propagation explicitly. The implicit rationale floating in the doc-comments is "DELETE + INSERTs execute directly on the caller's connection so they participate in any outer transaction" — true, but multi-row VALUES participates in the outer tx just as well. The single-row form was set as the pattern at A and inherited without re-examination.
 
-**Recommended shape.** A single helper at the `cubical-index` level — `bulk_insert(conn, table, columns, rows, chunk_size)` that builds the `VALUES (...), (...)` string with a bounded chunk (SQLite caps at ~32k parameters per statement, so chunk at ~500 rows × column count). Every `replace_*_for_file` becomes `DELETE + bulk_insert(...)`. Or, if a generic helper feels too much: rewrite each of the five sites to materialize one chunked multi-row INSERT, keeping the per-table shape.
+**Recommended shape.** A single helper at the `simple-directory-index` level — `bulk_insert(conn, table, columns, rows, chunk_size)` that builds the `VALUES (...), (...)` string with a bounded chunk (SQLite caps at ~32k parameters per statement, so chunk at ~500 rows × column count). Every `replace_*_for_file` becomes `DELETE + bulk_insert(...)`. Or, if a generic helper feels too much: rewrite each of the five sites to materialize one chunked multi-row INSERT, keeping the per-table shape.
 
 Optional separate improvement at the same sites: drop the `r.target_raw.clone()` / `r.target_path.clone()` / etc. on the params row — `params!` accepts `&str` so the clones are pure ceremony.
 
-**Blast radius.** Five `replace_*_for_file` sites in `cubical-index`, no callers change. All five have direct unit tests asserting round-trip semantics; they should stay green byte-for-byte. No schema change. No frontend ripple.
+**Blast radius.** Five `replace_*_for_file` sites in `simple-directory-index`, no callers change. All five have direct unit tests asserting round-trip semantics; they should stay green byte-for-byte. No schema change. No frontend ripple.
 
 ---
 
 ## 4. Sequential `for x in xs { f(x).await }` over independent async work
 
 **Where**
-- [`crates/cubical-app/src/commands/mentions.rs:82–104`](../crates/cubical-app/src/commands/mentions.rs) — unlinked-mentions scan reads + materializes + scans each candidate one at a time.
-- [`crates/cubical-app/src/commands/rename.rs:712`](../crates/cubical-app/src/commands/rename.rs) — `flush_pending_rewrites` loops over `targets`.
-- [`crates/cubical-app/src/commands/rename.rs:801`](../crates/cubical-app/src/commands/rename.rs) — `flush_all_for_vault` (timer / close-time path) repeats the loop.
+- [`crates/simple-directory-app/src/commands/mentions.rs:82–104`](../crates/simple-directory-app/src/commands/mentions.rs) — unlinked-mentions scan reads + materializes + scans each candidate one at a time.
+- [`crates/simple-directory-app/src/commands/rename.rs:712`](../crates/simple-directory-app/src/commands/rename.rs) — `flush_pending_rewrites` loops over `targets`.
+- [`crates/simple-directory-app/src/commands/rename.rs:801`](../crates/simple-directory-app/src/commands/rename.rs) — `flush_all_for_vault` (timer / close-time path) repeats the loop.
 
 **The smell.** The canonical async anti-pattern: a `for`-loop that `await`s one independent unit of I/O at a time when nothing forces serialization. `futures::stream::iter(xs).map(|x| async move { f(x).await }).buffer_unordered(K)` is the textbook replacement when the work items don't share mutable state. In all three sites the items genuinely don't — each candidate file in the mentions scan reads its own bytes and pushes into a final `Vec` that gets sorted once at the end; each flush target reads its own referrer file, applies its own materialize, atomic-writes its own bytes.
 
@@ -134,7 +134,7 @@ For the flush loops the shape is identical, but be careful: the per-target work 
 
 (b) is cleaner.
 
-**Blast radius.** Three call-sites in `crates/cubical-app/src/commands/`. Add `futures` (likely already a transitive dep — check `Cargo.lock`). Tunable constants `MENTIONS_PARALLELISM` / `FLUSH_PARALLELISM` (start at 8). Existing handler tests use small fixtures so should pass unchanged; ordering changes mean the final sort at the end of mentions becomes load-bearing (it already exists).
+**Blast radius.** Three call-sites in `crates/simple-directory-app/src/commands/`. Add `futures` (likely already a transitive dep — check `Cargo.lock`). Tunable constants `MENTIONS_PARALLELISM` / `FLUSH_PARALLELISM` (start at 8). Existing handler tests use small fixtures so should pass unchanged; ordering changes mean the final sort at the end of mentions becomes load-bearing (it already exists).
 
 ---
 

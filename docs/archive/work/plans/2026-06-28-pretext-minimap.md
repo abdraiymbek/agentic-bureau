@@ -8,7 +8,7 @@
 
 **Architecture:** A canvas companion *next to* CodeMirror (never inside its `contenteditable`). Pretext lays out the full document off-DOM; we paint it to a canvas and map pointer drags to editor scroll. All logic lives in three pure, node-testable modules (`minimapGeometry`, `minimapRender`, `pretextLayout`); `Minimap.tsx` is a thin orchestrator verified in the live preview. Gated on `editor.minimap_enabled` (default off).
 
-**Tech Stack:** Solid-JS, CodeMirror 6 (`@codemirror/view`/`state`), `@chenglou/pretext` v0.0.8 (MIT, zero-dep), Vitest (node env), Tauri/Rust settings (`.cubical/config.toml`).
+**Tech Stack:** Solid-JS, CodeMirror 6 (`@codemirror/view`/`state`), `@chenglou/pretext` v0.0.8 (MIT, zero-dep), Vitest (node env), Tauri/Rust settings (`.simple-directory/config.toml`).
 
 ## Global Constraints
 
@@ -36,7 +36,7 @@
 - Modify `ui/src/App.tsx` — signal + setter + seed + Settings ▸ Editor toggle + pass prop.
 - Modify `ui/package.json` — add `@chenglou/pretext`.
 
-No Rust change is required: `crates/cubical-core/src/vault/settings.rs` persists arbitrary keys (only `ui.*` is special-cased).
+No Rust change is required: `crates/simple-directory-core/src/vault/settings.rs` persists arbitrary keys (only `ui.*` is special-cased).
 
 ---
 

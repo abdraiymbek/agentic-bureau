@@ -9,38 +9,38 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a Cubical command console — a tab in the center workspace with an input line and a scrollback log — that runs the same verbs as the `cubical` binary against the already-open vault, in-process.
+**Goal:** Add a simple.directory command console — a tab in the center workspace with an input line and a scrollback log — that runs the same verbs as the `simple-directory` binary against the already-open vault, in-process.
 
-**Architecture:** The console becomes the **fourth caller of the one `dispatch`** (after CLI-local, the socket server, and the CLI client). Everything on the wire boundary that both the CLI and the console need moves into `cubical-ipc`: the clap parser (`parse.rs`) and a sink-based renderer (`render_to`). A new Tauri command `console_exec` tokenizes a line, parses it with the shared clap types, dispatches through the app's own `TauriEventSink`, and renders into buffers. The frontend is a plugin-gated `console` tab kind rendered in the center workspace; scrollback and history are ephemeral session state.
+**Architecture:** The console becomes the **fourth caller of the one `dispatch`** (after CLI-local, the socket server, and the CLI client). Everything on the wire boundary that both the CLI and the console need moves into `simple-directory-ipc`: the clap parser (`parse.rs`) and a sink-based renderer (`render_to`). A new Tauri command `console_exec` tokenizes a line, parses it with the shared clap types, dispatches through the app's own `TauriEventSink`, and renders into buffers. The frontend is a plugin-gated `console` tab kind rendered in the center workspace; scrollback and history are ephemeral session state.
 
-**Tech Stack:** Rust (clap 4 derive, tokio, Tauri v2, `shell-words`), Solid/TypeScript (vitest), the existing `cubical-ipc` / `cubical-engine` / `cubical-app` crates and the `ui/src/tabs` model.
+**Tech Stack:** Rust (clap 4 derive, tokio, Tauri v2, `shell-words`), Solid/TypeScript (vitest), the existing `simple-directory-ipc` / `simple-directory-engine` / `simple-directory-app` crates and the `ui/src/tabs` model.
 
 **Owning spec:** [`docs/superpowers/specs/2026-07-25-cli-console-phase3-design.md`](../specs/2026-07-25-cli-console-phase3-design.md). Durable rationale lands in [`docs/implementation/engine-ipc.md`](../../implementation/engine-ipc.md) and [`docs/implementation/frontend.md`](../../implementation/frontend.md) → Console.
 
 ## Global Constraints
 
 - **One `dispatch`, one `render`/`render_to`, one `parse`.** The console must not duplicate parsing or output formatting. Any drift between the console and the CLI is a bug the parity test (Task 3) exists to catch.
-- **`clap = { version = "4", features = ["derive"] }`** moves from `cubical-cli`'s manifest to `cubical-ipc`'s; both dependents use it. Not feature-gated.
+- **`clap = { version = "4", features = ["derive"] }`** moves from `simple-directory-cli`'s manifest to `simple-directory-ipc`'s; both dependents use it. Not feature-gated.
 - **One new dependency, Rust build-time only:** `shell-words` (MIT/Apache-2.0, no transitive deps). No new JS runtime dependency. No `xterm.js`, no PTY, no shell process.
 - **The console rejects `write` and `--vault`** (see Task 3). No confirmation prompts (`rm`/`rename` run directly, matching CLI).
 - **Composability (CLAUDE.md non-negotiable):** the console is a core plugin, `settingKey: "plugins.console_enabled"`, `defaultEnabled: false`. Switching it off while a console tab is open closes that tab.
 - **No explanatory comments in source** (CLAUDE.md → Comments). Rationale goes in `docs/implementation/`.
-- **Gate is `scripts/check.sh` run whole**, never piped to `tail` (masks the exit code — redirect to a file and check `$?`). `cubical-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known flake under full-workspace load; re-run it alone to confirm, don't "fix" it.
-- **Tests that mutate `CUBICAL_RUNTIME_DIR` must serialize on a mutex** (`vault_lock::RUNTIME_ENV_GUARD` / crate-local guard); unguarded `set_var` races manifest as a *hang*. Not expected to bite here (no test in this plan sets that var) but noted.
+- **Gate is `scripts/check.sh` run whole**, never piped to `tail` (masks the exit code — redirect to a file and check `$?`). `simple-directory-core`'s `dropping_handle_stops_event_delivery_within_100ms` is a known flake under full-workspace load; re-run it alone to confirm, don't "fix" it.
+- **Tests that mutate `SIMPLE_DIRECTORY_RUNTIME_DIR` must serialize on a mutex** (`vault_lock::RUNTIME_ENV_GUARD` / crate-local guard); unguarded `set_var` races manifest as a *hang*. Not expected to bite here (no test in this plan sets that var) but noted.
 
 ---
 
 ## File Structure
 
 **Rust — moved/changed:**
-- `crates/cubical-ipc/src/parse.rs` — **new.** Owns `Cli`, `Cmd`, `NewWhat`, `needs_body`, `to_command`. The text→`Command` boundary, mirroring `render`'s `Command`→text boundary.
-- `crates/cubical-ipc/src/render.rs` — add `render_to` (sink-based); `render` becomes a two-line wrapper.
-- `crates/cubical-ipc/src/lib.rs` — export `parse` items and `render_to`.
-- `crates/cubical-ipc/Cargo.toml` — gains `clap` (from cubical-cli).
-- `crates/cubical-cli/src/main.rs` — drops `Cli`/`Cmd`/`NewWhat`/`build_command`; imports them from `cubical_ipc::parse`; reads stdin itself and passes the body in.
-- `crates/cubical-cli/Cargo.toml` — loses `clap` (now transitive via cubical-ipc's re-export).
-- `crates/cubical-app/src/lib.rs` — new `console_exec` command + registration.
-- `crates/cubical-app/Cargo.toml` — gains `shell-words`.
+- `crates/simple-directory-ipc/src/parse.rs` — **new.** Owns `Cli`, `Cmd`, `NewWhat`, `needs_body`, `to_command`. The text→`Command` boundary, mirroring `render`'s `Command`→text boundary.
+- `crates/simple-directory-ipc/src/render.rs` — add `render_to` (sink-based); `render` becomes a two-line wrapper.
+- `crates/simple-directory-ipc/src/lib.rs` — export `parse` items and `render_to`.
+- `crates/simple-directory-ipc/Cargo.toml` — gains `clap` (from simple-directory-cli).
+- `crates/simple-directory-cli/src/main.rs` — drops `Cli`/`Cmd`/`NewWhat`/`build_command`; imports them from `simple_directory_ipc::parse`; reads stdin itself and passes the body in.
+- `crates/simple-directory-cli/Cargo.toml` — loses `clap` (now transitive via simple-directory-ipc's re-export).
+- `crates/simple-directory-app/src/lib.rs` — new `console_exec` command + registration.
+- `crates/simple-directory-app/Cargo.toml` — gains `shell-words`.
 
 **Frontend — new:**
 - `ui/src/console/history.ts` — command-history ring (pure).
@@ -59,24 +59,24 @@
 
 ---
 
-## Task 1: Move the clap parser into `cubical-ipc` (`parse.rs`)
+## Task 1: Move the clap parser into `simple-directory-ipc` (`parse.rs`)
 
 Extract the parser so both the CLI and the console share one text→`Command` boundary. The stdin read stays in the CLI; `to_command` takes an optional body.
 
 **Files:**
-- Create: `crates/cubical-ipc/src/parse.rs`
-- Modify: `crates/cubical-ipc/src/lib.rs` (add `mod parse;` + re-exports)
-- Modify: `crates/cubical-ipc/Cargo.toml` (add `clap`)
-- Modify: `crates/cubical-cli/src/main.rs` (delete moved code, import, read stdin, call `to_command`)
-- Modify: `crates/cubical-cli/Cargo.toml` (remove `clap`)
-- Test: inline `#[cfg(test)]` in `crates/cubical-ipc/src/parse.rs`
+- Create: `crates/simple-directory-ipc/src/parse.rs`
+- Modify: `crates/simple-directory-ipc/src/lib.rs` (add `mod parse;` + re-exports)
+- Modify: `crates/simple-directory-ipc/Cargo.toml` (add `clap`)
+- Modify: `crates/simple-directory-cli/src/main.rs` (delete moved code, import, read stdin, call `to_command`)
+- Modify: `crates/simple-directory-cli/Cargo.toml` (remove `clap`)
+- Test: inline `#[cfg(test)]` in `crates/simple-directory-ipc/src/parse.rs`
 
 **Interfaces:**
 - Produces (used by Task 3 and by the CLI):
   ```rust
-  // crates/cubical-ipc/src/parse.rs
+  // crates/simple-directory-ipc/src/parse.rs
   #[derive(clap::Parser)]
-  #[command(name = "cubical", about = "Drive a Cubical vault from the terminal.")]
+  #[command(name = "simple-directory", about = "Drive a simple.directory vault from the terminal.")]
   pub struct Cli {
       #[arg(long, global = true, default_value = ".", help = "Path to the vault directory.")]
       pub vault: std::path::PathBuf,
@@ -94,15 +94,15 @@ Extract the parser so both the CLI and the console share one text→`Command` bo
   pub fn to_command(cmd: Cmd, vault_root: &std::path::Path, body: Option<String>)
       -> anyhow::Result<crate::Command>;
   ```
-- Consumes: `crate::Command` (already in `cubical-ipc`), `anyhow`.
+- Consumes: `crate::Command` (already in `simple-directory-ipc`), `anyhow`.
 
-- [ ] **Step 1: Add `clap` to `cubical-ipc`, remove from `cubical-cli`**
+- [ ] **Step 1: Add `clap` to `simple-directory-ipc`, remove from `simple-directory-cli`**
 
-In `crates/cubical-ipc/Cargo.toml` under `[dependencies]` add (copy the exact version line from `cubical-cli/Cargo.toml`):
+In `crates/simple-directory-ipc/Cargo.toml` under `[dependencies]` add (copy the exact version line from `simple-directory-cli/Cargo.toml`):
 ```toml
 clap = { version = "4", features = ["derive"] }
 ```
-Remove that same line from `crates/cubical-cli/Cargo.toml`. `cubical-cli` already depends on `cubical-ipc`, so the derive macros resolve through it via the re-exported types.
+Remove that same line from `crates/simple-directory-cli/Cargo.toml`. `simple-directory-cli` already depends on `simple-directory-ipc`, so the derive macros resolve through it via the re-exported types.
 
 - [ ] **Step 2: Write `parse.rs` with the moved types and the two functions**
 
@@ -115,7 +115,7 @@ use clap::{Parser, Subcommand};
 use crate::Command as WireCommand;
 
 #[derive(Parser)]
-#[command(name = "cubical", about = "Drive a Cubical vault from the terminal.")]
+#[command(name = "simple-directory", about = "Drive a simple.directory vault from the terminal.")]
 pub struct Cli {
     #[arg(long, global = true, default_value = ".", help = "Path to the vault directory.")]
     pub vault: std::path::PathBuf,
@@ -202,17 +202,17 @@ pub fn to_command(cmd: Cmd, vault_root: &Path, body: Option<String>) -> Result<W
 
 - [ ] **Step 3: Export from `lib.rs`**
 
-In `crates/cubical-ipc/src/lib.rs`, add `mod parse;` beside the other `mod` lines and add a re-export:
+In `crates/simple-directory-ipc/src/lib.rs`, add `mod parse;` beside the other `mod` lines and add a re-export:
 ```rust
 pub mod parse;
 ```
-(A `pub mod` keeps the `cubical_ipc::parse::{Cli, Cmd, needs_body, to_command}` paths the spec names.)
+(A `pub mod` keeps the `simple_directory_ipc::parse::{Cli, Cmd, needs_body, to_command}` paths the spec names.)
 
-- [ ] **Step 4: Rewrite `cubical-cli/src/main.rs` to use the shared parser**
+- [ ] **Step 4: Rewrite `simple-directory-cli/src/main.rs` to use the shared parser**
 
 Delete the local `Cli`, `Cmd`, `NewWhat`, and `build_command`. Change imports and `run`:
 ```rust
-use cubical_ipc::parse::{needs_body, to_command, Cli, Cmd};
+use simple_directory_ipc::parse::{needs_body, to_command, Cli, Cmd};
 // ... keep the other imports; drop `use clap::{Parser, Subcommand};` except `use clap::Parser;`
 ```
 In `main`, `Cli::parse()` still works (derive comes via the re-exported type). Replace the `build_command` call in `run` with:
@@ -247,7 +247,7 @@ mod tests {
     use std::path::Path;
 
     fn parse(args: &[&str]) -> Cli {
-        Cli::try_parse_from(std::iter::once("cubical").chain(args.iter().copied())).unwrap()
+        Cli::try_parse_from(std::iter::once("simple-directory").chain(args.iter().copied())).unwrap()
     }
 
     #[test]
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn unknown_verb_is_a_clap_error() {
-        let err = Cli::try_parse_from(["cubical", "bogus"]).unwrap_err();
+        let err = Cli::try_parse_from(["simple-directory", "bogus"]).unwrap_err();
         assert_eq!(err.exit_code(), 2);
     }
 }
@@ -314,16 +314,16 @@ mod tests {
 
 - [ ] **Step 6: Run the tests**
 
-Run: `cargo test -p cubical-ipc parse`
-Expected: PASS. Then `cargo build -p cubical-cli` — Expected: builds clean.
+Run: `cargo test -p simple-directory-ipc parse`
+Expected: PASS. Then `cargo build -p simple-directory-cli` — Expected: builds clean.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-ipc/src/parse.rs crates/cubical-ipc/src/lib.rs \
-        crates/cubical-ipc/Cargo.toml crates/cubical-cli/src/main.rs \
-        crates/cubical-cli/Cargo.toml Cargo.lock
-git commit -m "refactor(ipc): move clap parser into cubical-ipc::parse"
+git add crates/simple-directory-ipc/src/parse.rs crates/simple-directory-ipc/src/lib.rs \
+        crates/simple-directory-ipc/Cargo.toml crates/simple-directory-cli/src/main.rs \
+        crates/simple-directory-cli/Cargo.toml Cargo.lock
+git commit -m "refactor(ipc): move clap parser into simple-directory-ipc::parse"
 ```
 
 ---
@@ -333,8 +333,8 @@ git commit -m "refactor(ipc): move clap parser into cubical-ipc::parse"
 So the console can capture stdout/stderr into buffers instead of the process's streams.
 
 **Files:**
-- Modify: `crates/cubical-ipc/src/render.rs`
-- Modify: `crates/cubical-ipc/src/lib.rs` (export `render_to`)
+- Modify: `crates/simple-directory-ipc/src/render.rs`
+- Modify: `crates/simple-directory-ipc/src/lib.rs` (export `render_to`)
 - Test: inline `#[cfg(test)]` in `render.rs`
 
 **Interfaces:**
@@ -414,13 +414,13 @@ fn created_json_emits_object() {
 
 - [ ] **Step 5: Run the tests**
 
-Run: `cargo test -p cubical-ipc render`
+Run: `cargo test -p simple-directory-ipc render`
 Expected: PASS (existing exit-code tests still pass because they call `render`, which now delegates).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-ipc/src/render.rs crates/cubical-ipc/src/lib.rs
+git add crates/simple-directory-ipc/src/render.rs crates/simple-directory-ipc/src/lib.rs
 git commit -m "refactor(ipc): sink-based render_to, render wraps it"
 ```
 
@@ -431,12 +431,12 @@ git commit -m "refactor(ipc): sink-based render_to, render wraps it"
 The fourth caller of `dispatch`. Tokenizes a line, reuses `parse` + `to_command`, dispatches through the app's `TauriEventSink`, renders into buffers.
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs` (new command + registration)
-- Modify: `crates/cubical-app/Cargo.toml` (add `shell-words`)
-- Test: `crates/cubical-app/tests/console_exec.rs` — **new**, no fakes
+- Modify: `crates/simple-directory-app/src/lib.rs` (new command + registration)
+- Modify: `crates/simple-directory-app/Cargo.toml` (add `shell-words`)
+- Test: `crates/simple-directory-app/tests/console_exec.rs` — **new**, no fakes
 
 **Interfaces:**
-- Consumes: `cubical_ipc::parse::{Cli, needs_body, to_command}`, `cubical_ipc::{dispatch, render_to}`, `cubical_engine::commands::vault::get_vault_info`, `crate::tauri_sink::TauriEventSink`.
+- Consumes: `simple_directory_ipc::parse::{Cli, needs_body, to_command}`, `simple_directory_ipc::{dispatch, render_to}`, `simple_directory_engine::commands::vault::get_vault_info`, `crate::tauri_sink::TauriEventSink`.
 - Produces (used by the frontend, Task 6):
   ```rust
   #[derive(serde::Deserialize)]
@@ -446,14 +446,14 @@ The fourth caller of `dispatch`. Tokenizes a line, reuses `parse` + `to_command`
   #[tauri::command] async fn console_exec(state, app, req: ConsoleExecRequest) -> Result<ConsoleResult, String>
   ```
 
-- [ ] **Step 1: Add `shell-words` to `cubical-app`**
+- [ ] **Step 1: Add `shell-words` to `simple-directory-app`**
 
-In `crates/cubical-app/Cargo.toml` under `[dependencies]`:
+In `crates/simple-directory-app/Cargo.toml` under `[dependencies]`:
 ```toml
 shell-words = "1"
 ```
 
-- [ ] **Step 2: Write the `console_exec` command in `crates/cubical-app/src/lib.rs`**
+- [ ] **Step 2: Write the `console_exec` command in `crates/simple-directory-app/src/lib.rs`**
 
 Add near the other `#[tauri::command]` fns. Imports at call sites use full paths to avoid touching the header `use` block:
 ```rust
@@ -476,8 +476,8 @@ async fn console_exec(
     app: tauri::AppHandle,
     req: ConsoleExecRequest,
 ) -> Result<ConsoleResult, String> {
-    use cubical_engine::api::types::GetVaultInfoRequest;
-    use cubical_ipc::parse::{needs_body, to_command, Cli};
+    use simple_directory_engine::api::types::GetVaultInfoRequest;
+    use simple_directory_ipc::parse::{needs_body, to_command, Cli};
 
     let tokens = match shell_words::split(&req.line) {
         Ok(t) => t,
@@ -490,13 +490,13 @@ async fn console_exec(
         }
     };
     let mut tokens: Vec<String> = tokens;
-    if tokens.first().map(String::as_str) == Some("cubical") {
+    if tokens.first().map(String::as_str) == Some("simple-directory") {
         tokens.remove(0);
     }
     if tokens.is_empty() {
         return Ok(ConsoleResult {
             stdout: String::new(),
-            stderr: "the console runs cubical verbs; write and --vault are unavailable here"
+            stderr: "the console runs simple-directory verbs; write and --vault are unavailable here"
                 .to_string(),
             code: 2,
         });
@@ -513,7 +513,7 @@ async fn console_exec(
         });
     }
 
-    let cli = match Cli::try_parse_from(std::iter::once("cubical".to_string()).chain(tokens)) {
+    let cli = match Cli::try_parse_from(std::iter::once("simple-directory".to_string()).chain(tokens)) {
         Ok(cli) => cli,
         Err(e) => {
             let code = e.exit_code();
@@ -534,7 +534,7 @@ async fn console_exec(
         });
     }
 
-    let info = cubical_engine::commands::vault::get_vault_info(
+    let info = simple_directory_engine::commands::vault::get_vault_info(
         state.inner(),
         GetVaultInfoRequest { vault_id: req.vault_id.clone() },
     )
@@ -545,11 +545,11 @@ async fn console_exec(
     let command = to_command(cli.cmd, &vault_root, None).map_err(|e| format!("{e:#}"))?;
 
     let sink = crate::tauri_sink::TauriEventSink::new(app);
-    let outcome = cubical_ipc::dispatch(&req.vault_id, command, state.inner(), &sink).await;
+    let outcome = simple_directory_ipc::dispatch(&req.vault_id, command, state.inner(), &sink).await;
 
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = match &outcome {
-        Ok(o) => cubical_ipc::render_to(o, cli.json, &mut out, &mut err),
+        Ok(o) => simple_directory_ipc::render_to(o, cli.json, &mut out, &mut err),
         Err(e) => {
             let _ = std::io::Write::write_all(&mut err, format!("error: {e}\n").as_bytes());
             1
@@ -569,25 +569,25 @@ In the `tauri::generate_handler![ ... ]` list add `console_exec,` beside `close_
 
 - [ ] **Step 4: Build**
 
-Run: `cargo build -p cubical-app`
+Run: `cargo build -p simple-directory-app`
 Expected: builds clean. (If `dispatch` requires `Command: Debug` or a missing bound surfaces, resolve it here.)
 
 - [ ] **Step 5: Write the no-fakes integration + parity tests**
 
-Create `crates/cubical-app/tests/console_exec.rs`. The command is not `pub`, so the test drives the **same pipeline** the command runs (tokenize→parse→`to_command`→`dispatch`→`render_to`) against a real engine and vault. The parity test asserts the console pipeline's stdout equals the CLI pipeline's (`to_command`→`dispatch`→`render_to`) for the same argv on the same single engine — one engine, no index-lock conflict (Phase-2 lesson).
+Create `crates/simple-directory-app/tests/console_exec.rs`. The command is not `pub`, so the test drives the **same pipeline** the command runs (tokenize→parse→`to_command`→`dispatch`→`render_to`) against a real engine and vault. The parity test asserts the console pipeline's stdout equals the CLI pipeline's (`to_command`→`dispatch`→`render_to`) for the same argv on the same single engine — one engine, no index-lock conflict (Phase-2 lesson).
 ```rust
 use std::sync::Arc;
 
-use cubical_engine::events::NoopEventSink;
-use cubical_engine::state::AppState;
-use cubical_ipc::parse::{to_command, Cli};
-use cubical_ipc::render_to;
+use simple_directory_engine::events::NoopEventSink;
+use simple_directory_engine::state::AppState;
+use simple_directory_ipc::parse::{to_command, Cli};
+use simple_directory_ipc::render_to;
 
 async fn open(root: &std::path::Path) -> (AppState, String) {
-    use cubical_engine::api::types::{OpenVaultRequest, ScanStatus, GetVaultInfoRequest};
-    use cubical_engine::commands::vault;
+    use simple_directory_engine::api::types::{OpenVaultRequest, ScanStatus, GetVaultInfoRequest};
+    use simple_directory_engine::commands::vault;
     let state = AppState::new();
-    let sink: Arc<dyn cubical_engine::events::EventSink> = Arc::new(NoopEventSink);
+    let sink: Arc<dyn simple_directory_engine::events::EventSink> = Arc::new(NoopEventSink);
     let opened = vault::open_vault(&state, Arc::clone(&sink),
         OpenVaultRequest { path: root.to_path_buf() }, None).await.unwrap();
     loop {
@@ -603,9 +603,9 @@ async fn open(root: &std::path::Path) -> (AppState, String) {
 async fn console_run(state: &AppState, vault_id: &str, root: &std::path::Path, line: &str) -> (String, i32) {
     let sink = NoopEventSink;
     let tokens: Vec<String> = shell_words::split(line).unwrap();
-    let cli = Cli::try_parse_from(std::iter::once("cubical".to_string()).chain(tokens)).unwrap();
+    let cli = Cli::try_parse_from(std::iter::once("simple-directory".to_string()).chain(tokens)).unwrap();
     let cmd = to_command(cli.cmd, root, None).unwrap();
-    let outcome = cubical_ipc::dispatch(vault_id, cmd, state, &sink).await.unwrap();
+    let outcome = simple_directory_ipc::dispatch(vault_id, cmd, state, &sink).await.unwrap();
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let code = render_to(&outcome, cli.json, &mut out, &mut err);
     let _ = err;
@@ -631,28 +631,28 @@ async fn console_and_cli_pipelines_agree_on_list() {
     let (console_out, _) = console_run(&state, &vid, tmp.path(), "list").await;
     // CLI path: build the same Command directly and render to a buffer.
     let sink = NoopEventSink;
-    let cli = Cli::try_parse_from(["cubical", "list"]).unwrap();
+    let cli = Cli::try_parse_from(["simple-directory", "list"]).unwrap();
     let cmd = to_command(cli.cmd, tmp.path(), None).unwrap();
-    let outcome = cubical_ipc::dispatch(&vid, cmd, &state, &sink).await.unwrap();
+    let outcome = simple_directory_ipc::dispatch(&vid, cmd, &state, &sink).await.unwrap();
     let (mut out, mut err) = (Vec::new(), Vec::new());
     render_to(&outcome, false, &mut out, &mut err);
     assert_eq!(console_out, String::from_utf8(out).unwrap());
     assert!(console_out.contains("A.md") && console_out.contains("B.md"));
 }
 ```
-Add `tempfile` and `shell-words` to `crates/cubical-app`'s `[dev-dependencies]` if not present (`tempfile` is used elsewhere in the workspace — copy its version).
+Add `tempfile` and `shell-words` to `crates/simple-directory-app`'s `[dev-dependencies]` if not present (`tempfile` is used elsewhere in the workspace — copy its version).
 
 - [ ] **Step 6: Run the tests**
 
-Run: `cargo test -p cubical-app --test console_exec`
+Run: `cargo test -p simple-directory-app --test console_exec`
 Expected: both PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs crates/cubical-app/Cargo.toml \
-        crates/cubical-app/tests/console_exec.rs Cargo.lock
-git commit -m "feat(console): console_exec Tauri command dispatches cubical verbs in-process"
+git add crates/simple-directory-app/src/lib.rs crates/simple-directory-app/Cargo.toml \
+        crates/simple-directory-app/tests/console_exec.rs Cargo.lock
+git commit -m "feat(console): console_exec Tauri command dispatches simple-directory verbs in-process"
 ```
 
 ---
@@ -881,7 +881,7 @@ In `ui/src/settings/corePlugins.ts`, append to `CORE_PLUGINS`:
   {
     id: "console",
     name: "Command console",
-    description: "Run cubical commands against the open vault in a tab.",
+    description: "Run simple-directory commands against the open vault in a tab.",
     settingKey: "plugins.console_enabled",
     defaultEnabled: false,
   },
@@ -1028,7 +1028,7 @@ export function ConsolePanel(props: { vaultId: string }): JSXElement {
         aria-label="Console input"
         spellcheck={false}
         autocomplete="off"
-        placeholder="Type a cubical command, e.g. list"
+        placeholder="Type a simple-directory command, e.g. list"
         value={value()}
         disabled={busy()}
         onInput={(e) => setValue(e.currentTarget.value)}
@@ -1282,7 +1282,7 @@ git commit -m "feat(console): console tab kind, open command, workspace wiring"
 
 - [ ] **Step 1: Record rationale in `engine-ipc.md`**
 
-Under the existing "Socket boundary" material, add a short subsection: `cubical-ipc` now owns the text boundary in both directions — `render`/`render_to` (`Outcome`→text) and `parse` (`Cli`/`Cmd`→`Command`). The console is the **fourth caller of the one `dispatch`**, in-process via `TauriEventSink`, so it needs no socket, no binary, and works on Windows. It rejects `write` (no stdin) and `--vault` (bound to the open vault). No explanatory comments in code — this doc is the record.
+Under the existing "Socket boundary" material, add a short subsection: `simple-directory-ipc` now owns the text boundary in both directions — `render`/`render_to` (`Outcome`→text) and `parse` (`Cli`/`Cmd`→`Command`). The console is the **fourth caller of the one `dispatch`**, in-process via `TauriEventSink`, so it needs no socket, no binary, and works on Windows. It rejects `write` (no stdin) and `--vault` (bound to the open vault). No explanatory comments in code — this doc is the record.
 
 - [ ] **Step 2: Record the frontend model in `frontend.md`**
 
@@ -1298,7 +1298,7 @@ Run (never piped to `tail`):
 ```bash
 ./scripts/check.sh > /tmp/check.log 2>&1; echo "exit=$?"
 ```
-Expected: `exit=0`. If `cubical-core`'s `dropping_handle_stops_event_delivery_within_100ms` is the only failure, re-run it alone (`cargo test -p cubical-core dropping_handle_stops_event_delivery_within_100ms`) to confirm it's the known flake.
+Expected: `exit=0`. If `simple-directory-core`'s `dropping_handle_stops_event_delivery_within_100ms` is the only failure, re-run it alone (`cargo test -p simple-directory-core dropping_handle_stops_event_delivery_within_100ms`) to confirm it's the known flake.
 
 - [ ] **Step 5: Tauri GUI smoke (best-effort, honest reporting)**
 
@@ -1317,7 +1317,7 @@ git commit -m "docs(console): record the parse/render_to split and console tab m
 ## Self-Review
 
 **Spec coverage:**
-- §1a parser move → Task 1. §1b `render_to` → Task 2. §1c `console_exec` (all 8 steps: tokenize, strip `cubical`, reject `--vault`, parse+capture clap, reject body verbs, `to_command`, dispatch via `TauriEventSink`, `render_to`) → Task 3 Step 2. `shell-words` dep → Task 3 Step 1.
+- §1a parser move → Task 1. §1b `render_to` → Task 2. §1c `console_exec` (all 8 steps: tokenize, strip `simple-directory`, reject `--vault`, parse+capture clap, reject body verbs, `to_command`, dispatch via `TauriEventSink`, `render_to`) → Task 3 Step 2. `shell-words` dep → Task 3 Step 1.
 - §2 frontend units (`history.ts`, `scrollback.ts`) → Tasks 4, 5. `ConsolePanel` → Task 7. `consoleExec` chokepoint in `ipc.ts` → Task 6. Tab-model `console` kind + open command + shortcut + gating → Task 8. `layout.css` additive → Task 7 Step 4. `CORE_PLUGINS` entry (`defaultEnabled: false`) → Task 6. Plugin-off closes the tab → Task 8 Step 10. `Setting` union one-line add → Task 6 Step 1. Scrollback/history not persisted → Task 8 Step 9.
 - §3 rejects `write` (Task 3 body-verb reject) and `--vault` (Task 3 token reject); no confirmation prompts (dispatch runs `rm`/`rename` directly — inherited, nothing added).
 - §4 clap errors + `--help` captured with code 2 → Task 3 Step 2 (`e.exit_code()` / `e.render()`); the console's own restriction line is surfaced on empty/`--vault`/body-verb rejection; dispatch errors → `error: <msg>` code 1; no-vault handled by the `vaultId()!` gate at render; in-flight input disabled → Task 7 `busy()`.

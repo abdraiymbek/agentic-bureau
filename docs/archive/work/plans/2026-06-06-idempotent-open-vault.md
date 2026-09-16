@@ -8,7 +8,7 @@
 
 **Architecture:** Extract the dedup decision into a pure `find_open_vault_by_canonical_path` helper (canonicalizes each open vault's root and compares to the canonicalized incoming path), unit-tested directly without an `AppHandle`. `open_vault` calls it under a read guard before constructing a `Vault`; on a match it returns the existing `vault_id` + that vault's current `scan_status`.
 
-**Tech Stack:** Rust, Tokio, Tauri. Changes confined to `crates/cubical-app/src/commands/vault.rs`. No `cubical-core` / `cubical-search` / UI changes.
+**Tech Stack:** Rust, Tokio, Tauri. Changes confined to `crates/simple-directory-app/src/commands/vault.rs`. No `simple-directory-core` / `simple-directory-search` / UI changes.
 
 **Design spec:** `docs/superpowers/specs/2026-06-06-idempotent-open-vault-design.md`
 
@@ -16,7 +16,7 @@
 
 ## File structure
 
-- **Modify** `crates/cubical-app/src/commands/vault.rs`:
+- **Modify** `crates/simple-directory-app/src/commands/vault.rs`:
   - Add private fn `find_open_vault_by_canonical_path` (just above `pub async fn open_vault`, after the `From<ScanStatusBackend> for ScanStatus` impl).
   - Add the early-return guard at the top of `open_vault` (before `let vault = Vault::open(&req.path).await?;`).
   - Add two `#[tokio::test]`s in the existing `mod tests`.
@@ -28,11 +28,11 @@ That's the entire change. No other files.
 ### Task 1: Pure `find_open_vault_by_canonical_path` helper (TDD)
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/vault.rs` (new private fn + 2 tests in `mod tests`)
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` (new private fn + 2 tests in `mod tests`)
 
 - [ ] **Step 1: Write the failing tests**
 
-In `crates/cubical-app/src/commands/vault.rs`, inside `mod tests` (after the `fresh_state_with_vault` helper, around line 728), add:
+In `crates/simple-directory-app/src/commands/vault.rs`, inside `mod tests` (after the `fresh_state_with_vault` helper, around line 728), add:
 
 ```rust
 #[tokio::test]
@@ -63,12 +63,12 @@ async fn reopen_different_path_returns_none() {
 
 - [ ] **Step 2: Run tests to verify they fail (compile error)**
 
-Run: `cargo test -p cubical-app find_open_vault_by_canonical_path 2>&1 | tail -20` (or build the test target)
+Run: `cargo test -p simple-directory-app find_open_vault_by_canonical_path 2>&1 | tail -20` (or build the test target)
 Expected: FAIL — `cannot find function find_open_vault_by_canonical_path in this scope`.
 
 - [ ] **Step 3: Write the helper**
 
-In `crates/cubical-app/src/commands/vault.rs`, immediately **above** `pub async fn open_vault` (after the `impl From<ScanStatusBackend> for ScanStatus { … }` block that ends around line 41), add:
+In `crates/simple-directory-app/src/commands/vault.rs`, immediately **above** `pub async fn open_vault` (after the `impl From<ScanStatusBackend> for ScanStatus { … }` block that ends around line 41), add:
 
 ```rust
 /// Find an already-open vault whose canonical root matches `incoming`
@@ -88,17 +88,17 @@ fn find_open_vault_by_canonical_path(
 }
 ```
 
-> `ScanStatusBackend` derives `Copy` (`crates/cubical-app/src/state.rs:136`), so `ov.scan_status` copies out from behind the `&OpenVault` borrow. `OpenVault`, `ScanStatusBackend`, and `Vault::root()` are already in scope in this module; `std::collections::HashMap` / `std::path::Path` are fully qualified to avoid new imports.
+> `ScanStatusBackend` derives `Copy` (`crates/simple-directory-app/src/state.rs:136`), so `ov.scan_status` copies out from behind the `&OpenVault` borrow. `OpenVault`, `ScanStatusBackend`, and `Vault::root()` are already in scope in this module; `std::collections::HashMap` / `std::path::Path` are fully qualified to avoid new imports.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cargo test -p cubical-app find_open_vault_by_canonical_path 2>&1 | tail -20`
+Run: `cargo test -p simple-directory-app find_open_vault_by_canonical_path 2>&1 | tail -20`
 Expected: PASS — both `reopen_same_path_returns_existing_vault` and `reopen_different_path_returns_none` pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/vault.rs
+git add crates/simple-directory-app/src/commands/vault.rs
 git commit -m "feat(open-vault): find_open_vault_by_canonical_path helper + unit tests
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -109,14 +109,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 2: Wire the guard into `open_vault`
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/vault.rs` (`open_vault` body)
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` (`open_vault` body)
 
 - [ ] **Step 1: Add the early-return guard**
 
 In `pub async fn open_vault`, the body currently begins:
 
 ```rust
-) -> Result<OpenVaultResponse, CubicalError> {
+) -> Result<OpenVaultResponse, SimpleDirectoryError> {
     let vault = Vault::open(&req.path).await?;
     let vault_id = state.new_vault_id();
 ```
@@ -124,7 +124,7 @@ In `pub async fn open_vault`, the body currently begins:
 Insert the guard **between** the `{` and the `let vault = …` line, so it reads:
 
 ```rust
-) -> Result<OpenVaultResponse, CubicalError> {
+) -> Result<OpenVaultResponse, SimpleDirectoryError> {
     // Idempotent re-open: if this folder is already open in-process,
     // return the existing session rather than constructing a second
     // Vault (and a second Tantivy IndexWriter) on the same directory,
@@ -153,22 +153,22 @@ Leave the rest of `open_vault` unchanged.
 
 - [ ] **Step 2: Verify it compiles and clippy is clean**
 
-Run: `cargo clippy -p cubical-app --all-targets -- -D warnings 2>&1 | tail -15`
+Run: `cargo clippy -p simple-directory-app --all-targets -- -D warnings 2>&1 | tail -15`
 Expected: clean (no warnings/errors).
 
-- [ ] **Step 3: Run the cubical-app test suite**
+- [ ] **Step 3: Run the simple-directory-app test suite**
 
-Run: `cargo test -p cubical-app 2>&1 | tail -15`
+Run: `cargo test -p simple-directory-app 2>&1 | tail -15`
 Expected: all pass, including the two Task 1 tests.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/vault.rs
+git add crates/simple-directory-app/src/commands/vault.rs
 git commit -m "fix(open-vault): idempotent re-open avoids Tantivy LockBusy
 
 open_vault constructed a second Vault (second IndexWriter) on the same
-.cubical/search directory before any path dedup, so re-opening an
+.simple-directory/search directory before any path dedup, so re-opening an
 already-open folder threw 'search index error: ... LockBusy'. Guard the
 top of open_vault: if the canonical path is already open, return the
 existing vault_id + its current scan_status. A failed canonicalize falls
@@ -194,7 +194,7 @@ cd ui && npx tsc --noEmit && npm run build && npx vitest run
 
 Expected: all green. (UI gates are unchanged by this Rust-only fix — they confirm no incidental breakage. Rust test count = prior + 2.)
 
-> If `cargo test --workspace` reports a failure in `cubical-index::tags::cascade_delete_removes_tag_rows`, re-run it in isolation (`cargo test -p cubical-index --lib cascade_delete_removes_tag_rows`); it is a known pre-existing libSQL parallel-execution flake unrelated to this change. A clean `--workspace` re-run is the gate.
+> If `cargo test --workspace` reports a failure in `simple-directory-index::tags::cascade_delete_removes_tag_rows`, re-run it in isolation (`cargo test -p simple-directory-index --lib cascade_delete_removes_tag_rows`); it is a known pre-existing libSQL parallel-execution flake unrelated to this change. A clean `--workspace` re-run is the gate.
 
 - [ ] **Step 2: No commit** — verification only.
 

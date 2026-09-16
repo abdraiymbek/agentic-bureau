@@ -128,10 +128,10 @@ describe("perf recording", () => {
     const target = {} as Window;
     installPerfConsole(target);
     recordPerf("scan", 3);
-    expect(target.__CUBICAL_PERF__?.samples().map((s) => s.name)).toEqual(["scan"]);
-    expect(target.__CUBICAL_PERF__?.enabled()).toBe(true);
-    target.__CUBICAL_PERF__?.clear();
-    expect(target.__CUBICAL_PERF__?.samples()).toEqual([]);
+    expect(target.__SIMPLE_DIRECTORY_PERF__?.samples().map((s) => s.name)).toEqual(["scan"]);
+    expect(target.__SIMPLE_DIRECTORY_PERF__?.enabled()).toBe(true);
+    target.__SIMPLE_DIRECTORY_PERF__?.clear();
+    expect(target.__SIMPLE_DIRECTORY_PERF__?.samples()).toEqual([]);
   });
 
   it("clears what it collected when it is turned off", () => {

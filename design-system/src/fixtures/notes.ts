@@ -13,10 +13,10 @@ export const activeNote: Note = {
     created: '2026-07-10',
     status: 'active',
   },
-  tags: ['design', 'cubical'],
+  tags: ['design', 'simple-directory'],
   body: `# Design notes
 
-The accent color means state, never decoration. See [[Cubical roadmap]] for
+The accent color means state, never decoration. See [[simple.directory roadmap]] for
 sequencing.
 
 ## Open questions

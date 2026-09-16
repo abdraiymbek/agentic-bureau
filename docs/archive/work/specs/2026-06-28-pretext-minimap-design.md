@@ -15,7 +15,7 @@ A minimap is a thin, read-only strip beside the editor that renders the
 **whole** note at scale, with a draggable viewport indicator — a spatial
 overview + fast-scroll affordance.
 
-This is the one place in Cubical where [Pretext](https://github.com/chenglou/pretext)
+This is the one place in simple.directory where [Pretext](https://github.com/chenglou/pretext)
 does something the DOM structurally cannot, and the reasoning is load-bearing:
 
 - CodeMirror 6 **virtualizes** — only lines near the viewport exist in the
@@ -243,7 +243,7 @@ path.
 ```
 
 and accept the key on the Rust settings handler that persists to
-`.cubical/config.toml` (see `docs/migration-touchpoints.md`). The value flows
+`.simple-directory/config.toml` (see `docs/migration-touchpoints.md`). The value flows
 `App.tsx` → `Editor minimapEnabled` prop → conditional `<Minimap>` mount.
 
 It is intentionally **not** modeled as a `CORE_PLUGINS` entry: core plugins
@@ -280,7 +280,7 @@ docs).
 ## 10. Risks & mitigations
 
 - **Dependency / license.** `@chenglou/pretext` is **MIT** (v0.0.8, zero
-  runtime deps) — compatible with Cubical's MIT placeholder. It is young
+  runtime deps) — compatible with simple.directory's MIT placeholder. It is young
   (0.0.x); the `pretextLayout.ts` seam means we can swap the layout impl (even
   a hand-rolled monospace measurer) without touching render/geometry/UI if it
   stalls.

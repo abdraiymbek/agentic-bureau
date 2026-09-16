@@ -11,7 +11,7 @@ Closes #
 
 - [ ] **Gate green.** `scripts/check.sh` run to completion, exit code captured.
       (`./scripts/check.sh | tail` reports `tail`'s status, not the gate's.)
-      If the known `cubical-core` watcher flake aborted it, the remaining crates
+      If the known `simple-directory-core` watcher flake aborted it, the remaining crates
       were re-run explicitly — say so below.
 - [ ] **GUI smoke** run for any change to a rendered or interactive surface, or
       **N/A** because nothing rendered changed.

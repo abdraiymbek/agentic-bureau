@@ -6,7 +6,7 @@
 
 **Goal:** Give the vault-switcher real memory — a machine-local recent-vaults list (OS app-config dir) that records vaults on open, auto-opens the last vault on launch, and drives one-click switching with graceful handling of missing folders.
 
-**Architecture:** A Rust module in `cubical-app` (the Tauri shell) owns `recent_vaults.json` in the OS app-config dir; recording folds into the existing `open_vault` shim, and two new IPC commands expose list/remove. The frontend extracts a reusable `openVaultByPath`, auto-opens the top existing entry on launch, and renders the list (switch / greyed-missing / prune) in both the switcher popover and the empty-vault landing.
+**Architecture:** A Rust module in `simple-directory-app` (the Tauri shell) owns `recent_vaults.json` in the OS app-config dir; recording folds into the existing `open_vault` shim, and two new IPC commands expose list/remove. The frontend extracts a reusable `openVaultByPath`, auto-opens the top existing entry on launch, and renders the list (switch / greyed-missing / prune) in both the switcher popover and the empty-vault landing.
 
 **Tech Stack:** Rust (Tauri 2, serde, serde_json), SolidJS/TypeScript, CodeMirror-adjacent app shell, Vitest + `cargo test`.
 
@@ -14,7 +14,7 @@ Design spec: [`2026-07-09-recent-vaults-store-design.md`](../specs/2026-07-09-re
 
 ## Global Constraints
 
-- **Machine-local app-shell state only.** Never touches any `.md` file or a vault's `.cubical/`. Lives in `cubical-app`, never in `cubical-engine`.
+- **Machine-local app-shell state only.** Never touches any `.md` file or a vault's `.simple-directory/`. Lives in `simple-directory-app`, never in `simple-directory-engine`.
 - **No new Tauri plugin.** Reach the OS app-config dir via Tauri core `app.path().app_config_dir()` (`use tauri::Manager;`).
 - **Recents never block an open.** Every store read/write is best-effort: a missing/corrupt file, or an unavailable app-config dir, degrades to an empty list / no-op — it must never fail `open_vault` or throw in the frontend.
 - **Store shape:** JSON array of `{ "path": String, "last_opened_unix": i64 }`, most-recent-first, **capped at 10** (LRU eviction). `record` dedupes by path (move-to-top + update timestamp). Missing folders are **never auto-pruned** — only greyed and removed on explicit user action.
@@ -26,9 +26,9 @@ Design spec: [`2026-07-09-recent-vaults-store-design.md`](../specs/2026-07-09-re
 ### Task 1: Rust `recent_vaults` store module (pure logic + DTOs)
 
 **Files:**
-- Modify: `crates/cubical-app/Cargo.toml` (add serde, serde_json, dev tempfile)
-- Create: `crates/cubical-app/src/recent_vaults.rs` (+ inline `#[cfg(test)]` tests)
-- Modify: `crates/cubical-app/src/lib.rs:21` (add `mod recent_vaults;`)
+- Modify: `crates/simple-directory-app/Cargo.toml` (add serde, serde_json, dev tempfile)
+- Create: `crates/simple-directory-app/src/recent_vaults.rs` (+ inline `#[cfg(test)]` tests)
+- Modify: `crates/simple-directory-app/src/lib.rs:21` (add `mod recent_vaults;`)
 
 **Interfaces:**
 - Produces:
@@ -42,7 +42,7 @@ Design spec: [`2026-07-09-recent-vaults-store-design.md`](../specs/2026-07-09-re
   - `pub fn list_with_existence(store: &Path) -> Vec<RecentVault>`
   - `pub const CAP: usize = 10;`
 
-- [ ] **Step 1: Add dependencies** — in `crates/cubical-app/Cargo.toml`, under `[dependencies]` (after the tracing lines):
+- [ ] **Step 1: Add dependencies** — in `crates/simple-directory-app/Cargo.toml`, under `[dependencies]` (after the tracing lines):
 
 ```toml
 serde = { workspace = true }
@@ -56,7 +56,7 @@ and add a dev-dependencies section (after `[features]` or before it — top-leve
 tempfile = { workspace = true }
 ```
 
-- [ ] **Step 2: Write the failing tests** — create `crates/cubical-app/src/recent_vaults.rs` with ONLY the tests first (so it fails to compile → the RED signal). Put this at the bottom of the file:
+- [ ] **Step 2: Write the failing tests** — create `crates/simple-directory-app/src/recent_vaults.rs` with ONLY the tests first (so it fails to compile → the RED signal). Put this at the bottom of the file:
 
 ```rust
 #[cfg(test)]
@@ -146,10 +146,10 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Run tests to verify they fail** — `cargo test -p cubical-app recent_vaults`
+- [ ] **Step 3: Run tests to verify they fail** — `cargo test -p simple-directory-app recent_vaults`
 Expected: compile error (the module has no `load`/`record`/etc. yet).
 
-- [ ] **Step 4: Implement the module** — prepend above the tests in `crates/cubical-app/src/recent_vaults.rs`:
+- [ ] **Step 4: Implement the module** — prepend above the tests in `crates/simple-directory-app/src/recent_vaults.rs`:
 
 ```rust
 //! Recent-vaults store — machine-local app-shell state (not vault content).
@@ -157,7 +157,7 @@ Expected: compile error (the module has no `load`/`record`/etc. yet).
 //! A small JSON list of the vaults the user has opened, kept in the OS
 //! app-config dir so the switcher can offer one-click switching and the
 //! app can auto-open the last vault on launch. Owned by the Tauri shell
-//! (`cubical-app`); the engine stays vault-focused. Every operation is
+//! (`simple-directory-app`); the engine stays vault-focused. Every operation is
 //! best-effort — recents must never block opening a vault, so write
 //! failures are swallowed and a missing/corrupt file reads as empty.
 
@@ -242,7 +242,7 @@ pub fn list_with_existence(store: &Path) -> Vec<RecentVault> {
 }
 
 /// Write via temp-file + rename so a crash mid-write can't corrupt the
-/// store (mirrors the discipline of `cubical-core::vault::atomic`).
+/// store (mirrors the discipline of `simple-directory-core::vault::atomic`).
 fn atomic_write(store: &Path, entries: &[RecentVaultEntry]) -> std::io::Result<()> {
     if let Some(parent) = store.parent() {
         std::fs::create_dir_all(parent)?;
@@ -255,22 +255,22 @@ fn atomic_write(store: &Path, entries: &[RecentVaultEntry]) -> std::io::Result<(
 }
 ```
 
-- [ ] **Step 5: Register the module** — in `crates/cubical-app/src/lib.rs`, add next to `mod tauri_sink;` (line 21):
+- [ ] **Step 5: Register the module** — in `crates/simple-directory-app/src/lib.rs`, add next to `mod tauri_sink;` (line 21):
 
 ```rust
 mod recent_vaults;
 ```
 
-- [ ] **Step 6: Run tests to verify they pass** — `cargo test -p cubical-app recent_vaults`
+- [ ] **Step 6: Run tests to verify they pass** — `cargo test -p simple-directory-app recent_vaults`
 Expected: all 7 tests PASS.
 
-- [ ] **Step 7: Lint** — `cargo clippy -p cubical-app --all-targets -- -D warnings`
+- [ ] **Step 7: Lint** — `cargo clippy -p simple-directory-app --all-targets -- -D warnings`
 Expected: clean.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/cubical-app/Cargo.toml crates/cubical-app/src/recent_vaults.rs crates/cubical-app/src/lib.rs Cargo.lock
+git add crates/simple-directory-app/Cargo.toml crates/simple-directory-app/src/recent_vaults.rs crates/simple-directory-app/src/lib.rs Cargo.lock
 git commit -m "feat(app): recent-vaults store module (load/record/remove/list)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
@@ -281,7 +281,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 2: IPC commands + record-on-open wiring + frontend bindings
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs` (imports, path helper, 2 command shims, register in `generate_handler!`, fold recording into `open_vault`)
+- Modify: `crates/simple-directory-app/src/lib.rs` (imports, path helper, 2 command shims, register in `generate_handler!`, fold recording into `open_vault`)
 - Modify: `ui/src/api/ipc.ts` (DTO interfaces + 2 command wrappers)
 
 **Interfaces:**
@@ -291,13 +291,13 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 **Note:** command-level Tauri shims need an `AppHandle` for the app-config dir and can't be unit-tested without a running app, so the store *logic* is already covered by Task 1's tests; this task's verification is `cargo build`/`clippy` + `tsc`. This is thin wiring, not new logic.
 
-- [ ] **Step 1: Add the Manager import** — at the top of `crates/cubical-app/src/lib.rs`, add to the existing `use` block:
+- [ ] **Step 1: Add the Manager import** — at the top of `crates/simple-directory-app/src/lib.rs`, add to the existing `use` block:
 
 ```rust
 use tauri::Manager;
 ```
 
-- [ ] **Step 2: Add the path helper + two command shims** — in `crates/cubical-app/src/lib.rs`, near the other `#[tauri::command]` functions (e.g. right after the `open_vault` shim at line 145):
+- [ ] **Step 2: Add the path helper + two command shims** — in `crates/simple-directory-app/src/lib.rs`, near the other `#[tauri::command]` functions (e.g. right after the `open_vault` shim at line 145):
 
 ```rust
 /// Resolve the recent-vaults store file in the OS app-config dir, or
@@ -328,14 +328,14 @@ fn remove_recent_vault(app: tauri::AppHandle, req: recent_vaults::RemoveRecentVa
 }
 ```
 
-- [ ] **Step 3: Fold recording into `open_vault`** — replace the body of the `open_vault` shim (`crates/cubical-app/src/lib.rs:134-145`) with:
+- [ ] **Step 3: Fold recording into `open_vault`** — replace the body of the `open_vault` shim (`crates/simple-directory-app/src/lib.rs:134-145`) with:
 
 ```rust
 async fn open_vault(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     req: OpenVaultRequest,
-) -> Result<OpenVaultResponse, CubicalError> {
+) -> Result<OpenVaultResponse, SimpleDirectoryError> {
     let vault_path = req.path.to_string_lossy().to_string();
     let resp = commands::vault::open_vault(
         state.inner(),
@@ -356,14 +356,14 @@ async fn open_vault(
 }
 ```
 
-- [ ] **Step 4: Register the two commands** — in the `tauri::generate_handler!` list (`crates/cubical-app/src/lib.rs:76+`), add two entries (e.g. after `open_vault,`):
+- [ ] **Step 4: Register the two commands** — in the `tauri::generate_handler!` list (`crates/simple-directory-app/src/lib.rs:76+`), add two entries (e.g. after `open_vault,`):
 
 ```rust
             list_recent_vaults,
             remove_recent_vault,
 ```
 
-- [ ] **Step 5: Build + lint the Rust side** — `cargo build -p cubical-app && cargo clippy -p cubical-app --all-targets -- -D warnings`
+- [ ] **Step 5: Build + lint the Rust side** — `cargo build -p simple-directory-app && cargo clippy -p simple-directory-app --all-targets -- -D warnings`
 Expected: builds clean, no clippy warnings. (`AppHandle` is `Clone`, so `app.clone()` into the sink while keeping `app` for recording compiles.)
 
 - [ ] **Step 6: Add the frontend DTOs + wrappers** — in `ui/src/api/ipc.ts`, add the interfaces in the interface section (near `OpenVaultResponse`, ~line 30):
@@ -402,7 +402,7 @@ Expected: clean.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add crates/cubical-app/src/lib.rs ui/src/api/ipc.ts
+git add crates/simple-directory-app/src/lib.rs ui/src/api/ipc.ts
 git commit -m "feat(app): list/remove recent-vault IPC + record on open_vault
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"

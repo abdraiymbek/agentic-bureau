@@ -274,11 +274,11 @@ describe("collectDecorations — tags (L3 Session D)", () => {
   });
 
   it("emits a nested tag as one token", () => {
-    const src = "#project/cubical/l3\n";
+    const src = "#project/simple-directory/l3\n";
     const entries = run(src, at(src, 2));
     const tags = ofKind(entries, "mark-tag");
     expect(tags).toHaveLength(1);
-    expect(slice(src, tags[0]!)).toBe("#project/cubical/l3");
+    expect(slice(src, tags[0]!)).toBe("#project/simple-directory/l3");
   });
 
   it("emits multiple tag marks for multiple tags", () => {

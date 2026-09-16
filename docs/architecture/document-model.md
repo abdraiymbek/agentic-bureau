@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Architecture: Document Model
+# simple.directory — Architecture: Document Model
 
 ## 5. Document model
 
@@ -73,7 +73,7 @@ This replaces reading every resolved target through `read_source_off_executor`, 
 
 ### 5.5 Canonical AST
 
-Defined in the `cubical-ast` crate. A normalized markdown AST, framework-independent, no Tauri or webview dependencies.
+Defined in the `simple-directory-ast` crate. A normalized markdown AST, framework-independent, no Tauri or webview dependencies.
 
 ```rust
 pub enum Node {
@@ -95,11 +95,11 @@ pub enum Node {
 
 The exact shape is finalized during Layer 1. This AST is the lingua franca: Lezer trees are normalized into it, indexers and the exporter consume it, and plugins (Layer 6) receive it across the WASI boundary.
 
-It is intentionally slim — only the markdown subset Cubical itself produces and renders. Cross-app importers (Obsidian, Logseq, Notion) are out of v1 scope, so the AST carries no math, mermaid, callout, footnote or other extension **nodes**. This bounds the AST, not the rendering surface: **AST-bearing syntax pays the two-parser cost; a decoration over an existing node does not.** Whether such a form can be *rendered* is answered by the decoration paragraphs below.
+It is intentionally slim — only the markdown subset simple.directory itself produces and renders. Cross-app importers (Obsidian, Logseq, Notion) are out of v1 scope, so the AST carries no math, mermaid, callout, footnote or other extension **nodes**. This bounds the AST, not the rendering surface: **AST-bearing syntax pays the two-parser cost; a decoration over an existing node does not.** Whether such a form can be *rendered* is answered by the decoration paragraphs below.
 
-**Editor decorations are a sanctioned exception (promoted from L2).** Live Preview reads the editor's Lezer syntax tree (`syntaxTree(state)`) directly, not the canonical AST, because it hides and reveals marker tokens (`#`, `*`, backticks, list dashes, link brackets) at byte precision and the canonical AST abstracts those positions away. A parallel consumer, not a replacement: the in-process `onAstChange` path still normalizes Lezer into `cubical_ast::Document`, so the L1 parity contract is unaffected. The rule: anything that **indexes, exports, or crosses the plugin (Layer 6) boundary** consumes the canonical AST; only the editor's own rendering may read Lezer.
+**Editor decorations are a sanctioned exception (promoted from L2).** Live Preview reads the editor's Lezer syntax tree (`syntaxTree(state)`) directly, not the canonical AST, because it hides and reveals marker tokens (`#`, `*`, backticks, list dashes, link brackets) at byte precision and the canonical AST abstracts those positions away. A parallel consumer, not a replacement: the in-process `onAstChange` path still normalizes Lezer into `simple_directory_ast::Document`, so the L1 parity contract is unaffected. The rule: anything that **indexes, exports, or crosses the plugin (Layer 6) boundary** consumes the canonical AST; only the editor's own rendering may read Lezer.
 
-**Two-parser extension is the contract for AST-bearing syntax (promoted from L3).** Wiki-links, embeds, inline tags, and block-id occurrences live in the canonical AST (`Inline::WikiLink`, `Inline::Tag`, `Anchor::{Heading,Block}`) and so must be recognised by **both** the Rust `cubical-ast` parser (pulldown-cmark + hand-rolled inline tokenizers — `scan_wikilinks`, `scan_tags`) **and** the Lezer editor grammar (`@lezer/markdown` + `MarkdownConfig` inline rules registered `before: "Link"`). Both sides emit the same node names with the same grammar; the L1 cross-language parity contract (`crates/cubical-ast/tests/fixtures/parity.json`, exercised by the Rust `parity_fixtures` integration test + TS `parity.test.ts`) is *extended* to every new AST-bearing form, not weakened. Where Lezer's defaults conflict with the canonical grammar (e.g. its shortcut-Link parser claims `[[X]]` as an empty-`dest` Link, its Image parser claims `![[X]]` as an empty-`dest` Image), the TS normalizer re-flattens those nodes back to text before running `scan_wikilinks`/`scan_tags` so the canonical output stays in lockstep. This is the load-bearing L3 call — every later AST-bearing syntax extension follows the same pattern.
+**Two-parser extension is the contract for AST-bearing syntax (promoted from L3).** Wiki-links, embeds, inline tags, and block-id occurrences live in the canonical AST (`Inline::WikiLink`, `Inline::Tag`, `Anchor::{Heading,Block}`) and so must be recognised by **both** the Rust `simple-directory-ast` parser (pulldown-cmark + hand-rolled inline tokenizers — `scan_wikilinks`, `scan_tags`) **and** the Lezer editor grammar (`@lezer/markdown` + `MarkdownConfig` inline rules registered `before: "Link"`). Both sides emit the same node names with the same grammar; the L1 cross-language parity contract (`crates/simple-directory-ast/tests/fixtures/parity.json`, exercised by the Rust `parity_fixtures` integration test + TS `parity.test.ts`) is *extended* to every new AST-bearing form, not weakened. Where Lezer's defaults conflict with the canonical grammar (e.g. its shortcut-Link parser claims `[[X]]` as an empty-`dest` Link, its Image parser claims `![[X]]` as an empty-`dest` Image), the TS normalizer re-flattens those nodes back to text before running `scan_wikilinks`/`scan_tags` so the canonical output stays in lockstep. This is the load-bearing L3 call — every later AST-bearing syntax extension follows the same pattern.
 
 **A fenced-code info string is not an AST-bearing extension.** ` ```csv `, ` ```tsv ` and ` ```query ` add no grammar: `FencedCode`/`CodeInfo` are already emitted by both parsers, and `CodeBlock { lang }` already carries the info string. Rendering one as a table or a result set is a *decoration on an existing node* — a `StateField` replacing the block with a widget, revealing source when the cursor enters it — so it costs no `parity.json` fixture and no grammar change. `editor/dataview.ts`, `editor/csvBlock.ts` and `editor/math.ts` are the three instances, each registered as a `BlockRenderer` through `editor/blockRenderers.ts`. Reach for the two-parser contract above only when introducing genuinely new *syntax*; a new fenced language is a renderer, not a grammar.
 
@@ -122,7 +122,7 @@ Both feed the same tag index.
 
 **Hierarchy semantics:** prefix-match. Querying `#parent` matches `#parent`, `#parent/child`, and all deeper descendants. Querying `#parent/child` matches `#parent/child` and its descendants but not bare `#parent`. A file tagged `#a/b/c` is recorded with that exact leaf path; ancestor segments are not indexed separately.
 
-**Tag pages** are auto-generated and virtual — backed by a libSQL query, not real `.md` files. Route `tag:projects/cubical` opens a list of files using that tag or any descendant.
+**Tag pages** are auto-generated and virtual — backed by a libSQL query, not real `.md` files. Route `tag:projects/simple-directory` opens a list of files using that tag or any descendant.
 
 **Schema (L3):**
 
@@ -170,7 +170,7 @@ CREATE INDEX idx_pending_op     ON pending_rewrites(rename_op_id);
 
 **External-write conflict.** If `notify` reports `target_file` changed externally while pending rewrites exist, the flush re-applies textually: find the old token in the new content, replace if present, drop silently if the user removed it.
 
-**Plugin file reads must go through Cubical's capability**, not raw WASI fs, so plugins see materialized content. WASI fs is denied by default in the permission model anyway.
+**Plugin file reads must go through simple.directory's capability**, not raw WASI fs, so plugins see materialized content. WASI fs is denied by default in the permission model anyway.
 
 **Status bar always shows the unflushed count** ("12 pending changes"). Toast notification on flush completion: "Applied 12 reference updates across 7 files." Click → diff view.
 

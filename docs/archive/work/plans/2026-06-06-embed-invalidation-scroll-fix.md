@@ -278,7 +278,7 @@ This step requires the running app and a human operator (jsdom has no layout eng
 
 - [ ] **Step 1: Boot**
 
-Run: `cargo tauri dev` → File menu → Open Vault → `~/Developer/sandbox/cubical-l4a-smoke/`. Wait for the file tree to populate. Open A.md (carries an own-line `![[…]]` embed shown as a card).
+Run: `cargo tauri dev` → File menu → Open Vault → `~/Developer/sandbox/simple-directory-l4a-smoke/`. Wait for the file tree to populate. Open A.md (carries an own-line `![[…]]` embed shown as a card).
 
 - [ ] **Step 2: Type-with-embed test**
 
@@ -290,7 +290,7 @@ Expected: the viewport does **not** jump to the top; the embed card stays render
 From another terminal:
 
 ```bash
-echo "" >> ~/Developer/sandbox/cubical-l4a-smoke/A.md
+echo "" >> ~/Developer/sandbox/simple-directory-l4a-smoke/A.md
 ```
 
 Expected: within the debounce window the open file's embeds still refresh (the live-refresh substrate is intact). If A.md was clean in the editor, it silently reloads; if dirty, the conflict banner appears — both are pre-existing behaviour and confirm external edits still flow.

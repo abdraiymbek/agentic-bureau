@@ -13,13 +13,13 @@ export interface PerfConsole {
 
 declare global {
   interface Window {
-    __CUBICAL_PERF__?: PerfConsole;
+    __SIMPLE_DIRECTORY_PERF__?: PerfConsole;
   }
 }
 
 export const PERF_SAMPLE_LIMIT = 200;
 export const PERF_FRAME_BUDGET_MS = 16;
-export const PERF_STORAGE_KEY = "cubical:perf";
+export const PERF_STORAGE_KEY = "simple-directory:perf";
 
 export function roundMs(ms: number): number {
   return Math.round(ms * 100) / 100;
@@ -82,7 +82,7 @@ export function recordPerf(name: string, durationMs: number): void {
   };
   samples = pushSample(samples, sample);
   if (isOverFrameBudget(sample.durationMs)) {
-    console.debug(`[cubical:perf] ${name} ${sample.durationMs}ms`);
+    console.debug(`[simple-directory:perf] ${name} ${sample.durationMs}ms`);
   }
 }
 
@@ -111,7 +111,7 @@ export function measurePerfAsync<T>(
 }
 
 export function installPerfConsole(target: Window): void {
-  target.__CUBICAL_PERF__ = {
+  target.__SIMPLE_DIRECTORY_PERF__ = {
     samples: perfSamples,
     clear: clearPerfSamples,
     enable: setPerfEnabled,

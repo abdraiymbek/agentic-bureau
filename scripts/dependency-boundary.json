@@ -7,7 +7,7 @@
     "A list nothing checks is a list that is already wrong."
   ],
 
-  "tauri_crates": ["cubical-app"],
+  "tauri_crates": ["simple-directory-app"],
 
   "ipc_surface": ["ui/src/api/"],
 
@@ -16,7 +16,7 @@
       "reason": [
         "The native file/folder picker used to open a vault. It is a shell",
         "capability, not a vault operation: it returns a path and touches no",
-        "engine state, so routing it through cubical-ipc would add a command",
+        "engine state, so routing it through simple-directory-ipc would add a command",
         "whose whole body is 'ask the OS for a path'.",
         "",
         "Declared rather than silently tolerated. If a second native shell",

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Triage
 
-Ripen an issue until an agent or a human can pick it up cold. Cubical's tracker
+Ripen an issue until an agent or a human can pick it up cold. simple.directory's tracker
 is a *record*, not a queue: the filing discipline is already good and the gap is
 that nothing turns a filed idea into something takeable. That is this skill.
 
@@ -158,7 +158,7 @@ and present the updated picture before continuing.
 
 ## Local edits
 
-Cubical substitutions for upstream's generic tracker: the five canonical states
+simple.directory substitutions for upstream's generic tracker: the five canonical states
 became four-plus-absence so an untriaged issue stays a record rather than a
 queue entry; the `.out-of-scope/` knowledge base became
 `docs/architecture/constraints.md`, which already owns that fact; `CONTEXT.md`

@@ -5,7 +5,7 @@ import { createConsentGate } from "./consent";
 
 const status = (offered: boolean): AgentInstructionsStatus => ({
   offered,
-  canonical_path: "/vault/.cubical/agent-instructions.md",
+  canonical_path: "/vault/.simple-directory/agent-instructions.md",
   existing_pointers: [],
 });
 

@@ -1,12 +1,12 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../../architecture/) and [`docs/implementation/`](../../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical Design System — Design Spec
+# simple.directory Design System — Design Spec
 
 Date: 2026-07-13
 
 ## Summary
 
-Build a complete, production-grade design system for **Cubical**, a desktop,
+Build a complete, production-grade design system for **simple.directory**, a desktop,
 local-first Markdown knowledge base (an Obsidian-class notes app). The deliverable
 is a SolidJS component library, token system, and a set of full-screen mockups
 demonstrating the system in context, plus a gallery page and README.
@@ -109,7 +109,7 @@ indexed — 1,204 notes."). Em-dash for consequence, middot `·` as separator,
 ## Folder structure
 
 ```
-cubical-design-system/
+simple-directory-design-system/
   src/
     styles/
       tokens.css        # base tokens + semantic aliases + theme scopes + reduced-motion

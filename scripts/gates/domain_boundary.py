@@ -6,12 +6,12 @@ a dependency can be written:
 
   1. Crates. A substrate crate may not depend on a block crate, and a block
      may not depend on another domain's block.
-  2. cubical-engine command modules. Same rule one level down, because the
+  2. simple-directory-engine command modules. Same rule one level down, because the
      engine crate is a shell and check 1 cannot see inside it. A module that
      lives beside `commands/` but belongs to one domain (`engine_support`)
      counts as that domain's, so moving a block's handle out of `commands/`
      does not hide the edges to it. A workspace crate such a module names
-     (`cubical_search::…`) is an edge to that crate's census entry, because
+     (`simple_directory_search::…`) is an edge to that crate's census entry, because
      check 1 sees only the engine's manifest, and the engine is shell.
   3. ui/src domains. Same rule again on the frontend.
 
@@ -43,8 +43,8 @@ UI_IMPORT = re.compile(
 ENGINE_USE = re.compile(r"\bcrate::commands::([a-z_]+)")
 ENGINE_SUPPORT_USE = re.compile(r"\bcrate::([a-z_]+)")
 ENGINE_GROUP = re.compile(r"\bcrate::(commands::)?\{")
-CRATE_PATH = re.compile(r"\b(cubical_[a-z_]+)\s*::")
-CRATE_USE = re.compile(r"\buse\s+(cubical_[a-z_]+)\b")
+CRATE_PATH = re.compile(r"\b(simple_directory_[a-z_]+)\s*::")
+CRATE_USE = re.compile(r"\buse\s+(simple_directory_[a-z_]+)\b")
 GROUP_HEAD = re.compile(r"^\s*([a-z_]+)")
 
 
@@ -165,11 +165,11 @@ def group_targets(body: str, in_commands: bool) -> list[str]:
 def engine_edges(text: str) -> list[tuple[int, str]]:
     """(line, target) for every engine module or workspace crate a file names.
 
-    A target is `commands::x`, a bare `x` for `crate::x`, or `crate:cubical-x`
-    for a workspace crate named by path (`cubical_x::…`) or by `use cubical_x`.
+    A target is `commands::x`, a bare `x` for `crate::x`, or `crate:simple-directory-x`
+    for a workspace crate named by path (`simple_directory_x::…`) or by `use simple_directory_x`.
     The crate form exists because the crate check reads Cargo manifests, and
     the engine's manifest is the shell's: a substrate command module writing
-    `use cubical_search::…` compiled against a block and no check saw it.
+    `use simple_directory_search::…` compiled against a block and no check saw it.
     """
     prod = production_text(text)
     found: list[tuple[int, str]] = []
@@ -272,7 +272,7 @@ def check_engine_modules(gate: Gate, cfg: dict) -> None:
     crates = cfg["crates"]
     support = {k: v for k, v in cfg.get("engine_support", {}).items()
                if k != "_"}
-    root = "crates/cubical-engine/src/"
+    root = "crates/simple-directory-engine/src/"
     prefix = root + "commands/"
     files = tracked(prefix, suffixes=(".rs",))
     test_only = test_only_modules(files)

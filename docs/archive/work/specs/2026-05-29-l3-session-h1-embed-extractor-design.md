@@ -13,8 +13,8 @@ Backend half of Session H (spec §2.8): a `get_embed` IPC that, given a wiki-lin
 ## Scope
 
 **In:**
-- Pure `extract_section(source, heading)` and `extract_block(source, byte_offset)` extractors + a small `strip_frontmatter(source)` helper, in `cubical-core::vault::embeds`.
-- `get_embed` handler in `cubical-app::commands::embeds`: resolves target → reads file → routes to the right extractor based on the anchor kind.
+- Pure `extract_section(source, heading)` and `extract_block(source, byte_offset)` extractors + a small `strip_frontmatter(source)` helper, in `simple-directory-core::vault::embeds`.
+- `get_embed` handler in `simple-directory-app::commands::embeds`: resolves target → reads file → routes to the right extractor based on the anchor kind.
 - Wire types + Tauri shim + `ipc.ts` binding (`getEmbed`).
 - Unit + handler tests; no frontend changes.
 
@@ -25,7 +25,7 @@ Backend half of Session H (spec §2.8): a `get_embed` IPC that, given a wiki-lin
 
 ## Background — relevant existing machinery
 
-- **`resolve_target` + the snapshot pattern.** `resolve_link` (`crates/cubical-app/src/commands/links.rs:24`) is the template: `SELECT path FROM files ORDER BY path` → `cubical_core::vault::links::resolve_target(target_raw, &known) -> Option<String>`. The `[[#^` autocomplete handler (§9.11) follows the same pattern.
+- **`resolve_target` + the snapshot pattern.** `resolve_link` (`crates/simple-directory-app/src/commands/links.rs:24`) is the template: `SELECT path FROM files ORDER BY path` → `simple_directory_core::vault::links::resolve_target(target_raw, &known) -> Option<String>`. The `[[#^` autocomplete handler (§9.11) follows the same pattern.
 - **`split_target_anchor(target_raw) -> (String, Option<ResolvedAnchor>)`** is private to `commands/links.rs` (lines 63–91). Widen to `pub(crate)` and reuse — same pattern Session G used for `map_index_err`.
 - **`ResolvedAnchor`** (`api/types.rs:300`) is `enum { Heading { value }, Block { value } }`. The `value` strings are stored without `#`/`^` (matching how `Anchor::Block { value }` is parsed).
 - **`blocks_for_file(conn, file_path) -> Vec<BlockRow>`** (Session G) gives `(block_id, position_hint)` per id; `position_hint` is the byte offset of the line carrying `^id` (set by Session G's `extract_block_ids`).
@@ -57,7 +57,7 @@ getEmbed({ vault_id, target_raw: "Daily" })
 
 Unresolved target → `{ kind: "unresolved" }` (no target_path/content). Resolved target but anchor not found → `{ kind: "missing-anchor", target_path }`.
 
-## Pure extractors (`cubical-core::vault::embeds`)
+## Pure extractors (`simple-directory-core::vault::embeds`)
 
 A new module sibling to `vault::blocks`. Three public functions.
 
@@ -86,7 +86,7 @@ If `source` starts with `---\n` (or `---\r\n`) and a closing `---` on its own li
 
 ### Tests
 
-In `cubical-core/src/vault/embeds.rs` `#[cfg(test)] mod tests`:
+In `simple-directory-core/src/vault/embeds.rs` `#[cfg(test)] mod tests`:
 - `extract_section_matches_heading_by_slug` — `# My Section\nbody\n` + anchor `"my-section"` → `"body\n"`.
 - `extract_section_respects_level_ceiling` — `## A\nfoo\n# B\nbar\n` with anchor `"a"` → `"foo\n"` (stops at `# B`).
 - `extract_section_returns_none_when_missing` — anchor `"ghost"` → `None`.
@@ -96,7 +96,7 @@ In `cubical-core/src/vault/embeds.rs` `#[cfg(test)] mod tests`:
 - `strip_frontmatter_present` — `"---\ntitle: x\n---\nbody\n"` → `"body\n"`.
 - `strip_frontmatter_absent` — `"plain\n"` → `"plain\n"`.
 
-## Handler (`cubical-app::commands::embeds`)
+## Handler (`simple-directory-app::commands::embeds`)
 
 New module + handler. Pseudocode (full code lands in the plan):
 
@@ -104,13 +104,13 @@ New module + handler. Pseudocode (full code lands in the plan):
 pub async fn get_embed(
     state: &AppState,
     req: GetEmbedRequest,
-) -> Result<GetEmbedResponse, CubicalError> {
+) -> Result<GetEmbedResponse, SimpleDirectoryError> {
     // 1. Vault lookup (mirror commands/autocomplete::block_id_autocomplete).
     // 2. Snapshot files.path.
     // 3. Use crate::commands::links::split_target_anchor (widen to pub(crate)).
     // 4. resolve_target(target, &known) → Option<String>.
     //    None → return GetEmbedResponse { kind: Unresolved, target_path: None, content: None }.
-    // 5. Read the target file off-executor (use cubical_core::vault::links::read_source_off_executor;
+    // 5. Read the target file off-executor (use simple_directory_core::vault::links::read_source_off_executor;
     //    already pub(crate) — exposed for Session G).
     //    Unreadable file → kind: Unresolved (consistent with refresh_blocks's resilience).
     // 6. Match anchor:
@@ -173,7 +173,7 @@ Frontend IPC binding (`ipc.ts`): mirrored TypeScript types + `getEmbed(req): Pro
 ## Error handling
 
 - Vault not open → `VaultNotOpen(id)` (existing).
-- Snapshot / blocks query errors → propagate via `From<IndexError> for CubicalError` (existing).
+- Snapshot / blocks query errors → propagate via `From<IndexError> for SimpleDirectoryError` (existing).
 - File read failure → fold into `EmbedKind::Unresolved` (the embed surface treats "can't read" the same as "doesn't exist"; the watcher will heal on next change).
 
 ## Out of scope (recap)

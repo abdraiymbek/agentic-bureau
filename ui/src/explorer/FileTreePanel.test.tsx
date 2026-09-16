@@ -172,7 +172,7 @@ describe("FileTreePanel", () => {
     expect(host.querySelector(".tree-row__name--dotted")).not.toBeNull();
   });
 
-  it("marks a file Cubical has no viewer for as unsupported", () => {
+  it("marks a file simple.directory has no viewer for as unsupported", () => {
     const host = panel({ files: [entry("archive.zip", "binary")] });
     expect(host.querySelector(".tree-row--unsupported")).not.toBeNull();
   });

@@ -1,0 +1,457 @@
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanStatus {
+    InProgress,
+    Complete,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenVaultRequest {
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OpenVaultResponse {
+    pub vault_id: String,
+    pub scan_status: ScanStatus,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CancelVaultScanRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetVaultInfoRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetVaultInfoResponse {
+    pub path: PathBuf,
+    pub file_count: u32,
+    pub markdown_count: u32,
+    pub binary_count: u32,
+    pub schema_version: u32,
+    pub scan_status: ScanStatus,
+    pub watcher_live: bool,
+    pub flush_timer_live: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListFilesRequest {
+    pub vault_id: String,
+    #[serde(default)]
+    pub limit: Option<u32>,
+    #[serde(default)]
+    pub offset: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListFilesResponse {
+    pub files: Vec<FileEntry>,
+    pub total: u32,
+    pub folders: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateFileRequest {
+    pub vault_id: String,
+    #[serde(default)]
+    pub parent_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateFileResponse {
+    pub path: String,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateFileAtPathRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateFileAtPathResponse {
+    pub path: String,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateFolderRequest {
+    pub vault_id: String,
+    #[serde(default)]
+    pub parent_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateFolderResponse {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeletePathRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FileEntry {
+    pub path: String,
+    pub type_id: String,
+    pub size_bytes: u64,
+    pub mtime_unix: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetFrontmatterRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetFrontmatterResponse {
+    pub entries: Vec<FrontmatterEntry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FrontmatterEntry {
+    pub key: String,
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReadFileTextRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReadFileTextResponse {
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReadFileBytesRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReadFileBytesResponse {
+    pub base64: String,
+    pub mime: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetCanonicalAstRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetCanonicalAstResponse {
+    pub document: simple_directory_ast::Document,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WriteFileTextRequest {
+    pub vault_id: String,
+    pub path: String,
+    pub content: String,
+    #[serde(default)]
+    pub expected_seen_hash: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WriteFileTextResponse {
+    pub new_content_hash: String,
+    pub new_mtime_unix: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetSettingRequest {
+    pub vault_id: String,
+    pub key: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetSettingResponse {
+    pub value: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetSettingRequest {
+    pub vault_id: String,
+    pub key: String,
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SetSettingResponse {}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResolveLinkRequest {
+    pub vault_id: String,
+    pub target_raw: String,
+    #[serde(default)]
+    pub source_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResolveLinkResponse {
+    pub target_path: Option<String>,
+    pub anchor: Option<ResolvedAnchor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ResolvedAnchor {
+    Heading { value: String },
+    Block { value: String },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetBacklinksRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetBacklinksResponse {
+    pub backlinks: Vec<Backlink>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Backlink {
+    pub source_path: String,
+    pub context: String,
+    pub position: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct QueryTagPageRequest {
+    pub vault_id: String,
+    pub tag_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QueryTagPageResponse {
+    pub files: Vec<TagPageFile>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TagPageFile {
+    pub path: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListTagsRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListTagsResponse {
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListTagAssignmentsRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TagAssignmentDto {
+    pub tag_path: String,
+    pub file_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListTagAssignmentsResponse {
+    pub assignments: Vec<TagAssignmentDto>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CloseVaultRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetUnlinkedMentionsRequest {
+    pub vault_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetUnlinkedMentionsResponse {
+    pub mentions: Vec<Mention>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Mention {
+    pub source_path: String,
+    pub context: String,
+    pub position: u64,
+    pub byte_len: u64,
+    pub needle: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LinkMentionRequest {
+    pub vault_id: String,
+    pub source_path: String,
+    pub position: u64,
+    pub byte_len: u64,
+    pub target_title: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkMentionResponse {
+    pub new_hash: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RenameFileRequest {
+    pub vault_id: String,
+    pub from_path: String,
+    pub to_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RenameFileResponse {
+    pub rename_op_id: i64,
+    pub pending_count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RenameFolderRequest {
+    pub vault_id: String,
+    pub from_path: String,
+    pub to_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RenameFolderResponse {
+    pub rename_op_id: i64,
+    pub pending_count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RenameTagRequest {
+    pub vault_id: String,
+    pub old_tag: String,
+    pub new_tag: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RenameTagResponse {
+    pub rename_op_id: i64,
+    pub pending_count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RenameBlockIdRequest {
+    pub vault_id: String,
+    pub file_path: String,
+    pub old_id: String,
+    pub new_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RenameBlockIdResponse {
+    pub rename_op_id: i64,
+    pub pending_count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FlushPendingRewritesRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FlushPendingRewritesForTargetRequest {
+    pub vault_id: String,
+    pub target_file: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FlushPendingRewritesResponse {
+    pub files_rewritten: i64,
+    pub refs_updated: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetPendingRewritesCountRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetPendingRewritesCountResponse {
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GetPendingRewritesBreakdownRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PendingRewriteBreakdownRow {
+    pub target_file: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetPendingRewritesBreakdownResponse {
+    pub rows: Vec<PendingRewriteBreakdownRow>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListRecentRenameOpsRequest {
+    pub vault_id: String,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RecentRenameOp {
+    pub rename_op_id: i64,
+    pub kind: String,
+    pub row_count: i64,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListRecentRenameOpsResponse {
+    pub ops: Vec<RecentRenameOp>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UndoRenameRequest {
+    pub vault_id: String,
+    pub rename_op_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UndoRenameResponse {
+    pub removed: u64,
+    pub pending_count: i64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ReloadSettingsRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ReloadSettingsResponse {
+    pub settings: std::collections::BTreeMap<String, serde_json::Value>,
+}

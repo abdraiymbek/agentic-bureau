@@ -8,7 +8,7 @@
 **Operator:** daniel.vekar (repo owner, at the keyboard)
 **Date:** 2026-06-06
 **Build commit at confirmation:** `03c2048` (fix `88bd614` + spec amendment)
-**Vault:** `~/Developer/sandbox/cubical-l4a-smoke/`
+**Vault:** `~/Developer/sandbox/simple-directory-l4a-smoke/`
 **Method:** Interactive `cargo tauri dev`, hands-on, across several
 iterations this session (the bugs were found, fixed, and re-confirmed
 in the running app — not just unit tests).
@@ -27,7 +27,7 @@ incidentally while reproducing and confirming the bugs.
 The L4-A **search** recipes (search 1–11, index status, health,
 watcher fan-out) test the Tantivy backend, which is **unchanged** in
 this session — they were the L4-A close's responsibility (verified
-there via the `cubical-search` + handler unit suites). They were
+there via the `simple-directory-search` + handler unit suites). They were
 **not** re-walked here because no code path under them changed. The
 broader L1 file-watcher recipes likewise saw no code change.
 

@@ -1,0 +1,17 @@
+[package]
+name = "simple-directory-index"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "libSQL schema, migrations, and queries. Owns the on-disk index database at .simple-directory/index.db."
+
+[dependencies]
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+libsql = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

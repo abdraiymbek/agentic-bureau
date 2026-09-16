@@ -6,7 +6,7 @@
 
 **Goal:** Ship five isolated frontend UI wins in one batch — muted file-type labels, three new bindable commands, editor back/forward navigation, a minimal vault-switcher popup, and clearer Settings copy.
 
-**Architecture:** All changes are frontend (Solid/TS) in `ui/src`. Pure, testable logic goes in dependency-free modules (`fileTree.ts` extension split, a new `navHistory.ts` reducer); Solid components (`App.tsx`, `Editor.tsx`, a new `VaultSwitcher.tsx`) are the thin adapters and are operator-smoke-only per conventions. No Rust, no IPC, no `.md`/`.cubical` changes.
+**Architecture:** All changes are frontend (Solid/TS) in `ui/src`. Pure, testable logic goes in dependency-free modules (`fileTree.ts` extension split, a new `navHistory.ts` reducer); Solid components (`App.tsx`, `Editor.tsx`, a new `VaultSwitcher.tsx`) are the thin adapters and are operator-smoke-only per conventions. No Rust, no IPC, no `.md`/`.simple-directory` changes.
 
 **Tech Stack:** SolidJS, TypeScript, CodeMirror 6, Vitest. Design spec: [`2026-07-08-small-wins-ui-batch-design.md`](../specs/2026-07-08-small-wins-ui-batch-design.md).
 

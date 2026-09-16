@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { errorMessage } from "./errorMessage";
 
 describe("errorMessage", () => {
-  it("extracts `.message` from a CubicalError-shaped object", () => {
+  it("extracts `.message` from a SimpleDirectoryError-shaped object", () => {
     expect(errorMessage({ code: "InvalidRequest", message: "bad path" })).toBe(
       "bad path",
     );

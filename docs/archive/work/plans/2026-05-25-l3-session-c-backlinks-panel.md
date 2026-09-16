@@ -8,7 +8,7 @@
 
 **Architecture:** A new `get_backlinks` IPC reads the L3 `links` table for rows pointing at `path`, joins each row to a source-file context snippet built by a pure helper, and returns the result. A new dedicated query (`backlinks_for`) surfaces `source_path` (the existing `links_to` returns a shape that omits it; `links_to` has no production callers — only tests — so a new query is cleaner than mutating its return shape). The frontend grows two new files: `RightSidebar.tsx` (collapsible shell, panel-agnostic so Session I can add Unlinked Mentions next to Backlinks) and `sidebar/Backlinks.tsx` (data-bound panel). Live refresh piggybacks on the existing `vault:file-changed` listener with a 200ms debounce (recommended in the session prompt; defer shipping `vault:index-changed` until a second consumer needs it).
 
-**Tech Stack:** Rust (`cubical-index`, `cubical-app`); TypeScript / Solid (`ui/src/RightSidebar.tsx`, `ui/src/sidebar/Backlinks.tsx`, `ui/src/App.tsx`, `ui/src/api/ipc.ts`); Tauri 2 IPC.
+**Tech Stack:** Rust (`simple-directory-index`, `simple-directory-app`); TypeScript / Solid (`ui/src/RightSidebar.tsx`, `ui/src/sidebar/Backlinks.tsx`, `ui/src/App.tsx`, `ui/src/api/ipc.ts`); Tauri 2 IPC.
 
 ---
 
@@ -17,8 +17,8 @@
 - [`docs/layer-3-spec.md`](../../../layer-3-spec.md) §1 goal 3, §2.3 (Backlinks panel + right sidebar), §3.1 (`get_backlinks`), §3.5 (`vault:index-changed` — *not* shipped this session), §4 (frontend file map), §5 deviation #4, §8 Session C, §9.1 + §9.2 (what landed in A and B).
 - [`docs/architecture/ui.md`](../../../architecture/ui.md) §11.1 (right sidebar in the locked layout), §11.4 (CSS-variable token surface — every new UI surface consumes tokens).
 - [`docs/conventions.md`](../../../conventions.md) — `cargo fmt` + `cargo clippy -- -D warnings`, strict TS, no `any`, no `unwrap` outside tests/`main`, Conventional Commits.
-- L3 Session A query module ([`crates/cubical-index/src/links.rs`](../../../../crates/cubical-index/src/links.rs)) — `LinkRow`, `replace_links_for_file`, `links_to` (callers: tests only).
-- L3 Session A `resolve_link` handler shape ([`crates/cubical-app/src/commands/links.rs`](../../../../crates/cubical-app/src/commands/links.rs)) — mirror its pure-handler structure.
+- L3 Session A query module ([`crates/simple-directory-index/src/links.rs`](../../../../crates/simple-directory-index/src/links.rs)) — `LinkRow`, `replace_links_for_file`, `links_to` (callers: tests only).
+- L3 Session A `resolve_link` handler shape ([`crates/simple-directory-app/src/commands/links.rs`](../../../../crates/simple-directory-app/src/commands/links.rs)) — mirror its pure-handler structure.
 - L3 Session B `App.tsx` navigation flow — `handleSelectFile` / `handleNavigateWikilink` (the seam a row click reuses).
 
 ---
@@ -40,17 +40,17 @@
 **Create (Rust):**
 
 ```
-crates/cubical-app/src/commands/backlinks.rs       # pure handler + snippet helper + tests
+crates/simple-directory-app/src/commands/backlinks.rs       # pure handler + snippet helper + tests
 ```
 
 **Modify (Rust):**
 
 ```
-crates/cubical-index/src/links.rs                  # add BacklinkRow + backlinks_for() + tests
-crates/cubical-index/src/lib.rs                    # re-export BacklinkRow + backlinks_for
-crates/cubical-app/src/api/types.rs                # add GetBacklinksRequest/Response + Backlink
-crates/cubical-app/src/commands/mod.rs             # pub mod backlinks
-crates/cubical-app/src/lib.rs                      # Tauri shim for get_backlinks
+crates/simple-directory-index/src/links.rs                  # add BacklinkRow + backlinks_for() + tests
+crates/simple-directory-index/src/lib.rs                    # re-export BacklinkRow + backlinks_for
+crates/simple-directory-app/src/api/types.rs                # add GetBacklinksRequest/Response + Backlink
+crates/simple-directory-app/src/commands/mod.rs             # pub mod backlinks
+crates/simple-directory-app/src/lib.rs                      # Tauri shim for get_backlinks
 ```
 
 **Create (TS):**
@@ -79,8 +79,8 @@ CLAUDE.md                                          # rewrite Project state at se
 **Untouched (explicit non-goals):**
 
 ```
-crates/cubical-ast/**                              # no AST changes
-crates/cubical-core/**                             # no extraction changes
+crates/simple-directory-ast/**                              # no AST changes
+crates/simple-directory-core/**                             # no extraction changes
 ui/src/editor/**                                   # no editor changes
 ui/src/ast/**                                      # no AST normalizer changes
 ```
@@ -89,7 +89,7 @@ ui/src/ast/**                                      # no AST normalizer changes
 
 ## Wire shapes (load-bearing)
 
-### Rust — `BacklinkRow` (in `cubical-index`)
+### Rust — `BacklinkRow` (in `simple-directory-index`)
 
 ```rust
 /// One backlink — a `links` row enriched with its source file, used by
@@ -107,7 +107,7 @@ pub struct BacklinkRow {
 }
 ```
 
-### Rust — IPC types (in `cubical-app/src/api/types.rs`)
+### Rust — IPC types (in `simple-directory-app/src/api/types.rs`)
 
 ```rust
 /// Request payload for `get_backlinks`.
@@ -191,10 +191,10 @@ This is testable in isolation — `tests` in the same module cover near-start, n
 ## Task 1: `BacklinkRow` + `backlinks_for` query
 
 **Files:**
-- Modify: `crates/cubical-index/src/links.rs`
-- Modify: `crates/cubical-index/src/lib.rs`
+- Modify: `crates/simple-directory-index/src/links.rs`
+- Modify: `crates/simple-directory-index/src/lib.rs`
 
-- [ ] **Step 1: Write the failing query test** in `crates/cubical-index/src/links.rs` (append inside the existing `#[cfg(test)] mod tests`):
+- [ ] **Step 1: Write the failing query test** in `crates/simple-directory-index/src/links.rs` (append inside the existing `#[cfg(test)] mod tests`):
 
 ```rust
 #[tokio::test]
@@ -238,10 +238,10 @@ async fn backlinks_for_returns_empty_when_no_links_point_here() {
 
 - [ ] **Step 2: Run the tests to verify they fail.**
 
-Run: `cargo test -p cubical-index backlinks_for`
+Run: `cargo test -p simple-directory-index backlinks_for`
 Expected: FAIL — `backlinks_for` does not exist, and `BacklinkRow` does not exist.
 
-- [ ] **Step 3: Add `BacklinkRow` and `backlinks_for` to `crates/cubical-index/src/links.rs`.**
+- [ ] **Step 3: Add `BacklinkRow` and `backlinks_for` to `crates/simple-directory-index/src/links.rs`.**
 
 Append (after the existing `links_to` function, before `fn row_to_link`):
 
@@ -304,12 +304,12 @@ pub async fn backlinks_for(
 }
 ```
 
-- [ ] **Step 4: Re-export from `crates/cubical-index/src/lib.rs`.**
+- [ ] **Step 4: Re-export from `crates/simple-directory-index/src/lib.rs`.**
 
 Find the existing line that re-exports from `links::` and extend it. Check current shape with:
 
 ```bash
-grep -n "links::" crates/cubical-index/src/lib.rs
+grep -n "links::" crates/simple-directory-index/src/lib.rs
 ```
 
 Add `BacklinkRow` and `backlinks_for` to the existing `pub use crate::links::{ … };` group (or add a new `pub use` line if there isn't one yet). Final form should be (adjust to match existing style):
@@ -322,18 +322,18 @@ pub use crate::links::{
 
 - [ ] **Step 5: Run the tests to verify they pass.**
 
-Run: `cargo test -p cubical-index backlinks_for`
+Run: `cargo test -p simple-directory-index backlinks_for`
 Expected: PASS — both new tests green.
 
 - [ ] **Step 6: Run the full index suite to confirm no regressions.**
 
-Run: `cargo test -p cubical-index`
+Run: `cargo test -p simple-directory-index`
 Expected: PASS — all prior link/index tests + 2 new ones.
 
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-index/src/links.rs crates/cubical-index/src/lib.rs
+git add crates/simple-directory-index/src/links.rs crates/simple-directory-index/src/lib.rs
 git commit -m "feat(index): add backlinks_for query with source_path"
 ```
 
@@ -342,9 +342,9 @@ git commit -m "feat(index): add backlinks_for query with source_path"
 ## Task 2: IPC types — `GetBacklinksRequest` / `Response` / `Backlink`
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
 
-- [ ] **Step 1: Append the new types to `crates/cubical-app/src/api/types.rs`** (after the `ResolvedAnchor` enum, before the `// -- close_vault` section):
+- [ ] **Step 1: Append the new types to `crates/simple-directory-app/src/api/types.rs`** (after the `ResolvedAnchor` enum, before the `// -- close_vault` section):
 
 ```rust
 // -- get_backlinks -------------------------------------------------------
@@ -386,13 +386,13 @@ pub struct Backlink {
 
 - [ ] **Step 2: Confirm it compiles (a no-op shim until Task 4 wires it).**
 
-Run: `cargo check -p cubical-app`
+Run: `cargo check -p simple-directory-app`
 Expected: PASS — types compile.
 
 - [ ] **Step 3: Commit.**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs
+git add crates/simple-directory-app/src/api/types.rs
 git commit -m "feat(app): add GetBacklinks request/response types"
 ```
 
@@ -401,10 +401,10 @@ git commit -m "feat(app): add GetBacklinks request/response types"
 ## Task 3: Snippet helper
 
 **Files:**
-- Create: `crates/cubical-app/src/commands/backlinks.rs`
-- Modify: `crates/cubical-app/src/commands/mod.rs`
+- Create: `crates/simple-directory-app/src/commands/backlinks.rs`
+- Modify: `crates/simple-directory-app/src/commands/mod.rs`
 
-- [ ] **Step 1: Create `crates/cubical-app/src/commands/backlinks.rs` with the snippet helper skeleton (no handler yet) and its test module.** The full content of the file at this step:
+- [ ] **Step 1: Create `crates/simple-directory-app/src/commands/backlinks.rs` with the snippet helper skeleton (no handler yet) and its test module.** The full content of the file at this step:
 
 ```rust
 //! Pure async command handler for `get_backlinks`.
@@ -585,7 +585,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the new module in `crates/cubical-app/src/commands/mod.rs`.**
+- [ ] **Step 2: Register the new module in `crates/simple-directory-app/src/commands/mod.rs`.**
 
 Replace the existing module list with:
 
@@ -597,13 +597,13 @@ pub mod vault;
 
 - [ ] **Step 3: Run the snippet helper tests.**
 
-Run: `cargo test -p cubical-app commands::backlinks::tests`
+Run: `cargo test -p simple-directory-app commands::backlinks::tests`
 Expected: PASS — all 9 snippet helper tests green.
 
 - [ ] **Step 4: Commit.**
 
 ```bash
-git add crates/cubical-app/src/commands/backlinks.rs crates/cubical-app/src/commands/mod.rs
+git add crates/simple-directory-app/src/commands/backlinks.rs crates/simple-directory-app/src/commands/mod.rs
 git commit -m "feat(app): add build_snippet pure helper for backlink context"
 ```
 
@@ -612,18 +612,18 @@ git commit -m "feat(app): add build_snippet pure helper for backlink context"
 ## Task 4: `get_backlinks` pure handler
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/backlinks.rs`
+- Modify: `crates/simple-directory-app/src/commands/backlinks.rs`
 
-- [ ] **Step 1: Append the failing handler tests** at the bottom of `crates/cubical-app/src/commands/backlinks.rs`'s `tests` module (inside the existing `mod tests { … }` block, after `position_beyond_source_clamps_to_end`):
+- [ ] **Step 1: Append the failing handler tests** at the bottom of `crates/simple-directory-app/src/commands/backlinks.rs`'s `tests` module (inside the existing `mod tests { … }` block, after `position_beyond_source_clamps_to_end`):
 
 ```rust
     // -- End-to-end get_backlinks tests ---------------------------------
 
     use crate::api::types::GetBacklinksRequest;
-    use crate::error::CubicalError;
+    use crate::error::SimpleDirectoryError;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use cubical_core::Vault;
-    use cubical_index::{replace_links_for_file, LinkRow};
+    use simple_directory_core::Vault;
+    use simple_directory_index::{replace_links_for_file, LinkRow};
     use tempfile::{tempdir, TempDir};
     use tokio_util::sync::CancellationToken;
 
@@ -808,22 +808,22 @@ git commit -m "feat(app): add build_snippet pure helper for backlink context"
         )
         .await
         .expect_err("vault-not-open");
-        assert!(matches!(err, CubicalError::VaultNotOpen(v) if v == "ghost"));
+        assert!(matches!(err, SimpleDirectoryError::VaultNotOpen(v) if v == "ghost"));
     }
 ```
 
 - [ ] **Step 2: Run the new tests to confirm they fail with "function not defined".**
 
-Run: `cargo test -p cubical-app commands::backlinks::tests::get_backlinks`
+Run: `cargo test -p simple-directory-app commands::backlinks::tests::get_backlinks`
 Expected: FAIL — `get_backlinks` function does not exist.
 
-- [ ] **Step 3: Add the `get_backlinks` handler** in `crates/cubical-app/src/commands/backlinks.rs`. Insert before the `#[cfg(test)] mod tests {` block:
+- [ ] **Step 3: Add the `get_backlinks` handler** in `crates/simple-directory-app/src/commands/backlinks.rs`. Insert before the `#[cfg(test)] mod tests {` block:
 
 ```rust
-use cubical_index::backlinks_for;
+use simple_directory_index::backlinks_for;
 
 use crate::api::types::{Backlink, GetBacklinksRequest, GetBacklinksResponse};
-use crate::error::CubicalError;
+use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
 
 /// List every backlink for `path` — every link row whose
@@ -837,11 +837,11 @@ use crate::state::AppState;
 pub async fn get_backlinks(
     state: &AppState,
     req: GetBacklinksRequest,
-) -> Result<GetBacklinksResponse, CubicalError> {
+) -> Result<GetBacklinksResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
 
     let rows = backlinks_for(open.vault.index(), &req.path).await?;
 
@@ -872,18 +872,18 @@ pub async fn get_backlinks(
 
 - [ ] **Step 4: Run the new tests to verify they pass.**
 
-Run: `cargo test -p cubical-app commands::backlinks::tests`
+Run: `cargo test -p simple-directory-app commands::backlinks::tests`
 Expected: PASS — all snippet helper tests + 5 new handler tests green.
 
 - [ ] **Step 5: Run the full app suite to confirm no regressions.**
 
-Run: `cargo test -p cubical-app`
+Run: `cargo test -p simple-directory-app`
 Expected: PASS — all prior tests + 14 new ones (9 snippet + 5 handler).
 
 - [ ] **Step 6: Commit.**
 
 ```bash
-git add crates/cubical-app/src/commands/backlinks.rs
+git add crates/simple-directory-app/src/commands/backlinks.rs
 git commit -m "feat(app): add get_backlinks pure handler"
 ```
 
@@ -892,9 +892,9 @@ git commit -m "feat(app): add get_backlinks pure handler"
 ## Task 5: Tauri shim for `get_backlinks`
 
 **Files:**
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 
-- [ ] **Step 1: Extend the imports** at the top of `crates/cubical-app/src/lib.rs`. Find the `use api::types::{ … };` block and add the three new types — final form:
+- [ ] **Step 1: Extend the imports** at the top of `crates/simple-directory-app/src/lib.rs`. Find the `use api::types::{ … };` block and add the three new types — final form:
 
 ```rust
 use api::types::{
@@ -923,7 +923,7 @@ use api::types::{
 async fn get_backlinks(
     state: tauri::State<'_, AppState>,
     req: GetBacklinksRequest,
-) -> Result<GetBacklinksResponse, CubicalError> {
+) -> Result<GetBacklinksResponse, SimpleDirectoryError> {
     commands::backlinks::get_backlinks(state.inner(), req).await
 }
 ```
@@ -946,7 +946,7 @@ Expected: clean.
 - [ ] **Step 7: Commit.**
 
 ```bash
-git add crates/cubical-app/src/lib.rs
+git add crates/simple-directory-app/src/lib.rs
 git commit -m "feat(ipc): wire get_backlinks Tauri command"
 ```
 

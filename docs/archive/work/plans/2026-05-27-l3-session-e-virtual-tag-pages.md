@@ -20,12 +20,12 @@ Out of scope this session: link/tag autocomplete (F), block refs (G).
 Just the `tag:` route + listing + navigation in / out.
 
 Smoke: extend `~/Developer/sandbox/tag-test/` (Inbox.md + Project.md
-already share `#project/cubical/*` — perfect prefix-match smoke) for
+already share `#project/simple-directory/*` — perfect prefix-match smoke) for
 `cargo tauri dev` verification at session end.
 
 Start by reading docs/layer-3-spec.md §2.5 and §3.1 (`query_tag_page`
 IPC shape: `{ vault_id, tag_path } → { files: [{ path, title }] }`).
-The Session C backlinks IPC + sidebar shell (`crates/cubical-app/src/
+The Session C backlinks IPC + sidebar shell (`crates/simple-directory-app/src/
 commands/backlinks.rs`, `ui/src/sidebar/Backlinks.tsx`) is the closest
 existing shape — a libSQL-backed listing IPC with a Solid panel — so
 mirror its skeleton for the query handler. For the route, look at how

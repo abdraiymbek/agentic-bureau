@@ -4,11 +4,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move per-vault settings from the libSQL `config` table into a portable `.cubical/config.toml` file (durable source of truth), then add a Settings → Plugins → Core Plugins toggle that turns the Dataview ```query renderer on/off.
+**Goal:** Move per-vault settings from the libSQL `config` table into a portable `.simple-directory/config.toml` file (durable source of truth), then add a Settings → Plugins → Core Plugins toggle that turns the Dataview ```query renderer on/off.
 
-**Architecture:** Phase 1 — a pure `settings` module in `cubical-core` converts a dotted-key settings map ⇄ TOML and loads/saves `.cubical/config.toml` (atomic write, lazy creation). `OpenVault` holds the in-memory map; `get_setting`/`set_setting` route *settings* keys to the map+file and leave *workspace* keys (`ui.*`) in the DB. Phase 2 — a data-driven Core Plugins registry + a Plugins settings tab toggles `plugins.dataview_enabled`, which gates the editor's dataview runner (null runner ⇒ raw ```query text).
+**Architecture:** Phase 1 — a pure `settings` module in `simple-directory-core` converts a dotted-key settings map ⇄ TOML and loads/saves `.simple-directory/config.toml` (atomic write, lazy creation). `OpenVault` holds the in-memory map; `get_setting`/`set_setting` route *settings* keys to the map+file and leave *workspace* keys (`ui.*`) in the DB. Phase 2 — a data-driven Core Plugins registry + a Plugins settings tab toggles `plugins.dataview_enabled`, which gates the editor's dataview runner (null runner ⇒ raw ```query text).
 
-**Tech Stack:** Rust (cubical-core, cubical-app, libSQL, `toml` + `serde_json`), TypeScript/SolidJS (ui), Vitest, cargo test.
+**Tech Stack:** Rust (simple-directory-core, simple-directory-app, libSQL, `toml` + `serde_json`), TypeScript/SolidJS (ui), Vitest, cargo test.
 
 **Spec:** `docs/superpowers/specs/2026-06-15-core-plugins-dataview-toggle-design.md`
 
@@ -17,13 +17,13 @@
 ## File structure
 
 **Phase 1 (Rust):**
-- Create `crates/cubical-core/src/vault/settings.rs` — pure: `SettingsMap`, `from_toml`/`to_toml`, `is_workspace_key`, `settings_path`, `load`, `save`. One responsibility: the settings file ⇄ map boundary.
-- Modify `crates/cubical-core/src/vault/mod.rs` — `mod settings;` + re-export.
-- Modify `crates/cubical-core/Cargo.toml` — add `toml`.
-- Modify `crates/cubical-app/src/state.rs` — `OpenVault` gains `settings: Arc<RwLock<SettingsMap>>`.
-- Modify `crates/cubical-app/src/commands/vault.rs` — `open_vault` hydrates the map; `get_setting`/`set_setting` route by key class; add `reload_settings`.
-- Modify `crates/cubical-app/src/api/types.rs` — `ReloadSettingsRequest`/`Response`.
-- Modify `crates/cubical-app/src/lib.rs` — register `reload_settings`.
+- Create `crates/simple-directory-core/src/vault/settings.rs` — pure: `SettingsMap`, `from_toml`/`to_toml`, `is_workspace_key`, `settings_path`, `load`, `save`. One responsibility: the settings file ⇄ map boundary.
+- Modify `crates/simple-directory-core/src/vault/mod.rs` — `mod settings;` + re-export.
+- Modify `crates/simple-directory-core/Cargo.toml` — add `toml`.
+- Modify `crates/simple-directory-app/src/state.rs` — `OpenVault` gains `settings: Arc<RwLock<SettingsMap>>`.
+- Modify `crates/simple-directory-app/src/commands/vault.rs` — `open_vault` hydrates the map; `get_setting`/`set_setting` route by key class; add `reload_settings`.
+- Modify `crates/simple-directory-app/src/api/types.rs` — `ReloadSettingsRequest`/`Response`.
+- Modify `crates/simple-directory-app/src/lib.rs` — register `reload_settings`.
 - Modify `docs/architecture/vault.md` — the durable-config amendment.
 
 **Phase 2 (TS):**
@@ -33,16 +33,16 @@
 
 ---
 
-# Phase 1 — settings move to `.cubical/config.toml`
+# Phase 1 — settings move to `.simple-directory/config.toml`
 
 ### Task 1.1: Add the `toml` dependency
 
 **Files:**
-- Modify: `crates/cubical-core/Cargo.toml`
+- Modify: `crates/simple-directory-core/Cargo.toml`
 
 - [ ] **Step 1: Add the dependency**
 
-In `crates/cubical-core/Cargo.toml`, under `[dependencies]`, add:
+In `crates/simple-directory-core/Cargo.toml`, under `[dependencies]`, add:
 
 ```toml
 toml = "0.8"
@@ -50,13 +50,13 @@ toml = "0.8"
 
 - [ ] **Step 2: Verify it resolves**
 
-Run: `cargo build -p cubical-core`
+Run: `cargo build -p simple-directory-core`
 Expected: builds clean (downloads `toml`).
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add crates/cubical-core/Cargo.toml Cargo.lock
+git add crates/simple-directory-core/Cargo.toml Cargo.lock
 git commit -m "build(core): add toml dependency for the settings file"
 ```
 
@@ -65,13 +65,13 @@ git commit -m "build(core): add toml dependency for the settings file"
 ### Task 1.2: `SettingsMap` + `to_toml` (map → nested-table TOML)
 
 **Files:**
-- Create: `crates/cubical-core/src/vault/settings.rs`
-- Modify: `crates/cubical-core/src/vault/mod.rs`
+- Create: `crates/simple-directory-core/src/vault/settings.rs`
+- Modify: `crates/simple-directory-core/src/vault/mod.rs`
 - Test: in `settings.rs` (`#[cfg(test)]`)
 
 - [ ] **Step 1: Wire the module**
 
-In `crates/cubical-core/src/vault/mod.rs`, add near the other `mod` lines:
+In `crates/simple-directory-core/src/vault/mod.rs`, add near the other `mod` lines:
 
 ```rust
 pub mod settings;
@@ -79,10 +79,10 @@ pub mod settings;
 
 - [ ] **Step 2: Write the failing test**
 
-Create `crates/cubical-core/src/vault/settings.rs`:
+Create `crates/simple-directory-core/src/vault/settings.rs`:
 
 ```rust
-//! The `.cubical/config.toml` settings file ⇄ in-memory map boundary.
+//! The `.simple-directory/config.toml` settings file ⇄ in-memory map boundary.
 //!
 //! Settings are a flat map of dotted keys (`appearance.theme_mode`) to
 //! JSON scalar values, mirroring the IPC shape. On disk they become
@@ -131,12 +131,12 @@ mod tests {
 
 - [ ] **Step 3: Run the test to verify it fails to compile**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: FAIL — `insert_dotted`, `json_to_toml`, `VaultError::Settings` not defined.
 
 - [ ] **Step 4: Add the `VaultError::Settings` variant**
 
-In `crates/cubical-core/src/vault/mod.rs`, find `pub enum VaultError` and add a variant (match the existing `#[error(...)]` style):
+In `crates/simple-directory-core/src/vault/mod.rs`, find `pub enum VaultError` and add a variant (match the existing `#[error(...)]` style):
 
 ```rust
     #[error("settings file error: {0}")]
@@ -182,13 +182,13 @@ fn insert_dotted(table: &mut toml::value::Table, dotted: &str, value: toml::Valu
 
 - [ ] **Step 6: Run the test to verify it passes**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/settings.rs crates/cubical-core/src/vault/mod.rs
+git add crates/simple-directory-core/src/vault/settings.rs crates/simple-directory-core/src/vault/mod.rs
 git commit -m "feat(core): settings map → nested-table TOML serialization"
 ```
 
@@ -197,7 +197,7 @@ git commit -m "feat(core): settings map → nested-table TOML serialization"
 ### Task 1.3: `from_toml` (TOML → flat map)
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/settings.rs`
+- Modify: `crates/simple-directory-core/src/vault/settings.rs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -229,7 +229,7 @@ Add to the `tests` module in `settings.rs`:
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: FAIL — `from_toml` not defined.
 
 - [ ] **Step 3: Implement `from_toml`**
@@ -281,13 +281,13 @@ fn flatten(table: &toml::value::Table, prefix: String, out: &mut SettingsMap) {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: PASS (all 4 settings tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/settings.rs
+git add crates/simple-directory-core/src/vault/settings.rs
 git commit -m "feat(core): TOML → flat settings map parsing + round-trip"
 ```
 
@@ -296,7 +296,7 @@ git commit -m "feat(core): TOML → flat settings map parsing + round-trip"
 ### Task 1.4: `settings_path` + `load` + `save` (file I/O, atomic, lazy)
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/settings.rs`
+- Modify: `crates/simple-directory-core/src/vault/settings.rs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -322,7 +322,7 @@ Add to the `tests` module (uses `tempfile`, already a dev-dependency in this cra
     #[test]
     fn load_malformed_file_errors() {
         let dir = tempfile::TempDir::new().unwrap();
-        std::fs::create_dir_all(dir.path().join(".cubical")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".simple-directory")).unwrap();
         std::fs::write(settings_path(dir.path()), "not = = valid").unwrap();
         assert!(load(dir.path()).is_err());
     }
@@ -330,7 +330,7 @@ Add to the `tests` module (uses `tempfile`, already a dev-dependency in this cra
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: FAIL — `load`, `save`, `settings_path` not defined.
 
 - [ ] **Step 3: Implement file I/O**
@@ -338,9 +338,9 @@ Expected: FAIL — `load`, `save`, `settings_path` not defined.
 Add to `settings.rs` (above `#[cfg(test)]`). Reuse `super::atomic::atomic_write`:
 
 ```rust
-/// `<vault_root>/.cubical/config.toml`.
+/// `<vault_root>/.simple-directory/config.toml`.
 pub fn settings_path(vault_root: &Path) -> PathBuf {
-    vault_root.join(".cubical").join("config.toml")
+    vault_root.join(".simple-directory").join("config.toml")
 }
 
 /// Load settings from the file. A missing file ⇒ empty map (defaults).
@@ -354,7 +354,7 @@ pub fn load(vault_root: &Path) -> Result<SettingsMap, VaultError> {
     }
 }
 
-/// Atomically write the settings map to the file, creating `.cubical/`.
+/// Atomically write the settings map to the file, creating `.simple-directory/`.
 pub fn save(vault_root: &Path, map: &SettingsMap) -> Result<(), VaultError> {
     let path = settings_path(vault_root);
     if let Some(parent) = path.parent() {
@@ -368,14 +368,14 @@ pub fn save(vault_root: &Path, map: &SettingsMap) -> Result<(), VaultError> {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/settings.rs
-git commit -m "feat(core): load/save .cubical/config.toml (atomic, lazy, missing-ok)"
+git add crates/simple-directory-core/src/vault/settings.rs
+git commit -m "feat(core): load/save .simple-directory/config.toml (atomic, lazy, missing-ok)"
 ```
 
 ---
@@ -383,7 +383,7 @@ git commit -m "feat(core): load/save .cubical/config.toml (atomic, lazy, missing
 ### Task 1.5: `is_workspace_key` (settings vs workspace classification)
 
 **Files:**
-- Modify: `crates/cubical-core/src/vault/settings.rs`
+- Modify: `crates/simple-directory-core/src/vault/settings.rs`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -402,7 +402,7 @@ Add to the `tests` module:
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: FAIL — `is_workspace_key` not defined.
 
 - [ ] **Step 3: Implement**
@@ -420,13 +420,13 @@ pub fn is_workspace_key(key: &str) -> bool {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cargo test -p cubical-core settings::`
+Run: `cargo test -p simple-directory-core settings::`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-core/src/vault/settings.rs
+git add crates/simple-directory-core/src/vault/settings.rs
 git commit -m "feat(core): classify settings vs ui.* workspace keys"
 ```
 
@@ -435,23 +435,23 @@ git commit -m "feat(core): classify settings vs ui.* workspace keys"
 ### Task 1.6: `OpenVault` holds the in-memory settings map; `open_vault` hydrates it
 
 **Files:**
-- Modify: `crates/cubical-app/src/state.rs` (`OpenVault` struct + `OpenVault::new`)
-- Modify: `crates/cubical-app/src/commands/vault.rs` (`open_vault`)
+- Modify: `crates/simple-directory-app/src/state.rs` (`OpenVault` struct + `OpenVault::new`)
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` (`open_vault`)
 
 - [ ] **Step 1: Add the field to `OpenVault`**
 
-In `crates/cubical-app/src/state.rs`, add the import and a field on `struct OpenVault`:
+In `crates/simple-directory-app/src/state.rs`, add the import and a field on `struct OpenVault`:
 
 ```rust
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use cubical_core::vault::settings::SettingsMap;
+use simple_directory_core::vault::settings::SettingsMap;
 ```
 
 Add to the struct (next to `pub vault: Vault`):
 
 ```rust
-    /// In-memory copy of the durable settings (`.cubical/config.toml`),
+    /// In-memory copy of the durable settings (`.simple-directory/config.toml`),
     /// the source of truth for non-`ui.*` keys. Workspace `ui.*` state
     /// stays in the DB `config` table.
     pub settings: Arc<RwLock<SettingsMap>>,
@@ -461,20 +461,20 @@ Add a `settings: SettingsMap` parameter to `OpenVault::new(...)` and set `settin
 
 - [ ] **Step 2: Build to find all `OpenVault::new` callers**
 
-Run: `cargo build -p cubical-app 2>&1 | grep -A2 "OpenVault::new"`
+Run: `cargo build -p simple-directory-app 2>&1 | grep -A2 "OpenVault::new"`
 Expected: a compile error at the `open_vault` call site (and any test builders) — these are fixed next.
 
 - [ ] **Step 3: Hydrate in `open_vault`**
 
-In `crates/cubical-app/src/commands/vault.rs`, in `open_vault`, after `let vault = Vault::open(&req.path).await?;` and before constructing `OpenVault`, load the settings:
+In `crates/simple-directory-app/src/commands/vault.rs`, in `open_vault`, after `let vault = Vault::open(&req.path).await?;` and before constructing `OpenVault`, load the settings:
 
 ```rust
-    // Durable settings live in <vault>/.cubical/config.toml (source of
+    // Durable settings live in <vault>/.simple-directory/config.toml (source of
     // truth). A missing file ⇒ defaults; a malformed file ⇒ start empty
     // and log (never block open).
-    let settings = cubical_core::vault::settings::load(vault.root()).unwrap_or_else(|e| {
+    let settings = simple_directory_core::vault::settings::load(vault.root()).unwrap_or_else(|e| {
         tracing::warn!("settings load failed, using defaults: {e}");
-        cubical_core::vault::settings::SettingsMap::new()
+        simple_directory_core::vault::settings::SettingsMap::new()
     });
 ```
 
@@ -482,18 +482,18 @@ Pass `settings` into `OpenVault::new(...)` at that call site.
 
 - [ ] **Step 4: Fix any other `OpenVault::new` callers**
 
-Run: `cargo build -p cubical-app 2>&1 | grep -B1 -A3 error`
-For each remaining caller (e.g. test helpers), pass `cubical_core::vault::settings::SettingsMap::new()` for the new parameter.
+Run: `cargo build -p simple-directory-app 2>&1 | grep -B1 -A3 error`
+For each remaining caller (e.g. test helpers), pass `simple_directory_core::vault::settings::SettingsMap::new()` for the new parameter.
 
 - [ ] **Step 5: Verify build + existing tests**
 
-Run: `cargo test -p cubical-app 2>&1 | tail -5`
+Run: `cargo test -p simple-directory-app 2>&1 | tail -5`
 Expected: builds; existing tests pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/state.rs crates/cubical-app/src/commands/vault.rs
+git add crates/simple-directory-app/src/state.rs crates/simple-directory-app/src/commands/vault.rs
 git commit -m "feat(app): OpenVault holds settings map; open_vault hydrates from config.toml"
 ```
 
@@ -502,7 +502,7 @@ git commit -m "feat(app): OpenVault holds settings map; open_vault hydrates from
 ### Task 1.7: Route `get_setting` (settings → map, workspace → DB)
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/vault.rs` (`get_setting` + its tests)
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` (`get_setting` + its tests)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -528,7 +528,7 @@ In the `tests` module of `vault.rs`, add (follow the existing `set_then_get_sett
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cargo test -p cubical-app settings_key_reads_from_the_file_backed_map`
+Run: `cargo test -p simple-directory-app settings_key_reads_from_the_file_backed_map`
 Expected: FAIL — `set_setting` still writes the DB; `get_setting` reads the DB, returns `None`.
 
 - [ ] **Step 3: Route `get_setting`**
@@ -536,7 +536,7 @@ Expected: FAIL — `set_setting` still writes the DB; `get_setting` reads the DB
 In `get_setting`, after resolving `open`, branch before the DB query:
 
 ```rust
-    if !cubical_core::vault::settings::is_workspace_key(&req.key) {
+    if !simple_directory_core::vault::settings::is_workspace_key(&req.key) {
         let map = open.settings.read().await;
         return Ok(GetSettingResponse { value: map.get(&req.key).cloned() });
     }
@@ -547,13 +547,13 @@ In `get_setting`, after resolving `open`, branch before the DB query:
 
 - [ ] **Step 4: Run (will still fail until set_setting is routed — that's Task 1.8)**
 
-Run: `cargo test -p cubical-app settings_key_reads_from_the_file_backed_map`
+Run: `cargo test -p simple-directory-app settings_key_reads_from_the_file_backed_map`
 Expected: still FAIL (set_setting writes the DB, not the map). Proceed to Task 1.8; this test passes there.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/vault.rs
+git add crates/simple-directory-app/src/commands/vault.rs
 git commit -m "feat(app): get_setting reads settings keys from the file-backed map"
 ```
 
@@ -562,18 +562,18 @@ git commit -m "feat(app): get_setting reads settings keys from the file-backed m
 ### Task 1.8: Route `set_setting` (settings → map+file, workspace → DB)
 
 **Files:**
-- Modify: `crates/cubical-app/src/commands/vault.rs` (`set_setting`)
+- Modify: `crates/simple-directory-app/src/commands/vault.rs` (`set_setting`)
 
 - [ ] **Step 1: Route `set_setting`**
 
 In `set_setting`, after resolving `open`, branch before the DB upsert:
 
 ```rust
-    if !cubical_core::vault::settings::is_workspace_key(&req.key) {
+    if !simple_directory_core::vault::settings::is_workspace_key(&req.key) {
         let mut map = open.settings.write().await;
         map.insert(req.key.clone(), req.value.clone());
-        cubical_core::vault::settings::save(open.vault.root(), &map)
-            .map_err(|e| CubicalError::InvalidRequest(format!("save settings: {e}")))?;
+        simple_directory_core::vault::settings::save(open.vault.root(), &map)
+            .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("save settings: {e}")))?;
         return Ok(SetSettingResponse {});
     }
     // workspace (`ui.*`) keys fall through to the DB upsert below.
@@ -581,7 +581,7 @@ In `set_setting`, after resolving `open`, branch before the DB upsert:
 
 - [ ] **Step 2: Run the Task 1.7 test — now passes**
 
-Run: `cargo test -p cubical-app settings_key_reads_from_the_file_backed_map`
+Run: `cargo test -p simple-directory-app settings_key_reads_from_the_file_backed_map`
 Expected: PASS.
 
 - [ ] **Step 3: Add a lazy-creation + workspace-still-DB test**
@@ -596,7 +596,7 @@ Add to the `tests` module:
             let g = state.vaults().read().await;
             g.get(&vault_id).unwrap().vault.root().to_path_buf()
         };
-        let cfg = cubical_core::vault::settings::settings_path(&root);
+        let cfg = simple_directory_core::vault::settings::settings_path(&root);
         assert!(!cfg.exists(), "no file before any settings change (lazy)");
 
         set_setting(&state, SetSettingRequest {
@@ -617,18 +617,18 @@ Add to the `tests` module:
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cargo test -p cubical-app first_settings_write_creates_the_file_and_workspace_stays_in_db`
+Run: `cargo test -p simple-directory-app first_settings_write_creates_the_file_and_workspace_stays_in_db`
 Expected: PASS.
 
 - [ ] **Step 5: Full app suite**
 
-Run: `cargo test -p cubical-app 2>&1 | tail -5`
+Run: `cargo test -p simple-directory-app 2>&1 | tail -5`
 Expected: all pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add crates/cubical-app/src/commands/vault.rs
+git add crates/simple-directory-app/src/commands/vault.rs
 git commit -m "feat(app): set_setting writes settings to config.toml; ui.* stays in DB"
 ```
 
@@ -637,9 +637,9 @@ git commit -m "feat(app): set_setting writes settings to config.toml; ui.* stays
 ### Task 1.9: `reload_settings` IPC (pick up external file edits)
 
 **Files:**
-- Modify: `crates/cubical-app/src/api/types.rs`
-- Modify: `crates/cubical-app/src/commands/vault.rs`
-- Modify: `crates/cubical-app/src/lib.rs`
+- Modify: `crates/simple-directory-app/src/api/types.rs`
+- Modify: `crates/simple-directory-app/src/commands/vault.rs`
+- Modify: `crates/simple-directory-app/src/lib.rs`
 
 - [ ] **Step 1: Add request/response types**
 
@@ -671,9 +671,9 @@ In `vault.rs` tests:
             g.get(&vault_id).unwrap().vault.root().to_path_buf()
         };
         // Write the file directly (as an external editor would).
-        let mut m = cubical_core::vault::settings::SettingsMap::new();
+        let mut m = simple_directory_core::vault::settings::SettingsMap::new();
         m.insert("appearance.theme_mode".into(), serde_json::json!("light"));
-        cubical_core::vault::settings::save(&root, &m).unwrap();
+        simple_directory_core::vault::settings::save(&root, &m).unwrap();
 
         let resp = reload_settings(&state, ReloadSettingsRequest { vault_id: vault_id.clone() })
             .await.unwrap();
@@ -688,7 +688,7 @@ In `vault.rs` tests:
 
 - [ ] **Step 3: Run to verify it fails**
 
-Run: `cargo test -p cubical-app reload_settings_picks_up_an_external_file_edit`
+Run: `cargo test -p simple-directory-app reload_settings_picks_up_an_external_file_edit`
 Expected: FAIL — `reload_settings` not defined.
 
 - [ ] **Step 4: Implement `reload_settings`**
@@ -696,19 +696,19 @@ Expected: FAIL — `reload_settings` not defined.
 In `vault.rs`:
 
 ```rust
-/// Re-read `.cubical/config.toml` into the in-memory map (the file is the
+/// Re-read `.simple-directory/config.toml` into the in-memory map (the file is the
 /// source of truth) and return the resolved settings. For picking up edits
-/// made to the file outside Cubical.
+/// made to the file outside simple.directory.
 pub async fn reload_settings(
     state: &AppState,
     req: ReloadSettingsRequest,
-) -> Result<ReloadSettingsResponse, CubicalError> {
+) -> Result<ReloadSettingsResponse, SimpleDirectoryError> {
     let guard = state.vaults().read().await;
     let open = guard
         .get(&req.vault_id)
-        .ok_or_else(|| CubicalError::VaultNotOpen(req.vault_id.clone()))?;
-    let fresh = cubical_core::vault::settings::load(open.vault.root())
-        .map_err(|e| CubicalError::InvalidRequest(format!("reload settings: {e}")))?;
+        .ok_or_else(|| SimpleDirectoryError::VaultNotOpen(req.vault_id.clone()))?;
+    let fresh = simple_directory_core::vault::settings::load(open.vault.root())
+        .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("reload settings: {e}")))?;
     *open.settings.write().await = fresh.clone();
     Ok(ReloadSettingsResponse { settings: fresh })
 }
@@ -718,17 +718,17 @@ Add the imports for `ReloadSettingsRequest`/`Response` to the `use` block at the
 
 - [ ] **Step 5: Register the Tauri command**
 
-In `crates/cubical-app/src/lib.rs`, add a shim next to the other vault command shims (follow the `dataview_query` shim shape) and add `reload_settings` to the `invoke_handler![...]` list.
+In `crates/simple-directory-app/src/lib.rs`, add a shim next to the other vault command shims (follow the `dataview_query` shim shape) and add `reload_settings` to the `invoke_handler![...]` list.
 
 - [ ] **Step 6: Run the test + full suite**
 
-Run: `cargo test -p cubical-app reload_settings_picks_up_an_external_file_edit && cargo test -p cubical-app 2>&1 | tail -5`
+Run: `cargo test -p simple-directory-app reload_settings_picks_up_an_external_file_edit && cargo test -p simple-directory-app 2>&1 | tail -5`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add crates/cubical-app/src/api/types.rs crates/cubical-app/src/commands/vault.rs crates/cubical-app/src/lib.rs
+git add crates/simple-directory-app/src/api/types.rs crates/simple-directory-app/src/commands/vault.rs crates/simple-directory-app/src/lib.rs
 git commit -m "feat(app): reload_settings IPC re-reads config.toml into the map"
 ```
 
@@ -741,7 +741,7 @@ git commit -m "feat(app): reload_settings IPC re-reads config.toml into the map"
 
 - [ ] **Step 1: Amend the rule**
 
-In `docs/architecture/vault.md` §3, replace the paragraph stating *everything in `.cubical/` is rebuildable* with the two-category framing from the spec §3 (durable config `config.toml` vs rebuildable cache). Keep wording tight.
+In `docs/architecture/vault.md` §3, replace the paragraph stating *everything in `.simple-directory/` is rebuildable* with the two-category framing from the spec §3 (durable config `config.toml` vs rebuildable cache). Keep wording tight.
 
 - [ ] **Step 2: Run all Rust gates**
 
@@ -752,7 +752,7 @@ Expected: all green.
 
 ```bash
 git add docs/architecture/vault.md
-git commit -m "docs(arch): .cubical/ holds durable config.toml + rebuildable cache"
+git commit -m "docs(arch): .simple-directory/ holds durable config.toml + rebuildable cache"
 ```
 
 ---
@@ -1076,7 +1076,7 @@ Expected: all green.
 In `cargo tauri dev`, open the L4 smoke vault, then:
 - Settings → Plugins → toggle Dataview **off** ⇒ open `Dashboard.md`; the three ```query blocks show as raw text immediately.
 - Toggle **on** ⇒ they render again, live.
-- Reopen the vault ⇒ the toggle state persisted (check `.cubical/config.toml` contains `[plugins]\ndataview_enabled = ...`).
+- Reopen the vault ⇒ the toggle state persisted (check `.simple-directory/config.toml` contains `[plugins]\ndataview_enabled = ...`).
 - Confirm `ui.right_sidebar_*` is **not** in `config.toml`.
 
 - [ ] **Step 3: Final commit (if any doc/record updates)**

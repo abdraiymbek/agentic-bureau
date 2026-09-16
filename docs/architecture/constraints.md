@@ -1,6 +1,6 @@
 > Locked decisions. Architecture review required to change. Index: [docs/architecture/README.md](README.md)
 
-# Cubical — Architecture: Constraints
+# simple.directory — Architecture: Constraints
 
 ## 13. What is explicitly out of scope
 
@@ -19,6 +19,6 @@ These are deliberate non-decisions. They are not "later" — they are "no."
 
 Approaches considered and rejected. Listed so the rationale doesn't have to be re-litigated.
 
-- **EOF HTML-comment UUIDs.** An earlier identity scheme placed `<!-- Cubical ID: ... -->` at end of file. Rejected in favor of frontmatter UUIDs at L7 onboarding. See [`vault.md` §4.1](vault.md).
-- **4-tier recovery waterfall.** An earlier multi-stage fallback for external-edit reconciliation. The simpler `.cubical/recovery/` snapshot directory replaces it. See [`vault.md` §4.3](vault.md).
-- **`.cubical/quarantine/` directory.** Considered as an isolation zone for misbehaving files. Not adopted; the file-type registry plus per-file error handling cover the same need without a sidecar tree.
+- **EOF HTML-comment UUIDs.** An earlier identity scheme placed `<!-- simple.directory ID: ... -->` at end of file. Rejected in favor of frontmatter UUIDs at L7 onboarding. See [`vault.md` §4.1](vault.md).
+- **4-tier recovery waterfall.** An earlier multi-stage fallback for external-edit reconciliation. The simpler `.simple-directory/recovery/` snapshot directory replaces it. See [`vault.md` §4.3](vault.md).
+- **`.simple-directory/quarantine/` directory.** Considered as an isolation zone for misbehaving files. Not adopted; the file-type registry plus per-file error handling cover the same need without a sidecar tree.

@@ -77,7 +77,7 @@ already_ran_this_session() {
     return 0
   fi
 
-  latch_dir="${TMPDIR:-/tmp}/cubical-session-end"
+  latch_dir="${TMPDIR:-/tmp}/simple-directory-session-end"
   mkdir -p "$latch_dir" 2>/dev/null || return 1
   latch="$latch_dir/$(printf '%s' "$sid" | tr -c 'A-Za-z0-9._-' '_')"
   if [ -f "$latch" ]; then
@@ -149,11 +149,11 @@ cmd_end() {
 
   echo
   echo "-- gate --"
-  if scripts/check.sh >/tmp/cubical-gate.log 2>&1; then
+  if scripts/check.sh >/tmp/simple-directory-gate.log 2>&1; then
     note "scripts/check.sh green."
   else
-    block "scripts/check.sh failed — tail of /tmp/cubical-gate.log:"
-    tail -15 /tmp/cubical-gate.log | sed 's/^/      /'
+    block "scripts/check.sh failed — tail of /tmp/simple-directory-gate.log:"
+    tail -15 /tmp/simple-directory-gate.log | sed 's/^/      /'
   fi
 
   echo

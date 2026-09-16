@@ -2,7 +2,7 @@
 
 # L3 Session I — Unlinked mentions
 
-L3 Session I for the Cubical project. A second right-sidebar panel
+L3 Session I for the simple.directory project. A second right-sidebar panel
 ("Unlinked Mentions") lands beside Backlinks (per `ui.md` §11.1): for
 the open note, every plain-text occurrence of the note's title or any
 frontmatter `aliases` value that is NOT already a link surfaces with a
@@ -17,7 +17,7 @@ further L3 work in this session.
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — session primer, non-negotiables, "Project state"
@@ -39,32 +39,32 @@ Working directory: `/Users/user/Developer/Cubical`
    - `docs/conventions.md` — code style.
 
 2. Read for context (skim, you'll come back to specific lines):
-   - `crates/cubical-core/src/vault/links.rs` — `extract_links` walks
+   - `crates/simple-directory-core/src/vault/links.rs` — `extract_links` walks
      the canonical AST to find `[[…]]` / `[…](…)` occurrences. The
      unlinked-mentions scan is its complement: walk *text* runs that
      are NOT inside any link/embed token.
-   - `crates/cubical-core/src/vault/scan.rs` — the existing two-pass
+   - `crates/simple-directory-core/src/vault/scan.rs` — the existing two-pass
      scan (Pass 1: `refresh_links` + `refresh_blocks` + `refresh_tags`
      + `refresh_frontmatter`; Pass 2: `refresh_block_refs_for_file`).
      Session I's scan is **on-demand** (per-call IPC), not part of the
      vault scan. Don't add a new vault-scan pass.
-   - `crates/cubical-core/src/vault/blocks.rs` + `vault/tags.rs` — the
+   - `crates/simple-directory-core/src/vault/blocks.rs` + `vault/tags.rs` — the
      freshest "scan body text, fence-aware, skip code spans / fenced
      code / frontmatter" precedents. Mirror their fence-walk shape.
-   - `crates/cubical-index/src/frontmatter.rs` — `aliases` storage
+   - `crates/simple-directory-index/src/frontmatter.rs` — `aliases` storage
      (Session D §9.4 documented the shape). The IPC will need to read
      the OPEN note's aliases plus its title before the scan begins.
-   - `crates/cubical-app/src/commands/backlinks.rs` — `get_backlinks`
+   - `crates/simple-directory-app/src/commands/backlinks.rs` — `get_backlinks`
      handler is the closest sibling: pure-handler + thin-shim, snippet
      builder, ordering by `(source_path, position)`. Mirror its
      structure for `get_unlinked_mentions`.
-   - `crates/cubical-app/src/commands/vault.rs` — `write_file_text`'s
+   - `crates/simple-directory-app/src/commands/vault.rs` — `write_file_text`'s
      `expected_seen_hash` gate. The "link it" rewrite needs the same
      conflict-safe write path.
-   - `crates/cubical-app/src/lib.rs` — Tauri shim + `generate_handler!`
+   - `crates/simple-directory-app/src/lib.rs` — Tauri shim + `generate_handler!`
      registration. The recent `get_embed` (§9.12) is the freshest
      precedent.
-   - `crates/cubical-app/src/api/types.rs` — wire-type style; the
+   - `crates/simple-directory-app/src/api/types.rs` — wire-type style; the
      recent `GetEmbedRequest/Response` and
      `GetBrokenBlockRefsRequest/Response` are the freshest precedents.
    - `ui/src/RightSidebar.tsx` — Session C shell. The header comment
@@ -86,23 +86,23 @@ Working directory: `/Users/user/Developer/Cubical`
      which spans are already-linked).
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` →
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` →
      `merge: L3 Session H.2 — embed widget` (commit `56e612b`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`,
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`,
      `l1`, `l2`; does NOT contain `l3`.
    - CLAUDE.md "Project state" reports L3 Sessions A–F + G + H.1 +
      H.2 done; Sessions I–K pending. If not, STOP.
 
 4. Baseline test counts (must match CLAUDE.md "Project state"):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
      289 Rust tests green.
    - `cd ui && npx vitest run` → 321 vitest green.
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-i-unlinked-mentions`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-i-unlinked-mentions`
 
 ---
 
@@ -137,7 +137,7 @@ plan" block below; record them in the plan rather than expanding scope.
 
 In summary (full task breakdown lives in the plan written at STEP 1):
 
-1. **Pure scanner — `cubical-core::vault::mentions`.** New sibling
+1. **Pure scanner — `simple-directory-core::vault::mentions`.** New sibling
    module to `vault::blocks` / `vault::tags`. Two pure functions:
    - `extract_text_runs(source: &str) -> Vec<TextRun>` (or a
      callback-shaped walker) — yields `(start_byte, slice)` for every
@@ -147,7 +147,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
      reference forms, raw URLs auto-linked by Lezer. Reuse the
      fence-walk pattern from `vault::blocks::extract_block_ids` and
      the `scanWikilinks`-equivalent for `[[…]]` matching (pull the
-     Rust-side `cubical_ast::wikilink::scan_wikilinks` into scope; no
+     Rust-side `simple_directory_ast::wikilink::scan_wikilinks` into scope; no
      new tokenizer).
    - `find_mention_occurrences(source: &str, needles: &[&str]) ->
      Vec<MentionHit>` — for each needle, find every whole-word,
@@ -166,7 +166,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
    matches), case-insensitivity, whole-word boundaries against
    hyphens / underscores / unicode whitespace.
 
-2. **IPC handler — `cubical-app::commands::mentions::get_unlinked_mentions`.**
+2. **IPC handler — `simple-directory-app::commands::mentions::get_unlinked_mentions`.**
    Pure handler + Tauri shim + registration. Request `{ vault_id,
    path }`, response per §3.1: `{ mentions: [{ source_path, context,
    position }] }`. Handler steps (mirror `get_backlinks` shape):
@@ -211,15 +211,15 @@ In summary (full task breakdown lives in the plan written at STEP 1):
    frontmatter, frontmatter aliases of wrong shape (silently
    dropped).
 
-3. **Rewrite action — `cubical-app::commands::mentions::link_mention`.**
+3. **Rewrite action — `simple-directory-app::commands::mentions::link_mention`.**
    New handler. Request `{ vault_id, source_path, position,
    byte_len, target_title, expected_seen_hash }`. Response
    `{ new_hash }`. Behaviour: read source file → verify the byte
    range still spells the expected needle (case-insensitive) — if
-   not, fail with `CubicalError::InvalidRequest` ("mention has
+   not, fail with `SimpleDirectoryError::InvalidRequest` ("mention has
    moved"; the frontend will re-fetch and retry); splice
    `[[target_title]]` over the range; write atomically via
-   `cubical_core::vault::atomic::atomic_write` with the
+   `simple_directory_core::vault::atomic::atomic_write` with the
    `expected_seen_hash` guard (mirror `write_file_text`'s flow);
    return the new content hash so the editor's seen-hash plumbing
    stays correct when the user has that file open.
@@ -341,7 +341,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
   decision.)
 - **Snippet helper sharing.** If Backlinks' snippet builder is
   currently inline in its handler, lift it to
-  `cubical_core::vault::context_snippet` (or a `commands::shared`
+  `simple_directory_core::vault::context_snippet` (or a `commands::shared`
   helper) so both panels produce identical-looking context. If it's
   already shared, reuse as-is.
 - **Open note exclusion.** A note never appears in its own
@@ -354,7 +354,7 @@ In summary (full task breakdown lives in the plan written at STEP 1):
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` →
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` →
   289 baseline + N new (scanner + handler + rewrite + snippet helper if
   lifted). Document the new count.
 - `cd ui && npx tsc --noEmit` → clean.
@@ -406,7 +406,7 @@ Run and paste actual output:
 - [ ] Plan written at
   `docs/superpowers/plans/<date>-l3-session-i-unlinked-mentions.md`
   with every "Decisions to raise" item resolved.
-- [ ] `cubical-core::vault::mentions` pure scanner (text-run walker +
+- [ ] `simple-directory-core::vault::mentions` pure scanner (text-run walker +
   occurrence finder) ships with full unit coverage of the hard cases
   (frontmatter / fenced / inline-code skip, wiki-link skip, markdown
   link display vs. url, whole-word boundaries, case-insensitivity,

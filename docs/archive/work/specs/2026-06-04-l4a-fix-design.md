@@ -14,7 +14,7 @@
 A structural-debt session sitting between L4-A close (`l4a` tag,
 2026-06-03) and L4-B open. Not a feature surface — three editor-state
 contracts that surfaced as missing when interactive smoke against
-`~/Developer/sandbox/cubical-l4a-smoke/` exposed three reproducible
+`~/Developer/sandbox/simple-directory-l4a-smoke/` exposed three reproducible
 bugs the L3 closing sessions never ran smoke against.
 
 The kickoff named six bugs. Re-verification against the live smoke
@@ -46,8 +46,8 @@ All CLAUDE.md non-negotiables hold:
 - No new Tauri command surface in this session — `get_embed`,
   `resolve_link`, and the search commands are unchanged.
 
-The Rust crates (`cubical-core`, `cubical-ast`, `cubical-index`,
-`cubical-search`, `cubical-sync`) are untouched. All changes are in
+The Rust crates (`simple-directory-core`, `simple-directory-ast`, `simple-directory-index`,
+`simple-directory-search`, `simple-directory-sync`) are untouched. All changes are in
 `ui/` and one short edit to `docs/conventions.md`.
 
 ## 3. Contracts
@@ -197,9 +197,9 @@ abort(): void;  // aborts in-flight fetches; cache untouched
 ```
 
 In dev builds (`import.meta.env.DEV`), `Editor.tsx` exposes
-`window.__cubical = { embedResolver, wikilinkResolver }` so the
+`window.__simple_directory = { embedResolver, wikilinkResolver }` so the
 operator can inspect live resolvers from the devtools console. In
-production builds, `window.__cubical` is not set.
+production builds, `window.__simple_directory` is not set.
 
 Symmetrical shape across both resolvers establishes the pattern for
 L4-B / L4-C / L4-D and the L6 plugin layer's async caches — kickoff
@@ -218,7 +218,7 @@ until evidence narrows it.
 smoke vault open and `A.md` selected. Wait ~3 seconds after open.
 
 ```
-Step 1 — inspect __cubical.embedResolver.debug():
+Step 1 — inspect __simple_directory.embedResolver.debug():
 
   inFlight non-empty after 3s
     → fetch never settled. Confirm by checking lastSettleAt
@@ -248,8 +248,8 @@ Step 1 — inspect __cubical.embedResolver.debug():
 Step 2 — subscribe onEvent for a clean cycle:
 
   const log = [];
-  const unsub = __cubical.embedResolver.onEvent(e => log.push(e));
-  __cubical.embedResolver.invalidate();   // clear, force refetch
+  const unsub = __simple_directory.embedResolver.onEvent(e => log.push(e));
+  __simple_directory.embedResolver.invalidate();   // clear, force refetch
   // wait ~3s, then:
   console.table(log);
   unsub();
@@ -383,11 +383,11 @@ considered and rejected for now, not just an absence.
    - ui/src/editor/embedResolver.test.ts (debug snapshots, events,
      abort behavior)
    - ui/src/editor/wikilinkResolver.test.ts (same shape)
-   - ui/src/Editor.tsx (dev-only window.__cubical wiring)
+   - ui/src/Editor.tsx (dev-only window.__simple_directory wiring)
    - No bug closed yet; instrumentation only.
 
 4. fix(l4a-fix): <root-cause-derived> (Contract 4b)
-   - Diagnostic step against ~/Developer/sandbox/cubical-l4a-smoke/
+   - Diagnostic step against ~/Developer/sandbox/simple-directory-l4a-smoke/
      using the new debug() and event log identifies the actual cause
      of bug #5. Fix lands wherever the evidence points (IPC handler,
      resolver promise chain, StateField effect handling, response
@@ -397,8 +397,8 @@ considered and rejected for now, not just an absence.
        * resolver-side  → ui/src/editor/embedResolver.test.ts
        * Editor wiring  → ui/src/Editor.test.tsx
        * IPC TS layer   → ui/src/api/embed.test.ts (new if absent)
-       * Rust handler   → crates/cubical-core/tests/get_embed.rs
-       * Tauri command  → crates/cubical-app/tests/embed_ipc.rs
+       * Rust handler   → crates/simple-directory-core/tests/get_embed.rs
+       * Tauri command  → crates/simple-directory-app/tests/embed_ipc.rs
      The commit message names the cause + the test file path.
    - Closes bug #5.
 
@@ -439,7 +439,7 @@ the operator runs them manually before each `git commit`.
 
 **File:** `docs/superpowers/2026-06-04-l4a-fix-smoke-runbook.md`
 
-Single vault for all four layers: `~/Developer/sandbox/cubical-l4a-smoke/`.
+Single vault for all four layers: `~/Developer/sandbox/simple-directory-l4a-smoke/`.
 Built from the L3 closeout vault + L4-A test files (per layer-4-spec
 §9.1) — carries the full L3 token surface and the search-test files
 forward.
@@ -470,8 +470,8 @@ forward.
      it; toggle back; confirm widget restored.
    - **Bug #5.** Open `A.md`; embed renders within ~2s.
      If stuck on "Loading…": in the dev console run
-     `__cubical.embedResolver.debug()` and capture the event log via
-     `const log = []; __cubical.embedResolver.onEvent(e => log.push(e));`
+     `__simple_directory.embedResolver.debug()` and capture the event log via
+     `const log = []; __simple_directory.embedResolver.onEvent(e => log.push(e));`
      Record the observed state in the executed runbook. This is the
      diagnostic step that informs commit 4b.
    - **Bug #6.** Open a file with an embed; place cursor on the line
@@ -529,8 +529,8 @@ value, recorded so future readers see *why* these contracts exist:
 
 - No new Tauri commands.
 - No Rust changes.
-- No changes to `cubical-core`, `cubical-ast`, `cubical-index`,
-  `cubical-search`, `cubical-sync`.
+- No changes to `simple-directory-core`, `simple-directory-ast`, `simple-directory-index`,
+  `simple-directory-search`, `simple-directory-sync`.
 - No navigation path split (deferred — see §4).
 - No new feature surface.
 - No re-issuing of L1 / L2 / L3 / L4-A close tags. Their existing
@@ -593,7 +593,7 @@ value, recorded so future readers see *why* these contracts exist:
 
 - Kickoff: `docs/superpowers/2026-06-03-l4a-fix-kickoff.md`
 - L4-A close summary: `docs/layer-4-spec.md` §9.1
-- L4-A smoke vault: `~/Developer/sandbox/cubical-l4a-smoke/`
+- L4-A smoke vault: `~/Developer/sandbox/simple-directory-l4a-smoke/`
 - Non-negotiables: `CLAUDE.md` §Non-negotiables
 - Architecture: `docs/architecture/README.md`
 - Build order: `docs/build-order.md`

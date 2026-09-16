@@ -67,7 +67,7 @@ import type { ResolvedTheme } from "../styles/theme";
 
 declare global {
   interface Window {
-    __cubical?: {
+    __simple_directory?: {
       wikilinkResolver: WikiLinkResolver | null;
     };
   }
@@ -366,7 +366,7 @@ const Editor: Component<EditorProps> = (props) => {
     subscribePropertyResolver(props.propertyResolver, view);
 
     if (import.meta.env.DEV) {
-      window.__cubical = {
+      window.__simple_directory = {
         wikilinkResolver: props.wikilinkResolver ?? null,
       };
     }
@@ -504,8 +504,8 @@ const Editor: Component<EditorProps> = (props) => {
           ),
         });
         subscribeResolver(resolver, view);
-        if (import.meta.env.DEV && window.__cubical) {
-          window.__cubical.wikilinkResolver = resolver ?? null;
+        if (import.meta.env.DEV && window.__simple_directory) {
+          window.__simple_directory.wikilinkResolver = resolver ?? null;
         }
       },
       { defer: true },
@@ -549,7 +549,7 @@ const Editor: Component<EditorProps> = (props) => {
 
   onCleanup(() => {
     if (import.meta.env.DEV) {
-      delete window.__cubical;
+      delete window.__simple_directory;
     }
     if (astPending !== undefined) clearTimeout(astPending);
     view?.destroy();

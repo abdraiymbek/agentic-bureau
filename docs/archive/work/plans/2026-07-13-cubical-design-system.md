@@ -1,10 +1,10 @@
 > **Frozen — historical record.** This file is preserved as written and is not maintained. It records what was believed, planned or built at the time; it is **not** current truth. Current truth lives in [`docs/architecture/`](../../../architecture/) and [`docs/implementation/`](../../../implementation/). Do not edit to "correct" it — a corrected record is no longer a record.
 
-# Cubical Design System Implementation Plan
+# simple.directory Design System Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a complete SolidJS design system for Cubical (a local-first Markdown knowledge base): token system, full component inventory, and workspace/empty-vault/settings/gallery screens.
+**Goal:** Build a complete SolidJS design system for simple.directory (a local-first Markdown knowledge base): token system, full component inventory, and workspace/empty-vault/settings/gallery screens.
 
 **Architecture:** Vite + SolidJS + TypeScript app. CSS custom properties in `src/styles/tokens.css` (base tokens + semantic aliases + three `[data-theme]` scopes) consumed by every component's co-located CSS file — no hardcoded hex/px anywhere else. A signal-based screen switcher (no router) toggles between Gallery/Workspace/Empty vault/Settings. Mock data lives in static fixtures. The editor column uses real `@codemirror/*` packages themed via `EditorView.theme()` referencing our CSS variables.
 
@@ -71,7 +71,7 @@ Later tasks depend on these exact signatures. Do not deviate from them.
 
 ```json
 {
-  "name": "cubical-design-system",
+  "name": "simple-directory-design-system",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -139,7 +139,7 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cubical Design System</title>
+    <title>simple.directory Design System</title>
   </head>
   <body>
     <div id="root"></div>
@@ -161,7 +161,7 @@ render(() => <App />, document.getElementById('root')!);
 
 ```tsx
 const App = () => {
-  return <div>Cubical</div>;
+  return <div>simple.directory</div>;
 };
 
 export default App;
@@ -481,7 +481,7 @@ import { createSignal } from 'solid-js';
 
 export type ThemeName = 'light' | 'dark' | 'high-contrast';
 
-const stored = (typeof localStorage !== 'undefined' && localStorage.getItem('cubical-theme')) as ThemeName | null;
+const stored = (typeof localStorage !== 'undefined' && localStorage.getItem('simple-directory-theme')) as ThemeName | null;
 
 export const [theme, setThemeSignal] = createSignal<ThemeName>(stored ?? 'light');
 
@@ -489,7 +489,7 @@ export const applyTheme = (name: ThemeName) => {
   setThemeSignal(name);
   document.documentElement.setAttribute('data-theme', name);
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('cubical-theme', name);
+    localStorage.setItem('simple-directory-theme', name);
   }
 };
 ```
@@ -1833,7 +1833,7 @@ Insert section:
         <div class="eyebrow">Data — Tag</div>
         <div class="gallery-row row">
           <Tag label="design" />
-          <Tag label="cubical" resolved />
+          <Tag label="simple-directory" resolved />
         </div>
       </section>
 ```
@@ -2229,7 +2229,7 @@ Insert section:
       <section class="gallery-section stack">
         <div class="eyebrow">Data — BacklinkRow</div>
         <div class="stack divided-list" style={{ width: '320px', border: '1px solid var(--c-border-subtle)' }}>
-          <BacklinkRow noteTitle="Cubical roadmap" snippet="Design notes cover the accent-as-state rule in depth." matchQuery="accent" />
+          <BacklinkRow noteTitle="simple.directory roadmap" snippet="Design notes cover the accent-as-state rule in depth." matchQuery="accent" />
           <BacklinkRow noteTitle="2026-07-12" snippet="Reviewed design notes before standup." />
         </div>
       </section>
@@ -2685,7 +2685,7 @@ export const vaultTree: VaultNode[] = [
     name: 'Projects',
     kind: 'folder',
     children: [
-      { id: 'cubical-roadmap', name: 'Cubical roadmap.md', kind: 'md' },
+      { id: 'simple-directory-roadmap', name: 'simple.directory roadmap.md', kind: 'md' },
       { id: 'design-notes', name: 'Design notes.md', kind: 'md' },
       { id: 'old-spec', name: 'Old spec.md', kind: 'broken' },
     ],
@@ -2723,10 +2723,10 @@ export const activeNote: Note = {
     created: '2026-07-10',
     status: 'active',
   },
-  tags: ['design', 'cubical'],
+  tags: ['design', 'simple-directory'],
   body: `# Design notes
 
-The accent color means state, never decoration. See [[Cubical roadmap]] for
+The accent color means state, never decoration. See [[simple.directory roadmap]] for
 sequencing.
 
 ## Open questions
@@ -2747,7 +2747,7 @@ export interface Backlink {
 }
 
 export const backlinks: Backlink[] = [
-  { id: 'roadmap-1', noteTitle: 'Cubical roadmap', snippet: 'Design notes cover the accent-as-state rule in depth.' },
+  { id: 'roadmap-1', noteTitle: 'simple.directory roadmap', snippet: 'Design notes cover the accent-as-state rule in depth.' },
   { id: 'daily-1', noteTitle: '2026-07-12', snippet: 'Reviewed design notes before standup.' },
 ];
 
@@ -2931,7 +2931,7 @@ export interface EditorProps {
   onReady?: (view: EditorView) => void;
 }
 
-const cubicalTheme = EditorView.theme({
+const simple-directoryTheme = EditorView.theme({
   '&': {
     height: '100%',
     fontSize: 'var(--text-base)',
@@ -2966,7 +2966,7 @@ const Editor = (props: EditorProps) => {
     view = new EditorView({
       state: EditorState.create({
         doc: props.initialContent,
-        extensions: [lineNumbers(), history(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), cubicalTheme],
+        extensions: [lineNumbers(), history(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), simple-directoryTheme],
       }),
       parent: host,
     });
@@ -3203,7 +3203,7 @@ const Workspace = () => {
   return (
     <div class="workspace stack">
       <Topbar
-        vaultName="Cubical vault"
+        vaultName="simple.directory vault"
         onOpenCommandPalette={() => setPaletteOpen(true)}
         onOpenSettings={() => setScreen('settings')}
       />
@@ -3378,9 +3378,9 @@ git commit -m "Build Settings screen with theme switcher"
 - [ ] **Step 1: Write `README.md`**
 
 ```markdown
-# Cubical Design System
+# simple.directory Design System
 
-A SolidJS design system for **Cubical**, a local-first Markdown knowledge base.
+A SolidJS design system for **simple.directory**, a local-first Markdown knowledge base.
 Design language: "Machinist / Graphite" — chrome recedes, the user's text is
 the loudest thing on screen.
 

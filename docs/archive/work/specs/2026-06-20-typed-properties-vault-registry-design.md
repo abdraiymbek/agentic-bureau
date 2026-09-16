@@ -41,11 +41,11 @@ and in-context visibility is a settings-panel problem.
 
 ## 2. The registry design
 
-Types live in the `.cubical/` config layer (alongside the existing portable
+Types live in the `.simple-directory/` config layer (alongside the existing portable
 `config.toml`), keyed by **property name**, applied vault-wide:
 
 ```toml
-# .cubical/properties.toml
+# .simple-directory/properties.toml
 [types]
 price  = "currency/usd"
 budget = "currency/eur"
@@ -70,7 +70,7 @@ due: 2026-06-17
 
 The Properties panel resolves `price`'s type from the registry, not from a
 comment in the note. Setting a type in the UI writes to
-`.cubical/properties.toml`, never to the `.md`.
+`.simple-directory/properties.toml`, never to the `.md`.
 
 ### 2.1 Dates: storage format ≠ display format
 
@@ -111,7 +111,7 @@ later if real vaults need it (YAGNI now). Vault-wide uniformity is mostly a
 
 When this is built:
 
-1. **Reader:** parse `.cubical/properties.toml` into the same
+1. **Reader:** parse `.simple-directory/properties.toml` into the same
    `Map<string, PropertyType>` the panel already consumes
    (`propertiesLogic.ts → resolveType`). The `PropertyType` record and
    `CellKind` taxonomy carry over unchanged.

@@ -1,0 +1,19 @@
+[package]
+name = "simple-directory-graph"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Vault link graph: builds a node/edge model from the index and lays it out with a deterministic force simulation. No Tauri, no IPC, no UI."
+
+[dependencies]
+simple-directory-ast = { path = "../simple-directory-ast" }
+simple-directory-index = { path = "../simple-directory-index" }
+libsql.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tempfile.workspace = true

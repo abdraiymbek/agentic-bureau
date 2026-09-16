@@ -7,7 +7,7 @@ disable-model-invocation: true
 # Skill configuration — verify and repair
 
 Upstream, this skill *scaffolds* config into `docs/agents/`. Here it does not:
-Cubical already owns every fact it would have written, and a fifth doc tier is
+simple.directory already owns every fact it would have written, and a fifth doc tier is
 exactly what [`docs/README.md`](../../../docs/README.md) tells you not to start.
 So this skill **verifies** the existing owners and **repairs** the one thing that
 lives outside the tree — the GitHub label vocabulary.
@@ -64,7 +64,7 @@ gh label create wayfinder:task      --color c5def5 --description "Wayfinder tick
 - **Create a triage queue.** `needs-triage` marks work you have started
   triaging. It is never applied in bulk, and no issue is ever swept into it
   for age — [`sessions.md`](../../../docs/principles/sessions.md) owns why.
-- **Turn on PRs as a request surface.** Cubical's PRs are its own and
+- **Turn on PRs as a request surface.** simple.directory's PRs are its own and
   Dependabot's; neither is a request. Leave it off.
 
 ## Local edits

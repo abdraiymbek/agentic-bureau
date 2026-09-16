@@ -1,4 +1,4 @@
-# Cubical — Documentation
+# simple.directory — Documentation
 
 The docs index. The session primer is [`CLAUDE.md`](../CLAUDE.md) — start there.
 `CLAUDE.md` auto-loads every session; everything else is loaded on demand.
@@ -49,7 +49,7 @@ generator produces — link instead.
 | Artifact | Generator | Answers |
 |---|---|---|
 | [`generated/repo-layout.md`](generated/repo-layout.md) | `scripts/gen_repo_layout.py` | What crates and directories exist, and which are Tauri-free |
-| [`generated/ipc-surface.md`](generated/ipc-surface.md) | `scripts/gen_ipc_surface.py` | Every `#[tauri::command]` and the `cubical-ipc` wire types |
+| [`generated/ipc-surface.md`](generated/ipc-surface.md) | `scripts/gen_ipc_surface.py` | Every `#[tauri::command]` and the `simple-directory-ipc` wire types |
 | [`../design-system/INVENTORY.md`](../design-system/INVENTORY.md) | `scripts/gen_ds_inventory.py` | What DS components exist — **read before hand-rolling a control** |
 | [`principles/README.md`](principles/README.md) | `scripts/gen_principles_readme.py` | Every rule in one table, with its gate |
 
@@ -86,7 +86,7 @@ Three structural rules:
      no code change. -->
 
 ```ownership
-what-cubical-is           | CLAUDE.md                                  | -
+what-simple-directory-is           | CLAUDE.md                                  | -
 session-contract          | CLAUDE.md                                  | -
 current-focus             | CLAUDE.md                                  | -
 doc-map                   | docs/README.md                             | -

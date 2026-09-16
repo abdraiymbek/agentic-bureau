@@ -2,7 +2,7 @@
 
 # L3 Session J.2 — Pending Rewrites Cache (frontend)
 
-L3 Session J.2 for the Cubical project. J.1 closed across two merges on `main` (`1e26269` + `5bc0ce6`); every backend IPC, both new events, and the typed binding stubs are already on disk. J.2 wires that surface into a usable UI: status-bar count, flush toast, per-op undo dropdown, and the **file-rename gesture** (right-click → "Rename…"). Tag-rename and block-id-rename gestures are explicitly out of J.2's scope (their IPCs ship in J.1 and are exercised by tests + the manual flush); the bindings stay plumbed for K polish (tag-chip context menus, block-ref hover menu).
+L3 Session J.2 for the simple.directory project. J.1 closed across two merges on `main` (`1e26269` + `5bc0ce6`); every backend IPC, both new events, and the typed binding stubs are already on disk. J.2 wires that surface into a usable UI: status-bar count, flush toast, per-op undo dropdown, and the **file-rename gesture** (right-click → "Rename…"). Tag-rename and block-id-rename gestures are explicitly out of J.2's scope (their IPCs ship in J.1 and are exercised by tests + the manual flush); the bindings stay plumbed for K polish (tag-chip context menus, block-ref hover menu).
 
 Design is locked in [`docs/superpowers/specs/2026-05-31-l3-session-j-pending-rewrites-design.md`](../specs/2026-05-31-l3-session-j-pending-rewrites-design.md) — read the **J.2 — Frontend** section as the source of truth. §9.15 in `docs/layer-3-spec.md` catalogues what the backend already exposes.
 
@@ -22,7 +22,7 @@ So a fresh subagent doesn't redo work — these all exist after `5bc0ce6`:
   - `onVaultPendingRewritesChanged(handler)` → payload `{ vault_id, count }`
   - `onVaultFlushComplete(handler)` → payload `{ vault_id, files_rewritten, refs_updated }`
   - `Setting` union includes `pending_rewrites.flush_interval_secs: number` (default 300 server-side).
-- **All 9 backend IPCs registered** in `crates/cubical-app/src/lib.rs`'s `generate_handler!`.
+- **All 9 backend IPCs registered** in `crates/simple-directory-app/src/lib.rs`'s `generate_handler!`.
 - **Backend events emitted** by every rename / flush / undo path; the watcher own-write hash gate already suppresses flush bounce-backs so the listeners don't double-fire.
 - **Periodic flush timer** running per-vault (reads `pending_rewrites.flush_interval_secs` each tick); **close-time flush** runs synchronously inside `close_vault` before the index drops; **>50-per-file fuse** synchronous on each rename.
 
@@ -32,7 +32,7 @@ J.2 only has to call these bindings, subscribe to the two listeners, and build t
 
 ## STEP 0 — VERIFY STATE (do this before touching anything; STOP if any check fails)
 
-Working directory: `/Users/user/Developer/Cubical`
+Working directory: `/Users/user/Developer/simple.directory`
 
 1. Read these files in full:
    - `CLAUDE.md` — must report L3 A–F + G + H.1 + H.2 + I + **J.1 done**; J.2 + K pending. If not, STOP.
@@ -51,18 +51,18 @@ Working directory: `/Users/user/Developer/Cubical`
    - `ui/src/Editor.tsx` — for the inline rename input pattern (if a similar inline input exists elsewhere, reuse it; otherwise the design spec's "inline rename input" is a small new component).
 
 3. Git checks (STOP and report if any fails):
-   - `git -C /Users/user/Developer/Cubical status` → working tree clean.
-   - `git -C /Users/user/Developer/Cubical branch --show-current` → `main`.
-   - `git -C /Users/user/Developer/Cubical log --oneline -1` → `merge: L3 Session J.1 — chain 4 finish (rename + flush IPCs)` (commit `5bc0ce6`).
-   - `git -C /Users/user/Developer/Cubical tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
+   - `git -C /Users/user/Developer/simple.directory status` → working tree clean.
+   - `git -C /Users/user/Developer/simple.directory branch --show-current` → `main`.
+   - `git -C /Users/user/Developer/simple.directory log --oneline -1` → `merge: L3 Session J.1 — chain 4 finish (rename + flush IPCs)` (commit `5bc0ce6`).
+   - `git -C /Users/user/Developer/simple.directory tag --list` → contains `l0`, `l1`, `l2`; does NOT contain `l3`.
 
 4. Baseline test counts (must match CLAUDE.md "Project state" post-J.1):
-   - `cd /Users/user/Developer/Cubical && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **406**.
+   - `cd /Users/user/Developer/simple.directory && cargo test --workspace 2>&1 | grep -E "^test result:" | grep -oE "[0-9]+ passed" | awk '{sum+=$1} END {print sum}'` → **406**.
    - `cd ui && npx vitest run` → **329** (J.1 added no new vitest; the ipc.ts stubs are unused).
    If either differs, STOP and report.
 
 5. Create the working branch from `main`:
-   `git -C /Users/user/Developer/Cubical checkout -b l3-session-j2-pending-rewrites-frontend`
+   `git -C /Users/user/Developer/simple.directory checkout -b l3-session-j2-pending-rewrites-frontend`
 
 ---
 
@@ -113,7 +113,7 @@ Pull the **J.2 — Frontend** section of the design spec into the plan as the su
 
 Run and paste actual output:
 
-- `cd /Users/user/Developer/Cubical && cargo test --workspace` → unchanged at **406** (no Rust changes in J.2).
+- `cd /Users/user/Developer/simple.directory && cargo test --workspace` → unchanged at **406** (no Rust changes in J.2).
 - `cd ui && npx tsc --noEmit` → clean.
 - `cd ui && npm run build` → clean.
 - `cd ui && npx vitest run` → **329** baseline + new (formatter + Toast + status-bar dropdown rendering + inline rename input). Document the new count.
