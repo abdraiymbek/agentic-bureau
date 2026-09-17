@@ -20,7 +20,9 @@ fn spec(program: &str, args: &[&str], root: PathBuf) -> super::spawn::OpenSpec {
     super::spawn::OpenSpec {
         program: PathBuf::from(program),
         args: args.iter().map(|s| s.to_string()).collect(),
+        cwd: root.clone(),
         vault_root: root,
+        env: Vec::new(),
         cols: 80,
         rows: 24,
         grace: TEST_GRACE,

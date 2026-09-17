@@ -180,7 +180,7 @@ fn normalize_parent_dir(
     paths::vault_dir(vault, parent_dir)
 }
 
-fn first_free_path(
+pub(crate) fn first_free_path(
     parent_rel: &str,
     parent_abs: &std::path::Path,
     base: &str,
@@ -214,7 +214,7 @@ fn normalize_rel_file_path(vault: &Vault, path: &str) -> Result<(String, PathBuf
     paths::vault_file(vault, path)
 }
 
-async fn create_empty_markdown(vault: &Vault, rel_path: &str) -> Result<String, SimpleDirectoryError> {
+pub(crate) async fn create_empty_markdown(vault: &Vault, rel_path: &str) -> Result<String, SimpleDirectoryError> {
     let abs_path = vault.root().join(rel_path);
 
     let abs_for_write = abs_path.clone();
@@ -2457,9 +2457,9 @@ mod tests {
         std::env::set_var("SIMPLE_DIRECTORY_RUNTIME_DIR", runtime.path());
 
         let vault_dir = tempdir().unwrap();
-        let simple-directory = vault_dir.path().join(".simple-directory");
-        std::fs::create_dir_all(&simple-directory).unwrap();
-        std::fs::write(simple-directory.join("search"), b"not a directory").unwrap();
+        let meta_dir = vault_dir.path().join(".simple-directory");
+        std::fs::create_dir_all(&meta_dir).unwrap();
+        std::fs::write(meta_dir.join("search"), b"not a directory").unwrap();
         std::fs::write(vault_dir.path().join("note.md"), "body\n").unwrap();
 
         let state = AppState::new();

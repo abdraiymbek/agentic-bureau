@@ -383,9 +383,9 @@ fn generate(dir: &Path, total: usize) -> std::io::Result<u64> {
 }
 
 async fn cold_run(dir: &Path) -> Result<(f64, f64, u32, u64), BenchError> {
-    let simple-directory = dir.join(".simple-directory");
-    if simple-directory.exists() {
-        fs::remove_dir_all(&simple-directory)?;
+    let meta_dir = dir.join(".simple-directory");
+    if meta_dir.exists() {
+        fs::remove_dir_all(&meta_dir)?;
     }
 
     let t_open = Instant::now();

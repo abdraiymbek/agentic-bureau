@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod agent_instructions;
+mod agents;
 mod graph;
 mod recent_vaults;
 mod tab_sessions;
@@ -69,6 +70,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .manage(terminal::TerminalRegistry::default())
+        .manage(agents::AgentRegistry::default())
         .manage(simple_directory_engine::commands::graph::LayoutRegistry::new())
         .setup(|_app| {
             #[cfg(unix)]
@@ -146,6 +148,15 @@ pub fn run() {
             dataview_query,
             reload_settings,
             close_vault,
+            projects_list,
+            project_overview,
+            project_create,
+            project_update,
+            project_set_task,
+            calendar_items,
+            event_create,
+            event_update,
+            event_delete,
             graph::graph_snapshot,
             graph::graph_layout,
             graph::graph_layout_cancel,
@@ -155,6 +166,11 @@ pub fn run() {
             terminal::terminal_busy,
             terminal::terminal_close,
             terminal::terminal_reap_all,
+            agents::agents_detect,
+            agents::agent_open,
+            agents::agent_changes,
+            agents::agent_diff,
+            agents::agent_close,
             agent_instructions::agent_instructions_status,
             agent_instructions::agent_instructions_accept,
             agent_instructions::agent_instructions_decline,
@@ -748,11 +764,13 @@ async fn reload_settings(
 async fn close_vault(
     state: tauri::State<'_, AppState>,
     registry: tauri::State<'_, terminal::TerminalRegistry>,
+    agents: tauri::State<'_, agents::AgentRegistry>,
     layouts: tauri::State<'_, simple_directory_engine::commands::graph::LayoutRegistry>,
     app: tauri::AppHandle,
     req: CloseVaultRequest,
 ) -> Result<(), SimpleDirectoryError> {
     layouts.cancel(&req.vault_id);
+    agents.drain_vault(&req.vault_id);
     terminal::reap_vault(registry.inner(), &req.vault_id).await;
     commands::vault::close_vault(
         state.inner(),
@@ -760,4 +778,82 @@ async fn close_vault(
         req,
     )
     .await
+}
+
+#[tauri::command]
+async fn projects_list(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectsListRequest,
+) -> Result<commands::projects::ProjectsListResponse, SimpleDirectoryError> {
+    commands::projects::projects_list(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn project_overview(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectOverviewRequest,
+) -> Result<commands::projects::ProjectOverviewResponse, SimpleDirectoryError> {
+    commands::projects::project_overview(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn project_create(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectCreateRequest,
+) -> Result<commands::projects::ProjectCreateResponse, SimpleDirectoryError> {
+    commands::projects::project_create(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn project_update(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectUpdateRequest,
+) -> Result<commands::projects::ProjectUpdateResponse, SimpleDirectoryError> {
+    commands::projects::project_update(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn project_set_task(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectSetTaskRequest,
+) -> Result<commands::projects::ProjectSetTaskResponse, SimpleDirectoryError> {
+    commands::projects::project_set_task(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn calendar_items(
+    state: tauri::State<'_, AppState>,
+    req: commands::calendar::CalendarItemsRequest,
+) -> Result<commands::calendar::CalendarItemsResponse, SimpleDirectoryError> {
+    commands::calendar::calendar_items(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn event_create(
+    state: tauri::State<'_, AppState>,
+    req: commands::calendar::EventCreateRequest,
+) -> Result<commands::calendar::EventCreateResponse, SimpleDirectoryError> {
+    commands::calendar::event_create(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn event_update(
+    state: tauri::State<'_, AppState>,
+    app: tauri::AppHandle,
+    req: commands::calendar::EventUpdateRequest,
+) -> Result<commands::calendar::EventUpdateResponse, SimpleDirectoryError> {
+    commands::calendar::event_update(
+        state.inner(),
+        &crate::tauri_sink::TauriEventSink::new(app),
+        req,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn event_delete(
+    state: tauri::State<'_, AppState>,
+    req: commands::calendar::EventDeleteRequest,
+) -> Result<(), SimpleDirectoryError> {
+    commands::calendar::event_delete(state.inner(), req).await
 }

@@ -1,8 +1,10 @@
 pub mod autocomplete;
 pub mod backlinks;
 pub mod blocks;
+pub mod calendar;
 pub mod dataview;
 pub mod embeds;
+pub(crate) mod frontmatter_edit;
 pub mod graph;
 pub mod integrity;
 pub mod link_match;
@@ -10,6 +12,7 @@ pub mod links;
 pub mod mentions;
 pub(crate) mod open;
 pub(crate) mod paths;
+pub mod projects;
 pub mod property_ref;
 pub mod rename;
 pub mod search;

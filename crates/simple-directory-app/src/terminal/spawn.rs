@@ -13,6 +13,8 @@ pub struct OpenSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
     pub vault_root: PathBuf,
+    pub cwd: PathBuf,
+    pub env: Vec<(String, String)>,
     pub cols: u16,
     pub rows: u16,
     pub grace: Duration,
@@ -23,7 +25,30 @@ impl OpenSpec {
         Self {
             program: shell_program(),
             args: Vec::new(),
+            cwd: vault_root.clone(),
             vault_root,
+            env: Vec::new(),
+            cols,
+            rows,
+            grace: DEFAULT_GRACE,
+        }
+    }
+
+    pub fn agent(
+        vault_root: PathBuf,
+        cwd: PathBuf,
+        program: PathBuf,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+        cols: u16,
+        rows: u16,
+    ) -> Self {
+        Self {
+            program,
+            args,
+            vault_root,
+            cwd,
+            env,
             cols,
             rows,
             grace: DEFAULT_GRACE,
@@ -75,8 +100,11 @@ pub fn build_command(spec: &OpenSpec) -> CommandBuilder {
     for arg in &spec.args {
         cmd.arg(arg);
     }
-    cmd.cwd(&spec.vault_root);
+    cmd.cwd(&spec.cwd);
     cmd.env(VAULT_ENV, spec.vault_root.as_os_str());
+    for (key, value) in &spec.env {
+        cmd.env(key, value);
+    }
     if let Some(dir) = app_bin_dir() {
         let existing = cmd
             .get_env("PATH")

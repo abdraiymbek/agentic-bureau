@@ -1,7 +1,7 @@
 mod reap;
 mod registry;
 mod session;
-mod spawn;
+pub(crate) mod spawn;
 
 #[cfg(test)]
 mod tests;
@@ -151,7 +151,7 @@ pub fn reap_all_blocking(registry: &TerminalRegistry) {
     drop(registry.drain_all());
 }
 
-async fn reap(entries: Vec<Entry>) {
+pub(crate) async fn reap(entries: Vec<Entry>) {
     if entries.is_empty() {
         return;
     }
