@@ -1,5 +1,5 @@
-use simple_directory_core::Vault;
 use libsql::params;
+use simple_directory_core::Vault;
 use tempfile::{tempdir, TempDir};
 use tokio_util::sync::CancellationToken;
 

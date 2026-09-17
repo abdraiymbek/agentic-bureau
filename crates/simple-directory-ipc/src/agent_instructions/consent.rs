@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use simple_directory_engine::api::types::{GetSettingRequest, GetVaultInfoRequest, SetSettingRequest};
+use simple_directory_engine::api::types::{
+    GetSettingRequest, GetVaultInfoRequest, SetSettingRequest,
+};
 use simple_directory_engine::commands::vault;
 use simple_directory_engine::error::SimpleDirectoryError;
 use simple_directory_engine::state::AppState;
@@ -26,7 +28,9 @@ pub struct AgentInstructionsAccepted {
 }
 
 pub fn canonical_path(vault_root: &Path) -> PathBuf {
-    vault_root.join(".simple-directory").join("agent-instructions.md")
+    vault_root
+        .join(".simple-directory")
+        .join("agent-instructions.md")
 }
 
 pub fn sync_canonical(vault_root: &Path) -> std::io::Result<bool> {
@@ -92,8 +96,8 @@ pub async fn accept(
     let root = vault_root(state, vault_id).await?;
     sync_canonical(&root)
         .map_err(|e| SimpleDirectoryError::Io(format!("write agent instructions: {e}")))?;
-    let outcome =
-        write_pointers(&root).map_err(|e| SimpleDirectoryError::Io(format!("write pointer file: {e}")))?;
+    let outcome = write_pointers(&root)
+        .map_err(|e| SimpleDirectoryError::Io(format!("write pointer file: {e}")))?;
     mark_offered(state, vault_id).await?;
     Ok(outcome)
 }

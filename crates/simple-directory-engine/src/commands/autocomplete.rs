@@ -1,6 +1,8 @@
 use simple_directory_ast::note_title;
 use simple_directory_core::vault::links::resolve_target;
-use simple_directory_index::{all_file_paths, blocks_for_file, files_for_link_query, tag_paths_for_prefix};
+use simple_directory_index::{
+    all_file_paths, blocks_for_file, files_for_link_query, tag_paths_for_prefix,
+};
 
 use serde::{Deserialize, Serialize};
 

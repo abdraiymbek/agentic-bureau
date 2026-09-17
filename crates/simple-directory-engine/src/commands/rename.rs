@@ -2,6 +2,7 @@ use simple_directory_ast::{note_title, strip_markdown_extension};
 use simple_directory_core::unix_now_secs;
 use std::collections::HashSet;
 
+use libsql::params;
 use simple_directory_core::vault::pending::apply_pending;
 use simple_directory_core::{
     atomic_write, parse_off_executor, refresh_block_refs_for_file, refresh_blocks,
@@ -13,7 +14,6 @@ use simple_directory_index::{
     names_eq_folded, pending_count_breakdown, pending_count_total, pending_for_target,
     pending_targets,
 };
-use libsql::params;
 
 use crate::api::types::{
     FlushPendingRewritesForTargetRequest, FlushPendingRewritesRequest,
@@ -57,7 +57,9 @@ fn file_stamp(path: &std::path::Path, fallback_len: u64) -> (i64, u64) {
 
 const RENAME_OP_ID_KEY: &str = "pending_rewrites.next_rename_op_id";
 
-pub(super) async fn mint_rename_op_id(vault: &simple_directory_core::Vault) -> Result<i64, SimpleDirectoryError> {
+pub(super) async fn mint_rename_op_id(
+    vault: &simple_directory_core::Vault,
+) -> Result<i64, SimpleDirectoryError> {
     let conn = vault.index().connection();
     let tx = conn.transaction().await?;
 
@@ -413,7 +415,9 @@ pub async fn rename_file(
     let (from_path, from_abs) = paths::vault_file(&vault, &req.from_path)?;
     let (to_path, to_abs) = paths::vault_file(&vault, &req.to_path)?;
     if from_path == to_path {
-        return Err(SimpleDirectoryError::InvalidRequest("from_path == to_path".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "from_path == to_path".into(),
+        ));
     }
     if !paths::is_vacant(&from_path, &to_path, &to_abs) {
         return Err(SimpleDirectoryError::InvalidRequest(format!(
@@ -429,7 +433,8 @@ pub async fn rename_file(
     }
     if let Err(e) = std::fs::rename(&from_abs, &to_abs) {
         if e.raw_os_error() == Some(18) {
-            let bytes = std::fs::read(&from_abs).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
+            let bytes =
+                std::fs::read(&from_abs).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
             atomic_write(&to_abs, &bytes).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
             std::fs::remove_file(&from_abs).map_err(|e| SimpleDirectoryError::Io(e.to_string()))?;
         } else {
@@ -530,7 +535,9 @@ pub async fn rename_folder(
     let (from_path, from_abs) = paths::vault_file(&vault, &req.from_path)?;
     let (to_path, to_abs) = paths::vault_file(&vault, &req.to_path)?;
     if from_path == to_path {
-        return Err(SimpleDirectoryError::InvalidRequest("from_path == to_path".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "from_path == to_path".into(),
+        ));
     }
     if !paths::is_vacant(&from_path, &to_path, &to_abs) {
         return Err(SimpleDirectoryError::InvalidRequest(format!(
@@ -713,10 +720,14 @@ pub async fn rename_tag(
     req: RenameTagRequest,
 ) -> Result<RenameTagResponse, SimpleDirectoryError> {
     if req.old_tag == req.new_tag {
-        return Err(SimpleDirectoryError::InvalidRequest("old_tag == new_tag".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "old_tag == new_tag".into(),
+        ));
     }
     if req.old_tag.is_empty() || req.new_tag.is_empty() {
-        return Err(SimpleDirectoryError::InvalidRequest("tag must not be empty".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "tag must not be empty".into(),
+        ));
     }
     let (vault, flush_own_writes, _flush_in_progress) =
         clone_vault_with_flush_state(state, &req.vault_id).await?;
@@ -784,7 +795,9 @@ pub async fn rename_block_id(
     req: RenameBlockIdRequest,
 ) -> Result<RenameBlockIdResponse, SimpleDirectoryError> {
     if req.old_id == req.new_id {
-        return Err(SimpleDirectoryError::InvalidRequest("old_id == new_id".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "old_id == new_id".into(),
+        ));
     }
     if req.old_id.is_empty() || req.new_id.is_empty() {
         return Err(SimpleDirectoryError::InvalidRequest(
@@ -795,7 +808,8 @@ pub async fn rename_block_id(
         clone_vault_with_flush_state(state, &req.vault_id).await?;
     let conn = vault.index().connection();
 
-    let exists = simple_directory_index::block_exists(vault.index(), &req.file_path, &req.old_id).await?;
+    let exists =
+        simple_directory_index::block_exists(vault.index(), &req.file_path, &req.old_id).await?;
     if !exists {
         return Err(SimpleDirectoryError::InvalidRequest(format!(
             "no block ^{} in {}",
@@ -880,7 +894,11 @@ pub(crate) async fn flush_pending_for_target(
             return Ok((false, 0));
         }
         Ok(Err(e)) => return Err(SimpleDirectoryError::Io(e.to_string())),
-        Err(e) => return Err(SimpleDirectoryError::Io(format!("flush read task join error: {e}"))),
+        Err(e) => {
+            return Err(SimpleDirectoryError::Io(format!(
+                "flush read task join error: {e}"
+            )))
+        }
     };
 
     let materialized = apply_pending(&on_disk, &rows);
@@ -1099,7 +1117,9 @@ pub fn spawn_flush_timer(
     vault: simple_directory_core::Vault,
     flush_own_writes: FlushOwnWrites,
     flush_in_progress: std::sync::Arc<tokio::sync::Mutex<()>>,
-    settings: std::sync::Arc<tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>>,
+    settings: std::sync::Arc<
+        tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>,
+    >,
     vault_id: String,
     lifetime: FlushTimerLifetime,
 ) {
@@ -1128,7 +1148,9 @@ async fn flush_timer_loop(
     vault: simple_directory_core::Vault,
     flush_own_writes: FlushOwnWrites,
     flush_in_progress: std::sync::Arc<tokio::sync::Mutex<()>>,
-    settings: std::sync::Arc<tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>>,
+    settings: std::sync::Arc<
+        tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>,
+    >,
     vault_id: String,
     cancel: tokio_util::sync::CancellationToken,
 ) {
@@ -1400,7 +1422,9 @@ async fn prune_materialized_journal(vault: &simple_directory_core::Vault) {
     }
 }
 
-async fn prune_materialized_journal_inner(vault: &simple_directory_core::Vault) -> Result<(), SimpleDirectoryError> {
+async fn prune_materialized_journal_inner(
+    vault: &simple_directory_core::Vault,
+) -> Result<(), SimpleDirectoryError> {
     let entries = simple_directory_core::vault::rename_journal::read_journal(vault.root())
         .map_err(|e| SimpleDirectoryError::Io(format!("reading the rename journal: {e}")))?
         .entries;
@@ -1610,10 +1634,13 @@ mod tests {
 
         assert_eq!(resp.pending_count, 1, "Bob refers to Jack from frontmatter");
 
-        let materialized =
-            simple_directory_core::vault::pending::materialize_on_read(vault.index(), "Bob.md", bob)
-                .await
-                .expect("materialize");
+        let materialized = simple_directory_core::vault::pending::materialize_on_read(
+            vault.index(),
+            "Bob.md",
+            bob,
+        )
+        .await
+        .expect("materialize");
         assert!(
             materialized.contains("\"[[Jackson]]\""),
             "quoted frontmatter link should be rewritten, got: {materialized}"
@@ -2327,10 +2354,13 @@ mod tests {
             "after flush-then-b→c, Ref.md must still be a backlink of c.md",
         );
         let on_disk = std::fs::read_to_string(vault.root().join("Ref.md")).unwrap();
-        let materialized =
-            simple_directory_core::vault::pending::materialize_on_read(vault.index(), "Ref.md", &on_disk)
-                .await
-                .unwrap();
+        let materialized = simple_directory_core::vault::pending::materialize_on_read(
+            vault.index(),
+            "Ref.md",
+            &on_disk,
+        )
+        .await
+        .unwrap();
         assert_eq!(
             materialized, "see [[c]]\n",
             "opening Ref.md must show [[c]], not the stale [[b]]",
@@ -2558,7 +2588,10 @@ mod tests {
         )
         .await
         .expect_err("expected rejection");
-        assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)), "{err:?}");
+        assert!(
+            matches!(err, SimpleDirectoryError::InvalidRequest(_)),
+            "{err:?}"
+        );
         assert!(!vault.root().join("stolen.md").exists());
     }
 
@@ -2582,7 +2615,10 @@ mod tests {
             )
             .await
             .expect_err(&format!("expected rejection of {to}"));
-            assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)), "{err:?}");
+            assert!(
+                matches!(err, SimpleDirectoryError::InvalidRequest(_)),
+                "{err:?}"
+            );
         }
         assert!(vault.root().join("notes").is_dir());
         assert!(!vault.root().parent().unwrap().join("escaped").exists());
@@ -2638,7 +2674,10 @@ mod tests {
 
         if case_insensitive_volume {
             let err = outcome.expect_err("NOTE.md already names note.md on this volume");
-            assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)), "{err:?}");
+            assert!(
+                matches!(err, SimpleDirectoryError::InvalidRequest(_)),
+                "{err:?}"
+            );
         } else {
             outcome.expect("NOTE.md collides with nothing on a case-sensitive volume");
         }
@@ -2757,7 +2796,9 @@ mod tests {
         assert!(dir.path().join("work/a.md").exists());
         assert!(dir.path().join("work/deep/b.md").exists());
 
-        let folders = simple_directory_index::list_folders(vault.index()).await.unwrap();
+        let folders = simple_directory_index::list_folders(vault.index())
+            .await
+            .unwrap();
         assert!(folders.contains(&"work".to_string()));
         assert!(folders.contains(&"work/deep".to_string()));
         assert!(!folders.contains(&"projects".to_string()));
@@ -3795,7 +3836,8 @@ mod tests {
 
     fn flush_interval_settings(
         secs: u64,
-    ) -> std::sync::Arc<tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>> {
+    ) -> std::sync::Arc<tokio::sync::RwLock<simple_directory_core::vault::settings::SettingsMap>>
+    {
         let mut map = simple_directory_core::vault::settings::SettingsMap::new();
         map.insert(FLUSH_INTERVAL_SECS_KEY.into(), serde_json::json!(secs));
         std::sync::Arc::new(tokio::sync::RwLock::new(map))

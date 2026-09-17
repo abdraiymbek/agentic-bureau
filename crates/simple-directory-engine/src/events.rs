@@ -7,6 +7,7 @@ use std::time::Instant;
 use serde::Serialize;
 use tokio::sync::{mpsc, Mutex, RwLock};
 
+use libsql::params;
 use simple_directory_core::vault::links::read_source_off_executor;
 use simple_directory_core::vault::pending::materialize_on_read;
 use simple_directory_core::vault::settings::SettingsMap;
@@ -15,7 +16,6 @@ use simple_directory_core::{
     refresh_links_with_doc, refresh_tags_with_doc, scan, ChangeSink, ScanProgress, ScanSink, Vault,
     VaultError, WatchEvent,
 };
-use libsql::params;
 use tokio_util::sync::CancellationToken;
 
 use crate::rename_pairing::{
@@ -478,7 +478,9 @@ pub(crate) async fn apply_watch_event_to_db(
     if let WatchEvent::Created(rel) | WatchEvent::Modified(rel) = ev {
         if vault.root().join(rel).is_dir() {
             let path_str = rel.clone();
-            if let Err(e) = simple_directory_index::upsert_folder(vault.index(), &path_str, now).await {
+            if let Err(e) =
+                simple_directory_index::upsert_folder(vault.index(), &path_str, now).await
+            {
                 tracing::warn!(path = %path_str, error = %e, "watcher: folder upsert failed");
             }
             let (message, detail) = audit_payload_for(ev);
@@ -726,8 +728,11 @@ pub(crate) async fn apply_watch_events_batch(
         hashes.push(apply_watch_event_to_db(vault, changes, ev, ctx).await);
     }
     changes.flush();
-    if let Err(e) =
-        simple_directory_index::prune_audit_log(vault.index(), simple_directory_index::AUDIT_LOG_MAX_ROWS).await
+    if let Err(e) = simple_directory_index::prune_audit_log(
+        vault.index(),
+        simple_directory_index::AUDIT_LOG_MAX_ROWS,
+    )
+    .await
     {
         tracing::warn!(error = %e, "watcher: audit_log prune failed");
     }
@@ -1340,7 +1345,9 @@ mod tests {
         .await;
         assert!(hash.is_none(), "a directory carries no content hash");
 
-        let folders = simple_directory_index::list_folders(vault.index()).await.unwrap();
+        let folders = simple_directory_index::list_folders(vault.index())
+            .await
+            .unwrap();
         assert_eq!(folders, vec!["projects"], "dir recorded in folders");
 
         let conn = vault.index().connection();
@@ -2011,9 +2018,10 @@ mod tests {
                 "the in-app rename is journalled once and never re-adopted (entries: {entries:?})",
             );
 
-            let pending = simple_directory_index::pending_for_target(live.vault.index(), "Project.md")
-                .await
-                .unwrap();
+            let pending =
+                simple_directory_index::pending_for_target(live.vault.index(), "Project.md")
+                    .await
+                    .unwrap();
             assert_eq!(pending.len(), 1, "exactly one queued rewrite");
             assert_eq!(pending[0].old_token, "Daily");
             assert_eq!(pending[0].new_token, "Journal");
@@ -2362,9 +2370,10 @@ mod tests {
             .await
             .expect("in-app rename");
 
-            let pending = simple_directory_index::pending_for_target(live.vault.index(), "Project.md")
-                .await
-                .unwrap();
+            let pending =
+                simple_directory_index::pending_for_target(live.vault.index(), "Project.md")
+                    .await
+                    .unwrap();
             assert_eq!(pending.len(), 1, "the padded referrer is enqueued");
             assert_eq!(
                 pending[0].old_token, "Daily",

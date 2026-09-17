@@ -121,19 +121,23 @@ pub async fn handle_connection(
     let req: Request = read_msg_timeout(&mut stream, IO_TIMEOUT).await?;
     let canonical =
         std::fs::canonicalize(&req.vault_path).unwrap_or_else(|_| req.vault_path.clone());
-    let response = match simple_directory_engine::commands::vault::resolve_open_vault(state, &canonical)
-        .await
-    {
-        Some((vault_id, ScanStatus::Complete)) => {
-            match crate::dispatch::dispatch(&vault_id, req.command, state, sink).await {
-                Ok(outcome) => Response::Ok(outcome),
-                Err(e) => Response::Err(e.to_string()),
+    let response =
+        match simple_directory_engine::commands::vault::resolve_open_vault(state, &canonical).await
+        {
+            Some((vault_id, ScanStatus::Complete)) => {
+                match crate::dispatch::dispatch(&vault_id, req.command, state, sink).await {
+                    Ok(outcome) => Response::Ok(outcome),
+                    Err(e) => Response::Err(e.to_string()),
+                }
             }
-        }
-        Some((_, ScanStatus::InProgress)) => Response::Err("vault is still scanning".to_string()),
-        Some((_, ScanStatus::Cancelled)) => Response::Err("vault scan was cancelled".to_string()),
-        None => Response::Err("vault not open".to_string()),
-    };
+            Some((_, ScanStatus::InProgress)) => {
+                Response::Err("vault is still scanning".to_string())
+            }
+            Some((_, ScanStatus::Cancelled)) => {
+                Response::Err("vault scan was cancelled".to_string())
+            }
+            None => Response::Err("vault not open".to_string()),
+        };
     write_msg(&mut stream, &response).await
 }
 
@@ -221,7 +225,10 @@ mod tests {
     #[test]
     fn app_socket_path_lands_in_runtime_dir_and_names_the_pid() {
         let _env = crate::RUNTIME_ENV_GUARD.lock().unwrap();
-        std::env::set_var("SIMPLE_DIRECTORY_RUNTIME_DIR", "/tmp/simple-directory-ipc-test-rt");
+        std::env::set_var(
+            "SIMPLE_DIRECTORY_RUNTIME_DIR",
+            "/tmp/simple-directory-ipc-test-rt",
+        );
         let p = app_socket_path(4242);
         assert!(p.starts_with("/tmp/simple-directory-ipc-test-rt"));
         assert_eq!(

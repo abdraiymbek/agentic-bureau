@@ -25,7 +25,9 @@ pub async fn repair_dangling_link(
 ) -> Result<RepairDanglingLinkResponse, SimpleDirectoryError> {
     let target_raw = req.target_raw.trim().to_string();
     if target_raw.is_empty() {
-        return Err(SimpleDirectoryError::InvalidRequest("target_raw is empty".into()));
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "target_raw is empty".into(),
+        ));
     }
 
     let (vault, flush_own_writes, flush_in_progress) =

@@ -208,14 +208,18 @@ mod tests {
     fn acquire_advertises_the_socket_path() {
         let dir = tempfile::tempdir().unwrap();
         let vault = Path::new("/vaults/epsilon");
-        let _held = match acquire_in(dir.path(), vault, Some("/run/simple-directory-1.sock")).unwrap() {
-            Acquire::Acquired(g) => g,
-            Acquire::Held(_) => panic!("first acquire should succeed"),
-        };
+        let _held =
+            match acquire_in(dir.path(), vault, Some("/run/simple-directory-1.sock")).unwrap() {
+                Acquire::Acquired(g) => g,
+                Acquire::Held(_) => panic!("first acquire should succeed"),
+            };
         match acquire_in(dir.path(), vault, None).unwrap() {
             Acquire::Acquired(_) => panic!("still held"),
             Acquire::Held(owner) => {
-                assert_eq!(owner.socket_path.as_deref(), Some("/run/simple-directory-1.sock"));
+                assert_eq!(
+                    owner.socket_path.as_deref(),
+                    Some("/run/simple-directory-1.sock")
+                );
             }
         }
     }
@@ -223,8 +227,14 @@ mod tests {
     #[test]
     fn runtime_dir_honors_the_env_override() {
         let _guard = RUNTIME_ENV_GUARD.lock().unwrap();
-        std::env::set_var("SIMPLE_DIRECTORY_RUNTIME_DIR", "/tmp/simple-directory-test-runtime");
-        assert_eq!(runtime_dir(), PathBuf::from("/tmp/simple-directory-test-runtime"));
+        std::env::set_var(
+            "SIMPLE_DIRECTORY_RUNTIME_DIR",
+            "/tmp/simple-directory-test-runtime",
+        );
+        assert_eq!(
+            runtime_dir(),
+            PathBuf::from("/tmp/simple-directory-test-runtime")
+        );
         std::env::remove_var("SIMPLE_DIRECTORY_RUNTIME_DIR");
     }
 }

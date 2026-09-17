@@ -510,7 +510,10 @@ mod tests {
         let got = tag_paths_for_prefix(&conn, "proj", 50).await.unwrap();
         assert_eq!(
             got,
-            vec!["Project".to_string(), "project/simple-directory".to_string()]
+            vec![
+                "Project".to_string(),
+                "project/simple-directory".to_string()
+            ]
         );
         assert!(tag_paths_for_prefix(&conn, "zzz", 50)
             .await

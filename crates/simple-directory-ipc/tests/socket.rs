@@ -76,7 +76,9 @@ async fn socket_new_note_creates_a_file_via_dispatch() {
     server.await.unwrap();
     assert_eq!(
         resp,
-        Response::Ok(simple_directory_ipc::Outcome::Created("FromSocket.md".into()))
+        Response::Ok(simple_directory_ipc::Outcome::Created(
+            "FromSocket.md".into()
+        ))
     );
     assert!(vault_dir.path().join("FromSocket.md").exists());
     std::env::remove_var("SIMPLE_DIRECTORY_RUNTIME_DIR");
@@ -119,7 +121,9 @@ async fn socket_declines_while_the_vault_is_still_scanning() {
     use simple_directory_engine::state::{OpenVault, ScanStatusBackend};
 
     let vault_dir = tempfile::tempdir().unwrap();
-    let vault = simple_directory_core::Vault::open(vault_dir.path()).await.unwrap();
+    let vault = simple_directory_core::Vault::open(vault_dir.path())
+        .await
+        .unwrap();
     let state = AppState::new();
     state.vaults().write().await.insert(
         "scanning".to_string(),

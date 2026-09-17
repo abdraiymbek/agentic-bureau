@@ -62,8 +62,8 @@ pub(crate) fn derive_reattach_token(target_raw: &str, to_path: &str) -> String {
 mod tests {
     use super::*;
     use crate::commands::rename::reconnect_broken_links_to;
-    use simple_directory_core::Vault;
     use libsql::params;
+    use simple_directory_core::Vault;
     use tempfile::tempdir;
 
     #[test]

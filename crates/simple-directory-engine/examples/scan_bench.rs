@@ -463,7 +463,12 @@ async fn phase_breakdown(dir: &Path, total: usize) -> Result<(), BenchError> {
     let t = Instant::now();
     let mut projected = Vec::with_capacity(total);
     for (rel, s) in &sources {
-        projected.push(simple_directory_search::doc::project(rel, s, 0, s.len() as u64));
+        projected.push(simple_directory_search::doc::project(
+            rel,
+            s,
+            0,
+            s.len() as u64,
+        ));
     }
     let project_secs = t.elapsed().as_secs_f64();
 

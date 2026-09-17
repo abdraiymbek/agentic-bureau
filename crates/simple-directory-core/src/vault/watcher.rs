@@ -186,7 +186,8 @@ fn is_excluded(rel: &Path) -> bool {
     }) {
         return true;
     }
-    rel.extension().is_some_and(|ext| ext == "simple-directory-tmp")
+    rel.extension()
+        .is_some_and(|ext| ext == "simple-directory-tmp")
 }
 
 #[cfg(test)]
@@ -366,7 +367,10 @@ mod tests {
         let root = Path::new("/v");
         let ev = synth_event(
             EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
-            vec![PathBuf::from("/v/a.md"), PathBuf::from("/v/.simple-directory/b.md")],
+            vec![
+                PathBuf::from("/v/a.md"),
+                PathBuf::from("/v/.simple-directory/b.md"),
+            ],
         );
         let out = translate_event(root, &ev);
         assert_eq!(out, vec![WatchEvent::Removed("a.md".into())]);

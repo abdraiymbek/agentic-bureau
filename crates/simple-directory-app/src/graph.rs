@@ -60,7 +60,9 @@ mod tests {
             std::fs::write(&abs, body).expect("write");
         }
 
-        let vault = simple_directory_core::Vault::open(dir.path()).await.expect("open");
+        let vault = simple_directory_core::Vault::open(dir.path())
+            .await
+            .expect("open");
         let (tx, mut rx) = mpsc::channel(64);
         let drain = tokio::spawn(async move { while rx.recv().await.is_some() {} });
         simple_directory_core::scan(

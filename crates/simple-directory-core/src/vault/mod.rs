@@ -196,7 +196,9 @@ mod tests {
         .await
         .expect("the rebuilt index accepts writes");
         assert_eq!(
-            simple_directory_index::all_file_paths(vault.index()).await.unwrap(),
+            simple_directory_index::all_file_paths(vault.index())
+                .await
+                .unwrap(),
             vec!["a.md".to_string()]
         );
         assert!(index_recovery::quarantine_path(&db).exists());

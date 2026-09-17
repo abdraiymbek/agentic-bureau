@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use simple_directory_core::{VanishedFile, Vault};
 use libsql::params;
+use simple_directory_core::{VanishedFile, Vault};
 use tokio::sync::Mutex;
 
 pub(crate) const TOMBSTONE_TTL: Duration = Duration::from_secs(2);

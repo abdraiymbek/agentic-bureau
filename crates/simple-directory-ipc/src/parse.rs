@@ -8,7 +8,10 @@ use crate::Command as WireCommand;
 pub use clap::Parser;
 
 #[derive(Debug, Parser)]
-#[command(name = "simple-directory", about = "Drive a simple.directory vault from the terminal.")]
+#[command(
+    name = "simple-directory",
+    about = "Drive a simple.directory vault from the terminal."
+)]
 pub struct Cli {
     #[arg(
         long,
@@ -102,7 +105,8 @@ mod tests {
     use std::path::Path;
 
     fn parse(args: &[&str]) -> Cli {
-        Cli::try_parse_from(std::iter::once("simple-directory").chain(args.iter().copied())).unwrap()
+        Cli::try_parse_from(std::iter::once("simple-directory").chain(args.iter().copied()))
+            .unwrap()
     }
 
     #[test]

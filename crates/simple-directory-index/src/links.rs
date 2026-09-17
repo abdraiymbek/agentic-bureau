@@ -346,7 +346,9 @@ mod tests {
         seed_file(&conn, "notes/simple-directory-ast.md").await;
         seed_file(&conn, "archive/old.md").await;
 
-        let got = files_for_link_query(&conn, "simple-directory", 50).await.unwrap();
+        let got = files_for_link_query(&conn, "simple-directory", 50)
+            .await
+            .unwrap();
         assert_eq!(
             got,
             vec![

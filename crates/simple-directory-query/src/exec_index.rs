@@ -1,6 +1,6 @@
+use libsql::{params_from_iter, Value as SqlValue};
 use simple_directory_ast::note_title;
 use simple_directory_index::IndexConn;
-use libsql::{params_from_iter, Value as SqlValue};
 
 use crate::ast::{Command, Query};
 use crate::error::QueryError;

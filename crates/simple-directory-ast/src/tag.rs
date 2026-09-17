@@ -126,7 +126,10 @@ mod tests {
 
     #[test]
     fn nested_tag_is_one_token() {
-        assert_eq!(scan_tags("#project/simple-directory"), vec![tag("project/simple-directory")]);
+        assert_eq!(
+            scan_tags("#project/simple-directory"),
+            vec![tag("project/simple-directory")]
+        );
     }
 
     #[test]

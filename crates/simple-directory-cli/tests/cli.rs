@@ -171,7 +171,9 @@ fn declines_with_exit_code_2_when_the_vault_is_locked() {
     let canonical = std::fs::canonicalize(h.vault_path()).unwrap();
     let _guard = match simple_directory_engine::vault_lock::acquire(&canonical, None).unwrap() {
         simple_directory_engine::vault_lock::Acquire::Acquired(g) => g,
-        simple_directory_engine::vault_lock::Acquire::Held(_) => panic!("test should own the lock first"),
+        simple_directory_engine::vault_lock::Acquire::Held(_) => {
+            panic!("test should own the lock first")
+        }
     };
     std::env::remove_var("SIMPLE_DIRECTORY_RUNTIME_DIR");
 

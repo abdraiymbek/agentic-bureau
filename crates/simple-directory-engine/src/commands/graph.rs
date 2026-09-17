@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use simple_directory_graph::{build_model, layout_streaming, GraphModel, LayoutParams};
 use serde::{Deserialize, Serialize};
+use simple_directory_graph::{build_model, layout_streaming, GraphModel, LayoutParams};
 
 use crate::error::SimpleDirectoryError;
 use crate::state::AppState;
@@ -220,7 +220,9 @@ where
 
     match joined {
         Ok(result) => Ok(result?),
-        Err(e) => Err(SimpleDirectoryError::Io(format!("graph layout join error: {e}"))),
+        Err(e) => Err(SimpleDirectoryError::Io(format!(
+            "graph layout join error: {e}"
+        ))),
     }
 }
 

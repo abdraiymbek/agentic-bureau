@@ -9,9 +9,9 @@ mod tests;
 pub use registry::TerminalRegistry;
 
 use base64::Engine as _;
+use registry::Entry;
 use simple_directory_engine::plugins::Feature;
 use simple_directory_engine::state::AppState;
-use registry::Entry;
 use spawn::OpenSpec;
 use tauri::ipc::Channel;
 

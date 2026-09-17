@@ -1,8 +1,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use simple_directory_search::{query::run_search, IndexHealth, IndexState, IndexStatus};
 use serde::Deserialize;
+use simple_directory_search::{query::run_search, IndexHealth, IndexState, IndexStatus};
 
 pub use simple_directory_search::{
     FieldScope as SearchFieldScope, IndexHealth as SearchHealthDto, IndexState as SearchIndexState,
@@ -27,7 +27,10 @@ use crate::events::{spawn_scan_dispatcher, EventSink};
 use crate::search_handle::open_search_cloned;
 use crate::state::AppState;
 
-pub async fn search(state: &AppState, req: SearchRequest) -> Result<SearchResponse, SimpleDirectoryError> {
+pub async fn search(
+    state: &AppState,
+    req: SearchRequest,
+) -> Result<SearchResponse, SimpleDirectoryError> {
     let (search, search_state) = with_open_vault(state, &req.vault_id, |open| {
         (open.search.clone(), Arc::clone(&open.search_state))
     })

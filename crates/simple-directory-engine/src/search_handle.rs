@@ -60,7 +60,9 @@ impl SearchHandle {
 
     pub fn index(&self) -> Result<&SearchIndex, SimpleDirectoryError> {
         self.index.as_deref().ok_or_else(|| {
-            SimpleDirectoryError::Search("search index is unavailable for this vault; reopen it".into())
+            SimpleDirectoryError::Search(
+                "search index is unavailable for this vault; reopen it".into(),
+            )
         })
     }
 
@@ -336,7 +338,11 @@ mod tests {
     async fn an_unopenable_search_dir_degrades_search_not_the_vault() {
         let dir = tempdir().unwrap();
         let vault = Vault::open(dir.path()).await.expect("open");
-        std::fs::write(dir.path().join(".simple-directory").join("search"), b"not a dir").unwrap();
+        std::fs::write(
+            dir.path().join(".simple-directory").join("search"),
+            b"not a dir",
+        )
+        .unwrap();
 
         let search = SearchHandle::open(&vault).await;
 
@@ -354,7 +360,9 @@ mod tests {
         std::fs::write(dir.path().join("a.md"), "body\n").unwrap();
         full_scan(&vault, &search).await;
         assert_eq!(
-            simple_directory_index::all_file_paths(vault.index()).await.unwrap(),
+            simple_directory_index::all_file_paths(vault.index())
+                .await
+                .unwrap(),
             vec!["a.md".to_string()],
             "the vault still scans without its search index",
         );
@@ -421,7 +429,12 @@ mod tests {
         let dir = tempdir().unwrap();
         let index = SearchIndex::open(dir.path()).unwrap();
         index
-            .upsert(&simple_directory_search::doc::project("broken.md", "kept", 0, 4))
+            .upsert(&simple_directory_search::doc::project(
+                "broken.md",
+                "kept",
+                0,
+                4,
+            ))
             .unwrap();
         index.commit().unwrap();
         let search = SearchHandle {

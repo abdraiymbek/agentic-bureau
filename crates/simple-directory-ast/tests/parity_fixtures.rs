@@ -1,5 +1,5 @@
-use simple_directory_ast::parse;
 use serde::{Deserialize, Serialize};
+use simple_directory_ast::parse;
 
 const FIXTURES_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/parity.json");
 

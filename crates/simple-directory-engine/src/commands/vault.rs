@@ -210,11 +210,17 @@ pub(crate) fn first_free_path(
     )))
 }
 
-fn normalize_rel_file_path(vault: &Vault, path: &str) -> Result<(String, PathBuf), SimpleDirectoryError> {
+fn normalize_rel_file_path(
+    vault: &Vault,
+    path: &str,
+) -> Result<(String, PathBuf), SimpleDirectoryError> {
     paths::vault_file(vault, path)
 }
 
-pub(crate) async fn create_empty_markdown(vault: &Vault, rel_path: &str) -> Result<String, SimpleDirectoryError> {
+pub(crate) async fn create_empty_markdown(
+    vault: &Vault,
+    rel_path: &str,
+) -> Result<String, SimpleDirectoryError> {
     let abs_path = vault.root().join(rel_path);
 
     let abs_for_write = abs_path.clone();
@@ -298,7 +304,10 @@ pub async fn create_folder(
     Ok(CreateFolderResponse { path: rel_path })
 }
 
-pub async fn delete_path(state: &AppState, req: DeletePathRequest) -> Result<(), SimpleDirectoryError> {
+pub async fn delete_path(
+    state: &AppState,
+    req: DeletePathRequest,
+) -> Result<(), SimpleDirectoryError> {
     let vault = open_vault_cloned(state, &req.vault_id).await?;
     let (rel_path, abs_path) = normalize_rel_file_path(&vault, &req.path)?;
     if !abs_path.exists() {
@@ -447,8 +456,12 @@ pub async fn read_file_text(
         return Ok(ReadFileTextResponse { content: on_disk });
     }
 
-    let materialized =
-        simple_directory_core::vault::pending::materialize_on_read(vault.index(), &req.path, &on_disk).await;
+    let materialized = simple_directory_core::vault::pending::materialize_on_read(
+        vault.index(),
+        &req.path,
+        &on_disk,
+    )
+    .await;
     let content = match materialized {
         Ok(content) => content,
         Err(e) => {
@@ -705,18 +718,23 @@ pub async fn set_setting(
             map.clone()
         };
 
-        tokio::task::spawn_blocking(move || simple_directory_core::vault::settings::save(&root, &snapshot))
-            .await
-            .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("settings save task panicked: {e}")))?
-            .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("save settings: {e}")))?;
+        tokio::task::spawn_blocking(move || {
+            simple_directory_core::vault::settings::save(&root, &snapshot)
+        })
+        .await
+        .map_err(|e| {
+            SimpleDirectoryError::InvalidRequest(format!("settings save task panicked: {e}"))
+        })?
+        .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("save settings: {e}")))?;
 
         return Ok(SetSettingResponse {});
     }
 
     let conn = vault.index().connection();
 
-    let encoded = serde_json::to_string(&req.value)
-        .map_err(|e| SimpleDirectoryError::InvalidRequest(format!("setting value not encodable: {e}")))?;
+    let encoded = serde_json::to_string(&req.value).map_err(|e| {
+        SimpleDirectoryError::InvalidRequest(format!("setting value not encodable: {e}"))
+    })?;
 
     conn.execute(
         "INSERT INTO config (key, value) VALUES (?1, ?2)
@@ -992,7 +1010,9 @@ mod tests {
         .expect("create folder");
         assert_eq!(r.path, "Untitled Folder");
         assert!(dir.path().join("Untitled Folder").is_dir());
-        let folders = simple_directory_index::list_folders(vault.index()).await.unwrap();
+        let folders = simple_directory_index::list_folders(vault.index())
+            .await
+            .unwrap();
         assert_eq!(folders, vec!["Untitled Folder"]);
 
         let listing = list_files(
@@ -1250,7 +1270,10 @@ mod tests {
             )
             .await
             .expect_err("must stay read-only");
-            assert!(matches!(err, SimpleDirectoryError::InvalidRequest(_)), "{path}");
+            assert!(
+                matches!(err, SimpleDirectoryError::InvalidRequest(_)),
+                "{path}"
+            );
         }
     }
 
@@ -2277,7 +2300,8 @@ mod tests {
         }
 
         let vault = Vault::open(dir.path()).await.expect("reopen");
-        let loaded_settings = simple_directory_core::vault::settings::load(vault.root()).unwrap_or_default();
+        let loaded_settings =
+            simple_directory_core::vault::settings::load(vault.root()).unwrap_or_default();
         let state = AppState::new();
         state.vaults().write().await.insert(
             "v1".into(),
@@ -2508,11 +2532,17 @@ mod tests {
         let status = crate::commands::search::search_index_status(&state, req())
             .await
             .expect("status");
-        assert!(matches!(status.state, simple_directory_search::IndexState::Error));
+        assert!(matches!(
+            status.state,
+            simple_directory_search::IndexState::Error
+        ));
         let err = crate::commands::search::search_get_health(&state, req())
             .await
             .expect_err("search reports its own failure");
-        assert!(matches!(err, SimpleDirectoryError::Search(_)), "got {err:?}");
+        assert!(
+            matches!(err, SimpleDirectoryError::Search(_)),
+            "got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2607,7 +2637,8 @@ mod tests {
                 crate::commands::rename::FLUSH_INTERVAL_SECS_KEY.into(),
                 serde_json::json!(1),
             );
-            simple_directory_core::vault::settings::save(vault_dir.path(), &seeded).expect("seed settings");
+            simple_directory_core::vault::settings::save(vault_dir.path(), &seeded)
+                .expect("seed settings");
         }
 
         let state = AppState::new();

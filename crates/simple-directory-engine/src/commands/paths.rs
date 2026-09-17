@@ -13,7 +13,10 @@ pub(crate) fn rel_dir(raw: &str) -> Result<String, SimpleDirectoryError> {
     relpath::validate_rel_dir(raw).map_err(reject)
 }
 
-pub(crate) fn vault_file(vault: &Vault, raw: &str) -> Result<(String, PathBuf), SimpleDirectoryError> {
+pub(crate) fn vault_file(
+    vault: &Vault,
+    raw: &str,
+) -> Result<(String, PathBuf), SimpleDirectoryError> {
     relpath::contained_join(vault.root(), raw).map_err(reject)
 }
 
@@ -26,7 +29,10 @@ pub(crate) fn is_vacant(counterpart_rel: &str, rel: &str, abs: &Path) -> bool {
         && relpath::directory_holds_exact_name(abs) == Some(false)
 }
 
-pub(crate) fn vault_dir(vault: &Vault, raw: &str) -> Result<(String, PathBuf), SimpleDirectoryError> {
+pub(crate) fn vault_dir(
+    vault: &Vault,
+    raw: &str,
+) -> Result<(String, PathBuf), SimpleDirectoryError> {
     let rel = rel_dir(raw)?;
     if rel.is_empty() {
         return Ok((rel, vault.root().to_path_buf()));

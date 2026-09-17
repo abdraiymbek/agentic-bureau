@@ -431,7 +431,9 @@ async fn state_with_terminal(enabled: Option<bool>) -> (tempfile::TempDir, AppSt
     use tokio_util::sync::CancellationToken;
 
     let dir = tempfile::tempdir().expect("tmpdir");
-    let vault = simple_directory_core::Vault::open(dir.path()).await.expect("open");
+    let vault = simple_directory_core::Vault::open(dir.path())
+        .await
+        .expect("open");
     let mut settings = SettingsMap::new();
     if let Some(on) = enabled {
         settings.insert("plugins.terminal_enabled".into(), serde_json::json!(on));

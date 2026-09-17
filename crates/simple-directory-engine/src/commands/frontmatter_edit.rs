@@ -123,7 +123,10 @@ pub(crate) fn patch_source(source: &str, patch: &Map<String, Value>) -> String {
     for key in &removals {
         if let Some(i) = lines.iter().position(|l| key_of(l) == Some(key.as_str())) {
             lines.remove(i);
-            while lines.get(i).is_some_and(|l| l.starts_with(|c: char| c == ' ' || c == '\t')) {
+            while lines
+                .get(i)
+                .is_some_and(|l| l.starts_with(|c: char| c == ' ' || c == '\t'))
+            {
                 lines.remove(i);
             }
         }
@@ -155,7 +158,11 @@ pub(crate) fn valid_time(value: &str) -> bool {
     if b.len() != 5 || b[2] != b':' {
         return false;
     }
-    if !b.iter().enumerate().all(|(i, c)| i == 2 || c.is_ascii_digit()) {
+    if !b
+        .iter()
+        .enumerate()
+        .all(|(i, c)| i == 2 || c.is_ascii_digit())
+    {
         return false;
     }
     let hour = (b[0] - b'0') as u32 * 10 + (b[1] - b'0') as u32;
@@ -169,7 +176,10 @@ mod tests {
     use serde_json::json;
 
     fn patch(entries: &[(&str, Value)]) -> Map<String, Value> {
-        entries.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        entries
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     #[test]
@@ -189,7 +199,10 @@ mod tests {
     fn patch_appends_a_missing_key_before_the_closer() {
         let src = "---\nstatus: active\n---\nbody";
         let out = patch_source(src, &patch(&[("deadline", json!("2026-03-01"))]));
-        assert_eq!(out, "---\nstatus: active\ndeadline: \"2026-03-01\"\n---\nbody");
+        assert_eq!(
+            out,
+            "---\nstatus: active\ndeadline: \"2026-03-01\"\n---\nbody"
+        );
     }
 
     #[test]

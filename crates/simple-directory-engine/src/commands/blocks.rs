@@ -1,8 +1,8 @@
 use std::fmt::Write as _;
 
+use sha2::{Digest, Sha256};
 use simple_directory_core::vault::blocks::refresh_blocks;
 use simple_directory_index::broken_block_refs;
-use sha2::{Digest, Sha256};
 
 use serde::{Deserialize, Serialize};
 

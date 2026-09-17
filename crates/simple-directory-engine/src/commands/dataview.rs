@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use simple_directory_core::vault::relpath::contained_join;
 use simple_directory_query::{Query, Relation, Source};
 use simple_directory_table::TableCache;
-use serde::{Deserialize, Serialize};
 
 use crate::commands::open::open_vault_cloned_for;
 use crate::error::SimpleDirectoryError;

@@ -10,7 +10,7 @@ export interface EditorProps {
   onReady?: (view: EditorView) => void;
 }
 
-const simple-directoryTheme = EditorView.theme({
+const directoryTheme = EditorView.theme({
   '&': {
     height: '100%',
     fontSize: 'var(--text-base)',
@@ -45,7 +45,7 @@ const Editor = (props: EditorProps) => {
     view = new EditorView({
       state: EditorState.create({
         doc: props.initialContent,
-        extensions: [lineNumbers(), history(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), simple-directoryTheme],
+        extensions: [lineNumbers(), history(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), directoryTheme],
       }),
       parent: host,
     });

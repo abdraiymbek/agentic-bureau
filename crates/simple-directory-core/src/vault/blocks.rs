@@ -1,4 +1,6 @@
-use simple_directory_index::{replace_block_refs_for_file, replace_blocks_for_file, BlockRefRow, BlockRow};
+use simple_directory_index::{
+    replace_block_refs_for_file, replace_blocks_for_file, BlockRefRow, BlockRow,
+};
 
 use crate::vault::links::map_index_err;
 use crate::vault::Vault;

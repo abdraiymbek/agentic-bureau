@@ -79,8 +79,8 @@ pub async fn get_property(
 mod tests {
     use super::*;
     use crate::state::{AppState, OpenVault, ScanStatusBackend};
-    use simple_directory_core::Vault;
     use serde_json::json;
+    use simple_directory_core::Vault;
     use tempfile::tempdir;
     use tokio_util::sync::CancellationToken;
 

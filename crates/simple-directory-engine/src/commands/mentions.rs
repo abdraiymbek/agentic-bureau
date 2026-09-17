@@ -90,10 +90,9 @@ pub async fn link_mention(
                 libsql::params![source_path.clone()],
             )
             .await?;
-        let row = rows
-            .next()
-            .await?
-            .ok_or_else(|| SimpleDirectoryError::Db("pending count query returned no row".into()))?;
+        let row = rows.next().await?.ok_or_else(|| {
+            SimpleDirectoryError::Db("pending count query returned no row".into())
+        })?;
         row.get::<i64>(0)?
     };
     if pending_count > 0 {
@@ -217,7 +216,10 @@ fn build_needles(title: &str, aliases: &[String]) -> Vec<String> {
     out
 }
 
-async fn aliases_for(conn: &libsql::Connection, path: &str) -> Result<Vec<String>, SimpleDirectoryError> {
+async fn aliases_for(
+    conn: &libsql::Connection,
+    path: &str,
+) -> Result<Vec<String>, SimpleDirectoryError> {
     let mut rows = conn
         .query(
             "SELECT value FROM frontmatter WHERE file_path = ?1 AND key = 'aliases'",
@@ -664,7 +666,9 @@ mod tests {
 
     #[tokio::test]
     async fn link_mention_flushes_pending_rewrites_before_splicing() {
-        use simple_directory_index::{enqueue_pending, pending_for_target, NewPendingRewrite, RewriteKind};
+        use simple_directory_index::{
+            enqueue_pending, pending_for_target, NewPendingRewrite, RewriteKind,
+        };
 
         let (_dir, vault, state) = fresh("v1").await;
         seed_md(&vault, "Daily.md", "body").await;

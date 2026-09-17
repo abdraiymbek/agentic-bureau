@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use libsql::params;
 use simple_directory_ast::note_title;
 use simple_directory_index::{fold_name, IndexConn};
-use libsql::params;
 
 use crate::error::GraphError;
 use crate::model::{EdgeKind, GraphEdge, GraphModel, GraphNode, NodeId, NodeKind};
@@ -139,8 +139,8 @@ pub async fn build_model(conn: &IndexConn) -> Result<GraphModel, GraphError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use simple_directory_index::{open_index, replace_links_for_file, LinkRow};
     use libsql::params;
+    use simple_directory_index::{open_index, replace_links_for_file, LinkRow};
     use tempfile::TempDir;
 
     async fn open_test_index() -> (TempDir, IndexConn) {

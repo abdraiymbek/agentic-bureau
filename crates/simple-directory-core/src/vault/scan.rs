@@ -1,10 +1,10 @@
 use std::time::SystemTime;
 
+use libsql::params;
 use simple_directory_ast::{Anchor, Document};
 use simple_directory_index::{
     replace_links_for_file, sweep_stale_folders, upsert_folder, IndexError, LinkRow,
 };
-use libsql::params;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use walkdir::WalkDir;
@@ -192,7 +192,11 @@ pub async fn scan<S: ScanSink>(
             }
             continue;
         }
-        if entry.path().extension().is_some_and(|e| e == "simple-directory-tmp") {
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|e| e == "simple-directory-tmp")
+        {
             continue;
         }
 
@@ -533,7 +537,9 @@ mod tests {
             .await
             .expect("scan");
 
-        let got = simple_directory_index::list_folders(vault.index()).await.unwrap();
+        let got = simple_directory_index::list_folders(vault.index())
+            .await
+            .unwrap();
         assert_eq!(
             got,
             vec!["empty", "projects", "projects/2026"],
@@ -913,9 +919,9 @@ mod tests {
         assert!(rows
             .iter()
             .any(|r| r.tag_path == "review" && r.source == TagSource::Inline));
-        assert!(rows
-            .iter()
-            .any(|r| r.tag_path == "project/simple-directory" && r.source == TagSource::Frontmatter));
+        assert!(rows.iter().any(
+            |r| r.tag_path == "project/simple-directory" && r.source == TagSource::Frontmatter
+        ));
         assert!(rows
             .iter()
             .any(|r| r.tag_path == "todo" && r.source == TagSource::Frontmatter));

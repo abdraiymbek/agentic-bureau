@@ -28,12 +28,42 @@ struct Provider {
 }
 
 const PROVIDERS: &[Provider] = &[
-    Provider { id: "codex", name: "Codex", command: "codex", prompt: PromptStyle::Positional },
-    Provider { id: "claude", name: "Claude Code", command: "claude", prompt: PromptStyle::Positional },
-    Provider { id: "grok", name: "Grok", command: "grok", prompt: PromptStyle::Positional },
-    Provider { id: "antigravity", name: "Antigravity", command: "antigravity", prompt: PromptStyle::Positional },
-    Provider { id: "aider", name: "Aider", command: "aider", prompt: PromptStyle::Flag("--message") },
-    Provider { id: "gemini", name: "Gemini", command: "gemini", prompt: PromptStyle::Flag("-i") },
+    Provider {
+        id: "codex",
+        name: "Codex",
+        command: "codex",
+        prompt: PromptStyle::Positional,
+    },
+    Provider {
+        id: "claude",
+        name: "Claude Code",
+        command: "claude",
+        prompt: PromptStyle::Positional,
+    },
+    Provider {
+        id: "grok",
+        name: "Grok",
+        command: "grok",
+        prompt: PromptStyle::Positional,
+    },
+    Provider {
+        id: "antigravity",
+        name: "Antigravity",
+        command: "antigravity",
+        prompt: PromptStyle::Positional,
+    },
+    Provider {
+        id: "aider",
+        name: "Aider",
+        command: "aider",
+        prompt: PromptStyle::Flag("--message"),
+    },
+    Provider {
+        id: "gemini",
+        name: "Gemini",
+        command: "gemini",
+        prompt: PromptStyle::Flag("-i"),
+    },
 ];
 
 fn provider(id: &str) -> Option<&'static Provider> {
@@ -209,7 +239,11 @@ fn build_agent_spec(
     cwd_rel: String,
     cwd_abs: PathBuf,
 ) -> Result<OpenSpec, String> {
-    let prompt = req.prompt.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let prompt = req
+        .prompt
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
     let mut env: Vec<(String, String)> = vec![
         ("TERM".to_string(), "xterm-256color".to_string()),
         ("COLORTERM".to_string(), "truecolor".to_string()),
@@ -289,7 +323,11 @@ async fn snapshot_tree(
         .map_err(|e| e.to_string())?;
     let mut entries: Vec<(String, String, i64)> = Vec::new();
     while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
-        entries.push((row.get(0).map_err(|e| e.to_string())?, row.get(1).map_err(|e| e.to_string())?, row.get(2).map_err(|e| e.to_string())?));
+        entries.push((
+            row.get(0).map_err(|e| e.to_string())?,
+            row.get(1).map_err(|e| e.to_string())?,
+            row.get(2).map_err(|e| e.to_string())?,
+        ));
     }
 
     let root = vault.root().to_path_buf();
@@ -314,7 +352,11 @@ async fn snapshot_tree(
 }
 
 fn libsql_params(prefix: &str) -> Vec<libsql::Value> {
-    let len = if prefix.is_empty() { 0 } else { prefix.len() + 1 };
+    let len = if prefix.is_empty() {
+        0
+    } else {
+        prefix.len() + 1
+    };
     let pat = if prefix.is_empty() {
         String::new()
     } else {
@@ -362,7 +404,10 @@ pub async fn agent_open(
             snapshot,
         },
     );
-    Ok(AgentOpenResponse { agent_id, cwd: cwd_rel })
+    Ok(AgentOpenResponse {
+        agent_id,
+        cwd: cwd_rel,
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -416,33 +461,41 @@ pub async fn agent_changes(
     agents: tauri::State<'_, AgentRegistry>,
     agent_id: String,
 ) -> Result<AgentChangesResponse, String> {
-    let (vault_id, prefix, provider, started_at, snapshot_hashes) = agents.meta(&agent_id, |m| {
-        (
-            m.vault_id.clone(),
-            m.cwd_rel.clone(),
-            m.provider.clone(),
-            m.started_at,
-            m.snapshot
-                .iter()
-                .map(|(p, s)| (p.clone(), s.hash.clone()))
-                .collect::<HashMap<_, _>>(),
-        )
-    })?;
+    let (vault_id, prefix, provider, started_at, snapshot_hashes) =
+        agents.meta(&agent_id, |m| {
+            (
+                m.vault_id.clone(),
+                m.cwd_rel.clone(),
+                m.provider.clone(),
+                m.started_at,
+                m.snapshot
+                    .iter()
+                    .map(|(p, s)| (p.clone(), s.hash.clone()))
+                    .collect::<HashMap<_, _>>(),
+            )
+        })?;
     let now = current_tree(state.inner(), &vault_id, &prefix).await?;
 
     let mut changes = Vec::new();
     for (path, hash) in &now {
         match snapshot_hashes.get(path) {
-            None => changes.push(AgentChangeDto { path: path.clone(), status: "added".into() }),
-            Some(old) if old != hash => {
-                changes.push(AgentChangeDto { path: path.clone(), status: "modified".into() })
-            }
+            None => changes.push(AgentChangeDto {
+                path: path.clone(),
+                status: "added".into(),
+            }),
+            Some(old) if old != hash => changes.push(AgentChangeDto {
+                path: path.clone(),
+                status: "modified".into(),
+            }),
             _ => {}
         }
     }
     for path in snapshot_hashes.keys() {
         if !now.contains_key(path) {
-            changes.push(AgentChangeDto { path: path.clone(), status: "deleted".into() });
+            changes.push(AgentChangeDto {
+                path: path.clone(),
+                status: "deleted".into(),
+            });
         }
     }
     changes.sort_by(|a, b| a.path.cmp(&b.path));
@@ -483,8 +536,8 @@ pub async fn agent_diff(
             .map(|open| open.vault.clone())
             .ok_or_else(|| format!("vault '{vault_id}' is not open"))?
     };
-    let (rel, abs) = relpath::contained_join(vault.root(), &path)
-        .map_err(|e| format!("invalid path: {e}"))?;
+    let (rel, abs) =
+        relpath::contained_join(vault.root(), &path).map_err(|e| format!("invalid path: {e}"))?;
 
     let abs_for = abs.clone();
     let on_disk = tokio::task::spawn_blocking(move || {

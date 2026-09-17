@@ -94,7 +94,9 @@ pub(crate) async fn ensure_active(
     if active {
         Ok(())
     } else {
-        Err(SimpleDirectoryError::FeatureDisabled(feature.id().to_string()))
+        Err(SimpleDirectoryError::FeatureDisabled(
+            feature.id().to_string(),
+        ))
     }
 }
 
@@ -243,7 +245,9 @@ mod tests {
     async fn state_with(vault_id: &str, settings: SettingsMap) -> (tempfile::TempDir, AppState) {
         use crate::state::{OpenVault, ScanStatusBackend};
         let dir = tempfile::tempdir().expect("tmpdir");
-        let vault = simple_directory_core::Vault::open(dir.path()).await.expect("open");
+        let vault = simple_directory_core::Vault::open(dir.path())
+            .await
+            .expect("open");
         let state = AppState::new();
         state.vaults().write().await.insert(
             vault_id.to_string(),

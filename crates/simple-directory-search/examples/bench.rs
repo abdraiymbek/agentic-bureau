@@ -223,7 +223,8 @@ fn percentile(sorted_ms: &[f64], pct: f64) -> f64 {
 }
 
 fn main() {
-    let Ok(vault_dir) = std::env::var("SIMPLE_DIRECTORY_SEARCH_BENCH_VAULT").map(PathBuf::from) else {
+    let Ok(vault_dir) = std::env::var("SIMPLE_DIRECTORY_SEARCH_BENCH_VAULT").map(PathBuf::from)
+    else {
         println!(
             "set SIMPLE_DIRECTORY_SEARCH_BENCH_VAULT=<absolute-vault-path> to run this benchmark — skipping"
         );

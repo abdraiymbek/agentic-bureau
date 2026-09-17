@@ -105,10 +105,10 @@ async fn frontmatter_by_file(
         let file_path: String = row.get(0)?;
         let key: String = row.get(1)?;
         let raw: String = row.get(2)?;
-        by_file
-            .entry(file_path)
-            .or_default()
-            .insert(key, serde_json::from_str(&raw).unwrap_or(Value::String(raw)));
+        by_file.entry(file_path).or_default().insert(
+            key,
+            serde_json::from_str(&raw).unwrap_or(Value::String(raw)),
+        );
     }
     Ok(by_file)
 }
@@ -149,7 +149,9 @@ fn validate_patch(patch: &mut Map<String, Value>) -> Result<(), SimpleDirectoryE
 fn slugify(title: &str) -> String {
     let slug: String = title
         .chars()
-        .filter(|c| !c.is_control() && !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
+        .filter(|c| {
+            !c.is_control() && !matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+        })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -172,7 +174,9 @@ fn event_filename(date: &str, slug: &str) -> String {
 
 fn slug_of_path(rel: &str) -> Option<String> {
     let file = rel.rsplit('/').next()?;
-    let stem = file.strip_suffix(".md").or_else(|| file.strip_suffix(".MD"))?;
+    let stem = file
+        .strip_suffix(".md")
+        .or_else(|| file.strip_suffix(".MD"))?;
     if stem.len() > 11 && valid_iso_date(&stem[..10]) && stem.as_bytes()[10] == b' ' {
         Some(stem[11..].to_string())
     } else {
@@ -300,7 +304,11 @@ pub async fn event_create(
         Some("md"),
     )?;
 
-    let mut fm_lines = format!("type: event\ntitle: {}\ndate: {}", yaml_scalar(title), req.date);
+    let mut fm_lines = format!(
+        "type: event\ntitle: {}\ndate: {}",
+        yaml_scalar(title),
+        req.date
+    );
     if let Some(s) = &req.start {
         fm_lines.push_str(&format!("\nstart: {s}"));
     }
@@ -526,7 +534,10 @@ mod tests {
             req.date = date.into();
             req.start = start.map(str::to_string);
             req.end = end.map(str::to_string);
-            assert!(event_create(&state, req).await.is_err(), "{date} {start:?} {end:?}");
+            assert!(
+                event_create(&state, req).await.is_err(),
+                "{date} {start:?} {end:?}"
+            );
         }
     }
 
