@@ -8,6 +8,7 @@ import type { DataviewResult } from "../api/dataview";
 import { editorBlocks } from "../shell/editorBlocks";
 import { dataviewRunnerFacet, type DataviewRunner } from "./dataview";
 import { livePreviewFor, type PreviewBlocks } from "./livePreview";
+import { settledView } from "./settledView";
 
 const PLUGINS = { math: true, equations: true, propertyRefs: true };
 const DOC =
@@ -31,8 +32,8 @@ afterEach(() => {
 });
 
 function mount(blocks?: PreviewBlocks): HTMLElement {
-  view = new EditorView({
-    state: EditorState.create({
+  view = settledView(
+    EditorState.create({
       doc: DOC,
       selection: { anchor: DOC.length },
       extensions: [
@@ -41,7 +42,7 @@ function mount(blocks?: PreviewBlocks): HTMLElement {
         livePreviewFor(false, PLUGINS, blocks),
       ],
     }),
-  });
+  );
   return view.dom;
 }
 

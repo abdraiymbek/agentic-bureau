@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 
 import { blockRenderers, blockRenderersField } from "./blockRenderers";
 import { calcBlockRenderer, renderCalcBlock } from "./calcBlock";
+import { settledView } from "./settledView";
 import { equationsEnabledFacet } from "./equation";
 import { propertyResolverFacet } from "./propertyRef";
 import type { PropertyResolver } from "./propertyResolver";
@@ -26,8 +26,8 @@ function stubResolver(
 }
 
 function frames(doc: string, enabled = true): HTMLElement[] {
-  const view = new EditorView({
-    state: EditorState.create({
+  const view = settledView(
+    EditorState.create({
       doc,
       selection: { anchor: 0 },
       extensions: [
@@ -38,7 +38,7 @@ function frames(doc: string, enabled = true): HTMLElement[] {
         blockRenderers(calcBlockRenderer),
       ],
     }),
-  });
+  );
   const nodes = [...view.dom.querySelectorAll(".cm-calc")] as HTMLElement[];
   view.destroy();
   return nodes;

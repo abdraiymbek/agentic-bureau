@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 
 import { markdown } from "@codemirror/lang-markdown";
 import { csvBlockRenderer, delimiterForInfo } from "./csvBlock";
 import { renderDelimitedTable } from "../viewer/render";
 import { blockRenderers, blockRenderersField } from "./blockRenderers";
+import { settledView } from "./settledView";
 
 function stateWith(doc: string, cursor = 0): EditorState {
   return EditorState.create({
@@ -21,7 +21,7 @@ function stateWith(doc: string, cursor = 0): EditorState {
 }
 
 function renderedTables(doc: string, cursor = 0): HTMLElement[] {
-  const view = new EditorView({ state: stateWith(doc, cursor) });
+  const view = settledView(stateWith(doc, cursor));
   const tables = [...view.dom.querySelectorAll(".cm-csv-frame table")];
   view.destroy();
   return tables as HTMLElement[];

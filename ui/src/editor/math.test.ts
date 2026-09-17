@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 
 import { blockRenderers, blockRenderersField } from "./blockRenderers";
 import { mathBlockRenderer, mathEnabledFacet, renderMath } from "./math";
+import { settledView } from "./settledView";
 
 function rendered(doc: string, cursor = 0, enabled = true): HTMLElement[] {
-  const view = new EditorView({
-    state: EditorState.create({
+  const view = settledView(
+    EditorState.create({
       doc,
       selection: { anchor: cursor },
       extensions: [
@@ -19,7 +19,7 @@ function rendered(doc: string, cursor = 0, enabled = true): HTMLElement[] {
         blockRenderers(mathBlockRenderer),
       ],
     }),
-  });
+  );
   const nodes = [...view.dom.querySelectorAll(".cm-math")] as HTMLElement[];
   view.destroy();
   return nodes;

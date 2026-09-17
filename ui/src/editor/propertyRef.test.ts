@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import type { EditorView } from "@codemirror/view";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 
 import { wikilinkExtension } from "./wikilink";
@@ -14,6 +15,7 @@ import {
 } from "./propertyRef";
 import type { PropertyResolver } from "./propertyResolver";
 import type { GetPropertyResponse } from "../api/propertyRef";
+import { settledState, settledView } from "./settledView";
 
 function stubResolver(
   entries: Record<string, GetPropertyResponse>,
@@ -35,10 +37,8 @@ function makeView(
   resolver: PropertyResolver | null,
   anchor = 0,
 ): EditorView {
-  const host = document.createElement("div");
-  return new EditorView({
-    parent: host,
-    state: EditorState.create({
+  return settledView(
+    EditorState.create({
       doc,
       selection: { anchor },
       extensions: [
@@ -47,7 +47,7 @@ function makeView(
         propertyRefExtension,
       ],
     }),
-  });
+  );
 }
 
 function decoCount(state: EditorState): number {
@@ -60,15 +60,17 @@ function decoCount(state: EditorState): number {
 
 describe("propertyRefExtension", () => {
   it("emits no decoration when the doc has no property ref", () => {
-    const state = EditorState.create({
-      doc: "plain [[Link]] text\n",
-      extensions: [
-        markdown({ extensions: [wikilinkExtension] }),
-        propertyResolverFacet.of(stubResolver({})),
-        propertyRefField,
-      ],
-      selection: { anchor: 0 },
-    });
+    const state = settledState(
+      EditorState.create({
+        doc: "plain [[Link]] text\n",
+        extensions: [
+          markdown({ extensions: [wikilinkExtension] }),
+          propertyResolverFacet.of(stubResolver({})),
+          propertyRefField,
+        ],
+        selection: { anchor: 0 },
+      }),
+    );
     expect(decoCount(state)).toBe(0);
   });
 
@@ -76,15 +78,17 @@ describe("propertyRefExtension", () => {
     const resolver = stubResolver({
       "Gandalf age": { kind: "resolved", value: "2019" },
     });
-    const state = EditorState.create({
-      doc: "intro\n\nAge: [[Gandalf.age]].\n",
-      extensions: [
-        markdown({ extensions: [wikilinkExtension] }),
-        propertyResolverFacet.of(resolver),
-        propertyRefField,
-      ],
-      selection: { anchor: 0 },
-    });
+    const state = settledState(
+      EditorState.create({
+        doc: "intro\n\nAge: [[Gandalf.age]].\n",
+        extensions: [
+          markdown({ extensions: [wikilinkExtension] }),
+          propertyResolverFacet.of(resolver),
+          propertyRefField,
+        ],
+        selection: { anchor: 0 },
+      }),
+    );
     expect(decoCount(state)).toBe(1);
   });
 
@@ -126,15 +130,17 @@ describe("propertyRefExtension", () => {
     });
     const doc = "intro\n\nAge: [[Gandalf.age]].\n";
     const onLine = doc.indexOf("[[Gandalf.age]]") + 2;
-    const state = EditorState.create({
-      doc,
-      extensions: [
-        markdown({ extensions: [wikilinkExtension] }),
-        propertyResolverFacet.of(resolver),
-        propertyRefField,
-      ],
-      selection: { anchor: onLine },
-    });
+    const state = settledState(
+      EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [wikilinkExtension] }),
+          propertyResolverFacet.of(resolver),
+          propertyRefField,
+        ],
+        selection: { anchor: onLine },
+      }),
+    );
     expect(decoCount(state)).toBe(0);
   });
 
@@ -174,6 +180,7 @@ describe("propertyRefExtension", () => {
       ],
       selection: { anchor: 0 },
     });
+    ensureSyntaxTree(state, state.doc.length, 5_000);
     let count = 0;
     buildPropertyDecorations(state).between(0, state.doc.length, () => {
       count++;
@@ -193,6 +200,7 @@ describe("propertyRefExtension", () => {
       ],
       selection: { anchor: 0 },
     });
+    ensureSyntaxTree(state, state.doc.length, 5_000);
     const spy = vi.spyOn(state.doc, "toString");
     buildPropertyDecorations(state);
     expect(spy).not.toHaveBeenCalled();
@@ -207,6 +215,7 @@ describe("propertyRefExtension", () => {
       ],
       selection: { anchor: 0 },
     });
+    ensureSyntaxTree(state, state.doc.length, 5_000);
     let renderedValue: string | undefined;
     buildPropertyDecorations(state).between(0, state.doc.length, (_f, _t, deco) => {
       renderedValue = (deco.spec.widget as unknown as { render: { value?: string } })

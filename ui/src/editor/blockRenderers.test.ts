@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView, type DecorationSet } from "@codemirror/view";
+import type { DecorationSet } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 
 import {
@@ -11,6 +11,7 @@ import {
   matchRenderer,
   type BlockRenderer,
 } from "./blockRenderers";
+import { settledState, settledView } from "./settledView";
 
 function textRenderer(
   id: string,
@@ -53,7 +54,7 @@ function countRanges(set: DecorationSet): number {
 }
 
 function rendered(doc: string, renderers: BlockRenderer[], cursor = 0) {
-  const view = new EditorView({ state: stateWith(doc, renderers, cursor) });
+  const view = settledView(stateWith(doc, renderers, cursor));
   const nodes = [...view.dom.querySelectorAll("[data-renderer]")].map((n) => ({
     renderer: (n as HTMLElement).dataset.renderer,
     language: (n as HTMLElement).dataset.language,
@@ -123,7 +124,9 @@ describe("blockRenderersField", () => {
 
   it("reveals the source while the cursor is inside the block", () => {
     const doc = "```alpha\nbody\n```\n";
-    expect(countRanges(stateWith(doc, [alpha], 0).field(blockRenderersField).deco)).toBe(0);
+    expect(
+      countRanges(settledState(stateWith(doc, [alpha], 0)).field(blockRenderersField).deco),
+    ).toBe(0);
   });
 
   it("renders several registered languages in one document", () => {
@@ -153,9 +156,7 @@ describe("blockRenderersField", () => {
       revision: () => revision,
     });
     const doc = "```alpha\nbody\n```\n\ntrailing\n";
-    const view = new EditorView({
-      state: stateWith(doc, [volatile], doc.length - 2),
-    });
+    const view = settledView(stateWith(doc, [volatile], doc.length - 2));
     const first = view.state.field(blockRenderersField);
 
     revision = 1;
@@ -174,9 +175,7 @@ describe("blockRenderersField", () => {
       },
     });
     const doc = "```boom\nx\n```\n\n```alpha\nbody\n```\n\ntrailing\n";
-    const view = new EditorView({
-      state: stateWith(doc, [boom, alpha], doc.length - 2),
-    });
+    const view = settledView(stateWith(doc, [boom, alpha], doc.length - 2));
     const failed = [...view.dom.querySelectorAll(".cm-render-failed")];
     const survived = [...view.dom.querySelectorAll("[data-renderer]")];
     view.destroy();

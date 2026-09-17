@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 
 import { mathEnabledFacet } from "./math";
 import { displayMathField, scanDisplayMath } from "./mathDollar";
+import { settledView } from "./settledView";
 
 function rendered(doc: string, cursor = 0, enabled = true): HTMLElement[] {
-  const view = new EditorView({
-    state: EditorState.create({
+  const view = settledView(
+    EditorState.create({
       doc,
       selection: { anchor: cursor },
       extensions: [markdown(), mathEnabledFacet.of(enabled), displayMathField],
     }),
-  });
+  );
   const nodes = [...view.dom.querySelectorAll(".cm-math")] as HTMLElement[];
   view.destroy();
   return nodes;
@@ -94,13 +94,13 @@ describe("displayMathField recomputes per line, not per cursor position", () => 
   );
 
   function fieldAfterMove(from: number, to: number) {
-    const view = new EditorView({
-      state: EditorState.create({
+    const view = settledView(
+      EditorState.create({
         doc,
         selection: { anchor: from },
         extensions: [markdown(), mathEnabledFacet.of(true), displayMathField],
       }),
-    });
+    );
     const before = view.state.field(displayMathField);
     view.dispatch({ selection: { anchor: to } });
     const after = view.state.field(displayMathField);
