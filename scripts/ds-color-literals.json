@@ -23,6 +23,11 @@
       "count": 1,
       "kind": "bespoke",
       "note": "FALLBACK feeds readPalette() when a token resolves empty; WebGPU takes packed rgba, not var(). Matches --c-fg-muted (light)."
+    },
+    "ui/src/agents/visual.ts": {
+      "count": 21,
+      "kind": "bespoke",
+      "note": "applyVisual() builds an xterm ITheme, which takes concrete color strings, not var(). The 'minimal' agent visual is a deliberately fixed monochrome palette (black/white/grays) \u2014 it is the feature, not a token substitution."
     }
   }
 }

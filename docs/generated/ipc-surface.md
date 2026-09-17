@@ -8,9 +8,9 @@ Extraction is regex + delimiter counting over the Rust source, not a Rust parser
 
 ## Summary
 
-- `#[tauri::command]` sites parsed: **64**
+- `#[tauri::command]` sites parsed: **79**
 - `#[tauri::command]` sites unparsed: **0**
-- entries in `tauri::generate_handler!`: **64**
+- entries in `tauri::generate_handler!`: **79**
 - `simple-directory-ipc` public types (struct/enum): **10** · type aliases: **1** · public consts: **4**
 - `simple-directory-ipc` re-exports from `lib.rs`: **16**
 
@@ -20,82 +20,103 @@ Extraction is regex + delimiter counting over the Rust source, not a Rust parser
 
 | Command | Request | Response | Error | Tauri-injected | Defined in | Registered |
 |---|---|---|---|---|---|---|
+| `agent_changes` | `agent_id: String` | `AgentChangesResponse` | `String` | `state: tauri::State<'_, AppState>`<br>`agents: tauri::State<'_, AgentRegistry>` | `crates/simple-directory-app/src/agents.rs`:458 | yes |
+| `agent_close` | `agent_id: String` | `()` | `String` | `terminals: tauri::State<'_, TerminalRegistry>`<br>`agents: tauri::State<'_, AgentRegistry>` | `crates/simple-directory-app/src/agents.rs`:569 | yes |
+| `agent_diff` | `agent_id: String`<br>`path: String` | `AgentDiffResponse` | `String` | `state: tauri::State<'_, AppState>`<br>`agents: tauri::State<'_, AgentRegistry>` | `crates/simple-directory-app/src/agents.rs`:518 | yes |
 | `agent_instructions_accept` | `req: AgentInstructionsRequest` | `core::AgentInstructionsAccepted` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/agent_instructions.rs`:18 | yes |
 | `agent_instructions_decline` | `req: AgentInstructionsRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/agent_instructions.rs`:26 | yes |
 | `agent_instructions_status` | `req: AgentInstructionsRequest` | `core::AgentInstructionsStatus` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/agent_instructions.rs`:10 | yes |
-| `block_id_autocomplete` | `req: BlockIdAutocompleteRequest` | `BlockIdAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:525 | yes |
-| `cancel_vault_scan` | `req: CancelVaultScanRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:325 | yes |
-| `close_vault` | `req: CloseVaultRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`registry: tauri::State<'_, terminal::TerminalRegistry>`<br>`layouts: tauri::State<'_, simple_directory_engine::commands::graph::LayoutRegistry>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:747 | yes |
-| `create_block_ref` | `req: CreateBlockRefRequest` | `CreateBlockRefResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:533 | yes |
-| `create_file` | `req: CreateFileRequest` | `CreateFileResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:349 | yes |
-| `create_file_at_path` | `req: CreateFileAtPathRequest` | `CreateFileAtPathResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:357 | yes |
-| `create_folder` | `req: CreateFolderRequest` | `CreateFolderResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:365 | yes |
-| `dataview_query` | `req: DataviewQueryRequest` | `DataviewResult` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:731 | yes |
-| `delete_path` | `req: DeletePathRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:373 | yes |
-| `flush_pending_rewrites` | `req: FlushPendingRewritesRequest` | `FlushPendingRewritesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:605 | yes |
-| `flush_pending_rewrites_for_target` | `req: FlushPendingRewritesForTargetRequest` | `FlushPendingRewritesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:619 | yes |
-| `get_backlinks` | `req: GetBacklinksRequest` | `GetBacklinksResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:477 | yes |
-| `get_broken_block_refs` | `req: GetBrokenBlockRefsRequest` | `GetBrokenBlockRefsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:541 | yes |
-| `get_canonical_ast` | `req: GetCanonicalAstRequest` | `GetCanonicalAstResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:429 | yes |
-| `get_embed` | `req: GetEmbedRequest` | `GetEmbedResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:445 | yes |
-| `get_frontmatter` | `req: GetFrontmatterRequest` | `GetFrontmatterResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:381 | yes |
-| `get_pending_rewrites_breakdown` | `req: GetPendingRewritesBreakdownRequest` | `GetPendingRewritesBreakdownResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:641 | yes |
-| `get_pending_rewrites_count` | `req: GetPendingRewritesCountRequest` | `GetPendingRewritesCountResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:633 | yes |
-| `get_property` | `req: GetPropertyRequest` | `GetPropertyResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:453 | yes |
-| `get_setting` | `req: GetSettingRequest` | `GetSettingResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:413 | yes |
-| `get_unlinked_mentions` | `req: simple_directory_engine::api::types::GetUnlinkedMentionsRequest` | `simple_directory_engine::api::types::GetUnlinkedMentionsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:461 | yes |
-| `get_vault_info` | `req: GetVaultInfoRequest` | `GetVaultInfoResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:333 | yes |
+| `agent_open` | `req: AgentOpenRequest`<br>`on_output: Channel<TerminalChunk>` | `AgentOpenResponse` | `String` | `state: tauri::State<'_, AppState>`<br>`terminals: tauri::State<'_, TerminalRegistry>`<br>`agents: tauri::State<'_, AgentRegistry>` | `crates/simple-directory-app/src/agents.rs`:368 | yes |
+| `agents_detect` | — | `AgentsDetectResponse` | — | — | `crates/simple-directory-app/src/agents.rs`:133 | yes |
+| `block_id_autocomplete` | `req: BlockIdAutocompleteRequest` | `BlockIdAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:543 | yes |
+| `calendar_items` | `req: commands::calendar::CalendarItemsRequest` | `commands::calendar::CalendarItemsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:833 | yes |
+| `cancel_vault_scan` | `req: CancelVaultScanRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:342 | yes |
+| `close_vault` | `req: CloseVaultRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`registry: tauri::State<'_, terminal::TerminalRegistry>`<br>`agents: tauri::State<'_, agents::AgentRegistry>`<br>`layouts: tauri::State<'_, simple_directory_engine::commands::graph::LayoutRegistry>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:765 | yes |
+| `create_block_ref` | `req: CreateBlockRefRequest` | `CreateBlockRefResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:551 | yes |
+| `create_file` | `req: CreateFileRequest` | `CreateFileResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:366 | yes |
+| `create_file_at_path` | `req: CreateFileAtPathRequest` | `CreateFileAtPathResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:374 | yes |
+| `create_folder` | `req: CreateFolderRequest` | `CreateFolderResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:382 | yes |
+| `dataview_query` | `req: DataviewQueryRequest` | `DataviewResult` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:749 | yes |
+| `delete_path` | `req: DeletePathRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:390 | yes |
+| `event_create` | `req: commands::calendar::EventCreateRequest` | `commands::calendar::EventCreateResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:841 | yes |
+| `event_delete` | `req: commands::calendar::EventDeleteRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:863 | yes |
+| `event_update` | `req: commands::calendar::EventUpdateRequest` | `commands::calendar::EventUpdateResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:849 | yes |
+| `flush_pending_rewrites` | `req: FlushPendingRewritesRequest` | `FlushPendingRewritesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:623 | yes |
+| `flush_pending_rewrites_for_target` | `req: FlushPendingRewritesForTargetRequest` | `FlushPendingRewritesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:637 | yes |
+| `get_backlinks` | `req: GetBacklinksRequest` | `GetBacklinksResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:495 | yes |
+| `get_broken_block_refs` | `req: GetBrokenBlockRefsRequest` | `GetBrokenBlockRefsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:559 | yes |
+| `get_canonical_ast` | `req: GetCanonicalAstRequest` | `GetCanonicalAstResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:446 | yes |
+| `get_embed` | `req: GetEmbedRequest` | `GetEmbedResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:462 | yes |
+| `get_frontmatter` | `req: GetFrontmatterRequest` | `GetFrontmatterResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:398 | yes |
+| `get_pending_rewrites_breakdown` | `req: GetPendingRewritesBreakdownRequest` | `GetPendingRewritesBreakdownResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:659 | yes |
+| `get_pending_rewrites_count` | `req: GetPendingRewritesCountRequest` | `GetPendingRewritesCountResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:651 | yes |
+| `get_property` | `req: GetPropertyRequest` | `GetPropertyResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:470 | yes |
+| `get_setting` | `req: GetSettingRequest` | `GetSettingResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:430 | yes |
+| `get_unlinked_mentions` | `req: simple_directory_engine::api::types::GetUnlinkedMentionsRequest` | `simple_directory_engine::api::types::GetUnlinkedMentionsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:478 | yes |
+| `get_vault_info` | `req: GetVaultInfoRequest` | `GetVaultInfoResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:350 | yes |
 | `graph_layout` | `req: GraphLayoutRequest`<br>`on_frame: Channel<LayoutFrame>` | `LayoutComplete` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`registry: tauri::State<'_, LayoutRegistry>` | `crates/simple-directory-app/src/graph.rs`:17 | yes |
 | `graph_layout_cancel` | `req: GraphLayoutCancelRequest` | `()` | `SimpleDirectoryError` | `registry: tauri::State<'_, LayoutRegistry>` | `crates/simple-directory-app/src/graph.rs`:35 | yes |
 | `graph_snapshot` | `req: GraphSnapshotRequest` | `GraphSnapshot` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/graph.rs`:9 | yes |
-| `link_autocomplete` | `req: LinkAutocompleteRequest` | `LinkAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:493 | yes |
-| `link_mention` | `req: simple_directory_engine::api::types::LinkMentionRequest` | `simple_directory_engine::api::types::LinkMentionResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:469 | yes |
-| `list_dangling_links` | `req: ListDanglingLinksRequest` | `ListDanglingLinksResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:671 | yes |
-| `list_files` | `req: ListFilesRequest` | `ListFilesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:341 | yes |
-| `list_recent_rename_ops` | `req: ListRecentRenameOpsRequest` | `ListRecentRenameOpsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:649 | yes |
-| `list_recent_vaults` | — | `recent_vaults::ListRecentVaultsResponse` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:289 | yes |
-| `list_tag_assignments` | `req: ListTagAssignmentsRequest` | `ListTagAssignmentsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:509 | yes |
-| `list_tags` | `req: ListTagsRequest` | `ListTagsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:517 | yes |
-| `load_tab_session` | `vault_path: String` | `tab_sessions::TabSession` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:311 | yes |
-| `open_vault` | `req: OpenVaultRequest` | `OpenVaultResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:258 | yes |
-| `query_tag_page` | `req: QueryTagPageRequest` | `QueryTagPageResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:485 | yes |
-| `read_file_bytes` | `req: ReadFileBytesRequest` | `ReadFileBytesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:397 | yes |
-| `read_file_text` | `req: ReadFileTextRequest` | `ReadFileTextResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:389 | yes |
-| `reload_settings` | `req: ReloadSettingsRequest` | `ReloadSettingsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:739 | yes |
-| `remove_recent_vault` | `req: recent_vaults::RemoveRecentVaultRequest` | `()` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:297 | yes |
-| `rename_block_id` | `req: RenameBlockIdRequest` | `RenameBlockIdResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:591 | yes |
-| `rename_file` | `req: RenameFileRequest` | `RenameFileResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:549 | yes |
-| `rename_folder` | `req: RenameFolderRequest` | `RenameFolderResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:563 | yes |
-| `rename_tag` | `req: RenameTagRequest` | `RenameTagResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:577 | yes |
-| `repair_dangling_link` | `req: RepairDanglingLinkRequest` | `RepairDanglingLinkResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:679 | yes |
-| `resolve_link` | `req: ResolveLinkRequest` | `ResolveLinkResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:437 | yes |
-| `save_tab_session` | `vault_path: String`<br>`session: tab_sessions::TabSession` | `()` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:318 | yes |
-| `search` | `req: SearchRequest` | `SearchResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:693 | yes |
-| `search_get_health` | `req: SearchVaultRequest` | `SearchHealthDto` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:723 | yes |
-| `search_index_status` | `req: SearchVaultRequest` | `SearchIndexStatusDto` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:701 | yes |
-| `search_rebuild_index` | `req: SearchVaultRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:709 | yes |
-| `set_setting` | `req: SetSettingRequest` | `SetSettingResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:421 | yes |
-| `tag_autocomplete` | `req: TagAutocompleteRequest` | `TagAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:501 | yes |
+| `link_autocomplete` | `req: LinkAutocompleteRequest` | `LinkAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:511 | yes |
+| `link_mention` | `req: simple_directory_engine::api::types::LinkMentionRequest` | `simple_directory_engine::api::types::LinkMentionResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:487 | yes |
+| `list_dangling_links` | `req: ListDanglingLinksRequest` | `ListDanglingLinksResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:689 | yes |
+| `list_files` | `req: ListFilesRequest` | `ListFilesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:358 | yes |
+| `list_recent_rename_ops` | `req: ListRecentRenameOpsRequest` | `ListRecentRenameOpsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:667 | yes |
+| `list_recent_vaults` | — | `recent_vaults::ListRecentVaultsResponse` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:306 | yes |
+| `list_tag_assignments` | `req: ListTagAssignmentsRequest` | `ListTagAssignmentsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:527 | yes |
+| `list_tags` | `req: ListTagsRequest` | `ListTagsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:535 | yes |
+| `load_tab_session` | `vault_path: String` | `tab_sessions::TabSession` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:328 | yes |
+| `open_vault` | `req: OpenVaultRequest` | `OpenVaultResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:275 | yes |
+| `project_add_task` | `req: commands::projects::ProjectAddTaskRequest` | `commands::projects::ProjectAddTaskResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:817 | yes |
+| `project_create` | `req: commands::projects::ProjectCreateRequest` | `commands::projects::ProjectCreateResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:801 | yes |
+| `project_overview` | `req: commands::projects::ProjectOverviewRequest` | `commands::projects::ProjectOverviewResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:793 | yes |
+| `project_set_task` | `req: commands::projects::ProjectSetTaskRequest` | `commands::projects::ProjectSetTaskResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:825 | yes |
+| `project_update` | `req: commands::projects::ProjectUpdateRequest` | `commands::projects::ProjectUpdateResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:809 | yes |
+| `projects_list` | `req: commands::projects::ProjectsListRequest` | `commands::projects::ProjectsListResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:785 | yes |
+| `query_tag_page` | `req: QueryTagPageRequest` | `QueryTagPageResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:503 | yes |
+| `read_file_bytes` | `req: ReadFileBytesRequest` | `ReadFileBytesResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:414 | yes |
+| `read_file_text` | `req: ReadFileTextRequest` | `ReadFileTextResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:406 | yes |
+| `reload_settings` | `req: ReloadSettingsRequest` | `ReloadSettingsResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:757 | yes |
+| `remove_recent_vault` | `req: recent_vaults::RemoveRecentVaultRequest` | `()` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:314 | yes |
+| `rename_block_id` | `req: RenameBlockIdRequest` | `RenameBlockIdResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:609 | yes |
+| `rename_file` | `req: RenameFileRequest` | `RenameFileResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:567 | yes |
+| `rename_folder` | `req: RenameFolderRequest` | `RenameFolderResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:581 | yes |
+| `rename_tag` | `req: RenameTagRequest` | `RenameTagResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:595 | yes |
+| `repair_dangling_link` | `req: RepairDanglingLinkRequest` | `RepairDanglingLinkResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:697 | yes |
+| `resolve_link` | `req: ResolveLinkRequest` | `ResolveLinkResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:454 | yes |
+| `save_tab_session` | `vault_path: String`<br>`session: tab_sessions::TabSession` | `()` | — | `app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:335 | yes |
+| `search` | `req: SearchRequest` | `SearchResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:711 | yes |
+| `search_get_health` | `req: SearchVaultRequest` | `SearchHealthDto` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:741 | yes |
+| `search_index_status` | `req: SearchVaultRequest` | `SearchIndexStatusDto` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:719 | yes |
+| `search_rebuild_index` | `req: SearchVaultRequest` | `()` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:727 | yes |
+| `set_setting` | `req: SetSettingRequest` | `SetSettingResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:438 | yes |
+| `tag_autocomplete` | `req: TagAutocompleteRequest` | `TagAutocompleteResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:519 | yes |
 | `terminal_busy` | `terminal_id: String` | `bool` | `String` | `registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:119 | yes |
 | `terminal_close` | `terminal_id: String` | `()` | `String` | `registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:127 | yes |
 | `terminal_open` | `vault_id: String`<br>`cols: u16`<br>`rows: u16`<br>`on_output: Channel<TerminalChunk>` | `TerminalOpenResponse` | `String` | `state: tauri::State<'_, AppState>`<br>`registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:85 | yes |
 | `terminal_reap_all` | — | `()` | `String` | `registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:136 | yes |
 | `terminal_resize` | `terminal_id: String`<br>`cols: u16`<br>`rows: u16` | `()` | `String` | `registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:109 | yes |
 | `terminal_write` | `terminal_id: String`<br>`data: String` | `()` | `String` | `registry: tauri::State<'_, TerminalRegistry>` | `crates/simple-directory-app/src/terminal.rs`:100 | yes |
-| `undo_rename` | `req: UndoRenameRequest` | `UndoRenameResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:657 | yes |
-| `write_file_text` | `req: WriteFileTextRequest` | `WriteFileTextResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:405 | yes |
+| `undo_rename` | `req: UndoRenameRequest` | `UndoRenameResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>`<br>`app: tauri::AppHandle` | `crates/simple-directory-app/src/lib.rs`:675 | yes |
+| `write_file_text` | `req: WriteFileTextRequest` | `WriteFileTextResponse` | `SimpleDirectoryError` | `state: tauri::State<'_, AppState>` | `crates/simple-directory-app/src/lib.rs`:422 | yes |
 
 ### Registration cross-check
 
 - defined with `#[tauri::command]` but **not** in `tauri::generate_handler!`: none
 - in `tauri::generate_handler!` but **no** parsed definition found: none
 
-<details><summary>`tauri::generate_handler!` entries as written (64)</summary>
+<details><summary>`tauri::generate_handler!` entries as written (79)</summary>
 
 - `agent_instructions::agent_instructions_accept`
 - `agent_instructions::agent_instructions_decline`
 - `agent_instructions::agent_instructions_status`
+- `agents::agent_changes`
+- `agents::agent_close`
+- `agents::agent_diff`
+- `agents::agent_open`
+- `agents::agents_detect`
 - `block_id_autocomplete`
+- `calendar_items`
 - `cancel_vault_scan`
 - `close_vault`
 - `create_block_ref`
@@ -104,6 +125,9 @@ Extraction is regex + delimiter counting over the Rust source, not a Rust parser
 - `create_folder`
 - `dataview_query`
 - `delete_path`
+- `event_create`
+- `event_delete`
+- `event_update`
 - `flush_pending_rewrites`
 - `flush_pending_rewrites_for_target`
 - `get_backlinks`
@@ -130,6 +154,12 @@ Extraction is regex + delimiter counting over the Rust source, not a Rust parser
 - `list_tags`
 - `load_tab_session`
 - `open_vault`
+- `project_add_task`
+- `project_create`
+- `project_overview`
+- `project_set_task`
+- `project_update`
+- `projects_list`
 - `query_tag_page`
 - `read_file_bytes`
 - `read_file_text`

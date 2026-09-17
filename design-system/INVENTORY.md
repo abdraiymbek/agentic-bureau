@@ -2,7 +2,7 @@
 
 # Design system component inventory
 
-Every component under `design-system/src/components` — 26 of them. **Check this list before hand-rolling a control** ([`../docs/principles/design-system.md`](../docs/principles/design-system.md)).
+Every component under `design-system/src/components` — 27 of them. **Check this list before hand-rolling a control** ([`../docs/principles/design-system.md`](../docs/principles/design-system.md)).
 
 Regenerate with `python3 scripts/gen_ds_inventory.py`; `--check` fails if the file is stale. Names, import paths and props are parsed from the source. Purposes are **hand-curated** in the generator — this repo bans comments, so there is no doc-comment to read — and a component with no entry says so instead of guessing.
 
@@ -11,7 +11,7 @@ Regenerate with `python3 scripts/gen_ds_inventory.py`; `--check` fails if the fi
 | `brand/` | `CubeMark` |
 | `data/` | `BacklinkRow`, `FileIcon`, `FileTreeRow`, `FolderTreeRow`, `RenameInput`, `Tag` |
 | `feedback/` | `Badge`, `Callout`, `Toast`, `Tooltip` |
-| `forms/` | `Button`, `DatePicker`, `IconButton`, `Link`, `SegmentedControl`, `Select`, `TextInput`, `Toggle` |
+| `forms/` | `Button`, `Checkbox`, `DatePicker`, `IconButton`, `Link`, `SegmentedControl`, `Select`, `TextInput`, `Toggle` |
 | `graphics/` | `Icon` |
 | `overlay/` | `CommandPalette`, `ConfirmDialog`, `Menu`, `Modal`, `Popover`, `TwoPaneModal` |
 
@@ -259,6 +259,21 @@ import Button from "@ds/components/forms/Button/Button";
 | `onClick` | `(e: MouseEvent) => void` | no |
 | `onFocus` | `() => void` | no |
 | `children` | `JSX.Element` | yes |
+
+### Checkbox
+
+Square check control (`role="checkbox"`) for row-level boolean state — `label` supplies the accessible name.
+
+```ts
+import Checkbox from "@ds/components/forms/Checkbox/Checkbox";
+```
+
+| Prop | Type | Required |
+|---|---|---|
+| `checked` | `boolean` | yes |
+| `onChange` | `(checked: boolean) => void` | yes |
+| `disabled` | `boolean` | no |
+| `label` | `string` | yes |
 
 ### DatePicker
 

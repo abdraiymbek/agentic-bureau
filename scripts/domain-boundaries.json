@@ -57,7 +57,10 @@
     "graph":       { "class": "block", "domain": "graph" },
     "integrity":   { "class": "block", "domain": "integrity" },
     "property_ref": { "class": "block", "domain": "property-refs" },
-    "search":      { "class": "block", "domain": "search" }
+    "search":      { "class": "block", "domain": "search" },
+    "frontmatter_edit": { "class": "substrate", "domain": "vault" },
+    "projects":    { "class": "block", "domain": "planning" },
+    "calendar":    { "class": "block", "domain": "planning" }
   },
 
   "engine_support": {
@@ -95,6 +98,8 @@
     "api/propertyRef": { "class": "block", "domain": "property-refs" },
     "api/search": { "class": "block", "domain": "search" },
     "api/terminal": { "class": "block", "domain": "terminal" },
+    "api/agents": { "class": "block", "domain": "agents" },
+    "api/planning": { "class": "block", "domain": "planning" },
     "ast":        { "class": "substrate", "domain": "document" },
     "core":       { "class": "substrate", "domain": "core" },
     "vault":      { "class": "substrate", "domain": "vault" },
@@ -130,6 +135,9 @@
     "statusbar":  { "class": "block", "domain": "statusbar" },
     "tabs":       { "class": "substrate", "domain": "tabs" },
     "terminal":   { "class": "block", "domain": "terminal" },
+    "pty":        { "class": "substrate", "domain": "pty" },
+    "planning":   { "class": "block", "domain": "planning" },
+    "agents":     { "class": "block", "domain": "agents" },
     "viewer":     { "class": "block", "domain": "viewer" }
   },
 

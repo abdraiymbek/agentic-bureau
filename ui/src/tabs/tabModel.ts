@@ -2,7 +2,11 @@ export type TabView =
   | { kind: "file"; path: string }
   | { kind: "tag"; tagPath: string }
   | { kind: "terminal"; key: string }
-  | { kind: "graph" };
+  | { kind: "graph" }
+  | { kind: "project"; path: string }
+  | { kind: "calendar" }
+  | { kind: "agents" }
+  | { kind: "agent"; key: string };
 
 export interface Tab {
   id: string;
@@ -26,18 +30,30 @@ export function tabId(view: TabView): string {
       return `terminal:${view.key}`;
     case "graph":
       return "graph";
+    case "project":
+      return `project:${view.path}`;
+    case "calendar":
+      return "calendar";
+    case "agents":
+      return "agents";
+    case "agent":
+      return `agent:${view.key}`;
   }
 }
 
 export type PersistableTabView = Extract<
   TabView,
-  { kind: "file" } | { kind: "tag" }
+  { kind: "file" } | { kind: "tag" } | { kind: "project" }
 >;
 
 export function isPersistableTab(
   t: Tab,
 ): t is Tab & { view: PersistableTabView } {
-  return t.view.kind === "file" || t.view.kind === "tag";
+  return (
+    t.view.kind === "file" ||
+    t.view.kind === "tag" ||
+    t.view.kind === "project"
+  );
 }
 
 export function activeTab(s: TabSet): Tab | null {
@@ -47,7 +63,11 @@ export function activeTab(s: TabSet): Tab | null {
 export const MAX_TABS = 8;
 
 function isReplaceable(t: Tab): boolean {
-  return t.view.kind !== "terminal" && t.view.kind !== "graph";
+  return (
+    t.view.kind === "file" ||
+    t.view.kind === "tag" ||
+    t.view.kind === "project"
+  );
 }
 
 type Slot = { at: number } | "existing" | "append" | "full";
@@ -56,7 +76,9 @@ function slotFor(s: TabSet, view: TabView, max: number): Slot {
   const id = tabId(view);
   if (s.tabs.some((t) => t.id === id)) return "existing";
   if (
-    (view.kind === "terminal" || view.kind === "graph") &&
+    (view.kind === "terminal" ||
+      view.kind === "graph" ||
+      view.kind === "agent") &&
     s.tabs.filter((t) => !isReplaceable(t)).length >= max - 1
   ) {
     return "full";
@@ -144,10 +166,10 @@ export function remapTabPaths(
   const rename = new Map<string, string>();
   for (const t of s.tabs) {
     let next = t;
-    if (t.view.kind === "file") {
+    if (t.view.kind === "file" || t.view.kind === "project") {
       const to = remap(t.view.path);
       if (to !== null && to !== t.view.path) {
-        const view: TabView = { kind: "file", path: to };
+        const view: TabView = { ...t.view, path: to };
         next = { ...t, id: tabId(view), view };
         rename.set(t.id, next.id);
       }
@@ -163,8 +185,13 @@ export function remapTabPaths(
 export function dropMissingTabs(
   s: TabSet,
   exists: (path: string) => boolean,
+  existsDir: (path: string) => boolean = () => true,
 ): TabSet {
-  const tabs = s.tabs.filter((t) => t.view.kind !== "file" || exists(t.view.path));
+  const tabs = s.tabs.filter((t) => {
+    if (t.view.kind === "file") return exists(t.view.path);
+    if (t.view.kind === "project") return existsDir(t.view.path);
+    return true;
+  });
   if (tabs.length === s.tabs.length) return s;
   const activeId = tabs.some((t) => t.id === s.activeId)
     ? s.activeId

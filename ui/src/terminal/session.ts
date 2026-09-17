@@ -1,12 +1,12 @@
+import { terminalOpen } from "../api/terminal";
 import {
   terminalClose,
-  terminalOpen,
   terminalResize,
   terminalWrite,
   type TerminalExit,
-} from "../api/terminal";
-import { decodeChunk } from "./chunk";
-import { sizeChanged, type TerminalSize } from "./resize";
+} from "../api/pty";
+import { decodeChunk } from "../pty/chunk";
+import { sizeChanged, type TerminalSize } from "../pty/resize";
 
 export interface SessionHandlers {
   onBytes: (bytes: Uint8Array) => void;

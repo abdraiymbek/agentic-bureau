@@ -14,11 +14,21 @@ export interface OmniBarProps {
   onClose: () => void;
   onOpenNote: (path: string) => void;
   onOpenTag: (tag: string) => void;
+  onOpenProject: (path: string) => void;
+  onOpenTask: (path: string) => void;
   onRunCommand: (id: string) => void;
 }
 
 const iconFor = (item: OmniItem): IconName =>
-  item.kind === "tag" ? "hash" : item.kind === "command" ? "command" : "file-text";
+  item.kind === "tag"
+    ? "hash"
+    : item.kind === "command"
+      ? "command"
+      : item.kind === "project"
+        ? "kanban"
+        : item.kind === "task"
+          ? "list-checks"
+          : "file-text";
 
 const OmniBar: Component<OmniBarProps> = (props) => {
   const [query, setQuery] = createSignal("");
@@ -51,6 +61,8 @@ const OmniBar: Component<OmniBarProps> = (props) => {
   const activate = (item: OmniItem) => {
     if (item.kind === "note") props.onOpenNote(item.path);
     else if (item.kind === "tag") props.onOpenTag(item.tag);
+    else if (item.kind === "project") props.onOpenProject(item.path);
+    else if (item.kind === "task") props.onOpenTask(item.path);
     else props.onRunCommand(item.id);
   };
 
@@ -58,7 +70,12 @@ const OmniBar: Component<OmniBarProps> = (props) => {
     results().map((r, i) => ({
       id: `omni-opt-${i}`,
       label: matchText(r.item),
-      detail: r.item.kind === "note" ? r.item.path : undefined,
+      detail:
+        r.item.kind === "note" || r.item.kind === "project"
+          ? r.item.path
+          : r.item.kind === "task"
+            ? r.item.project
+            : undefined,
       icon: iconFor(r.item),
       matchedIndices: r.matchedIndices,
       onRun: () => activate(r.item),
@@ -77,9 +94,9 @@ const OmniBar: Component<OmniBarProps> = (props) => {
       }}
       selectedIndex={selected()}
       onSelectedIndexChange={setSelected}
-      placeholder="Jump to a note or tag…"
+      placeholder="Jump to a note, project or command…"
       emptyLabel={
-        props.items.length === 0 ? "No notes yet" : "No notes or tags match"
+        props.items.length === 0 ? "Nothing yet" : "No matches"
       }
       ariaLabel="Quick switcher"
       inputAriaLabel="Search notes and tags"

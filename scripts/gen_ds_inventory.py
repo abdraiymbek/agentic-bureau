@@ -35,6 +35,8 @@ PURPOSES = {
               "and two sizes.",
     "Callout": "Block notice with a tone, an optional title and arbitrary "
                "body content.",
+    "Checkbox": "Square check control (`role=\"checkbox\"`) for row-level "
+                "boolean state — `label` supplies the accessible name.",
     "CommandPalette": "Modal command list filtered by a substring query over "
                       "a flat `Command[]`.",
     "CubeMark": "The simple.directory cube logo, drawn inline as SVG at a "

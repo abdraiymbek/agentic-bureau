@@ -55,6 +55,8 @@ function renderBar(over: Partial<Parameters<typeof OmniBar>[0]> = {}) {
     onClose: vi.fn(),
     onOpenNote: vi.fn(),
     onOpenTag: vi.fn(),
+    onOpenProject: vi.fn(),
+    onOpenTask: vi.fn(),
     onRunCommand: vi.fn(),
   };
   mount(() => (
@@ -65,6 +67,8 @@ function renderBar(over: Partial<Parameters<typeof OmniBar>[0]> = {}) {
       onClose={handlers.onClose}
       onOpenNote={handlers.onOpenNote}
       onOpenTag={handlers.onOpenTag}
+      onOpenProject={handlers.onOpenProject}
+      onOpenTask={handlers.onOpenTask}
       onRunCommand={handlers.onRunCommand}
       {...over}
     />
@@ -166,14 +170,14 @@ describe("OmniBar over the design-system CommandPalette", () => {
   it("distinguishes an empty vault from an empty result set", () => {
     renderBar({ items: [], recentNotes: [] });
     expect(document.querySelector(".command-empty")?.textContent).toBe(
-      "No notes yet",
+      "Nothing yet",
     );
     dispose?.();
     document.body.innerHTML = "";
     renderBar();
     type("zzzzqqq");
     expect(document.querySelector(".command-empty")?.textContent).toBe(
-      "No notes or tags match",
+      "No matches",
     );
   });
 

@@ -22,6 +22,8 @@ import {
 
 export type RightSidebarPanel = "backlinks" | "unlinked_mentions" | "integrity";
 export type LeftSidebarMode = "files" | "tags";
+export type NavSection = "notes" | "projects" | "calendar" | "agents";
+export type AgentsVisual = "default" | "image" | "ascii" | "minimal";
 
 export interface SettingsStateDeps {
   vaultId: Accessor<string | null>;
@@ -77,6 +79,12 @@ export interface SettingsState {
   setRightSidebarPanelValue: (id: string) => void;
   leftSidebarMode: Accessor<LeftSidebarMode>;
   setLeftSidebarModeValue: (id: string) => void;
+  navSection: Accessor<NavSection>;
+  setNavSectionValue: (id: string) => void;
+  agentsVisual: Accessor<AgentsVisual>;
+  setAgentsVisualValue: (id: string) => void;
+  agentsVisualImage: Accessor<string>;
+  setAgentsVisualImageValue: (path: string) => void;
 
   shortcutOverrides: Accessor<Record<string, string>>;
   setShortcutOverridesValue: (next: Record<string, string>) => void;
@@ -133,6 +141,15 @@ export function createSettingsState(deps: SettingsStateDeps): SettingsState {
     createSignal<RightSidebarPanel>(SETTINGS_DEFAULTS.rightSidebarPanel);
   const [leftSidebarMode, setLeftSidebarMode] = createSignal<LeftSidebarMode>(
     SETTINGS_DEFAULTS.leftSidebarMode,
+  );
+  const [navSection, setNavSection] = createSignal<NavSection>(
+    SETTINGS_DEFAULTS.navSection,
+  );
+  const [agentsVisual, setAgentsVisual] = createSignal<AgentsVisual>(
+    SETTINGS_DEFAULTS.agentsVisual,
+  );
+  const [agentsVisualImage, setAgentsVisualImage] = createSignal(
+    SETTINGS_DEFAULTS.agentsVisualImage,
   );
   const [shortcutOverrides, setShortcutOverrides] = createSignal<
     Record<string, string>
@@ -246,6 +263,30 @@ export function createSettingsState(deps: SettingsStateDeps): SettingsState {
     persistSetting(vid(), "ui.left_sidebar_mode", id);
   };
 
+  const setNavSectionValue = (id: string) => {
+    if (
+      id !== "notes" &&
+      id !== "projects" &&
+      id !== "calendar" &&
+      id !== "agents"
+    )
+      return;
+    setNavSection(id);
+    persistSetting(vid(), "ui.nav_section", id);
+  };
+
+  const setAgentsVisualValue = (id: string) => {
+    if (id !== "default" && id !== "image" && id !== "ascii" && id !== "minimal")
+      return;
+    setAgentsVisual(id);
+    persistSetting(vid(), "agents.visual", id);
+  };
+
+  const setAgentsVisualImageValue = (path: string) => {
+    setAgentsVisualImage(path);
+    persistSetting(vid(), "agents.visual_image", path);
+  };
+
   const setShortcutOverridesValue = (next: Record<string, string>) => {
     setShortcutOverrides(next);
     persistSetting(vid(), "shortcuts.overrides", next);
@@ -256,6 +297,7 @@ export function createSettingsState(deps: SettingsStateDeps): SettingsState {
     setRightSidebarCollapsed(false);
     setRightSidebarPanel("backlinks");
     setLeftSidebarMode("files");
+    setNavSection(SETTINGS_DEFAULTS.navSection);
     setShortcutOverrides({});
     setCorePlugins({});
     setStatusbarConfig({});
@@ -372,6 +414,24 @@ export function createSettingsState(deps: SettingsStateDeps): SettingsState {
       SETTINGS_DEFAULTS.leftSidebarMode,
       setLeftSidebarMode,
     );
+    await seedSetting(
+      vaultId,
+      "ui.nav_section",
+      SETTINGS_DEFAULTS.navSection,
+      setNavSection,
+    );
+    await seedSetting(
+      vaultId,
+      "agents.visual",
+      SETTINGS_DEFAULTS.agentsVisual,
+      setAgentsVisual,
+    );
+    await seedSetting(
+      vaultId,
+      "agents.visual_image",
+      SETTINGS_DEFAULTS.agentsVisualImage,
+      setAgentsVisualImage,
+    );
     await seedSetting(vaultId, "shortcuts.overrides", {}, setShortcutOverrides);
   };
 
@@ -413,6 +473,12 @@ export function createSettingsState(deps: SettingsStateDeps): SettingsState {
     rightSidebarPanel,
     leftSidebarMode,
     setLeftSidebarModeValue,
+    navSection,
+    setNavSectionValue,
+    agentsVisual,
+    setAgentsVisualValue,
+    agentsVisualImage,
+    setAgentsVisualImageValue,
     setRightSidebarPanelValue,
     shortcutOverrides,
     setShortcutOverridesValue,

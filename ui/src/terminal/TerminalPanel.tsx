@@ -9,17 +9,17 @@ import {
 } from "solid-js";
 
 import type { ResolvedTheme } from "../styles/theme";
-import { createEmulator, type Emulator } from "./emulator";
+import { createEmulator, type Emulator } from "../pty/emulator";
 import {
   initialTerminalState,
   isFinished,
   reduceTerminal,
   type TerminalEvent,
   type TerminalState,
-} from "./exitState";
-import { isUsableSize, watchResize, type TerminalSize } from "./resize";
+} from "../pty/exitState";
+import { isUsableSize, watchResize, type TerminalSize } from "../pty/resize";
 import { openSession, type TerminalSession } from "./session";
-import { readTerminalAppearance } from "./theme";
+import { readTerminalAppearance } from "../pty/theme";
 
 const FALLBACK_SIZE: TerminalSize = { cols: 80, rows: 24 };
 

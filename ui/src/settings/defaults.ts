@@ -1,6 +1,11 @@
 import { DEFAULT_LIVE_TAB_LIMIT } from "../tabs/lru";
 import type { ThemeMode } from "../styles/theme";
-import type { LeftSidebarMode, RightSidebarPanel } from "./settingsState";
+import type {
+  AgentsVisual,
+  LeftSidebarMode,
+  NavSection,
+  RightSidebarPanel,
+} from "./settingsState";
 
 export const SETTINGS_DEFAULTS = {
   themeMode: "system" as ThemeMode,
@@ -16,4 +21,7 @@ export const SETTINGS_DEFAULTS = {
   rightSidebarCollapsed: false,
   rightSidebarPanel: "backlinks" as RightSidebarPanel,
   leftSidebarMode: "files" as LeftSidebarMode,
+  navSection: "notes" as NavSection,
+  agentsVisual: "default" as AgentsVisual,
+  agentsVisualImage: "",
 };

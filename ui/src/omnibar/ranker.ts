@@ -1,11 +1,15 @@
 export type OmniItem =
   | { kind: "note"; title: string; path: string }
   | { kind: "tag"; tag: string }
+  | { kind: "project"; title: string; path: string }
+  | { kind: "task"; title: string; path: string; project: string }
   | { kind: "command"; id: string; title: string };
 
 export function matchText(item: OmniItem): string {
   if (item.kind === "note") return item.title;
   if (item.kind === "tag") return item.tag;
+  if (item.kind === "project") return item.title;
+  if (item.kind === "task") return item.title;
   return item.title;
 }
 
@@ -87,7 +91,18 @@ export function scoreMatch(text: string, indices: number[]): number {
 }
 
 function kindRank(item: OmniItem): number {
-  return item.kind === "note" ? 0 : item.kind === "tag" ? 1 : 2;
+  switch (item.kind) {
+    case "note":
+      return 0;
+    case "project":
+      return 1;
+    case "task":
+      return 2;
+    case "tag":
+      return 3;
+    default:
+      return 4;
+  }
 }
 
 export function rankItems(

@@ -6,20 +6,16 @@ import {
   on,
   onCleanup,
   onMount,
-  Match,
   Show,
-  Switch,
   untrack,
   type Component,
 } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { pickDirectory } from "./api/platform";
 
 import Button from "@ds/components/forms/Button/Button";
 import IconButton from "@ds/components/forms/IconButton/IconButton";
-import SegmentedControl from "@ds/components/forms/SegmentedControl/SegmentedControl";
 import TextInput from "@ds/components/forms/TextInput/TextInput";
-import Icon from "@ds/components/graphics/Icon/Icon";
 import ConfirmDialog from "@ds/components/overlay/ConfirmDialog/ConfirmDialog";
 
 import type { EditorApi } from "./editor/Editor";
@@ -30,9 +26,8 @@ import {
   TerminalConsentDialog,
   TerminalTabPanes,
   createTerminalWiring,
-  isTerminalView,
 } from "./terminal";
-import { GRAPH_COMMAND_ID, GraphButton, GraphTabPane, createGraphWiring, isGraphView } from "./graph";
+import { GRAPH_COMMAND_ID, GraphButton, GraphTabPane, createGraphWiring } from "./graph";
 import Properties from "./properties/Properties";
 import { RecentVaultList } from "./vaultSwitcher/RecentVaultList";
 import SettingsModal from "./settings/SettingsModal";
@@ -120,20 +115,21 @@ import {
 } from "./editor/autocompleteProvider";
 import { buildFileTree, countFilesUnderFolder } from "./explorer/fileTree";
 import { createFileActions } from "./explorer/fileActions";
-import { Editor, ExplorerPanel } from "./shell/composed";
+import { Editor } from "./shell/composed";
+import { LeftSidebar } from "./shell/LeftSidebar";
+import { RightSidebar } from "./shell/RightSidebar";
+import { StatusBar } from "./shell/StatusBar";
 import FileContextMenu from "./explorer/FileContextMenu";
 import DeleteDialog from "./explorer/DeleteDialog";
 import { buildBlockRefLink } from "./editor/blockRef";
-import { formatBrokenBlockRefs } from "./statusbar/brokenRefs";
-import { formatPendingRewrites } from "./statusbar/pendingRewritesLabel";
-import PendingRewrites from "./statusbar/PendingRewrites";
-import {
-  VAULT_PATH_SEGMENT,
-  FILE_PATH_SEGMENT,
-  WORD_COUNT_SEGMENT,
-  BLOCK_COUNT_SEGMENT,
-} from "./statusbar/segments";
-import { leadingSeparators } from "./statusbar/separators";
+import { createPlanningStore } from "./planning/planningStore";
+import { createPlanningWiring } from "./planning/wiring";
+import { CalendarPage } from "./planning/CalendarPage";
+import { ProjectPage } from "./planning/ProjectPage";
+import { createAgentStore } from "./agents/agentStore";
+import { createAgentWiring } from "./agents/wiring";
+import { AgentsPage } from "./agents/AgentsPage";
+import { AgentTabPanes } from "./agents/AgentTabPanes";
 import { ToastHost } from "./toast/ToastHost";
 import { dismissAllToasts, showErrorToast, showToast } from "./toast/toastState";
 import {
@@ -143,23 +139,13 @@ import {
 } from "./vault/fileRename";
 import { noteTitle } from "./vault/noteName";
 import { watchSystemTheme } from "./styles/theme";
-import Backlinks from "./backlinks/Backlinks";
-import UnlinkedMentions from "./backlinks/UnlinkedMentions";
-import IntegrityPanel from "./integrity/IntegrityPanel";
 import TagPage from "./tags/TagPage";
 import OmniBar from "./omnibar/OmniBar";
 import { type OmniItem, type RankedItem } from "./omnibar/ranker";
 import { OMNI_COMMANDS } from "./omnibar/commands";
 import { corePluginActive } from "./settings/corePlugins";
-import { VaultSwitcher } from "./vaultSwitcher/VaultSwitcher";
 
 const AUTOSAVE_DEBOUNCE_MS = 300;
-
-const RIGHT_SIDEBAR_TABS = [
-  { label: "Backlinks", value: "backlinks" },
-  { label: "Mentions", value: "unlinked_mentions" },
-  { label: "Integrity", value: "integrity" },
-];
 
 const App: Component = () => {
   const {
@@ -302,12 +288,17 @@ const App: Component = () => {
       .filter((f) => f.type_id === "markdown")
       .map((f) => ({ kind: "note", title: noteTitle(f.path), path: f.path }));
     const tags: OmniItem[] = vaultTags().map((t) => ({ kind: "tag", tag: t }));
+    const projects: OmniItem[] = planning.projects().map((p) => ({
+      kind: "project",
+      title: p.name,
+      path: p.path,
+    }));
     const commands: OmniItem[] = OMNI_COMMANDS.map((c) => ({
       kind: "command",
       id: c.id,
       title: c.title,
     }));
-    return [...notes, ...tags, ...commands];
+    return [...notes, ...projects, ...tags, ...commands];
   });
   const recentNotes = createMemo<RankedItem[]>(() =>
     [...files()]
@@ -378,7 +369,12 @@ const App: Component = () => {
       let restored = fromTabSessionDto(dto);
       if (scanStatus() === "complete") {
         const present = new Set(files().map((f) => f.path));
-        restored = dropMissingTabs(restored, (p) => present.has(p));
+        const dirs = new Set(folders());
+        restored = dropMissingTabs(
+          restored,
+          (p) => present.has(p),
+          (d) => dirs.has(d),
+        );
       }
       if (restored.tabs.length > 0) {
         setTabs(restored);
@@ -454,7 +450,12 @@ const App: Component = () => {
       setFolders(resp.folders);
       if (scanStatus() === "complete") {
         const present = new Set(resp.files.map((f) => f.path));
-        const dropped = dropMissingTabs(tabs(), (p) => present.has(p));
+        const dirs = new Set(resp.folders);
+        const dropped = dropMissingTabs(
+          tabs(),
+          (p) => present.has(p),
+          (d) => dirs.has(d),
+        );
         if (dropped !== tabs()) {
           const before = tabs().activeId;
           setTabs(dropped);
@@ -647,6 +648,8 @@ const App: Component = () => {
 
   const handleRunCommand = (id: string) => {
     if (id === "statusbar.toggle") settings.toggleStatusbar();
+    else if (id === "settings.open") setSettingsOpen(true);
+    else featureCommands[id]?.run();
   };
 
   const loadActiveTabContent = async () => {
@@ -723,6 +726,34 @@ const App: Component = () => {
 
   const terminalTab = createTerminalWiring(tabFeature);
   const graphTab = createGraphWiring(tabFeature);
+
+  const planning = createPlanningStore({
+    vaultId,
+    refreshTick: searchRefreshTick,
+  });
+  const agentStore = createAgentStore(vaultId);
+  const planningNav = createPlanningWiring({
+    vaultId,
+    tabs,
+    setTabs: (updater) => setTabs(updater),
+    flushAutosave,
+    selectSection: settings.setNavSectionValue,
+    store: planning,
+  });
+  const agentNav = createAgentWiring({
+    vaultId,
+    tabs,
+    setTabs: (updater) => setTabs(updater),
+    selectSection: settings.setNavSectionValue,
+    store: agentStore,
+  });
+  const featureCommands = Object.fromEntries(
+    [...planningNav.commands, ...agentNav.commands].map((c) => [c.id, c]),
+  );
+  const projectViewPath = () => {
+    const v = view();
+    return v.kind === "project" ? v.path : null;
+  };
 
   const handleSelectFile = async (
     file: FileEntry,
@@ -982,6 +1013,13 @@ const App: Component = () => {
           if (id !== null) void closeTabById(id);
         },
       },
+      "settings.open": {
+        id: "settings.open",
+        title: "Open settings",
+        when: () => vaultId() !== null,
+        run: () => setSettingsOpen(true),
+      },
+      ...featureCommands,
       [TERMINAL_COMMAND_ID]: terminalTab.command,
       [GRAPH_COMMAND_ID]: graphTab.command,
     };
@@ -1069,8 +1107,8 @@ const App: Component = () => {
   };
 
   const handleOpen = async () => {
-    const picked = await openDialog({ directory: true, multiple: false });
-    if (typeof picked !== "string") return;
+    const picked = await pickDirectory();
+    if (picked === null) return;
     await openVaultByPath(picked);
   };
 
@@ -1190,77 +1228,56 @@ const App: Component = () => {
         }
       >
         <div class="stage">
-          <aside
-            class="side side--left"
-            classList={{ "side--collapsed": leftCollapsed() }}
-          >
-            <div class="side__body">
-              <FeatureBoundary feature="File explorer">
-                <ExplorerPanel
-                  files={files()}
-                  folders={folders()}
-                  vaultId={vaultId()}
-                  selectedPath={selectedPath()}
-                  mode={settings.leftSidebarMode()}
-                  refreshSignal={searchRefreshTick()}
-                  actions={fileActions}
-                  onModeChange={settings.setLeftSidebarModeValue}
-                  onRefresh={() => void refreshFileList()}
-                  onNavigate={(path) => void handleNavigateWikilink(path, null)}
-                  onSelectFile={(entry) => void handleSelectFile(entry)}
-                  onRenameCommit={(from, target, isFolder) =>
-                    void handleRenameCommit(from, target, isFolder)
-                  }
-                />
-              </FeatureBoundary>
-              <div class="side__footer">
-                <div class="vault-switcher-anchor">
-                  <Button
-                    class="vault-btn"
-                    variant="ghost"
-                    onClick={() => setVaultSwitcherOpen((v) => !v)}
-                    disabled={busy()}
-                    ariaHaspopup="dialog"
-                    ariaExpanded={vaultSwitcherOpen()}
-                    title="Switch vault"
-                  >
-                    <span class="vault-btn__name">
-                      {vaultPath()?.split("/").filter(Boolean).pop() ?? "vault"}
-                    </span>
-                    <span class="vault-btn__caret">
-                      <Icon name="chevron-down" size={14} />
-                    </span>
-                  </Button>
-                  <Show when={vaultSwitcherOpen()}>
-                    <VaultSwitcher
-                      currentPath={vaultPath()}
-                      recentVaults={recentVaults().filter(
-                        (v) => v.path !== vaultPath(),
-                      )}
-                      onSwitch={(path) => void openVaultByPath(path)}
-                      onRemove={(path) =>
-                        void removeRecentVault({ path }).then(
-                          refreshRecentVaults,
-                        )
-                      }
-                      onOpenFolder={() => void handleOpen()}
-                      onDismiss={() => setVaultSwitcherOpen(false)}
-                    />
-                  </Show>
-                </div>
-                <IconButton
-                  label="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  <Icon name="settings" />
-                </IconButton>
-              </div>
-            </div>
-          </aside>
+          <FeatureBoundary feature="Left sidebar">
+            <LeftSidebar
+              collapsed={leftCollapsed()}
+              section={settings.navSection}
+              onSelectSection={settings.setNavSectionValue}
+              explorer={{
+                files: files(),
+                folders: folders(),
+                vaultId: vaultId(),
+                selectedPath: selectedPath(),
+                mode: settings.leftSidebarMode(),
+                refreshSignal: searchRefreshTick(),
+                actions: fileActions,
+                onModeChange: settings.setLeftSidebarModeValue,
+                onRefresh: () => void refreshFileList(),
+                onNavigate: (path) => void handleNavigateWikilink(path, null),
+                onSelectFile: (entry) => void handleSelectFile(entry),
+                onRenameCommit: (from, target, isFolder) =>
+                  void handleRenameCommit(from, target, isFolder),
+              }}
+              planning={planning}
+              agents={agentStore}
+              activeProjectPath={planningNav.activeProjectPath}
+              onOpenProject={planningNav.openProject}
+              onOpenCalendar={planningNav.openCalendar}
+              onOpenFile={(p) => void handleNavigateWikilink(p, null)}
+              onOpenSession={agentNav.openSessionTab}
+              onNewAgent={agentNav.openAgents}
+              footer={{
+                vaultPath: vaultPath(),
+                recentVaults: recentVaults(),
+                busy: busy(),
+                switcherOpen: vaultSwitcherOpen(),
+                setSwitcherOpen: setVaultSwitcherOpen,
+                onSwitch: (path) => void openVaultByPath(path),
+                onRemove: (path) =>
+                  void removeRecentVault({ path }).then(refreshRecentVaults),
+                onOpenFolder: () => void handleOpen(),
+                onSettings: () => setSettingsOpen(true),
+              }}
+            />
+          </FeatureBoundary>
           <main class="editor-layer">
             <div class="editor-scroll">
               <div class="editor-inner">
-                <Show when={!isTerminalView(view()) && !isGraphView(view())}>
+                <Show
+                  when={
+                    view().kind === "file" || view().kind === "tag"
+                  }
+                >
                   <Show
                     when={view().kind === "file"}
                     fallback={
@@ -1477,62 +1494,68 @@ const App: Component = () => {
                     onClosed={terminalTab.forget}
                   />
                 </FeatureBoundary>
-              </div>
-            </div>
-          </main>
-          <aside
-            class="side side--right"
-            classList={{ "side--collapsed": settings.rightSidebarCollapsed() }}
-          >
-            <div class="side__body">
-              <SegmentedControl
-                class="rs-tabs"
-                variant="pill"
-                ariaLabel="Sidebar panels"
-                value={settings.rightSidebarPanel()}
-                options={RIGHT_SIDEBAR_TABS}
-                onChange={(v) => settings.setRightSidebarPanelValue(v)}
-              />
-              <div class="rs-body">
-                <FeatureBoundary feature="Sidebar panel">
-                  <Switch>
-                    <Match when={settings.rightSidebarPanel() === "backlinks"}>
-                      <Backlinks
-                        vaultId={vaultId()}
-                        path={selectedPath()}
-                        refreshSignal={rightSidebarRefreshTick()}
-                        onRowClick={(path) =>
-                          void handleNavigateWikilink(path, null)
+                <FeatureBoundary feature="Project page">
+                  <Show when={projectViewPath()} keyed>
+                    {(path) => (
+                      <ProjectPage
+                        store={planning}
+                        path={path}
+                        onOpenFile={(p) =>
+                          void handleNavigateWikilink(p, null)
+                        }
+                        onOpenAgent={(cwd) =>
+                          agentNav.launchAgent({
+                            provider: agentStore.defaultProvider(),
+                            cwd,
+                          })
                         }
                       />
-                    </Match>
-                    <Match
-                      when={settings.rightSidebarPanel() === "unlinked_mentions"}
-                    >
-                      <UnlinkedMentions
-                        vaultId={vaultId()}
-                        path={selectedPath()}
-                        refreshSignal={rightSidebarRefreshTick()}
-                        onRowClick={(path) =>
-                          void handleNavigateWikilink(path, null)
-                        }
-                      />
-                    </Match>
-                    <Match when={settings.rightSidebarPanel() === "integrity"}>
-                      <IntegrityPanel
-                        vaultId={vaultId()}
-                        refreshSignal={rightSidebarRefreshTick()}
-                        onRowClick={(path) =>
-                          void handleNavigateWikilink(path, null)
-                        }
-                        onRepaired={() => rightSidebarRefresh.schedule()}
-                      />
-                    </Match>
-                  </Switch>
+                    )}
+                  </Show>
+                </FeatureBoundary>
+                <FeatureBoundary feature="Calendar">
+                  <Show when={view().kind === "calendar"}>
+                    <CalendarPage
+                      store={planning}
+                      onOpenProject={planningNav.openProject}
+                    />
+                  </Show>
+                </FeatureBoundary>
+                <FeatureBoundary feature="Agents">
+                  <Show when={view().kind === "agents"}>
+                    <AgentsPage
+                      store={agentStore}
+                      projects={planning.projects}
+                      visual={settings.agentsVisual}
+                      setVisual={settings.setAgentsVisualValue}
+                      visualImage={settings.agentsVisualImage}
+                      setVisualImage={settings.setAgentsVisualImageValue}
+                      onLaunch={agentNav.launchAgent}
+                      onOpenSession={agentNav.openSessionTab}
+                    />
+                  </Show>
+                  <AgentTabPanes
+                    tabs={tabs}
+                    vaultId={vaultId}
+                    store={agentStore}
+                    resolvedTheme={settings.resolvedTheme}
+                    visual={settings.agentsVisual}
+                    visualImage={settings.agentsVisualImage}
+                    onOpenFile={(p) => void handleNavigateWikilink(p, null)}
+                    onClosed={(key) => agentStore.unregister(key)}
+                  />
                 </FeatureBoundary>
               </div>
             </div>
-          </aside>
+          </main>
+          <RightSidebar
+            settings={settings}
+            vaultId={vaultId()}
+            selectedPath={selectedPath()}
+            refreshSignal={rightSidebarRefreshTick()}
+            onNavigate={(path) => void handleNavigateWikilink(path, null)}
+            onRepaired={() => rightSidebarRefresh.schedule()}
+          />
         </div>
       </Show>
 
@@ -1544,6 +1567,8 @@ const App: Component = () => {
           onClose={() => setOmniOpen(false)}
           onOpenNote={(path) => void handleNavigateWikilink(path, null)}
           onOpenTag={(tag) => void handleNavigateTag(tag)}
+          onOpenProject={(path) => planningNav.openProject(path)}
+          onOpenTask={(path) => void handleNavigateWikilink(path, null)}
           onRunCommand={handleRunCommand}
         />
       </FeatureBoundary>
@@ -1579,99 +1604,20 @@ const App: Component = () => {
       </ConfirmDialog>
 
       <Show when={vaultId() && settings.statusbarEnabled()}>
-        <FeatureBoundary feature="Status bar">
-          <footer class="statusbar">
-            {(() => {
-              const vaultVis = () => settings.segVisible(VAULT_PATH_SEGMENT);
-              const scanVis = () => scanStatus() === "in_progress";
-              const brokenVis = () => !!formatBrokenBlockRefs(brokenBlockRefs());
-              const pendingVis = () =>
-                !!formatPendingRewrites(pendingRewritesCount());
-              const sep = () =>
-                leadingSeparators([
-                  vaultVis(),
-                  scanVis(),
-                  brokenVis(),
-                  pendingVis(),
-                ]);
-              return (
-                <span class="statusbar__group statusbar__group--proj">
-                  <Show when={vaultVis()}>
-                    <span class="statusbar__dir" title={vaultPath() ?? ""}>
-                      {vaultPath() ?? vaultId()}
-                    </span>
-                  </Show>
-                  <Show when={scanVis()}>
-                    <Show when={sep()[1]}>
-                      <span class="statusbar__sep">·</span>
-                    </Show>
-                    <span>
-                      Scanning… {filesProcessed()} / {filesTotalEstimate()}
-                    </span>
-                  </Show>
-                  <Show when={formatBrokenBlockRefs(brokenBlockRefs())}>
-                    {(display) => (
-                      <>
-                        <Show when={sep()[2]}>
-                          <span class="statusbar__sep">·</span>
-                        </Show>
-                        <span
-                          title={display().title}
-                          style={{ color: "var(--c-warning, var(--c-accent))" }}
-                        >
-                          {display().label}
-                        </span>
-                      </>
-                    )}
-                  </Show>
-                  <Show when={sep()[3]}>
-                    <span class="statusbar__sep">·</span>
-                  </Show>
-                  <PendingRewrites
-                    vaultId={vaultId()}
-                    count={pendingRewritesCount()}
-                    onError={(m: string) => showErrorToast(m)}
-                  />
-                </span>
-              );
-            })()}
-
-            <Show when={view().kind === "file" && !!selectedPath()}>
-              {(() => {
-                const wordVis = () => settings.segVisible(WORD_COUNT_SEGMENT);
-                const blockVis = () => settings.segVisible(BLOCK_COUNT_SEGMENT);
-                const sep = () => leadingSeparators([wordVis(), blockVis()]);
-                return (
-                  <span class="statusbar__group statusbar__mid">
-                    <Show when={wordVis()}>
-                      <b>{wordCount()}</b> words
-                    </Show>
-                    <Show when={blockVis()}>
-                      <Show when={sep()[1]}>
-                        <span class="statusbar__sep">·</span>
-                      </Show>
-                      <b>{blockCount()}</b> blocks
-                    </Show>
-                  </span>
-                );
-              })()}
-            </Show>
-
-            <span class="statusbar__group statusbar__group--file">
-              <Show
-                when={
-                  view().kind === "file" &&
-                  selectedPath() &&
-                  settings.segVisible(FILE_PATH_SEGMENT)
-                }
-              >
-                <span class="statusbar__dir" title={selectedPath() ?? ""}>
-                  {selectedPath()}
-                </span>
-              </Show>
-            </span>
-          </footer>
-        </FeatureBoundary>
+        <StatusBar
+          settings={settings}
+          vaultId={vaultId()}
+          vaultPath={vaultPath()}
+          scanStatus={scanStatus()}
+          filesProcessed={filesProcessed()}
+          filesTotalEstimate={filesTotalEstimate()}
+          brokenBlockRefs={brokenBlockRefs()}
+          pendingRewritesCount={pendingRewritesCount()}
+          view={view()}
+          selectedPath={selectedPath()}
+          wordCount={wordCount()}
+          blockCount={blockCount()}
+        />
       </Show>
 
       <FileContextMenu actions={fileActions} />

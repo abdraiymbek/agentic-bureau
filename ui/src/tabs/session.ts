@@ -13,7 +13,10 @@ export function toTabSessionDto(s: TabSet): TabSessionDto {
     tabs: s.tabs.filter(isPersistableTab).map((t) => ({
       id: t.id,
       kind: t.view.kind,
-      path: t.view.kind === "file" ? t.view.path : null,
+      path:
+        t.view.kind === "file" || t.view.kind === "project"
+          ? t.view.path
+          : null,
       tag_path: t.view.kind === "tag" ? t.view.tagPath : null,
     })),
   };
@@ -24,9 +27,11 @@ export function fromTabSessionDto(dto: TabSessionDto): TabSet {
     const view: TabView | null =
       r.kind === "file" && r.path !== null
         ? { kind: "file", path: r.path }
-        : r.kind === "tag" && r.tag_path !== null
-          ? { kind: "tag", tagPath: r.tag_path }
-          : null;
+        : r.kind === "project" && r.path !== null
+          ? { kind: "project", path: r.path }
+          : r.kind === "tag" && r.tag_path !== null
+            ? { kind: "tag", tagPath: r.tag_path }
+            : null;
     return view === null ? [] : [{ id: tabId(view), view }];
   });
   const activeId = tabs.some((t) => t.id === dto.active_id)

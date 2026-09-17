@@ -4,10 +4,10 @@ import {
   agentInstructionsAccept,
   agentInstructionsDecline,
   agentInstructionsStatus,
-  terminalBusy,
   terminalReapAll,
   type AgentInstructionsStatus,
 } from "../api/terminal";
+import { terminalBusy } from "../api/pty";
 import type { Command } from "../core/commands";
 import { corePluginActive } from "../settings/corePlugins";
 import { canOpenTab, openTab, type TabSet } from "../tabs/tabModel";

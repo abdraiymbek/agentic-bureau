@@ -3,7 +3,8 @@ export type IconName =
   | "close" | "edit" | "settings" | "warning" | "sun" | "moon" | "link"
   | "file-text" | "bar-chart" | "palette" | "puzzle" | "library" | "keyboard"
   | "hash" | "command" | "terminal" | "waypoints" | "refresh-cw"
-  | "filter";
+  | "filter" | "calendar" | "kanban" | "bot" | "flag" | "clock" | "trash"
+  | "square" | "check" | "play" | "list-checks" | "image";
 
 export const ICONS: Record<IconName, string> = {
   "plus": `<path d="M5 12h14"/><path d="M12 5v14"/>`,
@@ -30,4 +31,15 @@ export const ICONS: Record<IconName, string> = {
   "waypoints": `<path d="m10.586 5.414-5.172 5.172"/><path d="m18.586 13.414-5.172 5.172"/><path d="M6 12h12"/><circle cx="12" cy="20" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="20" cy="12" r="2"/><circle cx="4" cy="12" r="2"/>`,
   "filter": `<path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>`,
   "refresh-cw": `<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>`,
+  "calendar": `<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>`,
+  "kanban": `<path d="M6 5v11"/><path d="M12 5v6"/><path d="M18 5v14"/>`,
+  "bot": `<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>`,
+  "flag": `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
+  "clock": `<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+  "trash": `<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>`,
+  "square": `<rect width="18" height="18" x="3" y="3" rx="2"/>`,
+  "check": `<path d="M20 6 9 17l-5-5"/>`,
+  "play": `<polygon points="6 3 20 12 6 21 6 3"/>`,
+  "list-checks": `<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>`,
+  "image": `<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>`,
 };

@@ -1,0 +1,44 @@
+/* Carries its own control reset — see Button.css. */
+.checkbox {
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-primary);
+  border: 1px solid var(--c-border-strong);
+  color: transparent;
+  transition: background var(--duration-state) var(--ease-standard),
+    border-color var(--duration-state) var(--ease-standard),
+    color var(--duration-state) var(--ease-standard);
+}
+
+.checkbox:hover:not(:disabled) {
+  border-color: var(--c-accent);
+}
+
+.checkbox.checked {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-accent-contrast);
+}
+
+.checkbox:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--c-focus-ring);
+  outline-offset: 2px;
+}
+
+.checkbox-mark {
+  width: 10px;
+  height: 10px;
+}

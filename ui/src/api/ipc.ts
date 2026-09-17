@@ -30,7 +30,7 @@ export interface RemoveRecentVaultRequest {
 
 export interface TabRecordDto {
   id: string;
-  kind: "file" | "tag";
+  kind: "file" | "tag" | "project";
   path: string | null;
   tag_path: string | null;
 }
@@ -226,6 +226,15 @@ export type Setting =
       value: "backlinks" | "unlinked_mentions" | "integrity";
     }
   | { key: "ui.left_sidebar_mode"; value: "files" | "tags" }
+  | {
+      key: "ui.nav_section";
+      value: "notes" | "projects" | "calendar" | "agents";
+    }
+  | {
+      key: "agents.visual";
+      value: "default" | "image" | "ascii" | "minimal";
+    }
+  | { key: "agents.visual_image"; value: string }
   | { key: "pending_rewrites.flush_interval_secs"; value: number }
   | { key: "plugins.dataview_enabled"; value: boolean }
   | { key: "plugins.property_refs_enabled"; value: boolean }

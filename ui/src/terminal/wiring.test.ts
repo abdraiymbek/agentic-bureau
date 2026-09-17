@@ -9,15 +9,18 @@ vi.mock("../api/terminal", () => ({
   })),
   agentInstructionsAccept: vi.fn(async () => ({ created: [], skipped: [] })),
   agentInstructionsDecline: vi.fn(async () => undefined),
-  terminalBusy: vi.fn(async () => false),
   terminalReapAll: vi.fn(async () => undefined),
 }));
 
+vi.mock("../api/pty", () => ({
+  terminalBusy: vi.fn(async () => false),
+}));
+
+import { terminalBusy } from "../api/pty";
 import {
   agentInstructionsAccept,
   agentInstructionsDecline,
   agentInstructionsStatus,
-  terminalBusy,
   terminalReapAll,
 } from "../api/terminal";
 import { closeTab, emptyTabs, type TabSet } from "../tabs/tabModel";

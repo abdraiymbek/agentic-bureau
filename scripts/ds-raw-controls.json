@@ -22,5 +22,16 @@
     "dialog",
     "textarea"
   ],
-  "budgets": {}
+  "budgets": {
+    "ui/src/planning/MonthGrid.tsx": {
+      "kind": "bespoke",
+      "button": 1,
+      "note": "The one remaining raw button is the event chip, which is an HTML drag source (draggable + onDragStart) feeding the month grid's drop targets; Button does not forward drag handlers. All non-drag chips use Button."
+    },
+    "ui/src/planning/WeekGrid.tsx": {
+      "kind": "bespoke",
+      "button": 2,
+      "note": "The two remaining raw buttons are the all-day event chip and the timed event block: both are HTML drag sources, and the block is also absolutely positioned by duration (laneStyle). Button forwards neither draggable/onDragStart nor the geometry style contract. Static chips and day headers use Button."
+    }
+  }
 }

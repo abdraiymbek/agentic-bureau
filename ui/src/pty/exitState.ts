@@ -1,4 +1,4 @@
-import type { TerminalExit } from "../api/terminal";
+import type { TerminalExit } from "../api/pty";
 
 export type TerminalPhase = "opening" | "running" | "exited" | "failed";
 

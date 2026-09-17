@@ -20,6 +20,14 @@ function label(tab: Tab): string {
       return "Terminal";
     case "graph":
       return "Graph";
+    case "project":
+      return tab.view.path.split("/").pop() ?? "Project";
+    case "calendar":
+      return "Calendar";
+    case "agents":
+      return "Agents";
+    case "agent":
+      return "Agent";
     case "file":
       return noteTitle(tab.view.path);
   }
