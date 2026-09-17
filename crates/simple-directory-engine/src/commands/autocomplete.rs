@@ -156,7 +156,7 @@ mod tests {
             &state,
             LinkAutocompleteRequest {
                 vault_id: "v1".into(),
-                query: "cub".into(),
+                query: "dire".into(),
             },
         )
         .await

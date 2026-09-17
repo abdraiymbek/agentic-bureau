@@ -602,7 +602,7 @@ mod tests {
                 limit: 0,
                 offset: 0,
                 fields: FieldScope::Tags {
-                    tags: vec!["Project/simple.directory".into()],
+                    tags: vec!["Project/Simple-Directory".into()],
                 },
                 fuzzy: false,
                 sort: SortMode::Relevance,

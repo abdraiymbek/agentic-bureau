@@ -342,7 +342,7 @@ mod tests {
     async fn files_for_link_query_substring_case_insensitive() {
         let (_dir, conn) = open_test_index().await;
         seed_file(&conn, "Daily/2026-05-28.md").await;
-        seed_file(&conn, "notes/Project simple.directory.md").await;
+        seed_file(&conn, "notes/Project Simple-Directory.md").await;
         seed_file(&conn, "notes/simple-directory-ast.md").await;
         seed_file(&conn, "archive/old.md").await;
 
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(
             got,
             vec![
-                "notes/Project simple.directory.md".to_string(),
+                "notes/Project Simple-Directory.md".to_string(),
                 "notes/simple-directory-ast.md".to_string(),
             ]
         );

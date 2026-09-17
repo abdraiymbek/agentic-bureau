@@ -110,10 +110,7 @@ pub(crate) fn patch_source(source: &str, patch: &Map<String, Value>) -> String {
         match lines.iter().position(|l| key_of(l) == Some(key.as_str())) {
             Some(i) => {
                 lines[i] = rendered.clone();
-                while lines
-                    .get(i + 1)
-                    .is_some_and(|l| l.starts_with(|c: char| c == ' ' || c == '\t'))
-                {
+                while lines.get(i + 1).is_some_and(|l| l.starts_with([' ', '\t'])) {
                     lines.remove(i + 1);
                 }
             }
@@ -123,10 +120,7 @@ pub(crate) fn patch_source(source: &str, patch: &Map<String, Value>) -> String {
     for key in &removals {
         if let Some(i) = lines.iter().position(|l| key_of(l) == Some(key.as_str())) {
             lines.remove(i);
-            while lines
-                .get(i)
-                .is_some_and(|l| l.starts_with(|c: char| c == ' ' || c == '\t'))
-            {
+            while lines.get(i).is_some_and(|l| l.starts_with([' ', '\t'])) {
                 lines.remove(i);
             }
         }

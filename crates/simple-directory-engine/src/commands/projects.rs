@@ -264,7 +264,7 @@ pub async fn projects_list(
         let fm = frontmatter_map(&vault, &doc_rel(&dir_rel)).await?;
         projects.push(summary_from(&dir_rel, &name, &fm));
     }
-    projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    projects.sort_by_key(|p| p.name.to_lowercase());
     Ok(ProjectsListResponse { projects })
 }
 

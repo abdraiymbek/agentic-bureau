@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn tags_collected_lowercased_deduped_sorted() {
-        let src = "---\ntags: [Project/simple.directory, Notes]\n---\n\n#project/simple-directory and #Notes again\n";
+        let src = "---\ntags: [Project/Simple-Directory, Notes]\n---\n\n#project/simple-directory and #Notes again\n";
         let d = project("x.md", src, 0, 0);
         assert_eq!(
             d.tags,
