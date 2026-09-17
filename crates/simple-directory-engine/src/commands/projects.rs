@@ -116,6 +116,19 @@ pub struct ProjectSetTaskRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct ProjectSetTaskResponse {}
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ProjectAddTaskRequest {
+    pub vault_id: String,
+    pub path: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectAddTaskResponse {
+    pub file: String,
+    pub offset: u32,
+}
+
 fn validate_name(raw: &str) -> Result<String, SimpleDirectoryError> {
     let name = raw.trim();
     if name.is_empty() || name.len() > 100 {
@@ -128,10 +141,9 @@ fn validate_name(raw: &str) -> Result<String, SimpleDirectoryError> {
             "project name may not start with '.'".into(),
         ));
     }
-    if name
-        .chars()
-        .any(|c| c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|'))
-    {
+    if name.chars().any(|c| {
+        c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+    }) {
         return Err(SimpleDirectoryError::InvalidRequest(format!(
             "project name '{name}' contains a character that is not safe in a path",
         )));
@@ -167,7 +179,10 @@ fn doc_rel(dir_rel: &str) -> String {
     format!("{dir_rel}/{PROJECT_DOC}")
 }
 
-async fn frontmatter_map(vault: &Vault, rel: &str) -> Result<Map<String, Value>, SimpleDirectoryError> {
+async fn frontmatter_map(
+    vault: &Vault,
+    rel: &str,
+) -> Result<Map<String, Value>, SimpleDirectoryError> {
     let conn = vault.index().connection();
     let mut rows = conn
         .query(
@@ -267,7 +282,11 @@ fn scan_tasks(rel: &str, content: &str, out: &mut Vec<ProjectTaskDto>) {
             .and_then(|r| r.strip_prefix(' '));
         if let Some(after_dash) = rest {
             let bytes = after_dash.as_bytes();
-            if bytes.len() >= 3 && bytes[0] == b'[' && bytes[2] == b']' && matches!(bytes[1], b' ' | b'x' | b'X') {
+            if bytes.len() >= 3
+                && bytes[0] == b'['
+                && bytes[2] == b']'
+                && matches!(bytes[1], b' ' | b'x' | b'X')
+            {
                 let marker = offset + (line.len() - after_dash.len()) + 1;
                 let done = bytes[1] != b' ';
                 let text = after_dash[3..].trim().to_string();
@@ -311,7 +330,11 @@ pub async fn project_overview(
         .query(
             "SELECT path, type_id, mtime_unix FROM files
              WHERE substr(path, 1, ?1) = ?2 ORDER BY path LIMIT ?3",
-            libsql::params![prefix.len() as i64, prefix.clone(), i64::from(MAX_OVERVIEW_FILES)],
+            libsql::params![
+                prefix.len() as i64,
+                prefix.clone(),
+                i64::from(MAX_OVERVIEW_FILES)
+            ],
         )
         .await?;
     let mut files: Vec<ProjectFileDto> = Vec::new();
@@ -323,7 +346,11 @@ pub async fn project_overview(
         if type_id == "markdown" {
             md_paths.push(path.clone());
         }
-        files.push(ProjectFileDto { path, type_id, mtime_unix });
+        files.push(ProjectFileDto {
+            path,
+            type_id,
+            mtime_unix,
+        });
     }
 
     let doc = doc_rel(&dir_rel);
@@ -337,7 +364,9 @@ pub async fn project_overview(
         }
         match read_text_at(&vault, &rel).await {
             Ok(content) => scan_tasks(&rel, &content, &mut tasks),
-            Err(e) => tracing::warn!(path = %rel, error = %e, "project_overview: task scan skipped"),
+            Err(e) => {
+                tracing::warn!(path = %rel, error = %e, "project_overview: task scan skipped")
+            }
         }
     }
 
@@ -353,10 +382,10 @@ pub async fn project_overview(
         let file_path: String = row.get(0)?;
         let key: String = row.get(1)?;
         let raw: String = row.get(2)?;
-        by_file
-            .entry(file_path)
-            .or_default()
-            .insert(key, serde_json::from_str(&raw).unwrap_or(Value::String(raw)));
+        by_file.entry(file_path).or_default().insert(
+            key,
+            serde_json::from_str(&raw).unwrap_or(Value::String(raw)),
+        );
     }
     let mut events: Vec<ProjectEventDto> = Vec::new();
     for (path, fm) in by_file {
@@ -549,8 +578,9 @@ pub async fn project_set_task(
     }
     let mut bytes = content.into_bytes();
     bytes[offset] = if req.done { b'x' } else { b' ' };
-    let new_content = String::from_utf8(bytes)
-        .map_err(|_| SimpleDirectoryError::InvalidRequest("task edit produced invalid UTF-8".into()))?;
+    let new_content = String::from_utf8(bytes).map_err(|_| {
+        SimpleDirectoryError::InvalidRequest("task edit produced invalid UTF-8".into())
+    })?;
     vault::write_file_text(
         state,
         crate::api::types::WriteFileTextRequest {
@@ -562,6 +592,74 @@ pub async fn project_set_task(
     )
     .await?;
     Ok(ProjectSetTaskResponse {})
+}
+
+pub async fn project_add_task(
+    state: &AppState,
+    req: ProjectAddTaskRequest,
+) -> Result<ProjectAddTaskResponse, SimpleDirectoryError> {
+    let text = req.text.trim();
+    if text.is_empty() {
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "task text may not be empty".into(),
+        ));
+    }
+    if text.contains('\n') || text.contains('\r') {
+        return Err(SimpleDirectoryError::InvalidRequest(
+            "task text must be a single line".into(),
+        ));
+    }
+    let vault = open_vault_cloned(state, &req.vault_id).await?;
+    let (dir_rel, dir_abs) = paths::vault_dir(&vault, &req.path)?;
+    if !is_project_dir(&dir_rel) || !dir_abs.is_dir() {
+        return Err(SimpleDirectoryError::InvalidRequest(format!(
+            "not a project folder: {dir_rel}"
+        )));
+    }
+
+    let doc = doc_rel(&dir_rel);
+    if !vault.root().join(&doc).exists() {
+        let name = project_name_of(&dir_rel).unwrap_or("Project");
+        let content = format!("---\ntype: project\nstatus: active\n---\n\n# {name}\n");
+        vault::create_empty_markdown(&vault, &doc).await?;
+        vault::write_file_text(
+            state,
+            crate::api::types::WriteFileTextRequest {
+                vault_id: req.vault_id.clone(),
+                path: doc.clone(),
+                content: content.clone(),
+                expected_seen_hash: None,
+            },
+        )
+        .await?;
+        if let Err(e) = refresh_frontmatter(&vault, &doc, &content).await {
+            tracing::warn!(error = %e, "project_add_task: frontmatter refresh failed");
+        }
+    }
+
+    let current = read_text_at(&vault, &doc).await?;
+    let mut next = current;
+    if !next.ends_with('\n') {
+        next.push('\n');
+    }
+    let offset = next.len() + 3;
+    next.push_str("- [ ] ");
+    next.push_str(text);
+    next.push('\n');
+    vault::write_file_text(
+        state,
+        crate::api::types::WriteFileTextRequest {
+            vault_id: req.vault_id,
+            path: doc.clone(),
+            content: next,
+            expected_seen_hash: None,
+        },
+    )
+    .await?;
+    Ok(ProjectAddTaskResponse {
+        file: doc,
+        offset: u32::try_from(offset).unwrap_or(u32::MAX),
+    })
 }
 
 #[cfg(test)]
@@ -620,9 +718,14 @@ mod tests {
         assert_eq!(resp.project_file, "Projects/Kineon/project.md");
         assert!(dir.path().join("Projects/Kineon/project.md").is_file());
 
-        let list = projects_list(&state, ProjectsListRequest { vault_id: "v1".into() })
-            .await
-            .expect("list");
+        let list = projects_list(
+            &state,
+            ProjectsListRequest {
+                vault_id: "v1".into(),
+            },
+        )
+        .await
+        .expect("list");
         assert_eq!(list.projects.len(), 1);
         assert_eq!(list.projects[0].name, "Kineon");
         assert_eq!(list.projects[0].status, "active");
@@ -633,13 +736,21 @@ mod tests {
         let (_dir, state) = state_with_vault("v1").await;
         project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "Omen".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "Omen".into(),
+                description: String::new(),
+            },
         )
         .await
         .unwrap();
         let err = project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "omen".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "omen".into(),
+                description: String::new(),
+            },
         )
         .await
         .expect_err("folded duplicate");
@@ -648,7 +759,11 @@ mod tests {
             assert!(
                 project_create(
                     &state,
-                    ProjectCreateRequest { vault_id: "v1".into(), name: bad.into(), description: String::new() },
+                    ProjectCreateRequest {
+                        vault_id: "v1".into(),
+                        name: bad.into(),
+                        description: String::new()
+                    },
                 )
                 .await
                 .is_err(),
@@ -662,7 +777,11 @@ mod tests {
         let (_dir, state) = state_with_vault("v1").await;
         project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "Omen".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "Omen".into(),
+                description: String::new(),
+            },
         )
         .await
         .unwrap();
@@ -685,16 +804,24 @@ mod tests {
 
         let over = project_overview(
             &state,
-            ProjectOverviewRequest { vault_id: "v1".into(), path: "Projects/Omen".into() },
+            ProjectOverviewRequest {
+                vault_id: "v1".into(),
+                path: "Projects/Omen".into(),
+            },
         )
         .await
         .expect("overview");
         assert_eq!(over.status, "done");
         assert_eq!(over.deadline.as_deref(), Some("2026-04-01"));
 
-        let list = projects_list(&state, ProjectsListRequest { vault_id: "v1".into() })
-            .await
-            .unwrap();
+        let list = projects_list(
+            &state,
+            ProjectsListRequest {
+                vault_id: "v1".into(),
+            },
+        )
+        .await
+        .unwrap();
         assert_eq!(list.projects[0].deadline.as_deref(), Some("2026-04-01"));
     }
 
@@ -703,7 +830,11 @@ mod tests {
         let (_dir, state) = state_with_vault("v1").await;
         project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "P".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "P".into(),
+                description: String::new(),
+            },
         )
         .await
         .unwrap();
@@ -712,18 +843,16 @@ mod tests {
             [("deadline".to_string(), json("April"))],
             [("evil".to_string(), json("x"))],
         ] {
-            assert!(
-                project_update(
-                    &state,
-                    ProjectUpdateRequest {
-                        vault_id: "v1".into(),
-                        path: "Projects/P".into(),
-                        patch: patch.into_iter().collect(),
-                    },
-                )
-                .await
-                .is_err()
-            );
+            assert!(project_update(
+                &state,
+                ProjectUpdateRequest {
+                    vault_id: "v1".into(),
+                    path: "Projects/P".into(),
+                    patch: patch.into_iter().collect(),
+                },
+            )
+            .await
+            .is_err());
         }
     }
 
@@ -736,7 +865,11 @@ mod tests {
         let (dir, state) = state_with_vault("v1").await;
         project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "Omen".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "Omen".into(),
+                description: String::new(),
+            },
         )
         .await
         .unwrap();
@@ -749,7 +882,10 @@ mod tests {
 
         let over = project_overview(
             &state,
-            ProjectOverviewRequest { vault_id: "v1".into(), path: "Projects/Omen".into() },
+            ProjectOverviewRequest {
+                vault_id: "v1".into(),
+                path: "Projects/Omen".into(),
+            },
         )
         .await
         .expect("overview");
@@ -777,7 +913,11 @@ mod tests {
         let (dir, state) = state_with_vault("v1").await;
         project_create(
             &state,
-            ProjectCreateRequest { vault_id: "v1".into(), name: "O".into(), description: String::new() },
+            ProjectCreateRequest {
+                vault_id: "v1".into(),
+                name: "O".into(),
+                description: String::new(),
+            },
         )
         .await
         .unwrap();
@@ -788,7 +928,12 @@ mod tests {
         assert!(
             project_set_task(
                 &state,
-                ProjectSetTaskRequest { vault_id: "v1".into(), file: "outside.md".into(), offset: 2, done: true },
+                ProjectSetTaskRequest {
+                    vault_id: "v1".into(),
+                    file: "outside.md".into(),
+                    offset: 2,
+                    done: true
+                },
             )
             .await
             .is_err(),
@@ -797,7 +942,12 @@ mod tests {
         assert!(
             project_set_task(
                 &state,
-                ProjectSetTaskRequest { vault_id: "v1".into(), file: "Projects/O/a.md".into(), offset: 999, done: true },
+                ProjectSetTaskRequest {
+                    vault_id: "v1".into(),
+                    file: "Projects/O/a.md".into(),
+                    offset: 999,
+                    done: true
+                },
             )
             .await
             .is_err(),

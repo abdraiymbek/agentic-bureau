@@ -153,6 +153,7 @@ pub fn run() {
             project_create,
             project_update,
             project_set_task,
+            project_add_task,
             calendar_items,
             event_create,
             event_update,
@@ -478,7 +479,8 @@ async fn get_property(
 async fn get_unlinked_mentions(
     state: tauri::State<'_, AppState>,
     req: simple_directory_engine::api::types::GetUnlinkedMentionsRequest,
-) -> Result<simple_directory_engine::api::types::GetUnlinkedMentionsResponse, SimpleDirectoryError> {
+) -> Result<simple_directory_engine::api::types::GetUnlinkedMentionsResponse, SimpleDirectoryError>
+{
     commands::mentions::get_unlinked_mentions(state.inner(), req).await
 }
 
@@ -810,6 +812,14 @@ async fn project_update(
     req: commands::projects::ProjectUpdateRequest,
 ) -> Result<commands::projects::ProjectUpdateResponse, SimpleDirectoryError> {
     commands::projects::project_update(state.inner(), req).await
+}
+
+#[tauri::command]
+async fn project_add_task(
+    state: tauri::State<'_, AppState>,
+    req: commands::projects::ProjectAddTaskRequest,
+) -> Result<commands::projects::ProjectAddTaskResponse, SimpleDirectoryError> {
+    commands::projects::project_add_task(state.inner(), req).await
 }
 
 #[tauri::command]
