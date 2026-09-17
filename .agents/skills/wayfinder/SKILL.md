@@ -94,10 +94,10 @@ steps, and the attach API takes the sub-issue's internal **id**, not its number:
 
 ```bash
 gh issue create --title "..." --body "..." --label wayfinder:grilling,area:dist
-gh api repos/simple-techdev/simple.directory/issues/<map>/sub_issues -f sub_issue_id=<the id>
+gh api repos/Omen-Flow/omen-flow/issues/<map>/sub_issues -f sub_issue_id=<the id>
 ```
 
-Read the id back with `gh api repos/simple-techdev/simple.directory/issues/<n> --jq .id`. Passing
+Read the id back with `gh api repos/Omen-Flow/omen-flow/issues/<n> --jq .id`. Passing
 the issue *number* there silently attaches the wrong issue or none at all.
 
 **Blocking** uses this repo's convention, not GitHub's dependency graph: a

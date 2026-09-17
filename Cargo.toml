@@ -5,8 +5,8 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
-repository = "https://github.com/simple-techdev/simple.directory"
+license = "Apache-2.0"
+repository = "https://github.com/Omen-Flow/omen-flow"
 authors = ["abdraiymbek"]
 
 [workspace.dependencies]

@@ -108,6 +108,6 @@ is current. The release build pins its own floor.
 
 Code signing — vendors, cost, and whether the first release ships unsigned on
 Windows — is a business decision with a bill attached, and stays in
-[#96](https://github.com/simple-techdev/simple.directory/issues/96) until it is made. It is
+[#96](https://github.com/Omen-Flow/omen-flow/issues/96) until it is made. It is
 deliberately absent from this file: a locked architecture doc should record
 decisions that were actually taken, not the ones an implementer wishes existed.

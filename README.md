@@ -113,7 +113,7 @@ queued is not re-derivable, so that queue is journalled to disk separately.
 **There are no pre-built installers yet.** Building from source, below, is
 currently the only way to run simple.directory. Signed and notarized downloads for macOS,
 Windows and Linux are being built in
-[#97](https://github.com/simple-techdev/simple.directory/issues/97); this section becomes a
+[#97](https://github.com/Omen-Flow/omen-flow/issues/97); this section becomes a
 download table when they land.
 
 ### Prerequisites
@@ -177,4 +177,4 @@ cargo test --workspace     # Rust
 
 ## License
 
-simple.directory is open source under the [MIT License](LICENSE).
+simple.directory is released under the [Apache License 2.0](LICENSE).

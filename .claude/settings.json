@@ -44,8 +44,8 @@
       "Bash(gh label list:*)",
       "Bash(gh label create:*)",
       "Bash(gh issue close:*)",
-      "Bash(gh api repos/simple-techdev/simple.directory/issues/:*)",
-      "Bash(gh api /repos/simple-techdev/simple.directory/dependabot/alerts:*)",
+      "Bash(gh api repos/Omen-Flow/omen-flow/issues/:*)",
+      "Bash(gh api /repos/Omen-Flow/omen-flow/dependabot/alerts:*)",
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
       "Bash(python3 scripts/gates/:*)"

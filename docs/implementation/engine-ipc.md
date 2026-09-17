@@ -67,7 +67,7 @@ The drive-letter rule is deliberately **minimal**: a segment that is exactly
 parsing. So `C: A Study.md` is an ordinary filename on macOS and Linux and is
 refused on Windows, which reads it as drive-relative. That divergence is not
 this validator's to settle — which names are legal on all three platforms is
-[#122](https://github.com/simple-techdev/simple.directory/issues/122), and the point of that
+[#122](https://github.com/Omen-Flow/omen-flow/issues/122), and the point of that
 issue is that the answer must not emerge from wherever the first validator
 happens to get written.
 
@@ -300,7 +300,7 @@ therefore genuinely weaker, not merely untested; the inode-pairing test is
 does have a volume-scoped file ID, but `MetadataExt::file_index` is unstable
 (`windows_by_handle`), so reaching it means `GetFileInformationByHandle` through
 a declared dependency — a change with its own review, tracked in
-[#124](https://github.com/simple-techdev/simple.directory/issues/124), not folded into the
+[#124](https://github.com/Omen-Flow/omen-flow/issues/124), not folded into the
 matrix that revealed it.
 
 **Hash matching is skipped entirely when more than one tracked file shares the
@@ -779,4 +779,4 @@ corrupt index left an intact `.md` unreadable *and unsavable*, which is the
 worst possible way for disposable state to fail. `list_files` still reads the
 tree from `files` — the file tree is a projection of the index by design, and
 replacing it with a live walk is an architecture decision, not a bug fix
-([#235](https://github.com/simple-techdev/simple.directory/issues/235)).
+([#235](https://github.com/Omen-Flow/omen-flow/issues/235)).

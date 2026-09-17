@@ -338,7 +338,7 @@ These are silences, not decisions. A contributor should not read their absence a
 - **Frontend performance has no measured bar.** The commitment is "imperceptible"
   at the keystroke, the scroll and the search, but the only numbers that exist
   describe the engine. There is no keystroke-to-paint, scroll-frame or note-open
-  budget. Filed as [#256](https://github.com/simple-techdev/simple.directory/issues/256).
+  budget. Filed as [#256](https://github.com/Omen-Flow/omen-flow/issues/256).
 - **No accessibility commitment exists** anywhere in the tree — no target
   standard, no keyboard-navigation guarantee, no screen-reader contract.
 - **No internationalization strategy.** A UI string layer is reserved in the
@@ -351,10 +351,10 @@ These are silences, not decisions. A contributor should not read their absence a
   version. macOS and Windows floors are unstated.
 - **No update policy** beyond "one updater manifest per release".
 - **No vulnerability-disclosure process** for a shipped app.
-  [#125](https://github.com/simple-techdev/simple.directory/issues/125).
+  [#125](https://github.com/Omen-Flow/omen-flow/issues/125).
 - **Nothing constrains how the app feels.** The non-negotiables cover
   correctness, portability and speed, and say nothing about interaction quality.
-  [#263](https://github.com/simple-techdev/simple.directory/issues/263).
+  [#263](https://github.com/Omen-Flow/omen-flow/issues/263).
 
 ## 6. v1.0 — what "done" means
 
@@ -363,51 +363,51 @@ no dates and no ordering.
 
 **Feature completeness.** The command and keymap registry and configurable
 shortcuts have landed. Two named items remain: a theme picker in Settings
-([#71](https://github.com/simple-techdev/simple.directory/issues/71)) and Copy-as-Markdown with
+([#71](https://github.com/Omen-Flow/omen-flow/issues/71)) and Copy-as-Markdown with
 the sanitize seam it reserves
-([#72](https://github.com/simple-techdev/simple.directory/issues/72)). The performance pass is
+([#72](https://github.com/Omen-Flow/omen-flow/issues/72)). The performance pass is
 open.
 
 **Correctness against our own guarantees.** Three open defects each contradict a
 stated non-negotiable and must close before a release can honestly claim it:
-CRLF files rewritten to LF ([#119](https://github.com/simple-techdev/simple.directory/issues/119)),
+CRLF files rewritten to LF ([#119](https://github.com/Omen-Flow/omen-flow/issues/119)),
 no filename validation so Windows-illegal names make a vault non-portable
-([#122](https://github.com/simple-techdev/simple.directory/issues/122)), and no Unicode
+([#122](https://github.com/Omen-Flow/omen-flow/issues/122)), and no Unicode
 normalization or path-length guard
-([#123](https://github.com/simple-techdev/simple.directory/issues/123)).
+([#123](https://github.com/Omen-Flow/omen-flow/issues/123)).
 
 **Platform parity.** The embedded terminal must work on Windows
-([#99](https://github.com/simple-techdev/simple.directory/issues/99)); the modifier key must
-abstract off macOS ([#100](https://github.com/simple-techdev/simple.directory/issues/100)); the
+([#99](https://github.com/Omen-Flow/omen-flow/issues/99)); the modifier key must
+abstract off macOS ([#100](https://github.com/Omen-Flow/omen-flow/issues/100)); the
 IPC transport must reach Windows via named pipes so the CLI can attach
-([#114](https://github.com/simple-techdev/simple.directory/issues/114)); and a gate must forbid
+([#114](https://github.com/Omen-Flow/omen-flow/issues/114)); and a gate must forbid
 platform conditionals outside the seam so parity cannot silently decay
-([#115](https://github.com/simple-techdev/simple.directory/issues/115)), landed last so it
+([#115](https://github.com/Omen-Flow/omen-flow/issues/115)), landed last so it
 enshrines the end state rather than the conditionals being removed.
 
 **Shippability.** There are no installers today; building from source is the only
 way to run simple.directory. The parent is
-[#97](https://github.com/simple-techdev/simple.directory/issues/97) and it needs: real icons,
+[#97](https://github.com/Omen-Flow/omen-flow/issues/97) and it needs: real icons,
 which are currently 1×1 placeholders
-([#112](https://github.com/simple-techdev/simple.directory/issues/112)); a tag-triggered release
+([#112](https://github.com/Omen-Flow/omen-flow/issues/112)); a tag-triggered release
 workflow producing all three artifacts from one commit
-([#101](https://github.com/simple-techdev/simple.directory/issues/101)); macOS signing and
-notarization ([#102](https://github.com/simple-techdev/simple.directory/issues/102)) and Windows
-signing ([#103](https://github.com/simple-techdev/simple.directory/issues/103)); an auto-updater
-and release manifest ([#104](https://github.com/simple-techdev/simple.directory/issues/104)); and
+([#101](https://github.com/Omen-Flow/omen-flow/issues/101)); macOS signing and
+notarization ([#102](https://github.com/Omen-Flow/omen-flow/issues/102)) and Windows
+signing ([#103](https://github.com/Omen-Flow/omen-flow/issues/103)); an auto-updater
+and release manifest ([#104](https://github.com/Omen-Flow/omen-flow/issues/104)); and
 user-facing install documentation
-([#105](https://github.com/simple-techdev/simple.directory/issues/105)).
+([#105](https://github.com/Omen-Flow/omen-flow/issues/105)).
 
 **The one open business decision.** Signing vendors, their cost, and whether the
 first Windows release ships unsigned are deliberately not recorded in the
 architecture tree. They live in
-[#96](https://github.com/simple-techdev/simple.directory/issues/96), and they gate the release
+[#96](https://github.com/Omen-Flow/omen-flow/issues/96), and they gate the release
 workflow.
 
 **Not required for v1.0.** Layer 4's close tag is pending an operator GUI smoke
 run, which is process rather than product. The bundle smoke job is push-only and
 so has never run on a pull request, leaving `tauri build` unproven on all three
-platforms ([#272](https://github.com/simple-techdev/simple.directory/issues/272)) — a release
+platforms ([#272](https://github.com/Omen-Flow/omen-flow/issues/272)) — a release
 blocker in practice even though it is not a feature.
 
 ## 7. Beyond v1.0 — described, not ordered
@@ -419,7 +419,7 @@ therefore unordered. Each states what it is and what it constrains *today*,
 because that is the part that affects this week's work.
 
 **Plugins — WASI/WASM ABI, JS via Javy, granular permissions.**
-[#61](https://github.com/simple-techdev/simple.directory/issues/61). Third-party code in a WASM
+[#61](https://github.com/Omen-Flow/omen-flow/issues/61). Third-party code in a WASM
 sandbox with explicit capability grants; JavaScript remains a first-class *source*
 language, never a runtime that bypasses the sandbox. Constrains today: the
 fenced-block registry is its pre-ABI shape and must not be mistaken for a
@@ -431,7 +431,7 @@ door and wants a stable core beneath it — is recorded here as a note, not as a
 position in a sequence.
 
 **Sync — Loro CRDT, P2P, optional E2EE relay.**
-[#62](https://github.com/simple-techdev/simple.directory/issues/62). Constrains today:
+[#62](https://github.com/Omen-Flow/omen-flow/issues/62). Constrains today:
 `simple-directory-sync` exports nothing and nothing may depend on it, because a dependency
 on an empty crate constrains the design of whatever fills it; two schema names
 are reserved and not created; and no file-identity UUID may be minted early "to
@@ -439,16 +439,16 @@ make later work easier". Onboarding is the single batch-write moment in a vault'
 lifetime, and it is opt-in.
 
 **Time Machine — sync-clean snapshots and version history.**
-[#63](https://github.com/simple-techdev/simple.directory/issues/63). Constrains today: the
+[#63](https://github.com/Omen-Flow/omen-flow/issues/63). Constrains today: the
 pre-sync safety net is the recovery directory, not a partial Time Machine. It
 stays dormant rather than half-built.
 
 **Canvas — a spatial surface.**
-[#65](https://github.com/simple-techdev/simple.directory/issues/65). The open problem is that it
+[#65](https://github.com/Omen-Flow/omen-flow/issues/65). The open problem is that it
 forces a file-format fork, which sits directly against the Markdown-only stance.
 Unresolved, and the reason it is filed rather than planned.
 
-**Mobile.** [#66](https://github.com/simple-techdev/simple.directory/issues/66). Not a v1 target,
+**Mobile.** [#66](https://github.com/Omen-Flow/omen-flow/issues/66). Not a v1 target,
 but must not be precluded. Constrains today, and this is enforced: no crate other
 than `simple-directory-app` may depend on Tauri. The CLI is standing proof the engine is
 frontend-agnostic. The test is whether a change makes a non-app crate depend on a
@@ -492,38 +492,33 @@ is worth reading.
 
 - The byte-for-byte promise is not held for CRLF files: the editor has no line
   separator configured, so opening a CRLF note and typing one character rewrites
-  the whole file to LF. [#119](https://github.com/simple-techdev/simple.directory/issues/119).
+  the whole file to LF. [#119](https://github.com/Omen-Flow/omen-flow/issues/119).
 - Portability is not held for filenames: there is no validation, so a vault can
   contain names that cannot be extracted on Windows
-  ([#122](https://github.com/simple-techdev/simple.directory/issues/122)), and no Unicode
+  ([#122](https://github.com/Omen-Flow/omen-flow/issues/122)), and no Unicode
   normalization or path-length guard
-  ([#123](https://github.com/simple-techdev/simple.directory/issues/123)).
+  ([#123](https://github.com/Omen-Flow/omen-flow/issues/123)).
 - Typed properties store a property's type as an inline `# type:` comment in the
   `.md`, which puts app metadata in the source of truth against the
   non-negotiables. It ships default-off and the replacement is a vault-level
-  registry, but it ships. [#19](https://github.com/simple-techdev/simple.directory/issues/19).
+  registry, but it ships. [#19](https://github.com/Omen-Flow/omen-flow/issues/19).
 
 **Weaker on one platform than the parity rule implies.** Windows has no file
 identity, so a rename made while the app was closed *and* which also edited the
 file cannot be paired; pairing falls back to content hashing, which is refused
 when two files share a hash — something empty notes and templates make ordinary.
-[#220](https://github.com/simple-techdev/simple.directory/issues/220). This is recorded as a
+[#220](https://github.com/Omen-Flow/omen-flow/issues/220). This is recorded as a
 known limit rather than a bug, which is the honest framing, but it is a
 capability gap and the distribution rule says capability gaps are not allowed.
 
 **Documentation that is stale or contradictory.**
 
-- [`architecture/planned.md`](architecture/planned.md) §6 still records the
-  licence as "MIT placeholder during alpha". The repo ships under the Business
-  Source License 1.1, and no file in this tree records that decision — only the
-  root README mentions it. A locked architecture document is wrong about the
-  licence.
 - `layers.md` retired the L6–L10 ladder, but the numbering survives elsewhere as
   residual vocabulary: `foundation.md` still labels graph rendering "Layer 9" and
   `ui.md` names L6, L7 and L8 settings categories. These read as live commitments
   and are not.
 - The status of the design-system inline-control tail
-  ([#34](https://github.com/simple-techdev/simple.directory/issues/34)) is stated as complete in
+  ([#34](https://github.com/Omen-Flow/omen-flow/issues/34)) is stated as complete in
   one document and as outstanding in another.
 - Architecture documents describe locked design rather than shipped state, which
   is correct but reads as description of the present — `ui.md` discusses the
@@ -533,7 +528,7 @@ capability gap and the distribution rule says capability gaps are not allowed.
 
 - No release has ever been built. The bundle smoke job runs only on push, so
   `tauri build` is unproven on all three platforms
-  ([#272](https://github.com/simple-techdev/simple.directory/issues/272)).
+  ([#272](https://github.com/Omen-Flow/omen-flow/issues/272)).
 - Several known flakes make CI signal ambiguous, including a Windows teardown
   segfault that blames whichever pull request happens to hit it.
 - The documentation checker detects duplication, not contradiction. A green run
