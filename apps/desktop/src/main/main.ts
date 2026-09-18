@@ -48,6 +48,11 @@ function sendToCore(msg: Record<string, unknown>): void {
 }
 
 function callCore<T>(op: string, payload: unknown, idempotencyKey?: string): Promise<T> {
+  if (!coreProc) {
+    return Promise.reject(
+      new Error('STARK’s workspace service is unavailable. Quit and reopen STARK to reconnect.'),
+    );
+  }
   const requestId = `req-${++reqSeq}`;
   return new Promise<T>((resolve, reject) => {
     pending.set(requestId, { resolve: resolve as never, reject });
@@ -398,7 +403,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  sendToCore({ type: 'shutdown' });
+  // macOS keeps the app alive; a reopened window still needs the core service.
+  // before-quit owns shutdown on every platform.
   if (process.platform !== 'darwin') app.quit();
 });
 app.on('before-quit', () => {

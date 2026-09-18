@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowRight,
@@ -11,34 +11,97 @@ import {
   House,
   Lightbulb,
   Package,
+  Plus,
+  X,
 } from '@phosphor-icons/react';
 import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
-import { JET_ASCII } from '../components/jetAscii';
+import aircraft from '../assets/stark-aircraft.png';
 import type { Project } from '@stark/contracts';
+import './welcome.css';
 
 const STEPS = [
-  { n: '01', icon: Lightbulb, title: 'Idea → Requirements', desc: 'Describe what you are building. STARK captures requirements, assumptions, and constraints.' },
-  { n: '02', icon: Cube, title: 'Requirements → CAD', desc: 'Parametric OpenSCAD models driven by your spec, previewed in the built-in STL viewport.' },
-  { n: '03', icon: Circuitry, title: 'Parts & Sourcing', desc: 'Components with real offers and a bill of materials that stays in sync.' },
-  { n: '04', icon: GitPullRequest, title: 'Agent Review Gate', desc: 'Agent work lands as proposals. You approve it before it touches the baseline.' },
-  { n: '05', icon: ChartLine, title: 'Trace Everything', desc: 'Dependency graph, staleness, and provenance from requirement to artifact.' },
+  {
+    n: '01',
+    icon: Lightbulb,
+    title: 'Idea → Concept',
+    desc: 'Shape your idea into clear requirements with AI.',
+    detail:
+      'Describe what you want to build. In Requirements, capture what it needs to do, the constraints it must meet, and the assumptions to validate.',
+  },
+  {
+    n: '02',
+    icon: Cube,
+    title: 'Concept → CAD',
+    desc: 'Create parametric models. Preview every revision.',
+    detail:
+      'Work with your connected agent to create parametric OpenSCAD models from your requirements. Preview rendered models in Artifacts and review changes before accepting them.',
+  },
+  {
+    n: '03',
+    icon: Circuitry,
+    title: 'Parts & Sourcing',
+    desc: 'Find real parts and keep your bill of materials in sync.',
+    detail:
+      'Use Components to organize parts, compare supplier offers, and track quantities. Export your bill of materials when you are ready to source the build.',
+  },
+  {
+    n: '04',
+    icon: GitPullRequest,
+    title: 'Review & Build',
+    desc: 'Inspect proposed changes. You decide what gets built.',
+    detail:
+      'Your agent submits proposed changes to Reviews. Inspect the changes and validation results, then accept or reject them before they become part of your project.',
+  },
+  {
+    n: '05',
+    icon: ChartLine,
+    title: 'Iterate & Improve',
+    desc: 'Trace decisions, check dependencies, and refine.',
+    detail:
+      'Use History and artifact dependencies to follow decisions from requirement to result. See what is out of date when a design changes and rerun the relevant checks.',
+  },
 ];
 
-/** First-run surface: landing-style hero with create / open / import / recents. */
+/** Project launcher. The artwork and typography are bundled for offline use. */
 export function WelcomeView() {
   const { set, setActive, toast } = useStore();
   const [recents, setRecents] = useState<string[]>([]);
+  const [recentState, setRecentState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [showAllRecents, setShowAllRecents] = useState(false);
+  const [recentAttempt, setRecentAttempt] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedStep, setSelectedStep] = useState<(typeof STEPS)[number] | null>(null);
   const [name, setName] = useState('');
   const [intent, setIntent] = useState('');
   const [busy, setBusy] = useState(false);
+  const operationPending = useRef(false);
+  const newProjectButton = useRef<HTMLButtonElement>(null);
+  const stepTrigger = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setRecentState('loading');
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) setRecentState('error');
+    }, 8000);
     void cmd<{ projects: string[] }>('app.recent_projects')
-      .then((r) => setRecents(r.projects))
-      .catch(() => {});
-  }, []);
+      .then((r) => {
+        window.clearTimeout(timeout);
+        if (!cancelled) {
+          setRecents(r.projects);
+          setRecentState('ready');
+        }
+      })
+      .catch(() => {
+        window.clearTimeout(timeout);
+        if (!cancelled) setRecentState('error');
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [recentAttempt]);
 
   const afterOpen = async (
     r: { project: Project; projectId: string; readOnly?: boolean },
@@ -52,194 +115,396 @@ export function WelcomeView() {
     await useStore.getState().refreshSession();
   };
 
-  const create = async () => {
-    if (!name.trim()) return;
-    const dir = await window.stark.pickDirectory('Choose project folder');
-    if (!dir) return;
+  // Include native pickers in the operation, so cancellation and picker failures
+  // release the controls and repeated clicks cannot launch duplicate dialogs.
+  const run = async (operation: () => Promise<void>) => {
+    if (operationPending.current) return;
+    operationPending.current = true;
     setBusy(true);
     try {
+      await operation();
+    } catch (e) {
+      toast('error', errMsg(e));
+    } finally {
+      operationPending.current = false;
+      setBusy(false);
+    }
+  };
+
+  const create = () =>
+    run(async () => {
+      if (!name.trim()) return;
+      const dir = await window.stark.pickDirectory('Choose project folder');
+      if (!dir) return;
       const r = await cmd<{ project: Project; projectId: string }>('project.create', {
-        name,
+        name: name.trim(),
         path: dir,
-        intent,
+        intent: intent.trim(),
       });
       setCreateOpen(false);
-      await afterOpen({ ...r }, dir);
-    } catch (e) {
-      toast('error', errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+      await afterOpen(r, dir);
+    });
 
-  const open = async (dir?: string) => {
-    const p = dir ?? (await window.stark.pickDirectory('Open STARK project'));
-    if (!p) return;
-    setBusy(true);
-    try {
+  const open = (dir?: string) =>
+    run(async () => {
+      const path = dir ?? (await window.stark.pickDirectory('Open STARK project'));
+      if (!path) return;
       const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>(
         'project.open',
-        { path: p },
+        { path },
       );
-      await afterOpen(r, p);
-    } catch (e) {
-      toast('error', errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const importArchive = async () => {
-    const archivePath = await window.stark.pickFile({
-      title: 'Import STARK archive',
-      filters: [{ name: 'STARK archive', extensions: ['zip', 'stark.zip'] }],
+      await afterOpen(r, path);
     });
-    if (!archivePath) return;
-    const destDir = await window.stark.pickDirectory('Choose where to extract the project');
-    if (!destDir) return;
-    setBusy(true);
-    try {
+
+  const importArchive = () =>
+    run(async () => {
+      const archivePath = await window.stark.pickFile({
+        title: 'Import STARK archive',
+        filters: [{ name: 'STARK archive', extensions: ['zip', 'stark.zip'] }],
+      });
+      if (!archivePath) return;
+      const destDir = await window.stark.pickDirectory('Choose where to extract the project');
+      if (!destDir) return;
       const input = { archivePath, destDir };
       let r: { project: Project; projectId: string };
       try {
         r = await cmd('project.import_archive', input);
       } catch (e) {
-        // Same project already open/on disk → import as a copy instead.
         if (!(e instanceof CommandError) || e.code !== 'VALIDATION') throw e;
         r = await cmd('project.import_archive', { ...input, newIdentity: true });
       }
-      await afterOpen({ ...r }, destDir);
-    } catch (e) {
-      toast('error', errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+      await afterOpen(r, destDir);
+    });
 
-  const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p;
+  const base = (path: string) =>
+    path
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() || path;
 
   return (
     <div className="welcome">
-      {/* Header */}
-      <header className="welcome-header" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
-        <div className="welcome-logo">STARK</div>
-        <nav className="welcome-steps dim-mono">
-          <span>ENGINEER</span>
-          <span className="sep">›</span>
-          <span>DESIGN</span>
-          <span className="sep">›</span>
-          <span>SOURCE</span>
-          <span className="sep">›</span>
-          <span>BUILD</span>
-        </nav>
-        <div className="dim-mono">V1.0</div>
+      <header className="welcome-header">
+        <div className="welcome-brand">
+          <span className="welcome-logo">STARK</span>
+        </div>
+        <div className="welcome-header-main">
+          <div className="welcome-steps" aria-label="Engineer, design, source, build">
+            <span>ENGINEER</span>
+            <span aria-hidden="true">›</span>
+            <span>DESIGN</span>
+            <span aria-hidden="true">›</span>
+            <span>SOURCE</span>
+            <span aria-hidden="true">›</span>
+            <span>BUILD</span>
+          </div>
+          <span className="welcome-edition">ENGINEERING WORKSPACE</span>
+        </div>
       </header>
 
       <div className="welcome-body">
-        {/* Left rail */}
-        <aside className="welcome-rail">
-          <RailItem icon={<House size={15} />} label="Home" active />
-          <RailItem icon={<FilePlus size={15} />} label="New Project" onClick={() => setCreateOpen(true)} />
-          <RailItem icon={<FolderOpen size={15} />} label="Open Project" onClick={() => open()} />
-          <RailItem icon={<Package size={15} />} label="Import Archive" onClick={importArchive} />
+        <aside className="welcome-rail" aria-label="Project launcher">
+          <nav className="welcome-nav" aria-label="Main navigation">
+            <RailItem icon={<House size={20} />} label="Home" active />
+            <RailItem
+              icon={<FilePlus size={20} />}
+              label="New Project"
+              onClick={() => setCreateOpen(true)}
+              disabled={busy}
+            />
+            <RailItem
+              icon={<FolderOpen size={20} />}
+              label="Open Project"
+              onClick={() => open()}
+              disabled={busy}
+            />
+            <RailItem
+              icon={<Package size={20} />}
+              label="Import Archive"
+              onClick={importArchive}
+              disabled={busy}
+            />
+          </nav>
 
-          {recents.length > 0 && (
-            <div className="welcome-recents">
-              <div className="rail-label dim-mono">Recent Projects</div>
-              {recents.slice(0, 6).map((r) => (
-                <button key={r} className="rail-recent" title={r} onClick={() => open(r)}>
-                  {base(r)}
+          <section
+            className="welcome-recents"
+            aria-labelledby="recent-projects-title"
+            aria-busy={recentState === 'loading'}
+          >
+            <h2 id="recent-projects-title" className="rail-label">
+              Recent Projects
+            </h2>
+            {recentState === 'loading' ? (
+              <div className="recent-skeleton" role="status" aria-label="Loading recent projects">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : recentState === 'error' ? (
+              <div>
+                <p className="rail-empty">
+                  Recent projects couldn’t be loaded. Try again or reopen STARK.
+                </p>
+                <button
+                  className="recent-toggle"
+                  onClick={() => setRecentAttempt((attempt) => attempt + 1)}
+                >
+                  Try again <ArrowRight size={14} />
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            ) : recents.length === 0 ? (
+              <p className="rail-empty">
+                A place for your next idea.
+                <br />
+                Create or open a project to begin.
+              </p>
+            ) : (
+              <>
+                <div className="recent-list">
+                  {(showAllRecents ? recents : recents.slice(0, 5)).map((r) => (
+                    <button
+                      key={r}
+                      className="rail-recent"
+                      title={r}
+                      onClick={() => open(r)}
+                      disabled={busy}
+                    >
+                      <Cube size={18} />
+                      <span>{base(r)}</span>
+                    </button>
+                  ))}
+                </div>
+                {recents.length > 5 && (
+                  <button
+                    className="recent-toggle"
+                    onClick={() => setShowAllRecents(!showAllRecents)}
+                    aria-expanded={showAllRecents}
+                  >
+                    {showAllRecents ? 'Show less' : 'View all'} <ArrowRight size={14} />
+                  </button>
+                )}
+              </>
+            )}
+          </section>
 
-          <div className="rail-quote">
-            <div className="rail-quote-text">"Ideas to reality, faster."</div>
-            <div className="dim-mono" style={{ marginTop: 8 }}>STARK</div>
-          </div>
+          <blockquote className="rail-quote">
+            <p>
+              “Ideas to reality,
+              <br />
+              faster.”
+            </p>
+            <cite>STARK</cite>
+          </blockquote>
         </aside>
 
-        {/* Hero */}
-        <main className="welcome-hero">
-          <div className="hero-copy">
-            <div className="eyebrow dim-mono">YOUR ENGINEERING CO-PILOT</div>
-            <h1 className="hero-word">STARK</h1>
-            <div className="hero-tag">Turn your ideas into real-world engineering.</div>
-            <p className="hero-sub dim">
-              From concept to CAD, parts, wiring and beyond. STARK helps you design, source, and
-              build, powered by AI.
-            </p>
-            <div className="hero-ctas">
-              <button className="cta-primary" onClick={() => setCreateOpen(true)} disabled={busy}>
-                <FilePlus size={15} weight="bold" />
-                Start New Project
-                <ArrowRight size={14} />
-              </button>
-              <button className="cta-ghost" onClick={() => open()} disabled={busy}>
-                <FolderOpen size={15} />
-                Open Project
-              </button>
+        <main className="welcome-main">
+          <section className="welcome-hero" aria-labelledby="welcome-title">
+            <div className="hero-art" aria-hidden="true">
+              <div className="hero-grid" />
+              <div className="hero-aircraft">
+                <img
+                  src={aircraft}
+                  alt=""
+                  width="2944"
+                  height="1804"
+                  loading="eager"
+                  draggable="false"
+                />
+              </div>
+              <span className="hero-art-caption">
+                IDEAS
+                <br />
+                TAKE FLIGHT
+              </span>
+              <span className="hero-art-process">
+                CONCEPT
+                <br />
+                DESIGN
+                <br />
+                SOURCE
+                <br />
+                BUILD
+                <br />
+                IMPROVE
+              </span>
             </div>
-          </div>
+            <div className="hero-copy">
+              <p className="hero-eyebrow">YOUR ENGINEERING CO-PILOT</p>
+              <h1 id="welcome-title" className="hero-word">
+                STARK
+              </h1>
+              <p className="hero-tag">Turn your ideas into real-world engineering.</p>
+              <p className="hero-sub">
+                From concept to CAD, parts, wiring and beyond.
+                <br className="hero-linebreak" /> STARK helps you design, source, and build, powered
+                by AI.
+              </p>
+              <div className="hero-ctas">
+                <button
+                  ref={newProjectButton}
+                  className="cta-primary"
+                  onClick={() => setCreateOpen(true)}
+                  disabled={busy}
+                >
+                  <Plus size={20} />
+                  Start New Project
+                  <ArrowRight size={18} />
+                </button>
+                <button className="cta-ghost" onClick={() => open()} disabled={busy}>
+                  <FolderOpen size={20} />
+                  Open Project
+                </button>
+              </div>
+              <span className="welcome-operation" role="status">
+                {busy && !createOpen ? 'Opening your workspace…' : ''}
+              </span>
+            </div>
+          </section>
 
-          <pre className="hero-jet" aria-hidden="true">
-            {JET_ASCII}
-          </pre>
+          <section className="welcome-cards" aria-label="From idea to engineering">
+            {STEPS.map((step) => (
+              <button
+                key={step.n}
+                className="step-card"
+                onClick={(event) => {
+                  stepTrigger.current = event.currentTarget;
+                  setSelectedStep(step);
+                }}
+                aria-haspopup="dialog"
+              >
+                <span className="step-top">
+                  <step.icon size={26} weight="light" />
+                  <span className="step-num">{step.n}</span>
+                </span>
+                <span className="step-title">{step.title}</span>
+                <span className="step-desc">{step.desc}</span>
+                <ArrowRight size={17} className="step-arrow" aria-hidden="true" />
+              </button>
+            ))}
+          </section>
+
+          <footer className="welcome-footer">
+            <span className="welcome-footer-motto">BUILT FOR A BRIGHTER TOMORROW.</span>
+            <span>STARK&nbsp; // &nbsp;ENGINEERING INTELLIGENCE</span>
+          </footer>
         </main>
       </div>
 
-      {/* Workflow cards */}
-      <div className="welcome-cards">
-        {STEPS.map((s) => (
-          <div key={s.n} className="step-card">
-            <div className="step-num dim-mono">{s.n}</div>
-            <s.icon size={18} className="step-icon" />
-            <div className="step-title">{s.title}</div>
-            <div className="step-desc dim">{s.desc}</div>
-            <ArrowRight size={12} className="step-arrow" />
-          </div>
-        ))}
-      </div>
-
-      {/* Footer strip */}
-      <footer className="welcome-footer dim-mono">
-        <span>BUILT FOR A BRIGHTER TOMORROW.</span>
-        <span>STARK // ENGINEERING INTELLIGENCE</span>
-      </footer>
-
-      {/* New-project dialog */}
-      <Dialog.Root open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog.Root
+        open={createOpen}
+        onOpenChange={(value) => {
+          if (!busy) setCreateOpen(value);
+        }}
+      >
         <Dialog.Portal>
-          <Dialog.Overlay className="dlg-overlay" />
-          <Dialog.Content className="dlg">
-            <Dialog.Title className="dlg-title">New project</Dialog.Title>
-            <Dialog.Description className="dim" style={{ fontSize: 13, marginBottom: 16 }}>
-              Pick a name and a folder. STARK creates the project database and workspace there.
+          <Dialog.Overlay className="dlg-overlay welcome-dialog-overlay" />
+          <Dialog.Content
+            className="dlg welcome-dialog"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              newProjectButton.current?.focus();
+            }}
+          >
+            <Dialog.Title className="dlg-title">Start a new project</Dialog.Title>
+            <Dialog.Description className="welcome-dialog-description">
+              Give your idea a name. Next, choose a folder for your workspace.
             </Dialog.Description>
-            <label className="dlg-label dim-mono">NAME</label>
-            <input
-              autoFocus
-              placeholder="e.g. Sable inspection rover"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && create()}
-            />
-            <label className="dlg-label dim-mono" style={{ marginTop: 12 }}>
-              INTENT
-            </label>
-            <textarea
-              placeholder="What are you building?"
-              rows={3}
-              value={intent}
-              onChange={(e) => setIntent(e.target.value)}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button onClick={() => setCreateOpen(false)}>Cancel</button>
-              <button className="primary" onClick={create} disabled={busy || !name.trim()}>
-                {busy ? 'Creating…' : 'Create project'}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void create();
+              }}
+            >
+              <label className="dlg-label" htmlFor="project-name">
+                Project name
+              </label>
+              <input
+                id="project-name"
+                autoFocus
+                required
+                placeholder="e.g. Sable inspection rover"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={busy}
+              />
+              <label className="dlg-label" htmlFor="project-intent">
+                What are you building? <span>Optional</span>
+              </label>
+              <textarea
+                id="project-intent"
+                placeholder="Describe your idea and what it needs to do."
+                rows={3}
+                value={intent}
+                onChange={(e) => setIntent(e.target.value)}
+                disabled={busy}
+              />
+              <div className="welcome-dialog-actions">
+                <Dialog.Close asChild>
+                  <button type="button" disabled={busy}>
+                    Cancel
+                  </button>
+                </Dialog.Close>
+                <button className="primary" type="submit" disabled={busy || !name.trim()}>
+                  {busy ? 'Creating…' : 'Choose folder & create'}
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </form>
+            <Dialog.Close asChild>
+              <button
+                className="welcome-dialog-close"
+                aria-label="Close new project"
+                disabled={busy}
+              >
+                <X size={18} />
               </button>
-            </div>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+
+      <Dialog.Root
+        open={!!selectedStep}
+        onOpenChange={(value) => {
+          if (!value) setSelectedStep(null);
+        }}
+      >
+        <Dialog.Portal>
+          <Dialog.Overlay className="dlg-overlay welcome-dialog-overlay" />
+          <Dialog.Content
+            className="dlg welcome-dialog"
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              stepTrigger.current?.focus();
+            }}
+          >
+            {selectedStep && (
+              <>
+                <selectedStep.icon size={30} weight="light" className="welcome-dialog-icon" />
+                <Dialog.Title className="dlg-title">{selectedStep.title}</Dialog.Title>
+                <Dialog.Description className="welcome-dialog-description">
+                  {selectedStep.detail}
+                </Dialog.Description>
+                <div className="welcome-dialog-actions">
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      setSelectedStep(null);
+                      setCreateOpen(true);
+                    }}
+                    disabled={busy}
+                  >
+                    Start New Project
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+            <Dialog.Close asChild>
+              <button className="welcome-dialog-close" aria-label="Close workflow details">
+                <X size={18} />
+              </button>
+            </Dialog.Close>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
@@ -251,17 +516,20 @@ function RailItem(props: {
   icon: React.ReactNode;
   label: string;
   active?: boolean;
+  disabled?: boolean;
   onClick?: () => void;
 }) {
+  if (props.active)
+    return (
+      <div className="rail-item active" aria-current="page">
+        {props.icon}
+        <span>{props.label}</span>
+      </div>
+    );
   return (
-    <button
-      className={`rail-item${props.active ? ' active' : ''}`}
-      onClick={props.onClick}
-      disabled={!props.onClick}
-      style={props.active ? { cursor: 'default' } : undefined}
-    >
+    <button className="rail-item" onClick={props.onClick} disabled={props.disabled}>
       {props.icon}
-      {props.label}
+      <span>{props.label}</span>
     </button>
   );
 }
