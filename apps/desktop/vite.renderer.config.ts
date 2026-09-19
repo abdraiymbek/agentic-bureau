@@ -9,7 +9,15 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@stark/contracts': path.join(root, '..', '..', 'packages', 'contracts', 'src', 'index.ts'),
+      '@omenflow/contracts': path.join(
+        root,
+        '..',
+        '..',
+        'packages',
+        'contracts',
+        'src',
+        'index.ts',
+      ),
     },
   },
   build: {

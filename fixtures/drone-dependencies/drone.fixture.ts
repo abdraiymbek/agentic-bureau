@@ -4,8 +4,8 @@
  * propulsion/endurance example: raising the payload requirement must mark
  * the hover-throttle and endurance calculations stale without erasing them.
  */
-import type { CoreApp } from '@stark/core';
-import type { Origin } from '@stark/contracts';
+import type { CoreApp } from '@omenflow/core';
+import type { Origin } from '@omenflow/contracts';
 
 const USER: Origin = { kind: 'user' };
 const q = (value: number, unit: string) => ({ value, unit });

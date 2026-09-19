@@ -5,9 +5,9 @@ import {
   PROJECT_FILE,
   Project,
   SCHEMA_VERSION,
-  StarkError,
+  OmenflowError,
   newId,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import { ProjectDb } from './db.js';
 import { LATEST_SCHEMA_VERSION } from './schema.js';
 import { ObjectStore } from './objects.js';
@@ -27,10 +27,10 @@ export const ARTIFACT_DIRS = [
   'tests',
 ] as const;
 
-const STARK_SUBDIRS = ['objects', 'work', 'recovery', 'cache'] as const;
+const OMENFLOW_SUBDIRS = ['objects', 'work', 'recovery', 'cache'] as const;
 
 interface ProjectFile {
-  format: 'stark-project';
+  format: 'omenflow-project';
   version: number;
   id: string;
   name: string;
@@ -47,17 +47,17 @@ export class ProjectHandle {
     public readonly readOnly: boolean,
   ) {
     this.repo = new Repo(pdb.db);
-    this.objects = new ObjectStore(path.join(root, '.stark', 'objects'));
+    this.objects = new ObjectStore(path.join(root, '.omenflow', 'objects'));
   }
 
   get project(): Project {
     const p = this.repo.getProject();
-    if (!p) throw new StarkError(ErrorCodes.INTERNAL, 'Project row missing');
+    if (!p) throw new OmenflowError(ErrorCodes.INTERNAL, 'Project row missing');
     return p;
   }
 
   workDir(sessionId: string): string {
-    const dir = path.join(this.root, '.stark', 'work', sessionId);
+    const dir = path.join(this.root, '.omenflow', 'work', sessionId);
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -74,16 +74,23 @@ function writeProjectFile(root: string, pf: ProjectFile): void {
 function readProjectFile(root: string): ProjectFile {
   const p = path.join(root, PROJECT_FILE);
   if (!fs.existsSync(p)) {
-    throw new StarkError(ErrorCodes.NOT_FOUND, `Not a STARK project (missing ${PROJECT_FILE})`, {
-      repair: 'Choose a folder containing a STARK project, or create a new one.',
-    });
+    throw new OmenflowError(
+      ErrorCodes.NOT_FOUND,
+      `Not an Omen Flow project (missing ${PROJECT_FILE})`,
+      {
+        repair: 'Choose a folder containing an Omen Flow project, or create a new one.',
+      },
+    );
   }
   try {
     const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as ProjectFile;
-    if (parsed.format !== 'stark-project') throw new Error('bad format');
+    if (parsed.format !== 'omenflow-project') throw new Error('bad format');
     return parsed;
   } catch (e) {
-    throw new StarkError(ErrorCodes.VALIDATION, `Invalid ${PROJECT_FILE}: ${(e as Error).message}`);
+    throw new OmenflowError(
+      ErrorCodes.VALIDATION,
+      `Invalid ${PROJECT_FILE}: ${(e as Error).message}`,
+    );
   }
 }
 
@@ -95,30 +102,36 @@ export function createProject(dir: string, name: string, intent: string): Projec
 
   const existing = fs.readdirSync(root).filter((f) => !f.startsWith('.DS_Store'));
   if (existing.length > 0 && !fs.existsSync(path.join(root, PROJECT_FILE))) {
-    throw new StarkError(ErrorCodes.VALIDATION, `Folder is not empty: ${root}`, {
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Folder is not empty: ${root}`, {
       repair: 'Pick an empty folder or open an existing project.',
     });
   }
 
   for (const d of ARTIFACT_DIRS) fs.mkdirSync(path.join(root, 'artifacts', d), { recursive: true });
   fs.mkdirSync(path.join(root, 'exports'), { recursive: true });
-  for (const d of STARK_SUBDIRS) fs.mkdirSync(path.join(root, '.stark', d), { recursive: true });
+  for (const d of OMENFLOW_SUBDIRS)
+    fs.mkdirSync(path.join(root, '.omenflow', d), { recursive: true });
 
   const projectId = fs.existsSync(path.join(root, PROJECT_FILE))
     ? readProjectFile(root).id
     : newId();
-  writeProjectFile(root, { format: 'stark-project', version: SCHEMA_VERSION, id: projectId, name });
+  writeProjectFile(root, {
+    format: 'omenflow-project',
+    version: SCHEMA_VERSION,
+    id: projectId,
+    name,
+  });
 
   const readme = path.join(root, 'README.md');
   if (!fs.existsSync(readme)) {
     fs.writeFileSync(
       readme,
-      `# ${name}\n\nSTARK engineering project. State lives in \`.stark/state.sqlite\`;\nreadable views live under \`artifacts/\`.\n\n${intent}\n`,
+      `# ${name}\n\nOmen Flow engineering project. State lives in \`.omenflow/state.sqlite\`;\nreadable views live under \`artifacts/\`.\n\n${intent}\n`,
       'utf8',
     );
   }
 
-  const pdb = new ProjectDb(path.join(root, '.stark', 'state.sqlite'), { create: true });
+  const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'), { create: true });
   const handle = new ProjectHandle(root, pdb, false);
   if (!handle.repo.getProject()) {
     handle.repo.tx(() => {
@@ -143,10 +156,10 @@ export function openProject(dir: string): ProjectHandle {
   const pf = readProjectFile(root);
   if (pf.version > SCHEMA_VERSION) {
     // Open read-only: allow export but not mutation.
-    const pdb = new ProjectDb(path.join(root, '.stark', 'state.sqlite'));
+    const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'));
     return new ProjectHandle(root, pdb, true);
   }
-  const pdb = new ProjectDb(path.join(root, '.stark', 'state.sqlite'));
+  const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'));
   const handle = new ProjectHandle(root, pdb, pdb.readOnly);
 
   // Crash recovery: re-materialize pending file writes from object store.
@@ -181,5 +194,6 @@ export function openProject(dir: string): ProjectHandle {
 export function ensureLayout(root: string): void {
   for (const d of ARTIFACT_DIRS) fs.mkdirSync(path.join(root, 'artifacts', d), { recursive: true });
   fs.mkdirSync(path.join(root, 'exports'), { recursive: true });
-  for (const d of STARK_SUBDIRS) fs.mkdirSync(path.join(root, '.stark', d), { recursive: true });
+  for (const d of OMENFLOW_SUBDIRS)
+    fs.mkdirSync(path.join(root, '.omenflow', d), { recursive: true });
 }

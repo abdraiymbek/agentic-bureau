@@ -1,5 +1,5 @@
 {
-  "name": "@stark/core",
+  "name": "@omenflow/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@stark/contracts": "workspace:*",
-    "@stark/storage": "workspace:*",
+    "@omenflow/contracts": "workspace:*",
+    "@omenflow/storage": "workspace:*",
     "fflate": "^0.8.2"
   }
 }

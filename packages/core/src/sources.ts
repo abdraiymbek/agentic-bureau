@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, Origin, SourcePayload, StarkError, newId } from '@stark/contracts';
+import { ErrorCodes, Origin, SourcePayload, OmenflowError, newId } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { createDraft } from './artifacts.js';
 
@@ -22,13 +22,13 @@ export function captureSource(
   origin: Origin,
 ) {
   if (!input.url && !input.filePath) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Source needs a url or filePath');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Source needs a url or filePath');
   }
   let fileHash: string | undefined;
   if (input.filePath) {
     const abs = path.isAbsolute(input.filePath) ? input.filePath : ctx.resolvePath(input.filePath);
     if (!fs.existsSync(abs)) {
-      throw new StarkError(ErrorCodes.NOT_FOUND, `Source file not found: ${input.filePath}`);
+      throw new OmenflowError(ErrorCodes.NOT_FOUND, `Source file not found: ${input.filePath}`);
     }
     fileHash = ctx.objects.putFile(abs);
   }
@@ -59,7 +59,7 @@ export function captureSource(
 
 export function readSource(ctx: ProjectContext, sourceId: string) {
   const a = ctx.requireArtifact(sourceId);
-  if (a.type !== 'source') throw new StarkError(ErrorCodes.VALIDATION, 'Not a source artifact');
+  if (a.type !== 'source') throw new OmenflowError(ErrorCodes.VALIDATION, 'Not a source artifact');
   const rev = a.selectedRevisionId
     ? ctx.repo.getRevision(a.selectedRevisionId)
     : ctx.repo.listRevisions(a.id).at(-1);

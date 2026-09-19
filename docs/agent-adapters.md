@@ -20,9 +20,9 @@ interface AgentAdapter {
 
 ## Tool access
 
-Adapters receive `stark mcp` (MCP stdio) or `stark call <op> --input <file>`
-(CLI). The session environment carries `STARK_BRIDGE_SOCK`,
-`STARK_BRIDGE_TOKEN`, `STARK_PROJECT_ID`, `STARK_SESSION_ID` — random,
+Adapters receive `omenflow mcp` (MCP stdio) or `omenflow call <op> --input <file>`
+(CLI). The session environment carries `OMENFLOW_BRIDGE_SOCK`,
+`OMENFLOW_BRIDGE_TOKEN`, `OMENFLOW_PROJECT_ID`, `OMENFLOW_SESSION_ID` — random,
 short-lived, per-session credentials. Never written to project files.
 
 ## Tested versions

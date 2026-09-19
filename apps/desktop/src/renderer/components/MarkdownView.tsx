@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
-import type { ArtifactView, Revision } from '@stark/contracts';
+import type { ArtifactView, Revision } from '@omenflow/contracts';
 
 /** Read a revision's markdown-ish content + file list, with sanitized render. */
 export function MarkdownView({ view }: { view: ArtifactView }) {

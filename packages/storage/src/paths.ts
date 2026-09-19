@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, StarkError } from '@stark/contracts';
+import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
 
 /** Normalize to a canonical absolute path (no trailing sep, real casing where possible). */
 export function canonicalize(p: string): string {
@@ -42,13 +42,13 @@ export function isInside(root: string, child: string): boolean {
  */
 export function resolveProjectPath(root: string, rel: string): string {
   if (path.isAbsolute(rel) || /^[a-zA-Z]:[\\/]/.test(rel)) {
-    throw new StarkError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Absolute path not allowed: ${rel}`);
+    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Absolute path not allowed: ${rel}`);
   }
   const rootCanon = canonicalize(root);
   const abs = path.resolve(rootCanon, rel);
   const relFromRoot = path.relative(rootCanon, abs);
   if (relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) {
-    throw new StarkError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Path escapes project: ${rel}`);
+    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Path escapes project: ${rel}`);
   }
   // Walk existing ancestors to catch symlinks that would redirect outside.
   let cur = abs;
@@ -62,7 +62,7 @@ export function resolveProjectPath(root: string, rel: string): string {
   const resolved = missing.reduceRight((p, seg) => path.join(p, seg), real);
   const rel2 = path.relative(rootCanon, resolved);
   if (rel2.startsWith('..') || path.isAbsolute(rel2)) {
-    throw new StarkError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Symlink escapes project: ${rel}`);
+    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Symlink escapes project: ${rel}`);
   }
   return abs;
 }
@@ -85,6 +85,6 @@ export function assertWritable(dir: string): void {
   try {
     fs.accessSync(dir, fs.constants.W_OK);
   } catch {
-    throw new StarkError(ErrorCodes.READ_ONLY, `Folder is read-only: ${dir}`);
+    throw new OmenflowError(ErrorCodes.READ_ONLY, `Folder is read-only: ${dir}`);
   }
 }

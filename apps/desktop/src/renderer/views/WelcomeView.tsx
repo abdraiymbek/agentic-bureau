@@ -16,8 +16,8 @@ import {
 } from '@phosphor-icons/react';
 import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
-import aircraft from '../assets/stark-aircraft.png';
-import type { Project } from '@stark/contracts';
+import aircraft from '../assets/omenflow-aircraft.png';
+import type { Project } from '@omenflow/contracts';
 import './welcome.css';
 
 const STEPS = [
@@ -134,7 +134,7 @@ export function WelcomeView() {
   const create = () =>
     run(async () => {
       if (!name.trim()) return;
-      const dir = await window.stark.pickDirectory('Choose project folder');
+      const dir = await window.omenflow.pickDirectory('Choose project folder');
       if (!dir) return;
       const r = await cmd<{ project: Project; projectId: string }>('project.create', {
         name: name.trim(),
@@ -147,7 +147,7 @@ export function WelcomeView() {
 
   const open = (dir?: string) =>
     run(async () => {
-      const path = dir ?? (await window.stark.pickDirectory('Open STARK project'));
+      const path = dir ?? (await window.omenflow.pickDirectory('Open Omen Flow project'));
       if (!path) return;
       const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>(
         'project.open',
@@ -158,12 +158,12 @@ export function WelcomeView() {
 
   const importArchive = () =>
     run(async () => {
-      const archivePath = await window.stark.pickFile({
-        title: 'Import STARK archive',
-        filters: [{ name: 'STARK archive', extensions: ['zip', 'stark.zip'] }],
+      const archivePath = await window.omenflow.pickFile({
+        title: 'Import Omen Flow archive',
+        filters: [{ name: 'Omen Flow archive', extensions: ['zip', 'omenflow.zip'] }],
       });
       if (!archivePath) return;
-      const destDir = await window.stark.pickDirectory('Choose where to extract the project');
+      const destDir = await window.omenflow.pickDirectory('Choose where to extract the project');
       if (!destDir) return;
       const input = { archivePath, destDir };
       let r: { project: Project; projectId: string };
@@ -186,7 +186,7 @@ export function WelcomeView() {
     <div className="welcome">
       <header className="welcome-header">
         <div className="welcome-brand">
-          <span className="welcome-logo">STARK</span>
+          <span className="welcome-logo">OMEN FLOW</span>
         </div>
         <div className="welcome-header-main">
           <div className="welcome-steps" aria-label="Engineer, design, source, build">
@@ -243,7 +243,7 @@ export function WelcomeView() {
             ) : recentState === 'error' ? (
               <div>
                 <p className="rail-empty">
-                  Recent projects couldn’t be loaded. Try again or reopen STARK.
+                  Recent projects couldn’t be loaded. Try again or reopen Omen Flow.
                 </p>
                 <button
                   className="recent-toggle"
@@ -293,7 +293,7 @@ export function WelcomeView() {
               <br />
               faster.”
             </p>
-            <cite>STARK</cite>
+            <cite>OMEN FLOW</cite>
           </blockquote>
         </aside>
 
@@ -331,13 +331,13 @@ export function WelcomeView() {
             <div className="hero-copy">
               <p className="hero-eyebrow">YOUR ENGINEERING CO-PILOT</p>
               <h1 id="welcome-title" className="hero-word">
-                STARK
+                OMEN FLOW
               </h1>
               <p className="hero-tag">Turn your ideas into real-world engineering.</p>
               <p className="hero-sub">
                 From concept to CAD, parts, wiring and beyond.
-                <br className="hero-linebreak" /> STARK helps you design, source, and build, powered
-                by AI.
+                <br className="hero-linebreak" /> Omen Flow helps you design, source, and build,
+                powered by AI.
               </p>
               <div className="hero-ctas">
                 <button
@@ -385,7 +385,7 @@ export function WelcomeView() {
 
           <footer className="welcome-footer">
             <span className="welcome-footer-motto">BUILT FOR A BRIGHTER TOMORROW.</span>
-            <span>STARK&nbsp; // &nbsp;ENGINEERING INTELLIGENCE</span>
+            <span>OMEN FLOW&nbsp; // &nbsp;ENGINEERING INTELLIGENCE</span>
           </footer>
         </main>
       </div>

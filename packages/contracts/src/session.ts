@@ -21,7 +21,7 @@ export const sessionInfoSchema = z.object({
   rows: z.number().int(),
   startedAt: z.string().nullable(),
   endedAt: z.string().nullable(),
-  /** True while a structured STARK review is pending for this session. */
+  /** True while a structured Omen Flow review is pending for this session. */
   waitingForReview: z.boolean().default(false),
   lastError: z.string().nullable(),
 });

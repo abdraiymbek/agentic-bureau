@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { AGENT_OPS, ErrorCodes, StarkError, newId, type SessionInfo } from '@stark/contracts';
-import type { CoreApp, ProjectContext, TerminalHost } from '@stark/core';
+import { AGENT_OPS, ErrorCodes, OmenflowError, newId, type SessionInfo } from '@omenflow/contracts';
+import type { CoreApp, ProjectContext, TerminalHost } from '@omenflow/core';
 import type { IPty } from 'node-pty';
 import {
   adapterById,
@@ -59,7 +59,7 @@ export class PtySessionManager implements TerminalHost {
   constructor(
     private app: CoreApp,
     private bridge: BridgeServer,
-    /** Directory holding the `stark` bridge CLI; prepended to session PATH. */
+    /** Directory holding the `omenflow` bridge CLI; prepended to session PATH. */
     private cliDir?: string,
   ) {
     this.adapters = createAdapterRegistry((id) => app.adapterConfigs[id] ?? {});
@@ -75,7 +75,7 @@ export class PtySessionManager implements TerminalHost {
   ): Promise<SessionInfo> {
     const adapter = adapterById(this.adapters, opts.adapterId);
     if (!adapter) {
-      throw new StarkError(ErrorCodes.VALIDATION, `Unknown adapter: ${opts.adapterId}`);
+      throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown adapter: ${opts.adapterId}`);
     }
     const existing = this.sessions.get(ctx.projectId);
     if (existing && (existing.info.state === 'running' || existing.info.state === 'starting')) {
@@ -140,7 +140,7 @@ export class PtySessionManager implements TerminalHost {
       const pty = await import('node-pty');
       const [file, args] = spawnTarget(spec.path, spec.args);
       const env = mergedEnv(spec.env);
-      // Session PATH: stark shim dir, then adapter-specified, then the user's
+      // Session PATH: omenflow shim dir, then adapter-specified, then the user's
       // login-shell PATH (GUI-spawned processes get a stub), then ours.
       env.PATH = [
         this.cliDir,
@@ -178,8 +178,8 @@ export class PtySessionManager implements TerminalHost {
       this.bridge.revoke(sessionId);
       ctx.repo.upsertSession(session.info);
       ctx.emit('session.state', 'system', session.info);
-      if (e instanceof StarkError) throw e;
-      throw new StarkError(
+      if (e instanceof OmenflowError) throw e;
+      throw new OmenflowError(
         ErrorCodes.TOOL_MISSING,
         `Failed to launch agent: ${session.info.lastError}`,
         {
@@ -228,7 +228,7 @@ export class PtySessionManager implements TerminalHost {
     const s = this.sessions.get(ctx.projectId);
     const last = s?.lastStart;
     if (!last) {
-      throw new StarkError(ErrorCodes.VALIDATION, 'No session to restart');
+      throw new OmenflowError(ErrorCodes.VALIDATION, 'No session to restart');
     }
     await this.stop(ctx);
     return this.start(ctx, last);
@@ -278,10 +278,10 @@ function bridgeEnvFor(
   sessionId: string,
 ): Record<string, string> {
   return {
-    STARK_BRIDGE_SOCK: socketPath,
-    STARK_BRIDGE_TOKEN: token,
-    STARK_PROJECT_ID: projectId,
-    STARK_SESSION_ID: sessionId,
+    OMENFLOW_BRIDGE_SOCK: socketPath,
+    OMENFLOW_BRIDGE_TOKEN: token,
+    OMENFLOW_PROJECT_ID: projectId,
+    OMENFLOW_SESSION_ID: sessionId,
   };
 }
 
@@ -308,7 +308,7 @@ function mergedEnv(overlay: NodeJS.ProcessEnv): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
-    if (k.startsWith('STARK_')) continue; // never leak host-side STARK_* vars
+    if (k.startsWith('OMENFLOW_')) continue; // never leak host-side OMENFLOW_* vars
     env[k] = v;
   }
   for (const [k, v] of Object.entries(overlay)) {

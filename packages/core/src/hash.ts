@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { ArtifactType } from '@stark/contracts';
+import type { ArtifactType } from '@omenflow/contracts';
 
 /**
  * Engineering-content hash. Excludes title and purely presentational

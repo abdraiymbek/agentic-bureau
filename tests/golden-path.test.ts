@@ -7,11 +7,11 @@ import { describe, expect, it, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Origin } from '@stark/contracts';
-import { CoreApp, nullHost } from '@stark/core';
+import type { Origin } from '@omenflow/contracts';
+import { CoreApp, nullHost } from '@omenflow/core';
 import { buildRoverProject } from '../fixtures/rover/rover.fixture.ts';
 import { buildDroneProject } from '../fixtures/drone-dependencies/drone.fixture.ts';
-import { createEngineTools } from '@stark/engineering';
+import { createEngineTools } from '@omenflow/engineering';
 
 const USER: Origin = { kind: 'user' };
 const AGENT: Origin = { kind: 'agent', sessionId: '00000000-0000-4000-8000-00000000a001' };
@@ -30,7 +30,7 @@ function makeApp(dir: string): CoreApp {
 
 describe('rover fixture builds a coherent project', () => {
   it('creates requirements, selected components, BOM, calcs, wiring, test', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-gp-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-gp-'));
     const app = makeApp(dir);
     const refs = await buildRoverProject(app, path.join(dir, 'rover'));
 
@@ -75,7 +75,7 @@ describe('rover fixture builds a coherent project', () => {
 
 describe('300 g → 500 g payload change', () => {
   it('propagates stale through calcs, CAD and test without erasing results', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-gp-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-gp-'));
     const app = makeApp(dir);
     const refs = await buildRoverProject(app, path.join(dir, 'rover'));
     const call = (op: string, payload: unknown = {}) =>
@@ -128,7 +128,7 @@ describe('300 g → 500 g payload change', () => {
   }, 30000);
 
   it('agents cannot self-approve: proposal flow enforced on the changed requirement', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-gp-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-gp-'));
     const app = makeApp(dir);
     const refs = await buildRoverProject(app, path.join(dir, 'rover'));
 
@@ -196,11 +196,11 @@ describe('300 g → 500 g payload change', () => {
 
 describe('archive export', () => {
   it('exports a portable project archive and reimports it', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-gp-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-gp-'));
     const app = makeApp(dir);
     const refs = await buildRoverProject(app, path.join(dir, 'rover'));
 
-    const archive = path.join(dir, 'rover.starkpack.zip');
+    const archive = path.join(dir, 'rover.omenflowpack.zip');
     const res = (await app.dispatch(
       'project.export_archive',
       { destPath: archive },
@@ -239,7 +239,7 @@ describe('archive export', () => {
 
 describe('drone dependency fixture', () => {
   it('payload requirement propagates into propulsion + endurance chain', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-gp-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-gp-'));
     const app = makeApp(dir);
     const refs = await buildDroneProject(app, path.join(dir, 'drone'));
 

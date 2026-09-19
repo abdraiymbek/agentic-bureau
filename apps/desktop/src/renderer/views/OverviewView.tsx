@@ -36,7 +36,7 @@ export function OverviewView() {
       {isEmpty && (
         <EmptyBlock
           title="Describe your project in the terminal"
-          body="Start an agent session below and describe what you're building. The agent will create requirements, assumptions, and first artifacts through STARK's tools."
+          body="Start an agent session below and describe what you're building. The agent will create requirements, assumptions, and first artifacts through Omen Flow's tools."
         />
       )}
 

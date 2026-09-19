@@ -1,6 +1,6 @@
-import type { ResponseEnvelope, StarkErrorBody } from '@stark/contracts';
+import type { ResponseEnvelope, OmenflowErrorBody } from '@omenflow/contracts';
 
-export interface StarkApi {
+export interface OmenflowApi {
   command(
     op: string,
     payload: unknown,
@@ -27,13 +27,13 @@ export interface StarkApi {
 
 declare global {
   interface Window {
-    stark: StarkApi;
+    omenflow: OmenflowApi;
   }
 }
 
 export class CommandError extends Error {
-  body: StarkErrorBody;
-  constructor(body: StarkErrorBody) {
+  body: OmenflowErrorBody;
+  constructor(body: OmenflowErrorBody) {
     super(body.message);
     this.body = body;
   }
@@ -58,10 +58,13 @@ export async function cmd<T = unknown>(
   payload: unknown = {},
   opts?: { idempotencyKey?: string; projectId?: string },
 ): Promise<T> {
-  const res = await window.stark.command(op, payload, opts);
+  const res = await window.omenflow.command(op, payload, opts);
   if (!res.ok)
     throw new CommandError(
-      (res.error as StarkErrorBody | undefined) ?? { code: 'INTERNAL', message: 'unknown error' },
+      (res.error as OmenflowErrorBody | undefined) ?? {
+        code: 'INTERNAL',
+        message: 'unknown error',
+      },
     );
   return res.result as T;
 }

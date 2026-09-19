@@ -4,8 +4,8 @@ import {
   type Quantity,
   type WiringConnection,
   type WiringPayload,
-} from '@stark/contracts';
-import type { WiringAnalyzer as WiringAnalyzerContract, WiringFinding } from '@stark/core';
+} from '@omenflow/contracts';
+import type { WiringAnalyzer as WiringAnalyzerContract, WiringFinding } from '@omenflow/core';
 
 const COVERAGE =
   'Checks: voltage range, ground return, exclusive pins, pin knowledge. ' +

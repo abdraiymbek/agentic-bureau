@@ -9,8 +9,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CoreApp } from '@stark/core';
-import type { Origin } from '@stark/contracts';
+import type { CoreApp } from '@omenflow/core';
+import type { Origin } from '@omenflow/contracts';
 
 const USER: Origin = { kind: 'user' };
 const AGENT: Origin = { kind: 'agent', sessionId: '00000000-0000-4000-8000-00000000f001' };
@@ -53,7 +53,7 @@ export async function buildRoverProject(app: CoreApp, dir: string): Promise<Rove
       intent:
         'Small inspection rover with a removable camera tray. Carries a 300 g ' +
         'payload (sensor pack) over indoor floors and short ramps. Reference ' +
-        'build for the STARK golden path.',
+        'build for the Omen Flow golden path.',
     },
     USER,
   )) as { projectId: string };

@@ -1,9 +1,9 @@
-import { ErrorCodes, MAX_FRAME_BYTES, StarkError } from '@stark/contracts';
+import { ErrorCodes, MAX_FRAME_BYTES, OmenflowError } from '@omenflow/contracts';
 
 /**
  * Bridge wire framing: 4-byte little-endian length prefix + JSON body.
  * Shared by the bridge server, the Node CLI shim, and the Rust helper
- * (native/stark-bridge) — keep the format boring and identical.
+ * (native/omenflow-bridge) — keep the format boring and identical.
  */
 
 export function encodeFrame(message: unknown): Buffer {
@@ -27,7 +27,7 @@ export class FrameDecoder {
       if (len > MAX_FRAME_BYTES) {
         // Drop the stream: a peer announcing a giant frame is not our protocol.
         this.buf = Buffer.alloc(0);
-        throw new StarkError(
+        throw new OmenflowError(
           ErrorCodes.VALIDATION,
           `Bridge frame exceeds ${MAX_FRAME_BYTES} bytes`,
         );
@@ -39,7 +39,7 @@ export class FrameDecoder {
       try {
         parsed = JSON.parse(body.toString('utf8'));
       } catch {
-        throw new StarkError(ErrorCodes.VALIDATION, 'Bridge frame is not valid JSON');
+        throw new OmenflowError(ErrorCodes.VALIDATION, 'Bridge frame is not valid JSON');
       }
       out.push(parsed);
     }

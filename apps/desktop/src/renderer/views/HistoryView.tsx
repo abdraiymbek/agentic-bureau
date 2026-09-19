@@ -3,7 +3,7 @@ import { ReactFlow, Background, Controls, type Edge, type Node } from '@xyflow/r
 import '@xyflow/react/dist/style.css';
 import { cmd } from '../api';
 import { useStore } from '../store';
-import type { Edge as GraphEdge } from '@stark/contracts';
+import type { Edge as GraphEdge } from '@omenflow/contracts';
 
 /** History: decision log + event stream + dependency graph. */
 export function HistoryView() {

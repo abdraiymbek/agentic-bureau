@@ -8,7 +8,7 @@
  * Protocol: the job arrives via workerData —
  *   { expression: string,
  *     inputs: [{ name, value, unit }],   // unit = mathjs-native base unit | null (dimensionless)
- *     outputUnit: string }               // canonical STARK unit name | '1'
+ *     outputUnit: string }               // canonical Omen Flow unit name | '1'
  * and replies exactly once on parentPort:
  *   { ok: true, value, unit } | { ok: false, code: 'INVALID_UNITS' | 'VALIDATION', error }
  */

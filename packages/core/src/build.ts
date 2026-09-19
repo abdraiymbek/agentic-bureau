@@ -6,16 +6,16 @@ import {
   ErrorCodes,
   Origin,
   Revision,
-  StarkError,
+  OmenflowError,
   formatQty,
   isUnknown,
   type ComponentPayload,
   type MaybeQuantity,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { bomCsv, bomMarkdown } from './components.js';
 import { materializeReadableView } from './artifacts.js';
-import { resolveProjectPath } from '@stark/storage';
+import { resolveProjectPath } from '@omenflow/storage';
 
 /**
  * Build preview: enumerate the selected baseline (or labeled drafts) and every
@@ -89,7 +89,7 @@ export async function exportBuildPackage(
   const issueCount = preview.items.reduce((n, i) => n + i.issues.length, 0);
   const status = issueCount === 0 ? 'baseline' : 'draft';
   if (status === 'draft' && !input.includeDrafts) {
-    throw new StarkError(ErrorCodes.VALIDATION, `Build has ${issueCount} unresolved issue(s)`, {
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Build has ${issueCount} unresolved issue(s)`, {
       repair: 'Resolve issues, or export with includeDrafts for a labeled Draft package.',
       details: preview.items.filter((i) => i.issues.length > 0),
     });
@@ -98,7 +98,7 @@ export async function exportBuildPackage(
   const files = new Map<string, Uint8Array>();
   const project = ctx.handle.project;
   const manifest: Record<string, unknown> = {
-    format: 'stark-build-package',
+    format: 'omenflow-build-package',
     schemaVersion: 1,
     project: { id: project.id, name: project.name, intent: project.intent },
     status,
@@ -194,14 +194,14 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
   const files = new Map<string, Uint8Array>();
 
   // Consistent DB snapshot via backup API into a temp file.
-  const tmpDb = path.join(ctx.root, '.stark', 'cache', `export-${Date.now()}.sqlite`);
+  const tmpDb = path.join(ctx.root, '.omenflow', 'cache', `export-${Date.now()}.sqlite`);
   ctx.handle.pdb.backupTo(tmpDb);
-  files.set('.stark/state.sqlite', fs.readFileSync(tmpDb));
+  files.set('.omenflow/state.sqlite', fs.readFileSync(tmpDb));
   fs.unlinkSync(tmpDb);
 
   files.set(
-    'stark.project.json',
-    strToU8(fs.readFileSync(path.join(ctx.root, 'stark.project.json'), 'utf8')),
+    'omenflow.project.json',
+    strToU8(fs.readFileSync(path.join(ctx.root, 'omenflow.project.json'), 'utf8')),
   );
   const readme = path.join(ctx.root, 'README.md');
   if (fs.existsSync(readme)) files.set('README.md', fs.readFileSync(readme));
@@ -219,14 +219,14 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
   walk('artifacts');
 
   // Every object (archive must be self-contained history).
-  const objRoot = path.join(ctx.root, '.stark', 'objects');
+  const objRoot = path.join(ctx.root, '.omenflow', 'objects');
   const walkObj = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) walkObj(p);
       else
         files.set(
-          `.stark/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`,
+          `.omenflow/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`,
           fs.readFileSync(p),
         );
     }
@@ -235,7 +235,7 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
 
   // Portable JSON snapshot of structured records.
   const snapshot = {
-    format: 'stark-project-snapshot',
+    format: 'omenflow-project-snapshot',
     version: 1,
     project,
     artifacts: ctx.repo.listArtifacts({ includeArchived: true }),
@@ -251,7 +251,7 @@ export function exportArchive(ctx: ProjectContext, destPath: string) {
   files.set('snapshot.json', strToU8(JSON.stringify(snapshot, null, 2)));
 
   const manifest = {
-    format: 'stark-project-archive',
+    format: 'omenflow-project-archive',
     version: 1,
     projectId: project.id,
     name: project.name,
@@ -277,18 +277,21 @@ export function verifyArchive(archivePath: string): {
   try {
     entries = unzipSync(buf);
   } catch (e) {
-    throw new StarkError(ErrorCodes.ARCHIVE_INVALID, `Not a ZIP archive: ${(e as Error).message}`);
+    throw new OmenflowError(
+      ErrorCodes.ARCHIVE_INVALID,
+      `Not a ZIP archive: ${(e as Error).message}`,
+    );
   }
   const manifestRaw = entries['archive-manifest.json'];
   if (!manifestRaw) {
-    throw new StarkError(ErrorCodes.ARCHIVE_INVALID, 'Missing archive-manifest.json');
+    throw new OmenflowError(ErrorCodes.ARCHIVE_INVALID, 'Missing archive-manifest.json');
   }
   const manifest = JSON.parse(strFromU8(manifestRaw));
-  if (manifest.format !== 'stark-project-archive') {
-    throw new StarkError(ErrorCodes.ARCHIVE_INVALID, `Bad format: ${manifest.format}`);
+  if (manifest.format !== 'omenflow-project-archive') {
+    throw new OmenflowError(ErrorCodes.ARCHIVE_INVALID, `Bad format: ${manifest.format}`);
   }
   if (manifest.version > 1) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.UNSUPPORTED_SCHEMA,
       `Archive version ${manifest.version} unsupported`,
     );
@@ -302,7 +305,7 @@ export function expandArchive(archivePath: string, destDir: string): void {
   let total = 0;
   for (const v of Object.values(entries)) total += v.byteLength;
   if (total > 4 * 1024 * 1024 * 1024) {
-    throw new StarkError(ErrorCodes.ARCHIVE_INVALID, 'Archive too large');
+    throw new OmenflowError(ErrorCodes.ARCHIVE_INVALID, 'Archive too large');
   }
   for (const [name, data] of Object.entries(entries)) {
     // ZIP traversal guard: every entry resolves inside destDir.

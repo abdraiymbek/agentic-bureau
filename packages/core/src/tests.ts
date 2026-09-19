@@ -1,4 +1,4 @@
-import { ErrorCodes, Origin, StarkError, TestResult, newId } from '@stark/contracts';
+import { ErrorCodes, Origin, OmenflowError, TestResult, newId } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft, ingestFiles } from './artifacts.js';
 import { addEdge } from './graph.js';
@@ -53,12 +53,12 @@ export function recordResult(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'test') {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Results attach to test artifacts');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Results attach to test artifacts');
   }
   const cur = artifact.selectedRevisionId
     ? ctx.repo.getRevision(artifact.selectedRevisionId)
     : ctx.repo.listRevisions(artifact.id).at(-1);
-  if (!cur) throw new StarkError(ErrorCodes.VALIDATION, 'Test has no revision');
+  if (!cur) throw new OmenflowError(ErrorCodes.VALIDATION, 'Test has no revision');
   const payload = cur.payload as {
     procedure: unknown[];
     conditions?: string;

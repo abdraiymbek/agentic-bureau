@@ -4,9 +4,9 @@ import {
   Proposal,
   ProposedChange,
   RevisionRef,
-  StarkError,
+  OmenflowError,
   newId,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { promoteRevision } from './artifacts.js';
 import { impactReport, propagateFrom } from './graph.js';
@@ -27,20 +27,20 @@ export function submitProposal(
     const artifact = ctx.requireArtifact(c.artifactId);
     const rev = ctx.requireRevision(c.newRevisionId);
     if (rev.artifactId !== artifact.id) {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.VALIDATION,
         `Revision ${c.newRevisionId} not on artifact ${c.artifactId}`,
       );
     }
     if (rev.reviewState !== 'draft' && rev.reviewState !== 'proposed') {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.VALIDATION,
         `Proposed revision must be a draft (state: ${rev.reviewState})`,
       );
     }
     const cur = artifact.selectedRevisionId;
     if (c.baseRevisionId !== (cur ?? null) && c.kind !== 'new_artifact') {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.REVISION_CONFLICT,
         `Proposal base does not match selected revision`,
         {
@@ -83,7 +83,7 @@ export function submitProposal(
 
 export function readProposal(ctx: ProjectContext, proposalId: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new StarkError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   // Attach resolved revisions so reviewers see concrete content.
   const changes = p.changes.map((c) => {
     const artifact = ctx.repo.getArtifact(c.artifactId);
@@ -105,7 +105,7 @@ export async function waitProposal(
   _cursor?: number,
 ): Promise<{ state: Proposal['state']; cursor: number }> {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new StarkError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending') return { state: p.state, cursor: ctx.repo.latestEventSeq() };
   const resolved = await new Promise<boolean>((resolve) => {
     const timer = setTimeout(() => {
@@ -139,7 +139,7 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
         'conflicted',
         'Base revision changed after proposal was prepared',
       );
-      throw new StarkError(ErrorCodes.REVISION_CONFLICT, 'Proposal base is stale', {
+      throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Proposal base is stale', {
         repair: 'Refresh the comparison and resubmit.',
         details: { proposalId: p.id, artifactId: c.artifactId, selected, base: c.baseRevisionId },
       });
@@ -151,9 +151,9 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
 export function approveProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
   ctx.assertWritable();
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new StarkError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending' && p.state !== 'changes_requested') {
-    throw new StarkError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   resolveConflicts(ctx, p);
 
@@ -225,9 +225,9 @@ export function approveProposal(ctx: ProjectContext, proposalId: string, rationa
 
 export function rejectProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new StarkError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending' && p.state !== 'changes_requested') {
-    throw new StarkError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   ctx.repo.tx(() => {
     for (const c of p.changes) {
@@ -253,9 +253,9 @@ export function rejectProposal(ctx: ProjectContext, proposalId: string, rational
 
 export function requestChangesProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new StarkError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending') {
-    throw new StarkError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   ctx.repo.updateProposalState(proposalId, 'changes_requested', rationale);
   ctx.emit('proposal.resolved', 'user', { proposalId, state: 'changes_requested' });

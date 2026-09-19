@@ -10,8 +10,8 @@ import path from 'node:path';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    name: 'STARK',
-    executableName: 'stark-desktop',
+    name: 'Omen Flow',
+    executableName: 'omenflow-desktop',
     asar: {
       // Runtime deps are vendored under resources/ and must stay real files
       // (utilityProcess.fork + worker spawn + native .node loads).
@@ -35,16 +35,16 @@ const config: ForgeConfig = {
     new MakerZIP({}, ['darwin', 'linux', 'win32']),
     new MakerDMG(
       {
-        name: 'STARK',
-        title: 'STARK',
+        name: 'Omen Flow',
+        title: 'Omen Flow',
         overwrite: true,
       },
       ['darwin'],
     ),
     new MakerSquirrel(
       {
-        name: 'STARK',
-        authors: 'STARK contributors',
+        name: 'OmenFlow',
+        authors: 'Omen Flow contributors',
         description: 'Local desktop engineering workspace',
       },
       ['win32'],

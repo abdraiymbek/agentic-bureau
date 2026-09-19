@@ -1,5 +1,5 @@
 {
-  "name": "stark-runtime",
+  "name": "omenflow-runtime",
   "private": true,
   "dependencies": {
     "better-sqlite3": "*",

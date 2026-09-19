@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_FRAME_BYTES } from '@stark/contracts';
+import { MAX_FRAME_BYTES } from '@omenflow/contracts';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
 describe('bridge framing', () => {

@@ -2,18 +2,18 @@ import {
   ComponentPayload,
   ErrorCodes,
   Origin,
-  StarkError,
+  OmenflowError,
   WiringConnection,
   WiringPayload,
   type Pin,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision } from './artifacts.js';
 import type { WiringAnalyzer } from './tools.js';
 
 function wiringTool(ctx: ProjectContext): WiringAnalyzer {
   const w = ctx.tools.wiring as WiringAnalyzer | undefined;
-  if (!w) throw new StarkError(ErrorCodes.TOOL_MISSING, 'Wiring analyzer not registered');
+  if (!w) throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'Wiring analyzer not registered');
   return w;
 }
 
@@ -31,13 +31,13 @@ function wiringPayloadOf(
   revisionId?: string,
 ): WiringPayload {
   const a = ctx.requireArtifact(artifactId);
-  if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
+  if (a.type !== 'wiring') throw new OmenflowError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const rev = revisionId
     ? ctx.requireRevision(revisionId)
     : a.selectedRevisionId
       ? ctx.repo.getRevision(a.selectedRevisionId)
       : ctx.repo.listRevisions(a.id).at(-1);
-  if (!rev) throw new StarkError(ErrorCodes.VALIDATION, 'No wiring revision');
+  if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'No wiring revision');
   return rev.payload as WiringPayload;
 }
 
@@ -65,13 +65,13 @@ export function wiringSetPins(
   origin: Origin,
 ) {
   const a = ctx.requireArtifact(input.artifactId);
-  if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
+  if (a.type !== 'wiring') throw new OmenflowError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const cur = input.baseRevisionId
     ? ctx.requireRevision(input.baseRevisionId)
     : a.selectedRevisionId
       ? ctx.repo.getRevision(a.selectedRevisionId)
       : ctx.repo.listRevisions(a.id).at(-1);
-  if (!cur) throw new StarkError(ErrorCodes.VALIDATION, 'No wiring revision');
+  if (!cur) throw new OmenflowError(ErrorCodes.VALIDATION, 'No wiring revision');
   const payload = cur.payload as WiringPayload;
   return commitRevision(ctx, {
     artifactId: a.id,
@@ -95,13 +95,13 @@ export function wiringSetConnections(
   origin: Origin,
 ) {
   const a = ctx.requireArtifact(input.artifactId);
-  if (a.type !== 'wiring') throw new StarkError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
+  if (a.type !== 'wiring') throw new OmenflowError(ErrorCodes.VALIDATION, 'Not a wiring artifact');
   const cur = input.baseRevisionId
     ? ctx.requireRevision(input.baseRevisionId)
     : a.selectedRevisionId
       ? ctx.repo.getRevision(a.selectedRevisionId)
       : ctx.repo.listRevisions(a.id).at(-1);
-  if (!cur) throw new StarkError(ErrorCodes.VALIDATION, 'No wiring revision');
+  if (!cur) throw new OmenflowError(ErrorCodes.VALIDATION, 'No wiring revision');
   const payload = cur.payload as WiringPayload;
   // Record dependencies on the connected component revisions.
   const inputs = [...(cur.inputs ?? [])];

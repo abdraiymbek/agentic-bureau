@@ -1,14 +1,14 @@
 import { Worker } from 'node:worker_threads';
 import {
   ErrorCodes,
-  StarkError,
+  OmenflowError,
   isUnknown,
   toBase,
   unitDef,
   type Dim,
   type MaybeQuantity,
-} from '@stark/contracts';
-import type { CalcEngine, CalcTemplate } from '@stark/core';
+} from '@omenflow/contracts';
+import type { CalcEngine, CalcTemplate } from '@omenflow/core';
 
 /** Contract dimension → mathjs-native base unit name used inside the worker. */
 const BASE_UNIT: Record<Dim, string> = {
@@ -56,30 +56,30 @@ const INPUT_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function assertExpressionSafe(expression: string): void {
   if (!expression || !expression.trim()) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Expression is empty');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Expression is empty');
   }
   if (expression.length > MAX_EXPRESSION_CHARS) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.VALIDATION,
       `Expression too long (${expression.length} > ${MAX_EXPRESSION_CHARS} chars)`,
     );
   }
   if (ARROW.test(expression) || BARE_ASSIGN.test(expression)) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.VALIDATION,
       "Expression must be pure — assignments ('=') and lambdas ('=>') are not allowed",
     );
   }
   if (!ALLOWED_CHARS.test(expression)) {
     const bad = [...expression].find((c) => !new RegExp(ALLOWED_CHARS.source).test(`${c}`));
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.VALIDATION,
       `Expression contains disallowed character ${JSON.stringify(bad)} — only arithmetic, comparisons and function calls are permitted`,
     );
   }
   const word = BLOCKED_WORDS.exec(expression);
   if (word) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.VALIDATION,
       `Expression contains disallowed token '${word[0]}'`,
     );
@@ -136,10 +136,10 @@ export class MathJsCalcEngine implements CalcEngine {
     const marshalled: WorkerInput[] = [];
     for (const i of inputs) {
       if (!INPUT_NAME.test(i.name) || BLOCKED_WORDS.test(i.name)) {
-        throw new StarkError(ErrorCodes.VALIDATION, `Invalid input name '${i.name}'`);
+        throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid input name '${i.name}'`);
       }
       if (isUnknown(i.quantity)) {
-        throw new StarkError(
+        throw new OmenflowError(
           ErrorCodes.INVALID_UNITS,
           `Input '${i.name}' is unknown (${'reason' in (i.quantity as object) ? (i.quantity as { reason: string }).reason : 'no value'})`,
         );
@@ -147,7 +147,7 @@ export class MathJsCalcEngine implements CalcEngine {
       const q = i.quantity as { value: number; unit: string };
       const def = unitDef(q.unit);
       if (!def) {
-        throw new StarkError(
+        throw new OmenflowError(
           ErrorCodes.INVALID_UNITS,
           `Unknown unit '${q.unit}' for input '${i.name}'`,
         );
@@ -163,7 +163,7 @@ export class MathJsCalcEngine implements CalcEngine {
     if (outputUnit !== undefined) {
       const def = unitDef(outputUnit);
       if (!def) {
-        throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown output unit '${outputUnit}'`);
+        throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown output unit '${outputUnit}'`);
       }
       out = def.dim === 'dimensionless' ? '1' : def.name;
     }
@@ -172,11 +172,11 @@ export class MathJsCalcEngine implements CalcEngine {
     if (!reply.ok) {
       const code =
         reply.code === 'INVALID_UNITS' ? ErrorCodes.INVALID_UNITS : ErrorCodes.VALIDATION;
-      throw new StarkError(code, reply.error ?? 'calculation failed');
+      throw new OmenflowError(code, reply.error ?? 'calculation failed');
     }
     const value = reply.value!;
     if (!Number.isFinite(value)) {
-      throw new StarkError(ErrorCodes.VALIDATION, 'Result is not finite');
+      throw new OmenflowError(ErrorCodes.VALIDATION, 'Result is not finite');
     }
     return { value, unit: reply.unit ?? out };
   }
@@ -198,22 +198,27 @@ export class MathJsCalcEngine implements CalcEngine {
       const timer = setTimeout(() => {
         done(() =>
           reject(
-            new StarkError(ErrorCodes.TIMEOUT, `Calculation timed out after ${this.timeoutMs}ms`),
+            new OmenflowError(
+              ErrorCodes.TIMEOUT,
+              `Calculation timed out after ${this.timeoutMs}ms`,
+            ),
           ),
         );
       }, this.timeoutMs);
       worker.once('message', (m: WorkerReply) => done(() => resolve(m)));
       worker.once('error', (e) =>
-        done(() => reject(new StarkError(ErrorCodes.INTERNAL, `calc worker error: ${e.message}`))),
+        done(() =>
+          reject(new OmenflowError(ErrorCodes.INTERNAL, `calc worker error: ${e.message}`)),
+        ),
       );
       worker.once('exit', (code) => {
         if (code !== 0) {
           done(() =>
-            reject(new StarkError(ErrorCodes.INTERNAL, `calc worker exited with code ${code}`)),
+            reject(new OmenflowError(ErrorCodes.INTERNAL, `calc worker exited with code ${code}`)),
           );
         } else {
           done(() =>
-            reject(new StarkError(ErrorCodes.INTERNAL, 'calc worker exited without a result')),
+            reject(new OmenflowError(ErrorCodes.INTERNAL, 'calc worker exited without a result')),
           );
         }
       });

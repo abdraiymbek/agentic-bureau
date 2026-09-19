@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC } from '@stark/contracts';
+import { IPC } from '@omenflow/contracts';
 
 /**
  * Narrow renderer API. The renderer can invoke named ops and subscribe to
@@ -14,7 +14,7 @@ const api = {
       idempotencyKey: opts?.idempotencyKey,
     }),
 
-  setActiveProject: (id: string | null) => ipcRenderer.invoke('stark:set-active-project', id),
+  setActiveProject: (id: string | null) => ipcRenderer.invoke('omenflow:set-active-project', id),
 
   onEvent: (cb: (e: unknown) => void) => {
     const l = (_: unknown, data: unknown) => cb(data);
@@ -44,8 +44,8 @@ const api = {
     ipcRenderer.invoke(IPC.saveFile, opts),
   openExternal: (url: string) => ipcRenderer.invoke(IPC.openExternal, url),
   revealPath: (p: string) => ipcRenderer.invoke(IPC.openPath, p),
-  toggleResearch: () => ipcRenderer.invoke('stark:toggle-research'),
+  toggleResearch: () => ipcRenderer.invoke('omenflow:toggle-research'),
 };
 
-export type StarkApi = typeof api;
-contextBridge.exposeInMainWorld('stark', api);
+export type OmenflowApi = typeof api;
+contextBridge.exposeInMainWorld('omenflow', api);

@@ -1,5 +1,5 @@
 {
-  "name": "@stark/storage",
+  "name": "@omenflow/storage",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@stark/contracts": "workspace:*",
+    "@omenflow/contracts": "workspace:*",
     "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {

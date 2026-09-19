@@ -4,7 +4,7 @@ import { idSchema } from './ids.js';
 
 export const PROTOCOL_VERSION = 1;
 export const SCHEMA_VERSION = 1;
-export const PROJECT_FILE = 'stark.project.json';
+export const PROJECT_FILE = 'omenflow.project.json';
 
 /** Max bridge frame payload (bytes). */
 export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
@@ -94,10 +94,10 @@ export type BridgeError = z.infer<typeof bridgeErrorSchema>;
 export type BridgeServerMessage = BridgeWelcome | BridgeError;
 
 export const envKeys = {
-  socketPath: 'STARK_BRIDGE_SOCK',
-  token: 'STARK_BRIDGE_TOKEN',
-  projectId: 'STARK_PROJECT_ID',
-  sessionId: 'STARK_SESSION_ID',
+  socketPath: 'OMENFLOW_BRIDGE_SOCK',
+  token: 'OMENFLOW_BRIDGE_TOKEN',
+  projectId: 'OMENFLOW_PROJECT_ID',
+  sessionId: 'OMENFLOW_SESSION_ID',
 } as const;
 
 export function protocolMismatch(version: number): boolean {
@@ -110,19 +110,19 @@ export function protocolMismatch(version: number): boolean {
 
 export const IPC = {
   /** invoke: {op, payload} → ResponseEnvelope (minus requestId echo). */
-  command: 'stark:command',
+  command: 'omenflow:command',
   /** main → renderer push channels. */
-  event: 'stark:event', // project events
-  terminalData: 'stark:terminal:data',
-  terminalState: 'stark:terminal:state',
-  jobProgress: 'stark:job:progress',
+  event: 'omenflow:event', // project events
+  terminalData: 'omenflow:terminal:data',
+  terminalState: 'omenflow:terminal:state',
+  jobProgress: 'omenflow:job:progress',
   /** request-response utilities */
-  pickDirectory: 'stark:pick-directory',
-  pickFile: 'stark:pick-file',
-  saveFile: 'stark:save-file',
-  openExternal: 'stark:open-external',
-  openPath: 'stark:open-path',
-  windowState: 'stark:window-state',
+  pickDirectory: 'omenflow:pick-directory',
+  pickFile: 'omenflow:pick-file',
+  saveFile: 'omenflow:save-file',
+  openExternal: 'omenflow:open-external',
+  openPath: 'omenflow:open-path',
+  windowState: 'omenflow:window-state',
 } as const;
 
 /** Project event pushed to renderer + bridge waiters. */

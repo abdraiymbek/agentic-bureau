@@ -1,16 +1,16 @@
 # Project format
 
-A STARK project is an ordinary folder:
+An Omen Flow project is an ordinary folder:
 
 ```text
 <Project>/
-  stark.project.json        identity + format version
+  omenflow.project.json        identity + format version
   README.md                 human-readable intro
   artifacts/                readable working views (generated, editable)
     requirements/ research/ concepts/ components/ mechanical/
     electronics/ calculations/ software/ assembly/ tests/
   exports/                  user-requested build packages
-  .stark/
+  .omenflow/
     state.sqlite            canonical entities/revisions/graph/history
     objects/                immutable content-addressed files (SHA-256)
     work/                   per-session draft/output dirs
@@ -24,15 +24,15 @@ SQLite (`state.sqlite`) is the only writable store of engineering truth.
 Files under `artifacts/` are generated views at a recorded revision; external
 edits are imported as drafts, never silently accepted.
 
-`stark.project.json`:
+`omenflow.project.json`:
 
 ```json
-{ "format": "stark-project", "version": 1, "id": "<uuid>", "name": "..." }
+{ "format": "omenflow-project", "version": 1, "id": "<uuid>", "name": "..." }
 ```
 
 ## Objects
 
-`.stark/objects/<xx>/<sha256>` — immutable blobs. Revisions reference blobs by
+`.omenflow/objects/<xx>/<sha256>` — immutable blobs. Revisions reference blobs by
 hash; generated views link (never hard-link writable files to objects).
 
 ## Portability

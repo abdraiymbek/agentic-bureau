@@ -7,7 +7,12 @@ import {
 } from '@tanstack/react-table';
 import { cmd } from '../api';
 import { useStore } from '../store';
-import { formatQty, isUnknown, type ComponentPayload, type MaybeQuantity } from '@stark/contracts';
+import {
+  formatQty,
+  isUnknown,
+  type ComponentPayload,
+  type MaybeQuantity,
+} from '@omenflow/contracts';
 import { EmptyBlock } from './OverviewView';
 
 interface BomRow {
@@ -141,7 +146,7 @@ export function ComponentsView() {
 
   const exportBom = async (format: 'csv' | 'markdown') => {
     const r = await cmd<{ content: string }>('bom.export', { format });
-    const path = await window.stark.saveFile({
+    const path = await window.omenflow.saveFile({
       defaultPath: `bom.${format === 'csv' ? 'csv' : 'md'}`,
     });
     if (!path) return;

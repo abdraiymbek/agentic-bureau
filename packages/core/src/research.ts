@@ -1,4 +1,4 @@
-import { ErrorCodes, Origin, StarkError } from '@stark/contracts';
+import { ErrorCodes, Origin, OmenflowError } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { captureSource } from './sources.js';
 
@@ -14,10 +14,10 @@ function assertPublicHttpUrl(url: string): void {
   try {
     u = new URL(url);
   } catch {
-    throw new StarkError(ErrorCodes.VALIDATION, `Bad URL: ${url}`);
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Bad URL: ${url}`);
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.VALIDATION,
       `Only http(s) research URLs allowed: ${u.protocol}`,
     );
@@ -33,7 +33,7 @@ function assertPublicHttpUrl(url: string): void {
     /^169\.254\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   ) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.CONNECTION_DENIED,
       `Private network destination blocked: ${host}`,
     );
@@ -44,14 +44,14 @@ export async function researchSearch(ctx: ProjectContext, query: string, engine?
   const build = SEARCH_ENGINES[engine ?? 'duckduckgo'] ?? SEARCH_ENGINES.duckduckgo!;
   const url = build(query);
   const res = await ctx.host.researchOpen(url);
-  if (!res.ok) throw new StarkError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
+  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
   return { url };
 }
 
 export async function browserOpen(ctx: ProjectContext, url: string) {
   assertPublicHttpUrl(url);
   const res = await ctx.host.researchOpen(url);
-  if (!res.ok) throw new StarkError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
+  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
   return { url };
 }
 
@@ -65,7 +65,7 @@ export async function browserFollowLink(
 ) {
   if (sel.url) assertPublicHttpUrl(sel.url);
   const res = await ctx.host.researchFollowLink(sel);
-  if (!res.ok) throw new StarkError(ErrorCodes.INTERNAL, res.error ?? 'follow_link failed');
+  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'follow_link failed');
   return res;
 }
 
@@ -79,7 +79,7 @@ export async function browserCapture(
   origin: Origin,
 ) {
   const page = await ctx.host.researchReadPage();
-  if (!page.url) throw new StarkError(ErrorCodes.VALIDATION, 'No research page loaded');
+  if (!page.url) throw new OmenflowError(ErrorCodes.VALIDATION, 'No research page loaded');
   return captureSource(
     ctx,
     {

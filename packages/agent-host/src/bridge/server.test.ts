@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { AGENT_OPS, PROTOCOL_VERSION, newId } from '@stark/contracts';
-import { CoreApp } from '@stark/core';
-import { createProject } from '@stark/storage';
-import type { ProjectContext } from '@stark/core';
+import { AGENT_OPS, PROTOCOL_VERSION, newId } from '@omenflow/contracts';
+import { CoreApp } from '@omenflow/core';
+import { createProject } from '@omenflow/storage';
+import type { ProjectContext } from '@omenflow/core';
 import { BridgeServer } from './server.js';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
@@ -71,7 +71,7 @@ describe('BridgeServer', () => {
   const clients: TestClient[] = [];
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-bridge-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-bridge-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     ctx = app.register(createProject(path.join(dir, 'proj'), 'Test Project', 'test intent'));
     bridge = new BridgeServer(app, { socketPath: path.join(dir, 'run', 'bridge.sock') });

@@ -12,8 +12,8 @@ import type {
   TestPayload,
   WiringPayload,
   MaybeQuantity,
-} from '@stark/contracts';
-import { formatQty, isUnknown } from '@stark/contracts';
+} from '@omenflow/contracts';
+import { formatQty, isUnknown } from '@omenflow/contracts';
 import { EmptyBlock } from './OverviewView';
 
 const TYPE_ORDER: ArtifactType[] = [

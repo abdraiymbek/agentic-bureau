@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * `stark` — dev/test shim for the STARK bridge helper.
+ * `omenflow` — dev/test shim for the Omen Flow bridge helper.
  *
  * Self-contained plain Node ESM (no deps, no build step). Production builds
- * ship the compiled Rust helper from native/stark-bridge instead — the wire
+ * ship the compiled Rust helper from native/omenflow-bridge instead — the wire
  * protocol is identical.
  *
- *   stark call <op> --input <file|'-'> [--idempotency-key k]
- *   stark mcp
+ *   omenflow call <op> --input <file|'-'> [--idempotency-key k]
+ *   omenflow mcp
  *
  * Env (injected per session by the agent host):
- *   STARK_BRIDGE_SOCK  unix socket path / windows pipe
- *   STARK_BRIDGE_TOKEN per-session credential
- *   STARK_PROJECT_ID / STARK_SESSION_ID (informational)
+ *   OMENFLOW_BRIDGE_SOCK  unix socket path / windows pipe
+ *   OMENFLOW_BRIDGE_TOKEN per-session credential
+ *   OMENFLOW_PROJECT_ID / OMENFLOW_SESSION_ID (informational)
  *
  * Wire protocol: 4-byte LE length-prefixed JSON frames.
  *   → {type:'hello', token, protocolVersion:1, mode:'call'|'mcp'}
@@ -67,7 +67,9 @@ function parseArgs(argv) {
   const [cmd, ...rest] = argv;
   if (cmd === 'mcp') return { mode: 'mcp' };
   if (cmd !== 'call')
-    return { error: 'usage: stark call <op> --input <file|-> [--idempotency-key k] | stark mcp' };
+    return {
+      error: 'usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp',
+    };
   const out = { mode: 'call' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
@@ -131,17 +133,17 @@ async function main() {
     process.exit(3);
   }
 
-  const socketPath = process.env.STARK_BRIDGE_SOCK;
-  const token = process.env.STARK_BRIDGE_TOKEN;
+  const socketPath = process.env.OMENFLOW_BRIDGE_SOCK;
+  const token = process.env.OMENFLOW_BRIDGE_TOKEN;
   if (!socketPath || !token) {
     fail(
       'APP_NOT_RUNNING',
-      'STARK_BRIDGE_SOCK/STARK_BRIDGE_TOKEN not set — not inside a STARK session?',
+      'OMENFLOW_BRIDGE_SOCK/OMENFLOW_BRIDGE_TOKEN not set — not inside an Omen Flow session?',
     );
   }
 
   const socket = await connect(socketPath);
-  if (!socket) fail('APP_NOT_RUNNING', `Cannot connect to STARK bridge at ${socketPath}`);
+  if (!socket) fail('APP_NOT_RUNNING', `Cannot connect to Omen Flow bridge at ${socketPath}`);
 
   const decoder = new FrameDecoder();
   socket.write(

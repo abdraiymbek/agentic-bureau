@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { cmd } from '../api';
 import { useStore } from '../store';
-import type { Revision } from '@stark/contracts';
+import type { Revision } from '@omenflow/contracts';
 
 /**
  * Inspector: selected artifact's revision, freshness with explanation path,
@@ -181,7 +181,7 @@ export function Inspector() {
               title: `Review ${a.title}`,
               detail: `artifact ${a.id}`,
             });
-            window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+            window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
           }}
         >
           Ask agent

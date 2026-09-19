@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_OPS, envKeys, newId } from '@stark/contracts';
-import { CoreApp } from '@stark/core';
-import { createProject } from '@stark/storage';
+import { AGENT_OPS, envKeys, newId } from '@omenflow/contracts';
+import { CoreApp } from '@omenflow/core';
+import { createProject } from '@omenflow/storage';
 import { BridgeServer } from './server.js';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
-const CLI = fileURLToPath(new URL('../../bin/stark.mjs', import.meta.url));
+const CLI = fileURLToPath(new URL('../../bin/omenflow.mjs', import.meta.url));
 
 function runCli(
   args: string[],
@@ -30,7 +30,7 @@ function runCli(
   });
 }
 
-describe('stark CLI shim (bin/stark.mjs)', () => {
+describe('omenflow CLI shim (bin/omenflow.mjs)', () => {
   let dir: string;
   let app: CoreApp;
   let bridge: BridgeServer;
@@ -39,7 +39,7 @@ describe('stark CLI shim (bin/stark.mjs)', () => {
   let token: string;
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-cli-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-cli-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     const ctx = app.register(createProject(path.join(dir, 'proj'), 'CLI Project', 'intent'));
     projectId = ctx.projectId;

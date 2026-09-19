@@ -1,5 +1,5 @@
 {
-  "name": "@stark/desktop",
+  "name": "@omenflow/desktop",
   "version": "0.1.0",
   "private": true,
   "main": ".vite/build/main.js",
@@ -11,12 +11,12 @@
     "make": "pnpm run build:utility && electron-forge make"
   },
   "dependencies": {
-    "@stark/agent-host": "workspace:*",
-    "@stark/contracts": "workspace:*",
-    "@stark/core": "workspace:*",
-    "@stark/engineering": "workspace:*",
-    "@stark/mcp-server": "workspace:*",
-    "@stark/storage": "workspace:*",
+    "@omenflow/agent-host": "workspace:*",
+    "@omenflow/contracts": "workspace:*",
+    "@omenflow/core": "workspace:*",
+    "@omenflow/engineering": "workspace:*",
+    "@omenflow/mcp-server": "workspace:*",
+    "@omenflow/storage": "workspace:*",
     "better-sqlite3": "^13.0.3",
     "electron-squirrel-startup": "^1.0.1",
     "fflate": "^0.8.2",

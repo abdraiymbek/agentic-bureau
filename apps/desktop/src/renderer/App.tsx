@@ -16,16 +16,16 @@ import { ReviewsView } from './views/ReviewsView';
 import { HistoryView } from './views/HistoryView';
 import { FilesView } from './views/FilesView';
 import { ConnectionsView } from './views/ConnectionsView';
-import type { ProjectEvent } from '@stark/contracts';
+import type { ProjectEvent } from '@omenflow/contracts';
 
 export default function App() {
   const { projectId, nav, set, pushEvent, terminalExpanded, toasts } = useStore();
 
   // Global event stream → store.
   useEffect(() => {
-    const un = window.stark.onEvent((e) => pushEvent(e as ProjectEvent));
-    const unJob = window.stark.onJobProgress(() => void useStore.getState().refreshJobs());
-    const unTerm = window.stark.onTerminalState((s) => set({ session: s as never }));
+    const un = window.omenflow.onEvent((e) => pushEvent(e as ProjectEvent));
+    const unJob = window.omenflow.onJobProgress(() => void useStore.getState().refreshJobs());
+    const unTerm = window.omenflow.onTerminalState((s) => set({ session: s as never }));
     return () => {
       un();
       unJob();
@@ -50,7 +50,7 @@ export default function App() {
         e.preventDefault();
         const el = document.querySelector<HTMLElement>('[data-terminal-region]');
         if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
-        window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+        window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -70,15 +70,15 @@ export default function App() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopBar />
       <div style={{ flex: 1, minHeight: 0 }}>
-        <PanelGroup direction="horizontal" autoSaveId="stark-h">
+        <PanelGroup direction="horizontal" autoSaveId="omenflow-h">
           <Panel defaultSize={16} minSize={12} maxSize={24}>
             <Sidebar />
           </Panel>
           <PanelResizeHandle className="resize-handle" />
           <Panel minSize={40}>
-            <PanelGroup direction="vertical" autoSaveId="stark-v">
+            <PanelGroup direction="vertical" autoSaveId="omenflow-v">
               <Panel minSize={30}>
-                <PanelGroup direction="horizontal" autoSaveId="stark-center">
+                <PanelGroup direction="horizontal" autoSaveId="omenflow-center">
                   <Panel minSize={40}>
                     <div
                       style={{ height: '100%', background: 'var(--bg-main)', overflow: 'hidden' }}

@@ -8,16 +8,16 @@ import {
   envKeys,
   type RequestEnvelope,
   type ResponseEnvelope,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
 /**
- * `stark` CLI — the agent-facing bridge client (TypeScript reference;
- * bin/stark.mjs is the self-contained dev shim, native/stark-bridge is the
+ * `omenflow` CLI — the agent-facing bridge client (TypeScript reference;
+ * bin/omenflow.mjs is the self-contained dev shim, native/omenflow-bridge is the
  * production build).
  *
- *   stark call <op> --input <file|'-'> [--idempotency-key k]
- *   stark mcp
+ *   omenflow call <op> --input <file|'-'> [--idempotency-key k]
+ *   omenflow mcp
  *
  * Exit codes: 0 ok · 2 bridge/app error (JSON on stderr) · 3 usage.
  */
@@ -49,7 +49,9 @@ function parseArgs(argv: string[]): ParsedArgs | { error: string } {
   const [cmd, ...rest] = argv;
   if (cmd === 'mcp') return { mode: 'mcp' };
   if (cmd !== 'call')
-    return { error: `usage: stark call <op> --input <file|-> [--idempotency-key k] | stark mcp` };
+    return {
+      error: `usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp`,
+    };
   const out: ParsedArgs = { mode: 'call' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
@@ -109,7 +111,7 @@ function nextMessage(socket: net.Socket, decoder: FrameDecoder): Promise<unknown
   });
 }
 
-export async function runStarkCli(argv: string[], deps: CliDeps = {}): Promise<number> {
+export async function runOmenflowCli(argv: string[], deps: CliDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
   const parsed = parseArgs(argv);
   if ('error' in parsed) {
@@ -123,7 +125,7 @@ export async function runStarkCli(argv: string[], deps: CliDeps = {}): Promise<n
     return fail(
       deps,
       ErrorCodes.APP_NOT_RUNNING,
-      `${envKeys.socketPath}/${envKeys.token} not set — not inside a STARK session?`,
+      `${envKeys.socketPath}/${envKeys.token} not set — not inside an Omen Flow session?`,
     );
   }
 
@@ -132,7 +134,7 @@ export async function runStarkCli(argv: string[], deps: CliDeps = {}): Promise<n
     return fail(
       deps,
       ErrorCodes.APP_NOT_RUNNING,
-      `Cannot connect to STARK bridge at ${socketPath}`,
+      `Cannot connect to Omen Flow bridge at ${socketPath}`,
     );
   }
 

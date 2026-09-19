@@ -1,13 +1,13 @@
-//! `stark` — production bridge helper shipped inside the STARK app bundle.
+//! `omenflow` — production bridge helper shipped inside the Omen Flow app bundle.
 //!
 //! Agent CLIs (Codex, Claude Code, custom) inherit per-session credentials in
-//! their environment and call this binary to reach the running STARK app:
+//! their environment and call this binary to reach the running Omen Flow app:
 //!
-//!   stark call <op> --input <file|'-'> [--idempotency-key k]
-//!   stark mcp
+//!   omenflow call <op> --input <file|'-'> [--idempotency-key k]
+//!   omenflow mcp
 //!
 //! Wire protocol (see packages/contracts/src/protocol.ts):
-//!   transport: unix socket / windows named pipe (env STARK_BRIDGE_SOCK)
+//!   transport: unix socket / windows named pipe (env OMENFLOW_BRIDGE_SOCK)
 //!   frames:    4-byte little-endian length + JSON body, max 8 MiB
 //!   1. client → {type:"hello", token, protocolVersion:1, mode:"call"|"mcp"}
 //!   2. server → {type:"welcome", ...} | {type:"error", error:{code,message}}
@@ -103,7 +103,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             return Ok(out);
         }
         Some("call") => out.mode = "call".into(),
-        _ => return Err("usage: stark call <op> --input <file|-> [--idempotency-key k] | stark mcp".into()),
+        _ => return Err("usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp".into()),
     }
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -144,18 +144,18 @@ fn run() -> ExitCode {
         }
     };
 
-    let socket_path = env::var("STARK_BRIDGE_SOCK").unwrap_or_default();
-    let token = env::var("STARK_BRIDGE_TOKEN").unwrap_or_default();
+    let socket_path = env::var("OMENFLOW_BRIDGE_SOCK").unwrap_or_default();
+    let token = env::var("OMENFLOW_BRIDGE_TOKEN").unwrap_or_default();
     if socket_path.is_empty() || token.is_empty() {
         return fail(
             "APP_NOT_RUNNING",
-            "STARK_BRIDGE_SOCK/STARK_BRIDGE_TOKEN not set — not inside a STARK session?",
+            "OMENFLOW_BRIDGE_SOCK/OMENFLOW_BRIDGE_TOKEN not set — not inside an Omen Flow session?",
         );
     }
 
     let mut stream = match connect(&socket_path) {
         Ok(s) => s,
-        Err(e) => return fail("APP_NOT_RUNNING", &format!("Cannot connect to STARK bridge at {socket_path}: {e}")),
+        Err(e) => return fail("APP_NOT_RUNNING", &format!("Cannot connect to Omen Flow bridge at {socket_path}: {e}")),
     };
 
     // --- handshake ---

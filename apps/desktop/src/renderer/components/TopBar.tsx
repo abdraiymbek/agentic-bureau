@@ -7,7 +7,9 @@ export function TopBar() {
   const { project, projectId, set, adapters, session } = useStore();
   const connected = adapters.filter((a) => a.available).length;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [openProjects, setOpenProjects] = useState<{ id: string; name: string; root: string }[]>([]);
+  const [openProjects, setOpenProjects] = useState<{ id: string; name: string; root: string }[]>(
+    [],
+  );
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function TopBar() {
         ...({ WebkitAppRegion: 'drag' } as object),
       }}
     >
-      <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.04em' }}>STARK</span>
+      <span style={{ fontWeight: 600, fontSize: 13, letterSpacing: '0.04em' }}>Omen Flow</span>
       <div ref={menuRef} style={{ position: 'relative' }}>
         <button
           style={{ ...({ WebkitAppRegion: 'no-drag' } as object), height: 26, maxWidth: 220 }}
@@ -85,7 +87,7 @@ export function TopBar() {
                       selectedArtifactId: null,
                       nav: 'overview',
                     });
-                    void window.stark.setActiveProject(p.id);
+                    void window.omenflow.setActiveProject(p.id);
                     void s.refreshArtifacts();
                     void s.refreshProposals();
                     void s.refreshEvents();
@@ -125,7 +127,7 @@ export function TopBar() {
           className="dim"
           style={{ height: 26 }}
           title="Research browser"
-          onClick={() => void window.stark.toggleResearch()}
+          onClick={() => void window.omenflow.toggleResearch()}
         >
           <Globe size={13} />
         </button>

@@ -96,41 +96,44 @@ describe('OpenScadAdapter discovery/probe', () => {
 });
 
 describe('OpenScadAdapter e2e (requires real OpenSCAD)', () => {
-  it.skipIf(!process.env.STARK_OPENSCAD_E2E)('renders a cube to STL with -D params', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-scad-e2e-'));
-    const scad = path.join(dir, 'box.scad');
-    const out = path.join(dir, 'box.stl');
-    fs.writeFileSync(scad, 'size = 5; cube([size, size, 2]);\n');
+  it.skipIf(!process.env.OMENFLOW_OPENSCAD_E2E)(
+    'renders a cube to STL with -D params',
+    async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-scad-e2e-'));
+      const scad = path.join(dir, 'box.scad');
+      const out = path.join(dir, 'box.stl');
+      fs.writeFileSync(scad, 'size = 5; cube([size, size, 2]);\n');
 
-    const a = adapter();
-    const probe = await a.probe();
-    expect(probe.available).toBe(true);
+      const a = adapter();
+      const probe = await a.probe();
+      expect(probe.available).toBe(true);
 
-    const valid = await a.validateSource(scad);
-    expect(valid).toEqual({ ok: true, errors: [] });
+      const valid = await a.validateSource(scad);
+      expect(valid).toEqual({ ok: true, errors: [] });
 
-    const logs: string[] = [];
-    const res = await a.render(
-      {
-        jobId: 'e2e',
-        scadPath: scad,
-        outPath: out,
-        params: { size: 8 },
-        timeoutMs: 60_000,
-        workDir: dir,
-      },
-      (c) => logs.push(c),
-    );
-    expect(res.ok).toBe(true);
-    const stl = a.inspectStl(fs.readFileSync(out));
-    expect(stl.plausible).toBe(true);
-    expect(stl.bounds.max[0]! - stl.bounds.min[0]!).toBeCloseTo(8, 3);
+      const logs: string[] = [];
+      const res = await a.render(
+        {
+          jobId: 'e2e',
+          scadPath: scad,
+          outPath: out,
+          params: { size: 8 },
+          timeoutMs: 60_000,
+          workDir: dir,
+        },
+        (c) => logs.push(c),
+      );
+      expect(res.ok).toBe(true);
+      const stl = a.inspectStl(fs.readFileSync(out));
+      expect(stl.plausible).toBe(true);
+      expect(stl.bounds.max[0]! - stl.bounds.min[0]!).toBeCloseTo(8, 3);
 
-    const bad = path.join(dir, 'bad.scad');
-    fs.writeFileSync(bad, 'cube([1,2);\n');
-    const invalid = await a.validateSource(bad);
-    expect(invalid.ok).toBe(false);
-    expect(invalid.errors.length).toBeGreaterThan(0);
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
+      const bad = path.join(dir, 'bad.scad');
+      fs.writeFileSync(bad, 'cube([1,2);\n');
+      const invalid = await a.validateSource(bad);
+      expect(invalid.ok).toBe(false);
+      expect(invalid.errors.length).toBeGreaterThan(0);
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
+  );
 });

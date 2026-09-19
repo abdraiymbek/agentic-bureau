@@ -13,18 +13,18 @@ import path from 'node:path';
 import fs from 'node:fs';
 // @ts-expect-error no published types for squirrel-startup
 import started from 'electron-squirrel-startup';
-import { IPC, MAX_EXTRACT_CHARS } from '@stark/contracts';
+import { IPC, MAX_EXTRACT_CHARS } from '@omenflow/contracts';
 import { ResearchSurface } from './research.js';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 // Register the app scheme as a standard+secure scheme BEFORE app ready so
-// 'self' in the page CSP covers stark-app:// subresources (opaque-origin
+// 'self' in the page CSP covers omenflow-app:// subresources (opaque-origin
 // schemes break script-src 'self').
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: 'stark-app',
+    scheme: 'omenflow-app',
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
   },
 ]);
@@ -50,7 +50,9 @@ function sendToCore(msg: Record<string, unknown>): void {
 function callCore<T>(op: string, payload: unknown, idempotencyKey?: string): Promise<T> {
   if (!coreProc) {
     return Promise.reject(
-      new Error('STARK’s workspace service is unavailable. Quit and reopen STARK to reconnect.'),
+      new Error(
+        'Omen Flow’s workspace service is unavailable. Quit and reopen Omen Flow to reconnect.',
+      ),
     );
   }
   const requestId = `req-${++reqSeq}`;
@@ -79,13 +81,13 @@ function startCore(): void {
     `main fork ${utilityPath} exists=${fs.existsSync(utilityPath)}\n`,
   );
   coreProc = utilityProcess.fork(utilityPath, [], {
-    serviceName: 'stark-core',
+    serviceName: 'omenflow-core',
     // utilityProcess.fork requires stdin to be 'ignore'.
     stdio: ['ignore', 'pipe', 'inherit'],
     env: {
       // Test hooks may redirect app data (packaged-smoke); default is userData.
-      STARK_APP_DATA: process.env.STARK_APP_DATA ?? app.getPath('userData'),
-      ...(process.env.STARK_SMOKE ? { STARK_SMOKE: process.env.STARK_SMOKE } : {}),
+      OMENFLOW_APP_DATA: process.env.OMENFLOW_APP_DATA ?? app.getPath('userData'),
+      ...(process.env.OMENFLOW_SMOKE ? { OMENFLOW_SMOKE: process.env.OMENFLOW_SMOKE } : {}),
     },
   });
   coreProc.on('message', (msg: Record<string, unknown>) => {
@@ -208,7 +210,7 @@ function createWindow(): void {
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: '#17191C',
-    title: 'STARK',
+    title: 'Omen Flow',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {
@@ -234,14 +236,14 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (e, url) => {
     const devUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
-    const allowed = (devUrl && url.startsWith(devUrl)) || url.startsWith('stark-app://');
+    const allowed = (devUrl && url.startsWith(devUrl)) || url.startsWith('omenflow-app://');
     if (!allowed) e.preventDefault();
   });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     void mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    void mainWindow.loadURL('stark-app://main_window/index.html');
+    void mainWindow.loadURL('omenflow-app://main_window/index.html');
   }
 }
 
@@ -310,7 +312,7 @@ function wireIpc(): void {
     },
   );
 
-  ipcMain.handle('stark:set-active-project', (_e, id: string | null) => {
+  ipcMain.handle('omenflow:set-active-project', (_e, id: string | null) => {
     activeProjectId = id;
   });
 
@@ -352,7 +354,7 @@ function wireIpc(): void {
     if (/^https?:\/\//.test(url)) await shell.openExternal(url);
   });
   ipcMain.handle(IPC.openPath, async (_e, p: string) => shell.showItemInFolder(p));
-  ipcMain.handle('stark:toggle-research', async () => {
+  ipcMain.handle('omenflow:toggle-research', async () => {
     if (!research) research = new ResearchSurface(() => mainWindow);
     research.toggle();
   });
@@ -365,9 +367,9 @@ function wireIpc(): void {
 app.whenReady().then(() => {
   // Registered local application protocol for production builds.
   if (!MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    protocol.handle('stark-app', (req) => {
+    protocol.handle('omenflow-app', (req) => {
       const url = new URL(req.url);
-      // stark-app://main_window/index.html → .vite/renderer/main_window/index.html
+      // omenflow-app://main_window/index.html → .vite/renderer/main_window/index.html
       const rel = `${url.hostname}${url.pathname}`;
       const file = path.join(__dirname, '..', 'renderer', rel);
       // fs is asar-aware; net.fetch(file://) is not — the network service

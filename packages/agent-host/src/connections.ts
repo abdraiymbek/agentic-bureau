@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import {
   AGENT_OPS,
   ErrorCodes,
-  StarkError,
+  OmenflowError,
   envKeys,
   newId,
   type AdapterStatus,
-} from '@stark/contracts';
-import type { CoreApp, ConnectionHost, ProjectContext } from '@stark/core';
+} from '@omenflow/contracts';
+import type { CoreApp, ConnectionHost, ProjectContext } from '@omenflow/core';
 import { adapterById, createAdapterRegistry, type AgentAdapter } from './adapters/index.js';
 import type { BridgeServer } from './bridge/server.js';
 
@@ -18,7 +18,7 @@ import type { BridgeServer } from './bridge/server.js';
  */
 export class ConnectionManager implements ConnectionHost {
   private adapters: AgentAdapter[];
-  /** Path of the `stark` CLI shim used for the end-to-end bridge check. */
+  /** Path of the `omenflow` CLI shim used for the end-to-end bridge check. */
   private cliPath: string;
 
   constructor(
@@ -27,7 +27,7 @@ export class ConnectionManager implements ConnectionHost {
     opts?: { cliPath?: string },
   ) {
     this.adapters = createAdapterRegistry((id) => app.adapterConfigs[id] ?? {});
-    this.cliPath = opts?.cliPath ?? fileURLToPath(new URL('../bin/stark.mjs', import.meta.url));
+    this.cliPath = opts?.cliPath ?? fileURLToPath(new URL('../bin/omenflow.mjs', import.meta.url));
   }
 
   async list(): Promise<AdapterStatus[]> {
@@ -44,7 +44,7 @@ export class ConnectionManager implements ConnectionHost {
 
   /**
    * Live test: executable present + version probed (discover), launch spec
-   * builds, and — the part that actually proves the bridge — a real `stark
+   * builds, and — the part that actually proves the bridge — a real `omenflow
    * call project.summary` roundtrip through the CLI shim with a throwaway
    * session token. Agent-TUI auth itself is only exercised on real launch.
    */
@@ -53,7 +53,7 @@ export class ConnectionManager implements ConnectionHost {
     adapterId: string,
   ): Promise<{ ok: boolean; error?: string; detail?: string }> {
     const adapter = adapterById(this.adapters, adapterId);
-    if (!adapter) throw new StarkError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
+    if (!adapter) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
 
     const finish = async (ok: boolean, error: string | null, detail?: string) => {
       await this.app.setAdapterConfig(adapterId, {
@@ -121,7 +121,7 @@ export class ConnectionManager implements ConnectionHost {
     cfg: { executablePath?: string; args?: string[]; env?: Record<string, string> },
   ): Promise<void> {
     if (!adapterById(this.adapters, adapterId)) {
-      throw new StarkError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
+      throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
     }
     await this.app.setAdapterConfig(adapterId, cfg);
   }

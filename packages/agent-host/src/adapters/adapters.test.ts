@@ -2,9 +2,9 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { adapterStatusSchema, newId } from '@stark/contracts';
-import { CoreApp } from '@stark/core';
-import { createProject } from '@stark/storage';
+import { adapterStatusSchema, newId } from '@omenflow/contracts';
+import { CoreApp } from '@omenflow/core';
+import { createProject } from '@omenflow/storage';
 import { CodexAdapter } from './codex.js';
 import { ClaudeAdapter } from './claude.js';
 import { CustomAdapter } from './custom.js';
@@ -14,7 +14,7 @@ let dir: string;
 let app: CoreApp;
 
 beforeEach(() => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-adapters-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-adapters-'));
   app = new CoreApp(path.join(dir, 'app-data'));
 });
 
@@ -62,7 +62,7 @@ describe('codex adapter', () => {
     expect(status.executablePath).toBe('/bin/sh');
   });
 
-  it('launchSpec carries -c mcp_servers.stark overrides + bridge env', async () => {
+  it('launchSpec carries -c mcp_servers.omenflow overrides + bridge env', async () => {
     const ctx = app.register(createProject(path.join(dir, 'proj'), 'P', 'i'));
     const codex = new CodexAdapter(() => ({ executablePath: '/bin/sh' }));
     const sessionId = newId();
@@ -72,20 +72,25 @@ describe('codex adapter', () => {
       sessionId,
       config: { executablePath: '/bin/sh' },
       bridgeEnv: {
-        STARK_BRIDGE_SOCK: '/tmp/x.sock',
-        STARK_BRIDGE_TOKEN: 't',
-        STARK_PROJECT_ID: ctx.projectId,
-        STARK_SESSION_ID: sessionId,
+        OMENFLOW_BRIDGE_SOCK: '/tmp/x.sock',
+        OMENFLOW_BRIDGE_TOKEN: 't',
+        OMENFLOW_PROJECT_ID: ctx.projectId,
+        OMENFLOW_SESSION_ID: sessionId,
       },
       bootstrapPath,
     });
     expect(spec.path).toBe('/bin/sh');
     expect(spec.cwd).toBe(ctx.root);
     const joined = spec.args.join(' ');
-    expect(joined).toContain('mcp_servers.stark.command="stark"');
-    expect(joined).toContain('mcp_servers.stark.args=["mcp"]');
-    expect(spec.env.STARK_BRIDGE_TOKEN).toBe('t');
-    expect(spec.env.STARK_BOOTSTRAP).toBe(bootstrapPath);
+    expect(joined).toContain('mcp_servers.omenflow.command="omenflow"');
+    expect(joined).toContain('mcp_servers.omenflow.args=["mcp"]');
+    // env passthrough for the MCP child + seatbelt escape for `omenflow call`
+    expect(joined).toContain('mcp_servers.omenflow.env_vars=["OMENFLOW_BRIDGE_SOCK"');
+    expect(joined).toContain('"OMENFLOW_BRIDGE_TOKEN"');
+    expect(joined).toContain('sandbox_mode="workspace-write"');
+    expect(joined).toContain('sandbox_workspace_write.network_access=true');
+    expect(spec.env.OMENFLOW_BRIDGE_TOKEN).toBe('t');
+    expect(spec.env.OMENFLOW_BOOTSTRAP).toBe(bootstrapPath);
     expect(fs.existsSync(bootstrapPath)).toBe(true);
   });
 });
@@ -101,21 +106,21 @@ describe('claude adapter', () => {
       sessionId,
       config: { executablePath: '/bin/sh' },
       bridgeEnv: {
-        STARK_BRIDGE_SOCK: '/tmp/x.sock',
-        STARK_BRIDGE_TOKEN: 'sekret',
-        STARK_PROJECT_ID: ctx.projectId,
-        STARK_SESSION_ID: sessionId,
+        OMENFLOW_BRIDGE_SOCK: '/tmp/x.sock',
+        OMENFLOW_BRIDGE_TOKEN: 'sekret',
+        OMENFLOW_PROJECT_ID: ctx.projectId,
+        OMENFLOW_SESSION_ID: sessionId,
       },
       bootstrapPath,
     });
     const cfgIdx = spec.args.indexOf('--mcp-config');
     expect(cfgIdx).toBeGreaterThanOrEqual(0);
     const mcpJson = JSON.parse(fs.readFileSync(spec.args[cfgIdx + 1]!, 'utf8')) as {
-      mcpServers: { stark: { command: string; args: string[]; env: Record<string, string> } };
+      mcpServers: { omenflow: { command: string; args: string[]; env: Record<string, string> } };
     };
-    expect(mcpJson.mcpServers.stark.command).toBe('stark');
-    expect(mcpJson.mcpServers.stark.args).toEqual(['mcp']);
-    expect(mcpJson.mcpServers.stark.env.STARK_BRIDGE_TOKEN).toBe('sekret');
+    expect(mcpJson.mcpServers.omenflow.command).toBe('omenflow');
+    expect(mcpJson.mcpServers.omenflow.args).toEqual(['mcp']);
+    expect(mcpJson.mcpServers.omenflow.env.OMENFLOW_BRIDGE_TOKEN).toBe('sekret');
   });
 
   it('supports resume', () => {
@@ -163,8 +168,8 @@ describe('bootstrap brief', () => {
     const text = fs.readFileSync(p, 'utf8');
     expect(text).toContain('BriefProj');
     expect(text).toContain('build a rocket');
-    expect(text).toContain('stark call');
+    expect(text).toContain('omenflow call');
     expect(text).toContain('proposal');
-    expect(p).toContain(path.join('.stark', 'work'));
+    expect(p).toContain(path.join('.omenflow', 'work'));
   });
 });

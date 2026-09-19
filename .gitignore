@@ -13,4 +13,4 @@ target/
 out/
 *.tsbuildinfo
 coverage/
-.stark-dev/
+.omenflow-dev/

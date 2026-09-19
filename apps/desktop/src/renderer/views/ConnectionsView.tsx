@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
-import type { AdapterStatus } from '@stark/contracts';
+import type { AdapterStatus } from '@omenflow/contracts';
 
 /** Connections + diagnostics: adapters, their status, custom CLI config, tool paths. */
 export function ConnectionsView() {
@@ -116,8 +116,8 @@ export function ConnectionsView() {
 
       <Section title="OpenSCAD">
         <div className="faint" style={{ fontSize: 12, marginBottom: 6 }}>
-          OpenSCAD is a user-supplied prerequisite for CAD. Point STARK at a nonstandard install if
-          needed.
+          OpenSCAD is a user-supplied prerequisite for CAD. Point Omen Flow at a nonstandard install
+          if needed.
         </div>
         <div className="row">
           <input
@@ -132,7 +132,7 @@ export function ConnectionsView() {
           <button
             style={{ height: 30 }}
             onClick={async () => {
-              const p = await window.stark.pickFile({ title: 'Locate OpenSCAD' });
+              const p = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
               if (p) setScadPath(p);
             }}
           >

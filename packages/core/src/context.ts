@@ -10,10 +10,10 @@ import {
   Origin,
   ProjectEvent,
   Revision,
-  StarkError,
+  OmenflowError,
   ErrorCodes,
   newId,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import {
   ObjectStore,
   ProjectHandle,
@@ -21,7 +21,7 @@ import {
   resolveProjectPath,
   sha256Hex,
   toProjectRelative,
-} from '@stark/storage';
+} from '@omenflow/storage';
 
 /** Services the host process (Electron main, or a test stub) provides to core. */
 export interface HostServices {
@@ -55,7 +55,7 @@ export const nullHost: HostServices = {
     return { ok: false, error: 'Research browser unavailable in this host' };
   },
   async researchScreenshot() {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Research browser unavailable');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Research browser unavailable');
   },
   async revealPath() {},
   async openExternal() {},
@@ -108,11 +108,11 @@ export class ProjectContext {
 
   assertWritable(): void {
     if (this.readOnly) {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.READ_ONLY,
         'Project opened read-only (newer schema version)',
         {
-          repair: 'Export the project and update STARK to edit it.',
+          repair: 'Export the project and update Omen Flow to edit it.',
         },
       );
     }
@@ -120,19 +120,19 @@ export class ProjectContext {
 
   requireArtifact(id: string): Artifact {
     const a = this.repo.getArtifact(id);
-    if (!a) throw new StarkError(ErrorCodes.NOT_FOUND, `Artifact not found: ${id}`);
+    if (!a) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Artifact not found: ${id}`);
     return a;
   }
   requireRevision(id: string): Revision {
     const r = this.repo.getRevision(id);
-    if (!r) throw new StarkError(ErrorCodes.NOT_FOUND, `Revision not found: ${id}`);
+    if (!r) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Revision not found: ${id}`);
     return r;
   }
 
   /** Freshness for one artifact: current / stale / missing_input. */
   freshnessOf(artifactId: string): {
     freshness: Freshness;
-    reasons: import('@stark/contracts').StaleRecord[];
+    reasons: import('@omenflow/contracts').StaleRecord[];
   } {
     const reasons = this.repo.staleFor(artifactId);
     if (reasons.length === 0) return { freshness: 'current', reasons };
@@ -170,7 +170,10 @@ export class ProjectContext {
     if (!absPath.startsWith(this.root)) {
       const rel = toProjectRelative(this.root, absPath);
       if (rel.startsWith('..')) {
-        throw new StarkError(ErrorCodes.PATH_OUTSIDE_PROJECT, `File outside project: ${absPath}`);
+        throw new OmenflowError(
+          ErrorCodes.PATH_OUTSIDE_PROJECT,
+          `File outside project: ${absPath}`,
+        );
       }
     }
     const sha = sha256Hex(fs.readFileSync(absPath));
@@ -197,7 +200,7 @@ export class ProjectContext {
           this.repo.completeMaterialization(mid);
           return;
         }
-        const marker = `${abs}.stark-conflict-${Date.now()}`;
+        const marker = `${abs}.omenflow-conflict-${Date.now()}`;
         fs.writeFileSync(marker, buf);
       } else {
         fs.writeFileSync(abs, buf);

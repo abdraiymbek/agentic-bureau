@@ -5,8 +5,8 @@
  */
 import path from 'node:path';
 import fs from 'node:fs';
-import { CoreApp, nullHost } from '@stark/core';
-import { createEngineTools } from '@stark/engineering';
+import { CoreApp, nullHost } from '@omenflow/core';
+import { createEngineTools } from '@omenflow/engineering';
 import { buildRoverProject } from './rover/rover.fixture.js';
 import { buildDroneProject } from './drone-dependencies/drone.fixture.js';
 
@@ -22,7 +22,7 @@ async function main() {
   // App data must not live inside the project dir — project.create requires
   // an empty target folder.
   const app = new CoreApp(
-    path.join(path.dirname(abs), `.stark-appdata-${path.basename(abs)}`),
+    path.join(path.dirname(abs), `.omenflow-appdata-${path.basename(abs)}`),
     nullHost,
   );
   app.engineTools = createEngineTools();

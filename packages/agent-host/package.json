@@ -1,21 +1,21 @@
 {
-  "name": "@stark/agent-host",
+  "name": "@omenflow/agent-host",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "bin": {
-    "stark": "bin/stark.mjs"
+    "omenflow": "bin/omenflow.mjs"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@stark/contracts": "workspace:*",
-    "@stark/core": "workspace:*",
-    "@stark/storage": "workspace:*",
+    "@omenflow/contracts": "workspace:*",
+    "@omenflow/core": "workspace:*",
+    "@omenflow/storage": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

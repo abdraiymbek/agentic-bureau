@@ -31,7 +31,7 @@ export function FilesView() {
   };
 
   const exportArchive = async () => {
-    const dest = await window.stark.saveFile({ defaultPath: 'project.stark.zip' });
+    const dest = await window.omenflow.saveFile({ defaultPath: 'project.omenflow.zip' });
     if (!dest) return;
     setBusy(true);
     try {
@@ -47,7 +47,7 @@ export function FilesView() {
   };
 
   const exportBuild = async (includeDrafts: boolean) => {
-    const dest = await window.stark.saveFile({ defaultPath: 'build-package.zip' });
+    const dest = await window.omenflow.saveFile({ defaultPath: 'build-package.zip' });
     if (!dest) return;
     setBusy(true);
     try {

@@ -37,7 +37,7 @@ export function CommandPalette() {
         id: 'term:focus',
         label: 'Focus terminal',
         hint: '⌘J',
-        run: () => window.dispatchEvent(new CustomEvent('stark:focus-terminal')),
+        run: () => window.dispatchEvent(new CustomEvent('omenflow:focus-terminal')),
       },
       {
         id: 'term:toggle',
@@ -48,7 +48,7 @@ export function CommandPalette() {
       {
         id: 'research:toggle',
         label: 'Toggle research browser',
-        run: () => void window.stark.toggleResearch(),
+        run: () => void window.omenflow.toggleResearch(),
       },
     ];
     if (quickOpen) return [];

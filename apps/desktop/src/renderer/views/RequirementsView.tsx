@@ -6,8 +6,8 @@ import type {
   RequirementPayload,
   AssumptionPayload,
   MaybeQuantity,
-} from '@stark/contracts';
-import { isUnknown, formatQty } from '@stark/contracts';
+} from '@omenflow/contracts';
+import { isUnknown, formatQty } from '@omenflow/contracts';
 import { EmptyBlock } from './OverviewView';
 
 /** Requirements + assumptions surfaces — edit individually with units + acceptance. */

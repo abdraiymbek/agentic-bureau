@@ -1,4 +1,10 @@
-import { ErrorCodes, StarkError, formatQty, isUnknown, type MaybeQuantity } from '@stark/contracts';
+import {
+  ErrorCodes,
+  OmenflowError,
+  formatQty,
+  isUnknown,
+  type MaybeQuantity,
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 
 /**
@@ -66,7 +72,7 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
     staleArtifacts: stale,
     recentDecisions: decisions,
     recentEvents: events,
-    tools: 'stark call <op> or stark mcp — see tool.list',
+    tools: 'omenflow call <op> or omenflow mcp — see tool.list',
     rules: 'Accepted engineering changes go through proposals; drafts are free.',
   };
 
@@ -113,7 +119,7 @@ export function search(ctx: ProjectContext, query: string, limit: number) {
       }),
     };
   } catch (e) {
-    throw new StarkError(ErrorCodes.VALIDATION, `Search failed: ${(e as Error).message}`);
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Search failed: ${(e as Error).message}`);
   }
 }
 

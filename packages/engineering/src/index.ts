@@ -1,4 +1,4 @@
-import type { EngineTools } from '@stark/core';
+import type { EngineTools } from '@omenflow/core';
 import { OpenScadAdapter, type OpenScadOptions } from './openscad.js';
 import { MathJsCalcEngine, type MathJsCalcEngineOptions } from './calc-engine.js';
 import { WiringAnalyzer } from './wiring-analyzer.js';

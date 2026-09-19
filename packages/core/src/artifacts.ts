@@ -10,12 +10,12 @@ import {
   RecordedInput,
   Revision,
   RevisionRef,
-  StarkError,
+  OmenflowError,
   artifactPayloadSchemas,
   formatQty,
   newId,
   validatePayload,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { contentHash, diffPayloads, slugify } from './hash.js';
 import { propagateFrom } from './graph.js';
@@ -37,7 +37,7 @@ export function ingestFiles(ctx: ProjectContext, files: DraftFileInput[]): FileR
       const abs = path.isAbsolute(f.sourcePath) ? f.sourcePath : ctx.resolvePath(f.sourcePath);
       buf = fs.readFileSync(abs);
     } else {
-      throw new StarkError(ErrorCodes.VALIDATION, `File entry has no content: ${f.path}`);
+      throw new OmenflowError(ErrorCodes.VALIDATION, `File entry has no content: ${f.path}`);
     }
     const sha256 = ctx.storeContent(buf);
     out.push({ path: f.path, sha256, role: 'source' });
@@ -231,7 +231,7 @@ export function updateDraft(
     artifact.selectedRevisionId &&
     input.baseRevisionId !== artifact.selectedRevisionId
   ) {
-    throw new StarkError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
+    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
       repair: 'Refresh the artifact and rebuild the draft on the current baseline.',
       details: { selected: artifact.selectedRevisionId, requested: input.baseRevisionId },
     });
@@ -286,7 +286,7 @@ export function applyUserEdit(
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.selectedRevisionId !== input.baseRevisionId) {
-    throw new StarkError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
+    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
       repair: 'Refresh the artifact and retry the edit.',
     });
   }
@@ -396,7 +396,7 @@ export function acceptDraft(
   const artifact = ctx.requireArtifact(input.artifactId);
   const rev = ctx.requireRevision(input.draftRevisionId);
   if (rev.artifactId !== artifact.id) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
   }
   const prior: RevisionRef[] = artifact.selectedRevisionId
     ? [{ artifactId: artifact.id, revisionId: artifact.selectedRevisionId }]
@@ -439,7 +439,7 @@ export function revertArtifact(
   const artifact = ctx.requireArtifact(artifactId);
   const target = ctx.requireRevision(toRevisionId);
   if (target.artifactId !== artifactId) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
   }
   // Revert creates a NEW revision copying historical content (keeps trail).
   const prior: RevisionRef[] = artifact.selectedRevisionId
@@ -527,7 +527,7 @@ function renderView(
   revision: Revision,
 ): { ext: string; content: string } | null {
   const p = revision.payload as Record<string, unknown>;
-  const header = `# ${artifact.title}\n\n<!-- stark:artifact=${artifact.id} revision=${revision.id} -->\n\n`;
+  const header = `# ${artifact.title}\n\n<!-- omenflow:artifact=${artifact.id} revision=${revision.id} -->\n\n`;
   switch (artifact.type) {
     case 'requirement': {
       const target = p.target ? `\n**Target:** ${formatQty(p.target as never)}\n` : '';
@@ -595,7 +595,7 @@ export function compareRevisions(
   const from = ctx.requireRevision(fromId);
   const to = ctx.requireRevision(toId);
   if (from.artifactId !== a.id || to.artifactId !== a.id) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Revisions do not belong to artifact');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revisions do not belong to artifact');
   }
   const fileDiff = {
     added: to.files.filter(

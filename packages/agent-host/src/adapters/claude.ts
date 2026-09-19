@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AdapterStatus, SessionInfo } from '@stark/contracts';
-import { ErrorCodes, StarkError } from '@stark/contracts';
+import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
+import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
 import {
   baseStatus,
   loginShellPath,
@@ -17,7 +17,7 @@ import {
 
 /**
  * Claude Code adapter. MCP wiring via a per-session config file:
- * `.stark/work/<session>/mcp.json` + `claude --mcp-config <file>`.
+ * `.omenflow/work/<session>/mcp.json` + `claude --mcp-config <file>`.
  * Session credentials are embedded in that file's env block.
  */
 export class ClaudeAdapter implements AgentAdapter {
@@ -58,15 +58,15 @@ export class ClaudeAdapter implements AgentAdapter {
     const cfg = req.config;
     const exe = resolveExecutable(cfg.executablePath, 'claude');
     if (!exe.path || !fs.existsSync(exe.path)) {
-      throw new StarkError(ErrorCodes.TOOL_MISSING, 'Claude Code executable not found', {
+      throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'Claude Code executable not found', {
         repair: 'Install claude or set connection.configure claude-code executablePath.',
       });
     }
     const mcpPath = path.join(path.dirname(req.bootstrapPath), 'mcp.json');
     const mcpConfig = {
       mcpServers: {
-        stark: {
-          command: 'stark',
+        omenflow: {
+          command: 'omenflow',
           args: ['mcp'],
           env: { ...req.bridgeEnv },
         },
@@ -82,7 +82,7 @@ export class ClaudeAdapter implements AgentAdapter {
     const env: NodeJS.ProcessEnv = {
       ...req.bridgeEnv,
       ...cfg.env,
-      STARK_BOOTSTRAP: req.bootstrapPath,
+      OMENFLOW_BOOTSTRAP: req.bootstrapPath,
     };
     if (exe.fromPath && process.platform !== 'win32') {
       const login = loginShellPath();

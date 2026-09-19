@@ -1,15 +1,15 @@
 {
-  "name": "stark",
+  "name": "omenflow",
   "version": "0.1.0",
   "private": true,
-  "description": "STARK — local desktop engineering workspace for bring-your-own agent CLIs",
+  "description": "Omen Flow — local desktop engineering workspace for bring-your-own agent CLIs",
   "license": "Apache-2.0",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @stark/desktop start",
+    "dev": "pnpm --filter @omenflow/desktop start",
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -18,18 +18,18 @@
     "test:watch": "vitest",
     "rebuild:electron": "node scripts/rebuild-natives.mjs electron",
     "rebuild:node": "node scripts/rebuild-natives.mjs node",
-    "package": "pnpm --filter @stark/desktop package",
-    "make": "pnpm --filter @stark/desktop make",
+    "package": "pnpm --filter @omenflow/desktop package",
+    "make": "pnpm --filter @omenflow/desktop make",
     "smoke:bridge": "tsx scripts/bridge-smoke.ts",
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
     "fixture:rover": "tsx fixtures/build.ts rover",
     "fixture:drone": "tsx fixtures/build.ts drone"
   },
   "devDependencies": {
-    "@stark/contracts": "workspace:^",
-    "@stark/core": "workspace:^",
-    "@stark/engineering": "workspace:^",
-    "@stark/storage": "workspace:^",
+    "@omenflow/contracts": "workspace:^",
+    "@omenflow/core": "workspace:^",
+    "@omenflow/engineering": "workspace:^",
+    "@omenflow/storage": "workspace:^",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",

@@ -8,16 +8,16 @@ importers:
 
   .:
     devDependencies:
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:^
         version: link:packages/contracts
-      '@stark/core':
+      '@omenflow/core':
         specifier: workspace:^
         version: link:packages/core
-      '@stark/engineering':
+      '@omenflow/engineering':
         specifier: workspace:^
         version: link:packages/engineering
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:^
         version: link:packages/storage
       '@types/node':
@@ -50,22 +50,22 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@stark/agent-host':
+      '@omenflow/agent-host':
         specifier: workspace:*
         version: link:../../packages/agent-host
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@stark/core':
+      '@omenflow/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@stark/engineering':
+      '@omenflow/engineering':
         specifier: workspace:*
         version: link:../../packages/engineering
-      '@stark/mcp-server':
+      '@omenflow/mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:*
         version: link:../../packages/storage
       better-sqlite3:
@@ -198,13 +198,13 @@ importers:
 
   packages/agent-host:
     dependencies:
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@stark/core':
+      '@omenflow/core':
         specifier: workspace:*
         version: link:../core
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:*
         version: link:../storage
       node-pty:
@@ -219,10 +219,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:*
         version: link:../storage
       fflate:
@@ -231,13 +231,13 @@ importers:
 
   packages/engineering:
     dependencies:
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@stark/core':
+      '@omenflow/core':
         specifier: workspace:*
         version: link:../core
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:*
         version: link:../storage
       mathjs:
@@ -249,13 +249,13 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@3.25.76)
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@stark/core':
+      '@omenflow/core':
         specifier: workspace:*
         version: link:../core
-      '@stark/storage':
+      '@omenflow/storage':
         specifier: workspace:*
         version: link:../storage
       zod:
@@ -264,7 +264,7 @@ importers:
 
   packages/storage:
     dependencies:
-      '@stark/contracts':
+      '@omenflow/contracts':
         specifier: workspace:*
         version: link:../contracts
       better-sqlite3:

@@ -8,12 +8,12 @@ const pkg = (name: string) => path.join(root, '..', '..', 'packages', name, 'src
 export default defineConfig({
   resolve: {
     alias: {
-      '@stark/contracts': pkg('contracts'),
-      '@stark/storage': pkg('storage'),
-      '@stark/core': pkg('core'),
-      '@stark/agent-host': pkg('agent-host'),
-      '@stark/mcp-server': pkg('mcp-server'),
-      '@stark/engineering': pkg('engineering'),
+      '@omenflow/contracts': pkg('contracts'),
+      '@omenflow/storage': pkg('storage'),
+      '@omenflow/core': pkg('core'),
+      '@omenflow/agent-host': pkg('agent-host'),
+      '@omenflow/mcp-server': pkg('mcp-server'),
+      '@omenflow/engineering': pkg('engineering'),
     },
   },
   build: {

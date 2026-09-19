@@ -6,15 +6,15 @@ import { randomBytes } from 'node:crypto';
 import {
   ErrorCodes,
   PROTOCOL_VERSION,
-  StarkError,
+  OmenflowError,
   bridgeHelloSchema,
   errResponse,
   okResponse,
   protocolMismatch,
   requestEnvelopeSchema,
   type ResponseEnvelope,
-} from '@stark/contracts';
-import type { CoreApp } from '@stark/core';
+} from '@omenflow/contracts';
+import type { CoreApp } from '@omenflow/core';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
 /** A bridge credential: one token ↔ one agent session on one project. */
@@ -28,10 +28,10 @@ export interface BridgeGrant {
 const HELLO_TIMEOUT_MS = 10_000;
 
 /**
- * Local RPC bridge the agent CLI (`stark`) connects to.
+ * Local RPC bridge the agent CLI (`omenflow`) connects to.
  *
  * Transport: unix socket `<appDataDir>/run/bridge.sock` on macOS/Linux,
- * named pipe `\\.\pipe\stark-<user>-bridge` on Windows.
+ * named pipe `\\.\pipe\omenflow-<user>-bridge` on Windows.
  * Protocol: see packages/contracts/src/protocol.ts — hello → welcome →
  * per-frame request/response envelopes (mode 'call') or JSON-RPC frames
  * (mode 'mcp', handed to the mcp-server package via onMcpConnection).
@@ -183,7 +183,7 @@ export class BridgeServer {
       try {
         messages = decoder.push(chunk);
       } catch (e) {
-        const err = StarkError.from(e);
+        const err = OmenflowError.from(e);
         sendError(socket, err.code, err.message);
         socket.end();
         return;
@@ -294,7 +294,7 @@ export class BridgeServer {
           );
           response = okResponse(requestId, result);
         } catch (e) {
-          const err = StarkError.from(e);
+          const err = OmenflowError.from(e);
           response = errResponse(requestId, err.code, err.message, err.repair, err.details);
         }
       }
@@ -319,7 +319,7 @@ function defaultSocketPath(appDataDir: string): string {
     } catch {
       /* keep default */
     }
-    return `\\\\.\\pipe\\stark-${user}-bridge`;
+    return `\\\\.\\pipe\\omenflow-${user}-bridge`;
   }
   return path.join(appDataDir, 'run', 'bridge.sock');
 }

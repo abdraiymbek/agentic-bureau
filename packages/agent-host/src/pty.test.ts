@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CoreApp } from '@stark/core';
-import { createProject } from '@stark/storage';
+import { CoreApp } from '@omenflow/core';
+import { createProject } from '@omenflow/storage';
 import { BridgeServer } from './bridge/server.js';
 import { PtySessionManager } from './pty.js';
 
@@ -33,7 +33,7 @@ describe('PtySessionManager', () => {
   let ctx: ReturnType<CoreApp['register']>;
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-pty-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-pty-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     ctx = app.register(createProject(path.join(dir, 'proj'), 'Pty Proj', 'intent'));
     bridge = new BridgeServer(app, { socketPath: path.join(dir, 'run', 'bridge.sock') });
@@ -78,8 +78,8 @@ describe('PtySessionManager', () => {
       const session = mgr.sessionFor(ctx.projectId)!;
       expect(bridge.grantForToken(session.token)?.sessionId).toBe(info.id);
 
-      mgr.write(ctx, 'echo stark-pty-marker\n');
-      await waitFor(() => mgr.getScrollback(ctx).includes('stark-pty-marker'));
+      mgr.write(ctx, 'echo omenflow-pty-marker\n');
+      await waitFor(() => mgr.getScrollback(ctx).includes('omenflow-pty-marker'));
 
       mgr.resize(ctx, 132, 43);
       expect(mgr.state(ctx)?.cols).toBe(132);
@@ -95,7 +95,7 @@ describe('PtySessionManager', () => {
       await waitFor(() => mgr.state(ctx)?.state === 'exited');
       expect(ctx.repo.getSession(info.id)?.state).toBe('exited');
       expect(bridge.grantForToken(session.token)).toBeNull();
-      expect(mgr.getScrollback(ctx)).toContain('stark-pty-marker');
+      expect(mgr.getScrollback(ctx)).toContain('omenflow-pty-marker');
     },
     20_000,
   );

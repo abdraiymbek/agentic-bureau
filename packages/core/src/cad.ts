@@ -5,12 +5,12 @@ import {
   Job,
   MechanicalPayload,
   Origin,
-  StarkError,
+  OmenflowError,
   formatQty,
   isUnknown,
   newId,
   type MaybeQuantity,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, materializeReadableView } from './artifacts.js';
 import type { CadAdapter } from './tools.js';
@@ -18,7 +18,7 @@ import type { CadAdapter } from './tools.js';
 function cadTool(ctx: ProjectContext): CadAdapter {
   const cad = ctx.tools.cad as CadAdapter | undefined;
   if (!cad) {
-    throw new StarkError(ErrorCodes.TOOL_MISSING, 'No CAD adapter registered', {
+    throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No CAD adapter registered', {
       repair: 'Check Connections for tool registration.',
     });
   }
@@ -32,14 +32,14 @@ export async function cadProbe(ctx: ProjectContext) {
 function mechPayload(ctx: ProjectContext, artifactId: string, revisionId?: string) {
   const artifact = ctx.requireArtifact(artifactId);
   if (artifact.type !== 'mechanical') {
-    throw new StarkError(ErrorCodes.VALIDATION, 'CAD ops require a mechanical artifact');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'CAD ops require a mechanical artifact');
   }
   const rev = revisionId
     ? ctx.requireRevision(revisionId)
     : artifact.selectedRevisionId
       ? ctx.repo.getRevision(artifact.selectedRevisionId)
       : ctx.repo.listRevisions(artifact.id).at(-1);
-  if (!rev) throw new StarkError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
+  if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
   return { artifact, rev, payload: rev.payload as MechanicalPayload };
 }
 
@@ -50,17 +50,17 @@ export async function cadValidateSource(
 ) {
   const { rev, payload } = mechPayload(ctx, artifactId, revisionId);
   const scad = payload.scad ?? rev.files.find((f) => f.path.endsWith('.scad'));
-  if (!scad) throw new StarkError(ErrorCodes.VALIDATION, 'No .scad source on revision');
+  if (!scad) throw new OmenflowError(ErrorCodes.VALIDATION, 'No .scad source on revision');
   const abs = ctx.resolvePath(scad.path);
   if (!fs.existsSync(abs)) {
     // Fall back to object store copy.
     if (scad.sha256 && ctx.objects.has(scad.sha256)) {
-      const tmp = ctx.resolvePath(`.stark/cache/validate-${rev.id}.scad`);
+      const tmp = ctx.resolvePath(`.omenflow/cache/validate-${rev.id}.scad`);
       fs.mkdirSync(path.dirname(tmp), { recursive: true });
       fs.writeFileSync(tmp, ctx.objects.read(scad.sha256));
       return cadTool(ctx).validateSource(tmp);
     }
-    throw new StarkError(ErrorCodes.NOT_FOUND, `Missing source file: ${scad.path}`);
+    throw new OmenflowError(ErrorCodes.NOT_FOUND, `Missing source file: ${scad.path}`);
   }
   return cadTool(ctx).validateSource(abs);
 }
@@ -85,7 +85,7 @@ export async function cadRender(
   const { artifact, rev, payload } = mechPayload(ctx, input.artifactId, input.revisionId);
   const scad = payload.scad ?? rev.files.find((f) => f.path.endsWith('.scad'));
   if (!scad?.sha256) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'No .scad source with content on revision');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'No .scad source with content on revision');
   }
 
   const job = ctx.createJob({
@@ -102,7 +102,7 @@ export async function cadRender(
   });
 
   const sessionId = origin.kind === 'agent' ? origin.sessionId : 'user';
-  const workDir = ctx.resolvePath(`.stark/work/${sessionId}/jobs/${job.id}`);
+  const workDir = ctx.resolvePath(`.omenflow/work/${sessionId}/jobs/${job.id}`);
   fs.mkdirSync(workDir, { recursive: true });
   const scadSrc = path.join(workDir, 'input.scad');
   fs.writeFileSync(scadSrc, ctx.objects.read(scad.sha256));
@@ -231,7 +231,7 @@ export function cadInspect(ctx: ProjectContext, artifactId: string, revisionId?:
   const cad = cadTool(ctx);
   const { rev, payload } = mechPayload(ctx, artifactId, revisionId);
   const stl = payload.stl ?? rev.files.find((f) => f.path.endsWith('.stl'));
-  if (!stl?.sha256) throw new StarkError(ErrorCodes.NOT_FOUND, 'No STL output on revision');
+  if (!stl?.sha256) throw new OmenflowError(ErrorCodes.NOT_FOUND, 'No STL output on revision');
   const buf = ctx.objects.read(stl.sha256);
   const inspect = cad.inspectStl(buf);
   const dimX = inspect.bounds.max[0] - inspect.bounds.min[0];

@@ -1,5 +1,5 @@
 @font-face {
-  font-family: 'STARK Display';
+  font-family: 'Omen Flow Display';
   src: url('../assets/Michroma-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
@@ -49,7 +49,7 @@
   border-right: 1px solid #1c1f21;
 }
 .welcome-logo {
-  font-family: 'STARK Display', sans-serif;
+  font-family: 'Omen Flow Display', sans-serif;
   font-size: 18px;
   letter-spacing: -0.07em;
 }
@@ -264,7 +264,7 @@
 .hero-word {
   width: max-content;
   margin: 0 0 19px -5px;
-  font-family: 'STARK Display', sans-serif;
+  font-family: 'Omen Flow Display', sans-serif;
   font-size: clamp(70px, 6.45vw, 116px);
   font-weight: 400;
   letter-spacing: -0.075em;

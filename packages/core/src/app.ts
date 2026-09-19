@@ -5,10 +5,10 @@ import {
   ErrorCodes,
   Origin,
   SessionInfo,
-  StarkError,
+  OmenflowError,
   newId,
-} from '@stark/contracts';
-import { ProjectHandle, createProject, openProject } from '@stark/storage';
+} from '@omenflow/contracts';
+import { ProjectHandle, createProject, openProject } from '@omenflow/storage';
 import { ProjectContext, HostServices, EngineTools, nullHost } from './context.js';
 import { ProjectWatcher } from './watcher.js';
 import { dispatch } from './dispatch.js';
@@ -131,7 +131,7 @@ export class CoreApp {
 
   contextFor(projectId: string): ProjectContext {
     const ctx = this.contexts.get(projectId);
-    if (!ctx) throw new StarkError(ErrorCodes.NOT_FOUND, `No open project: ${projectId}`);
+    if (!ctx) throw new OmenflowError(ErrorCodes.NOT_FOUND, `No open project: ${projectId}`);
     return ctx;
   }
 
@@ -218,14 +218,14 @@ export class CoreApp {
         const p = payload as { archivePath: string; destDir: string; newIdentity: boolean };
         const { manifest } = verifyArchive(p.archivePath);
         if (this.contexts.has(manifest.projectId) && !p.newIdentity) {
-          throw new StarkError(ErrorCodes.VALIDATION, 'Project already open', {
+          throw new OmenflowError(ErrorCodes.VALIDATION, 'Project already open', {
             repair: 'Close it first, or import with newIdentity to make a copy.',
           });
         }
         expandArchive(p.archivePath, p.destDir);
         if (p.newIdentity) {
           // Re-identify: new project id in file + DB row.
-          const pfPath = path.join(p.destDir, 'stark.project.json');
+          const pfPath = path.join(p.destDir, 'omenflow.project.json');
           const pf = JSON.parse(fs.readFileSync(pfPath, 'utf8'));
           pf.id = newId();
           pf.name = `${pf.name} (copy)`;
@@ -263,7 +263,7 @@ export class CoreApp {
       case 'settings.set': {
         const { key, value } = payload as { key: string; value: unknown };
         const [a, b] = key.split('.');
-        if (!a || !b) throw new StarkError(ErrorCodes.VALIDATION, `Bad settings key: ${key}`);
+        if (!a || !b) throw new OmenflowError(ErrorCodes.VALIDATION, `Bad settings key: ${key}`);
         (this.settings as unknown as Record<string, Record<string, unknown>>)[a] ??= {};
         (this.settings as unknown as Record<string, Record<string, unknown>>)[a]![b!] = value;
         this.saveSettings();
@@ -294,7 +294,7 @@ export class CoreApp {
       case 'connection.test': {
         const p = payload as { adapterId: string };
         if (!this.connectionHost)
-          throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
+          throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.test(this.contextFor(projectId!), p.adapterId);
       }
       case 'connection.configure': {
@@ -305,7 +305,7 @@ export class CoreApp {
           env?: Record<string, string>;
         };
         if (!this.connectionHost)
-          throw new StarkError(ErrorCodes.TOOL_MISSING, 'No connection host');
+          throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.configure(p.adapterId, p);
       }
       default: {
