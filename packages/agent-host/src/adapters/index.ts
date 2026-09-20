@@ -4,6 +4,7 @@ import { ClaudeAdapter } from './claude.js';
 import { CustomAdapter } from './custom.js';
 
 export * from './base.js';
+export * from './guide.js';
 export { CodexAdapter } from './codex.js';
 export { ClaudeAdapter } from './claude.js';
 export { CustomAdapter } from './custom.js';

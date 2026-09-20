@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   artifactTypeSchema,
   connectionSchema,
@@ -9,6 +10,7 @@ import {
   reviewStateSchema,
 } from './entities.js';
 import { idSchema, revisionRefSchema } from './ids.js';
+import { expectationSchema } from './cad.js';
 import { maybeQuantitySchema, moneySchema, quantitySchema } from './units.js';
 
 /**
@@ -24,6 +26,12 @@ export interface OpDef {
   /** True for ops that mutate project state (require idempotency key). */
   mutating: boolean;
   description: string;
+  /**
+   * False for ops that remain callable (CLI, GUI, `omenflow call`) but are
+   * not listed as agent tools because a clearer tool supersedes them.
+   * Keeps the agent's tool vocabulary small and unambiguous.
+   */
+  agentVisible: boolean;
 }
 
 const idem = { idempotencyKey: z.string().optional() };
@@ -332,7 +340,77 @@ const cadRender = z.object({
   timeoutMs: z.number().int().positive().max(600_000).default(120_000),
   ...idem,
 });
-const cadInspect = z.object({ artifactId: idSchema, revisionId: idSchema.optional() });
+
+/** Plain `-D` overrides: numbers, strings, booleans keyed by top-level variable name. */
+const scadParams = z
+  .record(z.string(), z.union([z.number(), z.string(), z.boolean()]))
+  .describe(
+    'Overrides for top-level OpenSCAD variables, e.g. {"hole_d": 6.6}. Keys must be top-level assignments in the source; values are plain numbers/strings/booleans in model units (mm).',
+  );
+
+const sectionRequest = z.object({
+  axis: z.enum(['x', 'y', 'z']).describe('Axis normal to the cutting plane.'),
+  at: z
+    .number()
+    .describe(
+      'Plane coordinate along that axis, in mm. Cut through the middle of the feature you want to see, not exactly on a face.',
+    ),
+});
+
+const cadWriteSource = z.object({
+  artifactId: idSchema
+    .optional()
+    .describe('Existing mechanical artifact to revise. Omit to create a new part.'),
+  title: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Part name; required when creating a new part (e.g. "Motor mount plate").'),
+  source: z
+    .string()
+    .min(1)
+    .describe(
+      'Complete OpenSCAD source as plain text (not base64). Model units are millimetres; +Z is up; the origin is the reference the request uses.',
+    ),
+  params: scadParams
+    .optional()
+    .describe('Optional parameter values to render with and record on the revision.'),
+  subsystem: z.string().nullable().optional(),
+  rationale: z.string().default('').describe('One line on what this revision changes and why.'),
+  timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
+  ...idem,
+});
+const cadReadSource = z.object({
+  artifactId: idSchema,
+  revisionId: idSchema.optional().describe('Defaults to the newest revision.'),
+});
+const cadInspect = z.object({
+  artifactId: idSchema,
+  revisionId: idSchema.optional().describe('Defaults to the newest revision.'),
+  params: scadParams
+    .optional()
+    .describe('Re-render with these overrides before measuring (nothing is committed).'),
+  sections: z
+    .array(sectionRequest)
+    .max(12)
+    .optional()
+    .describe('Extra cutting planes to report, beyond the automatic mid-planes.'),
+  probes: z
+    .array(z.array(z.number()).length(3))
+    .max(64)
+    .optional()
+    .describe('Points (x,y,z) in mm to classify as solid or empty.'),
+});
+const cadCheck = z.object({
+  artifactId: idSchema,
+  revisionId: idSchema.optional().describe('Defaults to the newest revision.'),
+  params: scadParams
+    .optional()
+    .describe('Check a parameter variant instead of the recorded values (nothing is committed).'),
+  expect: expectationSchema.describe(
+    'What must be true of the part, taken from the request: envelope, volume, solid/empty points, cross-section holes and outlines.',
+  ),
+});
 const cadExport = z.object({
   artifactId: idSchema,
   destPath: z.string().min(1),
@@ -424,6 +502,9 @@ const jobList = z.object({
 });
 const toolList = z.object({});
 const toolDoctor = z.object({ toolId: z.string().optional() });
+const toolDescribe = z.object({
+  op: z.string().min(1).describe('Operation name, e.g. "cad.check" (tool names use `_` for `.`).'),
+});
 
 /* ------------------------------- tests --------------------------------- */
 
@@ -519,9 +600,20 @@ function def(
   capability: Capability,
   mutating: boolean,
   description: string,
+  opts?: { agentVisible?: boolean },
 ): OpDef {
-  return { name, input, capability, mutating, description };
+  return {
+    name,
+    input,
+    capability,
+    mutating,
+    description,
+    agentVisible: opts?.agentVisible ?? true,
+  };
 }
+
+/** Superseded for agents by the cad.* verification vocabulary; still valid ops. */
+const legacy = { agentVisible: false };
 
 export const OPS: OpDef[] = [
   def('project.create', projectCreate, 'user', true, 'Create a project at a folder path'),
@@ -559,21 +651,21 @@ export const OPS: OpDef[] = [
     artifactCreateDraft,
     'both',
     true,
-    'Create artifact + first draft revision',
+    'Create a non-CAD artifact (requirement, assumption, component, note, test…) with its first draft revision. For parts use cad.write_source.',
   ),
   def(
     'artifact.update_draft',
     artifactUpdateDraft,
     'both',
     true,
-    'Create a draft revision on an artifact',
+    'Create a new draft revision on an existing non-CAD artifact (payload/files/inputs). For parts use cad.write_source.',
   ),
   def(
     'artifact.import_file',
     artifactImportFile,
     'both',
     true,
-    'Import an external file as a draft',
+    'Import a project file as a draft artifact revision (non-CAD files). For OpenSCAD parts use cad.write_source.',
   ),
   def(
     'artifact.apply_edit',
@@ -656,10 +748,51 @@ export const OPS: OpDef[] = [
   def('bom.remove_line', bomRemoveLine, 'user', true, 'User remove BOM line'),
   def('bom.export', bomExport, 'both', false, 'Export BOM as CSV/Markdown'),
 
-  def('cad.probe', cadProbe, 'both', false, 'Probe CAD tool availability'),
-  def('cad.validate_source', cadValidateSource, 'both', false, 'Validate .scad source parses'),
-  def('cad.render', cadRender, 'both', true, 'Render .scad → .stl via real OpenSCAD (job)'),
-  def('cad.inspect', cadInspect, 'both', false, 'Inspect rendered mesh (bounds, facets)'),
+  def('cad.probe', cadProbe, 'both', false, 'Probe CAD tool availability', legacy),
+  def(
+    'cad.validate_source',
+    cadValidateSource,
+    'both',
+    false,
+    'Validate .scad source parses',
+    legacy,
+  ),
+  def(
+    'cad.render',
+    cadRender,
+    'both',
+    true,
+    'Render .scad → .stl via real OpenSCAD (background job)',
+    legacy,
+  ),
+  def(
+    'cad.write_source',
+    cadWriteSource,
+    'both',
+    true,
+    'Create or revise a part from OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD, and returns a measured geometry report (envelope, volume, watertightness, mid-plane cross-sections with holes/outlines, detected parameters, render warnings). Use this for every geometry change; then verify with cad.check.',
+  ),
+  def(
+    'cad.read_source',
+    cadReadSource,
+    'both',
+    false,
+    'Read the OpenSCAD source of a part as plain text, with its top-level parameters and revision info. Use before modifying an existing part.',
+  ),
+  def(
+    'cad.inspect',
+    cadInspect,
+    'both',
+    false,
+    'Measure a rendered part: envelope, volume, watertightness, body count, cross-sections at chosen planes (holes, slots, outlines with positions and diameters), and solid/empty classification of probe points. Optionally re-render with parameter overrides. Read-only.',
+  ),
+  def(
+    'cad.check',
+    cadCheck,
+    'both',
+    false,
+    'Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections). Returns PASS/FAIL per assertion with measured vs expected values. A part is done only when its checks pass.',
+  ),
   def('cad.export', cadExport, 'user', false, 'Export STL/SCAD file to a chosen path'),
 
   def('calculation.run', calculationRun, 'both', true, 'Run a unit-aware calculation'),
@@ -697,11 +830,18 @@ export const OPS: OpDef[] = [
     'Request changes on a proposal',
   ),
 
-  def('job.read', jobRead, 'both', false, 'Read job status/log'),
-  def('job.cancel', jobCancel, 'both', true, 'Cancel an owned job'),
-  def('job.list', jobList, 'both', false, 'List jobs'),
-  def('tool.list', toolList, 'both', false, 'List agent/tool availability'),
+  def('job.read', jobRead, 'both', false, 'Read job status/log', legacy),
+  def('job.cancel', jobCancel, 'both', true, 'Cancel an owned job', legacy),
+  def('job.list', jobList, 'both', false, 'List jobs', legacy),
+  def('tool.list', toolList, 'both', false, 'List agent/tool availability', legacy),
   def('tool.doctor', toolDoctor, 'both', false, 'Run diagnostics for tools'),
+  def(
+    'tool.describe',
+    toolDescribe,
+    'both',
+    false,
+    'Describe an operation: purpose and JSON schema of its input. Use when unsure how to call a tool.',
+  ),
 
   def('test.create_draft', testCreateDraft, 'both', true, 'Create a test procedure draft'),
   def('test.record_result', testRecordResult, 'both', true, 'Record a test result/observation'),
@@ -738,8 +878,32 @@ export const OPS: OpDef[] = [
 
 export const OPS_BY_NAME = new Map(OPS.map((op) => [op.name, op]));
 
+/** JSON-schema view of an op's input (for CLI --help and tool.describe). */
+export function describeOp(name: string): {
+  op: string;
+  tool: string;
+  description: string;
+  mutating: boolean;
+  inputSchema: unknown;
+} | null {
+  const op = OPS_BY_NAME.get(name) ?? OPS_BY_NAME.get(name.replace(/_/g, '.'));
+  if (!op) return null;
+  return {
+    op: op.name,
+    tool: op.name.replace(/\./g, '_'),
+    description: op.description,
+    mutating: op.mutating,
+    inputSchema: zodToJsonSchema(op.input, { $refStrategy: 'none' }),
+  };
+}
+
 /** Operations an agent session may call. Everything else is user-only. */
 export const AGENT_OPS = new Set(OPS.filter((op) => op.capability === 'both').map((op) => op.name));
+
+/** Subset of AGENT_OPS listed as tools (MCP). Hidden ops stay callable via `omenflow call`. */
+export const AGENT_TOOL_OPS = new Set(
+  OPS.filter((op) => op.capability === 'both' && op.agentVisible).map((op) => op.name),
+);
 
 export function opAllowed(name: string, capability: 'user' | 'agent'): boolean {
   const op = OPS_BY_NAME.get(name);

@@ -7,3 +7,4 @@
 **/resources/package.json
 **/resources/node_modules/
 pnpm-lock.yaml
+evals/cad/results/

@@ -60,6 +60,7 @@ native/omenflow-bridge     Rust bridge helper (source; Node shim ships for dev)
 fixtures/               Rover + drone reference fixtures (see fixtures/README)
 design-system/          Canonical design, tokens, fonts, brand, screen references
 tests/                  Golden-path integration suite
+evals/cad/              CAD agent evaluation (real agent CLI, geometry-judged)
 scripts/                Native rebuild + packaged smoke harnesses
 ```
 
@@ -91,6 +92,18 @@ pnpm make                # installers (DMG on macOS, Squirrel on Windows)
 pnpm fixture:rover /tmp/my-rover    # inspection rover reference project
 pnpm fixture:drone /tmp/my-drone    # payload→propulsion→endurance chain
 ```
+
+## CAD agent evaluation
+
+```sh
+pnpm eval:cad -- --out /tmp/cad-eval --runs 3          # 15 tasks, judged by geometry
+pnpm eval:cad -- --out /tmp/cad-eval --suite holdout   # unseen tasks
+```
+
+Runs a real agent CLI (Codex, model pinned) inside a fresh project through the
+bridge/MCP path the desktop app uses, then re-renders the delivered OpenSCAD
+source and checks envelope, volume, holes, slots, probe points and topology.
+See `evals/cad/README.md`; recorded results live in `evals/cad/results/`.
 
 Both build through the real dispatch surface: requirements, sourced and
 assumption-labeled components, review-approved selections, BOM, OpenSCAD

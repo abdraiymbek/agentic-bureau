@@ -50,6 +50,38 @@ state of the repository, not the plan.
   artifacts, history/graph, files, connections, terminal w/ xterm+PTY,
   STL viewport w/ three.js, inspector, command palette, status bar).
 
+## CAD agent capability (2026-09-19)
+
+- Agent-facing CAD vocabulary in core: `cad.write_source` (plain-text
+  OpenSCAD → draft revision, synchronous render, measured geometry report),
+  `cad.read_source`, `cad.inspect` (sections/probes/param variants),
+  `cad.check` (PASS/FAIL per explicit expectation; recorded as `cad_check`
+  job). Legacy `cad.render`/`cad.probe`/`cad.validate_source`/`job.*` remain
+  callable but are `agentVisible: false`. `tool.describe` + `omenflow call
+<op> --help` expose op schemas.
+- Deterministic mesh layer (`packages/core/src/mesh.ts`): bounds, signed
+  volume, area, manifold check, shells, ray-parity containment, planar
+  sections with loop nesting and circle/rectangle/polygon recognition.
+  Validated against OpenSCAD renders of closed-form shapes.
+- MCP tools now carry annotations (`readOnlyHint`, `destructiveHint:false`),
+  field descriptions, and no tuple schemas (tuples made the model drop tools).
+  Codex adapter pre-approves Omen Flow tools. `AGENTS.md` agent guide is
+  written into the project at session start.
+- Fixes found by the evaluation: watcher re-imported tool-written files as
+  phantom revisions (materialization hook + newest-revision owner);
+  `.omenflow-conflict-*` litter from generated views; `cad.render` did not
+  unwrap quantity params; raw zod payload errors surfaced as `INTERNAL`.
+- Evaluation (`pnpm eval:cad`, GPT-5.6 Luna high, 15 tasks × 3 runs):
+  baseline 41/45 runs correct, 0/45 verified, 12.4 tool calls, 1.2 tool
+  errors, 4.3 shell commands, 125 s, 477k input tokens per run → improved
+  45/45 correct, 45/45 verified by `cad_check`, 2.9 tool calls, 0 errors,
+  0 shell, 87 s, 110k input tokens. Holdout (5 unseen tasks × 3): 15/15 both,
+  verified 0/15 → 15/15, 10.7 → 3.2 tool calls, 446k → 117k input tokens.
+  Summaries in `evals/cad/results/`.
+- Requires OpenSCAD locally (2026.09.18 snapshot verified on darwin-arm64;
+  the `openscad` cask is disabled, use `openscad@snapshot`) and a logged-in
+  Codex CLI. Not run in CI.
+
 ## Packaging (verified on this machine)
 
 - `pnpm --filter @omenflow/desktop package` → `out/Omen Flow-darwin-arm64/Omen Flow.app`.
@@ -126,7 +158,8 @@ live agent CLI inside the running Electron app.
 
 ## Failing tests
 
-None. `pnpm test`: 13 files, 95 passed, 1 skipped (OpenSCAD e2e).
+None. `pnpm test`: 15 files, 107 passed, 1 skipped (OpenSCAD e2e); mesh and
+cad-tools suites run against the installed OpenSCAD.
 
 ## Platform verification
 

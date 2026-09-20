@@ -72,6 +72,12 @@ export class CodexAdapter implements AgentAdapter {
       // session token never lands in argv/ps).
       '-c',
       'mcp_servers.omenflow.env_vars=["OMENFLOW_BRIDGE_SOCK","OMENFLOW_BRIDGE_TOKEN","OMENFLOW_PROJECT_ID","OMENFLOW_SESSION_ID"]',
+      // Omen Flow tools are already gated by its capability + proposal model
+      // (agents only ever create drafts). Without this, Codex prompts the user
+      // for every tool call in the TUI and denies them outright under
+      // approval_policy=never (exec / automation).
+      '-c',
+      'mcp_servers.omenflow.default_tools_approval_mode="approve"',
       // Seatbelt denies AF_UNIX connects under the default sandbox, which is
       // exactly what `omenflow call` needs to reach the bridge. workspace-write
       // + network_access covers remote unix-socket connects (and the agent

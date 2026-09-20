@@ -114,17 +114,28 @@ export class OmenflowMcpServer {
     for (const name of this.grant.ops) {
       const op = OPS_BY_NAME.get(name);
       if (!op) continue;
+      // Superseded ops stay callable (CLI/GUI) but are not offered as tools —
+      // a small, unambiguous vocabulary is what the model can use reliably.
+      if (!op.agentVisible) continue;
       const toolName = name.replace(/\./g, '_');
-      // All op inputs are zod objects; expose their shape as the tool schema.
+      // All op inputs are zod objects; expose their shape as the tool schema
+      // (field `.describe()` text becomes JSON-schema descriptions).
       const shape = (op.input as z.ZodObject<z.ZodRawShape>).shape;
       const hasShape = shape && typeof shape === 'object';
       this.server.registerTool(
         toolName,
         {
-          description:
-            op.description +
-            (op.mutating ? ' (mutating — pass idempotencyKey to retry safely)' : ''),
+          description: op.description + (op.mutating ? ' (mutating)' : ''),
           ...(hasShape ? { inputSchema: shape } : {}),
+          // Every op is gated by Omen Flow's own capability + proposal model:
+          // agents can only create drafts, never touch the baseline. Declaring
+          // that lets MCP clients (Codex, Claude) skip per-call approval prompts.
+          annotations: {
+            readOnlyHint: !op.mutating,
+            destructiveHint: false,
+            idempotentHint: !op.mutating,
+            openWorldHint: false,
+          },
         },
         async (args) => {
           try {

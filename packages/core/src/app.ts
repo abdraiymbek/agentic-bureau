@@ -141,6 +141,7 @@ export class CoreApp {
     const ctx = new ProjectContext(handle, this.host);
     ctx.tools = this.engineTools;
     const watcher = new ProjectWatcher(ctx);
+    ctx.onMaterialized = (relPath, sha) => watcher.noteMaterialized(relPath, sha);
     watcher.start();
     this.contexts.set(handle.project.id, ctx);
     this.watchers.set(handle.project.id, watcher);

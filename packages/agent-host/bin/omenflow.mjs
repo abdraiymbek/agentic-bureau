@@ -68,18 +68,25 @@ function parseArgs(argv) {
   if (cmd === 'mcp') return { mode: 'mcp' };
   if (cmd !== 'call')
     return {
-      error: 'usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp',
+      error:
+        'usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp',
     };
   const out = { mode: 'call' };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '--input') out.input = rest[++i];
     else if (a === '--idempotency-key') out.idempotencyKey = rest[++i];
+    else if (a === '--help' || a === '-h') out.help = true;
     else if (!a.startsWith('-') && !out.op) out.op = a;
     else return { error: `unexpected argument: ${a}` };
   }
   if (!out.op) return { error: 'missing <op>' };
-  if (out.input === undefined) return { error: 'missing --input <file|->' };
+  if (out.help) {
+    // `omenflow call <op> --help` → tool.describe <op>: purpose + input JSON schema.
+    return { mode: 'call', op: 'tool.describe', input: '-', helpFor: out.op };
+  }
+  if (out.input === undefined)
+    return { error: 'missing --input <file|-> (or --help for the schema)' };
   return out;
 }
 
@@ -196,11 +203,15 @@ async function main() {
 
   // mode 'call'
   let payload = {};
-  try {
-    const raw = parsed.input === '-' ? await readStdin() : fs.readFileSync(parsed.input, 'utf8');
-    payload = raw.trim() === '' ? {} : JSON.parse(raw);
-  } catch (e) {
-    fail('VALIDATION', `Cannot read --input payload: ${e.message}`);
+  if (parsed.helpFor) {
+    payload = { op: parsed.helpFor };
+  } else {
+    try {
+      const raw = parsed.input === '-' ? await readStdin() : fs.readFileSync(parsed.input, 'utf8');
+      payload = raw.trim() === '' ? {} : JSON.parse(raw);
+    } catch (e) {
+      fail('VALIDATION', `Cannot read --input payload: ${e.message}`);
+    }
   }
 
   socket.write(

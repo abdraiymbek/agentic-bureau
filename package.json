@@ -24,12 +24,15 @@
     "smoke:packaged": "node scripts/packaged-smoke.mjs",
     "fixture:rover": "tsx fixtures/build.ts rover",
     "fixture:drone": "tsx fixtures/build.ts drone",
-    "design:preview": "tsx scripts/design-preview.ts"
+    "design:preview": "tsx scripts/design-preview.ts",
+    "eval:cad": "tsx evals/cad/run.ts"
   },
   "devDependencies": {
+    "@omenflow/agent-host": "workspace:^",
     "@omenflow/contracts": "workspace:^",
     "@omenflow/core": "workspace:^",
     "@omenflow/engineering": "workspace:^",
+    "@omenflow/mcp-server": "workspace:^",
     "@omenflow/storage": "workspace:^",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",

@@ -43,6 +43,8 @@ interface ParsedArgs {
   op?: string;
   input?: string;
   idempotencyKey?: string;
+  /** `omenflow call <op> --help`: describe this op instead of calling it. */
+  helpFor?: string;
 }
 
 function parseArgs(argv: string[]): ParsedArgs | { error: string } {
@@ -50,18 +52,22 @@ function parseArgs(argv: string[]): ParsedArgs | { error: string } {
   if (cmd === 'mcp') return { mode: 'mcp' };
   if (cmd !== 'call')
     return {
-      error: `usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp`,
+      error: `usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp`,
     };
   const out: ParsedArgs = { mode: 'call' };
+  let help = false;
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i]!;
     if (a === '--input') out.input = rest[++i];
     else if (a === '--idempotency-key') out.idempotencyKey = rest[++i];
+    else if (a === '--help' || a === '-h') help = true;
     else if (!a.startsWith('-') && !out.op) out.op = a;
     else return { error: `unexpected argument: ${a}` };
   }
   if (!out.op) return { error: 'missing <op>' };
-  if (out.input === undefined) return { error: 'missing --input <file|->' };
+  if (help) return { mode: 'call', op: 'tool.describe', input: '-', helpFor: out.op };
+  if (out.input === undefined)
+    return { error: 'missing --input <file|-> (or --help for the schema)' };
   return out;
 }
 
@@ -164,9 +170,13 @@ export async function runOmenflowCli(argv: string[], deps: CliDeps = {}): Promis
   const stdin = deps.stdin ?? process.stdin;
   let payload: unknown = {};
   try {
-    const raw =
-      parsed.input === '-' ? await readStdin(stdin) : fs.readFileSync(parsed.input!, 'utf8');
-    payload = raw.trim() === '' ? {} : JSON.parse(raw);
+    if (parsed.helpFor) {
+      payload = { op: parsed.helpFor };
+    } else {
+      const raw =
+        parsed.input === '-' ? await readStdin(stdin) : fs.readFileSync(parsed.input!, 'utf8');
+      payload = raw.trim() === '' ? {} : JSON.parse(raw);
+    }
   } catch (e) {
     socket.destroy();
     return fail(

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
 import type { ProjectContext } from '@omenflow/core';
+import { GUIDE_MARKER, agentGuide } from './guide.js';
 
 /** Per-adapter persisted config (CoreApp settings.adapters[adapterId]). */
 export interface AdapterConfig {
@@ -253,13 +254,14 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
     ``,
     `## Tools`,
     ``,
-    'Session credentials are in env (`OMENFLOW_BRIDGE_SOCK`, `OMENFLOW_BRIDGE_TOKEN`,',
-    '`OMENFLOW_PROJECT_ID`, `OMENFLOW_SESSION_ID`). The `omenflow` helper reads them.',
+    'Prefer the omenflow MCP tools (tool names use `_` for `.`, e.g. `cad.check` →',
+    '`cad_check`). Without MCP: session credentials are in env (`OMENFLOW_BRIDGE_SOCK`,',
+    '`OMENFLOW_BRIDGE_TOKEN`, `OMENFLOW_PROJECT_ID`, `OMENFLOW_SESSION_ID`) and the `omenflow`',
+    'helper reads them:',
     ``,
+    '- `omenflow call <op> --help` — purpose and input JSON schema of one op.',
     '- `omenflow call <op> --input <file|->` — call one op; payload is JSON.',
-    '- `omenflow mcp` — MCP stdio server exposing every granted op as a tool',
-    '  (tool names use `_` for `.`, e.g. `project.summary` → `project_summary`).',
-    '- `omenflow call tool.list --input - <<< "{}"` — what is available.',
+    '- `omenflow mcp` — MCP stdio server exposing the agent tool set.',
     ``,
     `## Rules`,
     ``,
@@ -272,6 +274,36 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
 
   const dir = ctx.handle.workDir(sessionId);
   const file = path.join(dir, 'bootstrap.md');
-  fs.writeFileSync(file, lines.join('\n'), 'utf8');
+  fs.writeFileSync(file, [...lines, '', agentGuide()].join('\n'), 'utf8');
+  writeAgentGuide(ctx.root);
+  return file;
+}
+
+/**
+ * Keep `<project>/AGENTS.md` current with the Omen Flow agent guide. Agent
+ * CLIs (Codex and others) read this file from the working directory on their
+ * own — it is the one channel that reliably reaches the model without the
+ * user having to paste anything. A user-authored AGENTS.md (no marker) is
+ * never overwritten; the guide is appended below it instead.
+ */
+export function writeAgentGuide(projectRoot: string): string {
+  const file = path.join(projectRoot, 'AGENTS.md');
+  const guide = agentGuide();
+  let existing = '';
+  try {
+    existing = fs.readFileSync(file, 'utf8');
+  } catch {
+    /* absent */
+  }
+  if (!existing) {
+    fs.writeFileSync(file, guide, 'utf8');
+  } else if (existing.includes(GUIDE_MARKER)) {
+    const idx = existing.indexOf(GUIDE_MARKER);
+    const head = existing.slice(0, idx).trimEnd();
+    const next = head ? `${head}\n\n${guide}` : guide;
+    if (next !== existing) fs.writeFileSync(file, next, 'utf8');
+  } else {
+    fs.writeFileSync(file, `${existing.trimEnd()}\n\n${guide}`, 'utf8');
+  }
   return file;
 }

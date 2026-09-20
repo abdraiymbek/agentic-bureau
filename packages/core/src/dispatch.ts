@@ -4,6 +4,7 @@ import {
   ErrorCodes,
   OPS_BY_NAME,
   Origin,
+  describeOp,
   OmenflowError,
   okResponse,
   errResponse,
@@ -300,8 +301,10 @@ const H: Record<string, Handler> = {
   'cad.validate_source': (c, i: { artifactId: string; revisionId?: string }) =>
     cad.cadValidateSource(c, i.artifactId, i.revisionId),
   'cad.render': (c, i: never, o) => cad.cadRender(c, i as never, o),
-  'cad.inspect': (c, i: { artifactId: string; revisionId?: string }) =>
-    cad.cadInspect(c, i.artifactId, i.revisionId),
+  'cad.write_source': (c, i: never, o) => cad.cadWriteSource(c, i as never, o),
+  'cad.read_source': (c, i: never) => cad.cadReadSource(c, i as never),
+  'cad.inspect': (c, i: never, o) => cad.cadInspect(c, i as never, o),
+  'cad.check': (c, i: never, o) => cad.cadCheck(c, i as never, o),
   'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }) => {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
@@ -368,6 +371,11 @@ const H: Record<string, Handler> = {
     if (c.tools.cad)
       tools.push({ toolId: 'openscad', kind: 'cad', available: null, version: null });
     return { tools, note: 'Probe individual tools for live availability.' };
+  },
+  'tool.describe': (_c, i: { op: string }) => {
+    const d = describeOp(i.op);
+    if (!d) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown operation: ${i.op}`);
+    return d;
   },
   'tool.doctor': async (c, i: { toolId?: string }) => {
     const results: Record<string, unknown> = {};

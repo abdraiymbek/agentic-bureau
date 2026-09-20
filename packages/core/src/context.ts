@@ -185,14 +185,24 @@ export class ProjectContext {
    * Materialize an object into a project-relative working path. Recorded so a
    * crash between DB commit and file write is repaired on reopen.
    */
-  materialize(relPath: string, sha256: string, revisionId?: string): void {
+  /** Set by CoreApp: lets the project watcher ignore files we wrote ourselves. */
+  onMaterialized: ((relPath: string, sha256: string) => void) | null = null;
+
+  materialize(
+    relPath: string,
+    sha256: string,
+    revisionId?: string,
+    opts?: { overwrite?: boolean },
+  ): void {
     const mid = this.repo.addMaterialization(relPath, sha256, revisionId ?? null);
+    this.onMaterialized?.(relPath, sha256);
     try {
       const abs = this.resolvePath(relPath);
       fs.mkdirSync(path.dirname(abs), { recursive: true });
-      // Never clobber a divergent external edit: if file exists with different
-      // content and is not one of our generated views, leave it and let the
-      // watcher import it as a draft instead.
+      // Never clobber a divergent external edit: if a user-owned file exists
+      // with different content, leave it and let the watcher import it as a
+      // draft. Generated outputs (views, renders, tool-written sources) pass
+      // `overwrite` — they are ours to replace.
       const buf = this.objects.read(sha256);
       if (fs.existsSync(abs)) {
         const cur = sha256Hex(fs.readFileSync(abs));
@@ -200,8 +210,12 @@ export class ProjectContext {
           this.repo.completeMaterialization(mid);
           return;
         }
-        const marker = `${abs}.omenflow-conflict-${Date.now()}`;
-        fs.writeFileSync(marker, buf);
+        if (opts?.overwrite) {
+          fs.writeFileSync(abs, buf);
+        } else {
+          const marker = `${abs}.omenflow-conflict-${Date.now()}`;
+          fs.writeFileSync(marker, buf);
+        }
       } else {
         fs.writeFileSync(abs, buf);
       }

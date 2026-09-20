@@ -49,15 +49,18 @@ export class ProjectWatcher {
     if (this.knownHashes.get(relPath) === sha) return; // our own write
     this.knownHashes.set(relPath, sha);
 
-    // Find the artifact whose current revision references this path.
+    // Find the artifact whose revisions reference this path. The owner is the
+    // newest such revision (the agent's latest draft), so the imported edit
+    // builds on current content rather than forking an older revision.
     for (const a of this.ctx.repo.listArtifacts()) {
-      const rev = a.selectedRevisionId ? this.ctx.repo.getRevision(a.selectedRevisionId) : null;
-      const drafts = this.ctx.repo.listDrafts(a.id);
-      const candidates = [rev, ...drafts].filter((r): r is NonNullable<typeof r> => !!r);
-      const owner = candidates.find((r) => r.files.some((f) => f.path === relPath));
-      if (!owner) continue;
-      const existing = owner.files.find((f) => f.path === relPath);
-      if (existing?.sha256 === sha) continue;
+      const referencing = this.ctx.repo
+        .listRevisions(a.id)
+        .filter((r) => r.files.some((f) => f.path === relPath));
+      if (referencing.length === 0) continue;
+      // Content that any revision already carries is ours (a materialization), not an edit.
+      if (referencing.some((r) => r.files.some((f) => f.path === relPath && f.sha256 === sha)))
+        return;
+      const owner = referencing[referencing.length - 1]!;
       // External edit → draft revision with updated file.
       const newSha = this.ctx.objects.putFile(abs);
       const files = owner.files.map((f) => (f.path === relPath ? { ...f, sha256: newSha } : f));

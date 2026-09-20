@@ -112,7 +112,22 @@ export function commitRevision(
   },
 ): Revision {
   const a = ctx.requireArtifact(args.artifactId);
-  const payload = validatePayload(a.type, args.payload);
+  let payload: unknown;
+  try {
+    payload = validatePayload(a.type, args.payload ?? {});
+  } catch (e) {
+    const issues = (e as { issues?: { path: (string | number)[]; message: string }[] }).issues;
+    const list = issues?.map((i) => `${i.path.join('.') || 'payload'}: ${i.message}`) ?? [
+      String(e),
+    ];
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid ${a.type} payload — ${list[0]}`, {
+      repair:
+        a.type === 'mechanical'
+          ? 'Use cad.write_source for parts; it builds the mechanical payload from the OpenSCAD source.'
+          : `Pass a payload object matching the ${a.type} schema.`,
+      details: { issues: list },
+    });
+  }
   const fileHashes = args.files.map((f) => f.sha256).filter((x): x is string => !!x);
   const rev: Revision = {
     id: newId(),
@@ -516,7 +531,7 @@ export function materializeReadableView(
     const rendered = renderView(artifact, revision);
     if (!rendered) return;
     const sha = ctx.storeContent(rendered.content);
-    ctx.materialize(`${base}.${rendered.ext}`, sha, revision.id);
+    ctx.materialize(`${base}.${rendered.ext}`, sha, revision.id, { overwrite: true });
   } catch {
     /* views are regenerable; failures never block commits */
   }

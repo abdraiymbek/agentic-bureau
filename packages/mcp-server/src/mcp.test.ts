@@ -123,11 +123,40 @@ describe('OmenflowMcpServer over bridge frames', () => {
     expect(init.result.serverInfo.name).toBe('omenflow');
     client.notify('notifications/initialized');
 
-    const list = (await client.rpc('tools/list')) as { result: { tools: { name: string }[] } };
+    const list = (await client.rpc('tools/list')) as {
+      result: {
+        tools: {
+          name: string;
+          description?: string;
+          inputSchema: { properties?: Record<string, { description?: string }> };
+          annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean };
+        }[];
+      };
+    };
     const names = list.result.tools.map((t) => t.name);
     expect(names).toContain('project_summary');
     expect(names).toContain('artifact_list');
     expect(names).not.toContain('proposal_approve'); // user-only op
+    // CAD vocabulary is present with field descriptions + annotations; legacy ops are hidden.
+    for (const t of [
+      'cad_write_source',
+      'cad_read_source',
+      'cad_inspect',
+      'cad_check',
+      'tool_describe',
+    ]) {
+      expect(names).toContain(t);
+    }
+    for (const t of ['cad_render', 'cad_probe', 'cad_validate_source', 'job_read', 'job_list']) {
+      expect(names).not.toContain(t);
+    }
+    const check = list.result.tools.find((t) => t.name === 'cad_check')!;
+    expect(check.inputSchema.properties?.expect?.description).toMatch(/must be true/i);
+    expect(check.annotations?.readOnlyHint).toBe(true);
+    expect(check.annotations?.destructiveHint).toBe(false);
+    const write = list.result.tools.find((t) => t.name === 'cad_write_source')!;
+    expect(write.annotations?.readOnlyHint).toBe(false);
+    expect(write.inputSchema.properties?.source?.description).toMatch(/plain text/);
   });
 
   it('tools/call project_summary returns project JSON', async () => {

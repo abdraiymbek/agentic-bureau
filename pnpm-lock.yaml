@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@omenflow/agent-host':
+        specifier: workspace:^
+        version: link:packages/agent-host
       '@omenflow/contracts':
         specifier: workspace:^
         version: link:packages/contracts
@@ -17,6 +20,9 @@ importers:
       '@omenflow/engineering':
         specifier: workspace:^
         version: link:packages/engineering
+      '@omenflow/mcp-server':
+        specifier: workspace:^
+        version: link:packages/mcp-server
       '@omenflow/storage':
         specifier: workspace:^
         version: link:packages/storage
@@ -219,6 +225,9 @@ importers:
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+      zod-to-json-schema:
+        specifier: ^3.25.1
+        version: 3.25.2(zod@3.25.76)
 
   packages/core:
     dependencies:

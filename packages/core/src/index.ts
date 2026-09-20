@@ -16,3 +16,6 @@ export * from './build.js';
 export * from './watcher.js';
 export * from './dispatch.js';
 export * from './app.js';
+export * from './mesh.js';
+export * from './scad-params.js';
+export * from './cad-checks.js';
