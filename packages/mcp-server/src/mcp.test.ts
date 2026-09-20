@@ -143,6 +143,8 @@ describe('OmenflowMcpServer over bridge frames', () => {
       'cad_read_source',
       'cad_inspect',
       'cad_check',
+      'cad_patch_source',
+      'cad_compose',
       'tool_describe',
     ]) {
       expect(names).toContain(t);

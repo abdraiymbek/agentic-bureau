@@ -48,14 +48,19 @@ through the tools so it is recorded as a revision.
    proven otherwise — fix the source; drop or loosen an assertion only when it misread the
    request, and say so. Execution without errors is not correctness; a report of "done" must
    cite passing checks.
-- \`cad_inspect\` measures arbitrary planes/points (use it to debug); \`cad_read_source\` returns an
-  existing part's source before you modify it. Modify a part by writing a new revision on the
-  **same** \`artifactId\` — never create a second artifact for a change.
+- \`cad_inspect\` measures arbitrary planes/points (use it to debug). Axis-aligned: \`axis\`+\`at\`.
+  Inclined holes: \`origin\`+\`normal\` (true normal-to-face cut) plus \`probes\` through the bore.
+- \`cad_read_source\` returns an existing part's source. \`cad_patch_source\` replaces one unique
+  snippet (prefer this for a local edit). \`cad_write_source\` still accepts a full rewrite.
+- \`cad_compose\` places existing parts with translate/rotate only — no mates, no STEP. Each
+  source is wrapped in a module so file-scope names do not collide.
+- Modify a part on the **same** \`artifactId\` — never create a second artifact for a change.
+  \`cad_check\` \`preserve.changeRegions\` samples the parent revision so unrelated geometry stays put.
 
 ## OpenSCAD conventions that matter
 - Units are millimetres. +Z is up. Coordinates in the request are absolute unless stated.
-- Set \`$fn\` (e.g. \`$fn = 64;\` at top) so round features are round; the default gives coarse
-  polygons and wrong diameters. Use \`d=\` for diameters, \`r=\` for radii — do not mix them up.
+- Set \`$fn\` (e.g. \`$fn = 64;\` at top) so round features are round. If you omit it on a cylinder
+  / sphere / circle, the harness injects \`$fn = 64\` so a default pentagon cannot sneak through.
 - Cutters in \`difference()\` must extend past the faces they cut (start below, end above);
   a cutter that ends exactly on a face leaves a zero-thickness skin.
 - Parts that must be one body need overlapping volumes; touching faces are not joined.

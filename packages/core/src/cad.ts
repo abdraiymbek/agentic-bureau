@@ -22,15 +22,27 @@ import type { CadAdapter } from './tools.js';
 import {
   analyzeMesh,
   containsPoint,
+  countIntersectingPairs,
   crossSection,
+  crossSectionPlane,
+  minWallThickness,
+  orientTriangles,
   parseStlTriangles,
+  writeBinaryStl,
   type Axis,
   type MeshReport,
   type TriangleBuffer,
   type Vec3,
 } from './mesh.js';
-import { parseScadParameters, type ScadParameter } from './scad-params.js';
-import { describeLoop, fmtNum, runChecks, type CheckResult } from './cad-checks.js';
+import { ensureDefaultFaceting, parseScadParameters, type ScadParameter } from './scad-params.js';
+import {
+  describeLoop,
+  findLoosenedAssertions,
+  fmtNum,
+  preservationCheck,
+  runChecks,
+  type CheckResult,
+} from './cad-checks.js';
 
 type ScadValue = number | string | boolean;
 
@@ -160,6 +172,17 @@ interface RenderOutcome {
   stl?: Buffer;
   tris?: TriangleBuffer;
   error?: string;
+  oriented?: boolean;
+}
+
+function applyOrientation(stl: Buffer, tris: TriangleBuffer): {
+  stl: Buffer;
+  tris: TriangleBuffer;
+  oriented: boolean;
+} {
+  const r = orientTriangles(tris);
+  if (!r.flipped) return { stl, tris, oriented: false };
+  return { stl: writeBinaryStl(r.tris), tris: r.tris, oriented: true };
 }
 
 function classifyLog(log: string): { warnings: string[]; errors: string[] } {
@@ -205,9 +228,11 @@ async function renderSource(
   const cachedStl = path.join(cacheDir, 'output.stl');
   const cachedLog = path.join(cacheDir, 'log.txt');
   if (fs.existsSync(cachedStl) && fs.statSync(cachedStl).size > 0) {
-    const stl = fs.readFileSync(cachedStl);
+    const rawStl = fs.readFileSync(cachedStl);
     const log = fs.existsSync(cachedLog) ? fs.readFileSync(cachedLog, 'utf8') : '';
     const { warnings, errors } = classifyLog(log);
+    const oriented = applyOrientation(rawStl, parseStlTriangles(rawStl));
+    if (oriented.oriented) fs.writeFileSync(cachedStl, oriented.stl);
     return {
       job: null,
       outcome: {
@@ -217,8 +242,9 @@ async function renderSource(
         warnings,
         errors,
         log,
-        stl,
-        tris: parseStlTriangles(stl),
+        stl: oriented.stl,
+        tris: oriented.tris,
+        oriented: oriented.oriented,
       },
     };
   }
@@ -297,13 +323,25 @@ async function renderSource(
       'OpenSCAD produced no geometry — the top-level object is empty (check that difference() leaves material and that nothing is commented out).',
     );
   }
-  const stl = fs.readFileSync(cachedStl);
-  const tris = parseStlTriangles(stl);
-  if (tris.length === 0) return fail('OpenSCAD output contains no triangles.');
-  ctx.jobStatus(job.id, 'succeeded', { outputHashes: { stl: ctx.objects.put(stl) } });
+  const rawStl = fs.readFileSync(cachedStl);
+  const rawTris = parseStlTriangles(rawStl);
+  if (rawTris.length === 0) return fail('OpenSCAD output contains no triangles.');
+  const oriented = applyOrientation(rawStl, rawTris);
+  if (oriented.oriented) fs.writeFileSync(cachedStl, oriented.stl);
+  ctx.jobStatus(job.id, 'succeeded', { outputHashes: { stl: ctx.objects.put(oriented.stl) } });
   return {
     job: ctx.repo.getJob(job.id) ?? job,
-    outcome: { ok: true, ms, tool, warnings, errors, log, stl, tris },
+    outcome: {
+      ok: true,
+      ms,
+      tool,
+      warnings,
+      errors,
+      log,
+      stl: oriented.stl,
+      tris: oriented.tris,
+      oriented: oriented.oriented,
+    },
   };
 }
 
@@ -342,7 +380,7 @@ export interface CadReport {
   geometry?: GeometrySummary;
   sections?: SectionReport[];
   probes?: { point: Vec3; result: 'solid' | 'empty' }[];
-  parameters: { name: string; value: ScadValue; comment?: string }[];
+  parameters: { name: string; value: ScadValue; comment?: string; derived?: boolean; expr?: string }[];
   notes: string[];
   next: string;
 }
@@ -422,7 +460,19 @@ function geometryNotes(
   }
   if (report.invertedNormals) {
     notes.push(
-      "Mesh is inside-out (negative signed volume). With polyhedron(), list each face's vertices clockwise when viewed from outside the solid; booleans on an inside-out body cut the wrong side.",
+      "Mesh is inside-out (negative signed volume). With polyhedron(), list each face's vertices clockwise when viewed from outside the solid; booleans on an inside-out body cut the wrong side. Open meshes are diagnosed, not auto-flipped.",
+    );
+  }
+  const crossings = report.triangles <= 4000 ? countIntersectingPairs(tris) : 0;
+  if (crossings > 0) {
+    notes.push(
+      `${crossings} self-intersecting triangle pair(s) — overlapping bodies or piercing faces can still satisfy bbox/volume. Separate the solids or boolean them; cad.check maxSelfIntersections: 0 to fail on this.`,
+    );
+  }
+  const wall = minWallThickness(tris, 80);
+  if (wall !== null && wall < 0.4) {
+    notes.push(
+      `Minimum sampled wall thickness is ${fmtNum(wall)} mm — thin skins often mean a cutter ended on a face instead of through it.`,
     );
   }
   // Faceting check on any circular loop in the mid sections.
@@ -460,6 +510,29 @@ function geometryNotes(
 const NEXT_STEP =
   'Compare these measurements with the request. Then call cad.check with explicit expectations (envelope, hole positions and diameters in cross-sections, solid/empty points) and fix any failure. Report done only when all checks pass.';
 
+type ExtraSection = { axis?: Axis; at?: number; origin?: Vec3; normal?: Vec3 };
+
+function extraSectionReport(tris: TriangleBuffer, spec: ExtraSection): SectionReport {
+  if (spec.origin && spec.normal) {
+    const s = crossSectionPlane(tris, spec.origin, spec.normal);
+    const [a, b] = s.planeAxes;
+    const loops = s.loops.slice(0, MAX_LOOPS_PER_SECTION).map((l) => describeLoop(l, a, b));
+    if (s.loops.length > MAX_LOOPS_PER_SECTION)
+      loops.push(`…and ${s.loops.length - MAX_LOOPS_PER_SECTION} more loops`);
+    if (s.loops.length === 0) loops.push('no material in this plane');
+    if (s.openChains > 0)
+      loops.push(`warning: ${s.openChains} open chain(s) — mesh is not closed at this plane`);
+    return {
+      plane: `origin=(${spec.origin.map(fmtNum).join(', ')}) n=(${spec.normal.map(fmtNum).join(', ')})`,
+      loops,
+    };
+  }
+  if (spec.axis === undefined || spec.at === undefined) {
+    return { plane: 'invalid section (need axis+at or origin+normal)', loops: [] };
+  }
+  return sectionReport(tris, spec.axis, spec.at);
+}
+
 function buildReport(args: {
   artifact: Artifact;
   revision: Revision;
@@ -467,8 +540,9 @@ function buildReport(args: {
   source: string;
   outcome: RenderOutcome;
   unit: string;
-  extraSections?: { axis: Axis; at: number }[];
+  extraSections?: ExtraSection[];
   probes?: Vec3[];
+  injectedFn?: boolean;
 }): CadReport {
   const params = parseScadParameters(args.source);
   const base: CadReport = {
@@ -487,6 +561,8 @@ function buildReport(args: {
     parameters: params.map((p) => ({
       name: p.name,
       value: p.value,
+      derived: p.derived,
+      ...(p.expr ? { expr: p.expr } : {}),
       ...(p.comment ? { comment: p.comment } : {}),
     })),
     notes: [],
@@ -505,7 +581,7 @@ function buildReport(args: {
   base.geometry = geometrySummary(report, args.unit);
   base.sections = [
     ...autoSections(tris, report),
-    ...(args.extraSections ?? []).map((s) => sectionReport(tris, s.axis, s.at)),
+    ...(args.extraSections ?? []).map((s) => extraSectionReport(tris, s)),
   ];
   if (args.probes?.length) {
     base.probes = args.probes.map((p) => ({
@@ -514,6 +590,16 @@ function buildReport(args: {
     }));
   }
   base.notes = geometryNotes(report, tris, params);
+  if (args.outcome.oriented) {
+    base.notes.unshift(
+      'Mesh was inside-out; oriented so signed volume is positive (watertight only — open meshes are not flipped).',
+    );
+  }
+  if (args.injectedFn) {
+    base.notes.unshift(
+      'Injected $fn = 64 so curved primitives render as circles instead of the default coarse polygon.',
+    );
+  }
   if (args.outcome.warnings.length) {
     base.notes.unshift(
       'OpenSCAD reported warnings (see render.warnings) — an unknown variable usually means a typo; fix before trusting the geometry.',
@@ -551,7 +637,9 @@ export async function cadWriteSource(
   origin: Origin,
 ): Promise<CadReport> {
   ctx.assertWritable();
-  const declared = parseScadParameters(input.source);
+  const faceted = ensureDefaultFaceting(input.source);
+  const source = faceted.source;
+  const declared = parseScadParameters(source);
   const overrides = input.params ?? {};
   assertParamsExist(overrides, declared);
 
@@ -587,7 +675,7 @@ export async function cadWriteSource(
   const sourcePath = parent
     ? (scadRefOf(parent)?.path ?? uniqueSourcePath(ctx, artifact.title, artifact.id))
     : uniqueSourcePath(ctx, artifact.title, artifact.id);
-  const scadSha = ctx.storeContent(input.source);
+  const scadSha = ctx.storeContent(source);
   const scadRef = { path: sourcePath, sha256: scadSha, role: 'source' as const };
 
   // Recorded params: previous values (dropping ones the source no longer declares) + overrides.
@@ -598,7 +686,7 @@ export async function cadWriteSource(
   Object.assign(recorded, overrides);
 
   const { outcome, job } = await renderSource(ctx, {
-    source: input.source,
+    source,
     params: recorded,
     timeoutMs: input.timeoutMs,
     origin,
@@ -651,9 +739,10 @@ export async function cadWriteSource(
     artifact,
     revision: rev,
     sourcePath,
-    source: input.source,
+    source,
     outcome,
     unit: payload.modelUnit,
+    injectedFn: faceted.injected,
   });
 }
 
@@ -682,6 +771,8 @@ export function cadReadSource(
     parameters: params.map((p) => ({
       name: p.name,
       value: p.value,
+      derived: p.derived,
+      ...(p.expr ? { expr: p.expr } : {}),
       ...(p.comment ? { comment: p.comment } : {}),
     })),
     recordedParams: plainParams(payload.params),
@@ -720,6 +811,7 @@ async function resolveMesh(
     const buf = ctx.objects.read(stl.sha256);
     const tris = parseStlTriangles(buf);
     if (tris.length > 0) {
+      const oriented = applyOrientation(buf, tris);
       return {
         artifact,
         rev,
@@ -733,8 +825,9 @@ async function resolveMesh(
           warnings: [],
           errors: [],
           log: '',
-          stl: buf,
-          tris,
+          stl: oriented.stl,
+          tris: oriented.tris,
+          oriented: oriented.oriented,
         },
       };
     }
@@ -761,7 +854,7 @@ export async function cadInspect(
     artifactId: string;
     revisionId?: string;
     params?: Record<string, ScadValue>;
-    sections?: { axis: Axis; at: number }[];
+    sections?: ExtraSection[];
     probes?: Vec3[];
   },
   origin: Origin,
@@ -827,6 +920,7 @@ export async function cadCheck(
   total: number;
   checks: CheckResult[];
   droppedFailingAssertions?: string[];
+  loosenedAssertions?: string[];
   next: string;
 }> {
   const m = await resolveMesh(ctx, input, origin);
@@ -841,6 +935,24 @@ export async function cadCheck(
     );
   }
   const checks = runChecks(m.outcome.tris, input.expect);
+  const changeRegions = input.expect.preserve?.changeRegions;
+  if (changeRegions?.length) {
+    const parent = m.rev.parentId ? ctx.repo.getRevision(m.rev.parentId) : null;
+    const parentStl = parent ? stlRefOf(parent) : undefined;
+    if (parent && parentStl?.sha256 && ctx.objects.has(parentStl.sha256)) {
+      const orig = applyOrientation(
+        ctx.objects.read(parentStl.sha256),
+        parseStlTriangles(ctx.objects.read(parentStl.sha256)),
+      ).tris;
+      checks.push(preservationCheck(orig, m.outcome.tris, changeRegions));
+    } else {
+      checks.push({
+        name: 'unrelated geometry preserved',
+        pass: false,
+        detail: 'no parent mesh to compare — preserve requires a prior revision of this part',
+      });
+    }
+  }
   const passed = checks.filter((c) => c.pass).length;
   const pass = checks.length > 0 && passed === checks.length;
 
@@ -848,9 +960,14 @@ export async function cadCheck(
   // geometry earlier and are now simply absent. Dropping a check is not a fix.
   const paramsKey = JSON.stringify(input.params ?? {});
   const priorFailures = new Set<string>();
+  let lastPriorResults: CheckResult[] | null = null;
   for (const j of ctx.repo.listJobs(200)) {
     if (j.kind !== 'cad_check') continue;
-    const inp = j.inputs as { revisionId?: string; params?: unknown } | null;
+    const inp = j.inputs as {
+      revisionId?: string;
+      params?: unknown;
+      results?: CheckResult[];
+    } | null;
     if (!inp || inp.revisionId !== m.rev.id || JSON.stringify(inp.params ?? {}) !== paramsKey) {
       continue;
     }
@@ -858,9 +975,11 @@ export async function cadCheck(
       const mm = /^FAIL (.+?) — /.exec(line);
       if (mm) priorFailures.add(mm[1]!);
     }
+    if (inp.results && !lastPriorResults) lastPriorResults = inp.results;
   }
   const currentNames = new Set(checks.map((c) => c.name));
   const dropped = [...priorFailures].filter((n) => !currentNames.has(n));
+  const loosened = lastPriorResults ? findLoosenedAssertions(lastPriorResults, checks) : [];
 
   const job = ctx.createJob({
     kind: 'cad_check',
@@ -870,6 +989,7 @@ export async function cadCheck(
       revisionId: m.rev.id,
       params: input.params ?? {},
       expect: input.expect,
+      results: checks.map((c) => ({ name: c.name, pass: c.pass, tightness: c.tightness })),
     },
     sessionId: origin.kind === 'agent' ? origin.sessionId : null,
   });
@@ -882,6 +1002,9 @@ export async function cadCheck(
             `WEAKENED: dropped previously failing assertions on unchanged geometry: ${dropped.join('; ')}`,
           ]
         : []),
+      ...(loosened.length
+        ? [`WEAKENED: loosened tolerance on assertions that previously failed: ${loosened.join('; ')}`]
+        : []),
     ].join('\n'),
   );
   ctx.jobStatus(job.id, pass ? 'succeeded' : 'failed', {
@@ -892,9 +1015,13 @@ export async function cadCheck(
           message: `${checks.length - passed} of ${checks.length} checks failed`,
         },
   });
-  const weakenedNote = dropped.length
-    ? ` WARNING — this run dropped ${dropped.length} assertion(s) that FAILED on this same geometry earlier (${dropped.join('; ')}). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source.`
-    : '';
+  const weakenedNote =
+    (dropped.length
+      ? ` WARNING — this run dropped ${dropped.length} assertion(s) that FAILED on this same geometry earlier (${dropped.join('; ')}). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source.`
+      : '') +
+    (loosened.length
+      ? ` WARNING — this run passed ${loosened.length} assertion(s) only after loosening the tolerance (${loosened.join('; ')}). Tightening the geometry or stating why the looser bound is the real requirement is required before calling this verified.`
+      : '');
   return {
     artifactId: m.artifact.id,
     revisionId: m.rev.id,
@@ -903,6 +1030,7 @@ export async function cadCheck(
     total: checks.length,
     checks,
     ...(dropped.length ? { droppedFailingAssertions: dropped } : {}),
+    ...(loosened.length ? { loosenedAssertions: loosened } : {}),
     next:
       (pass
         ? checks.length < 3
@@ -911,6 +1039,94 @@ export async function cadCheck(
         : 'A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request.') +
       weakenedNote,
   };
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let n = 0;
+  let i = 0;
+  while ((i = haystack.indexOf(needle, i)) !== -1) {
+    n++;
+    i += needle.length;
+  }
+  return n;
+}
+
+export async function cadPatchSource(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    oldString: string;
+    newString: string;
+    rationale: string;
+    timeoutMs: number;
+  },
+  origin: Origin,
+): Promise<CadReport> {
+  ctx.assertWritable();
+  const artifact = requireMechanical(ctx, input.artifactId);
+  const rev = pickRevision(ctx, artifact);
+  const { source } = readScad(ctx, rev);
+  const hits = countOccurrences(source, input.oldString);
+  if (hits !== 1) {
+    throw new OmenflowError(
+      ErrorCodes.VALIDATION,
+      hits === 0
+        ? 'oldString was not found in the current source — read the source and copy the snippet exactly.'
+        : `oldString occurs ${hits} times; it must be unique so the patch cannot hit the wrong site.`,
+      { details: { occurrences: hits } },
+    );
+  }
+  return cadWriteSource(
+    ctx,
+    {
+      artifactId: input.artifactId,
+      source: source.replace(input.oldString, input.newString),
+      rationale: input.rationale || 'source patched',
+      timeoutMs: input.timeoutMs,
+    },
+    origin,
+  );
+}
+
+export async function cadCompose(
+  ctx: ProjectContext,
+  input: {
+    title: string;
+    instances: { artifactId: string; translate?: Vec3; rotate?: Vec3 }[];
+    rationale: string;
+    timeoutMs: number;
+  },
+  origin: Origin,
+): Promise<CadReport> {
+  ctx.assertWritable();
+  const blocks: string[] = [
+    '// composed assembly — module-wrapped instances, transform only (no mates / STEP)',
+  ];
+  input.instances.forEach((inst, i) => {
+    const artifact = requireMechanical(ctx, inst.artifactId);
+    const rev = pickRevision(ctx, artifact);
+    const { source } = readScad(ctx, rev);
+    const name = `_inst_${i}`;
+    const t = inst.translate ?? [0, 0, 0];
+    const r = inst.rotate ?? [0, 0, 0];
+    const body = source.replace(/\s+$/, '');
+    const xform =
+      r[0] === 0 && r[1] === 0 && r[2] === 0
+        ? `translate([${t.join(', ')}]) ${name}();`
+        : `translate([${t.join(', ')}]) rotate([${r.join(', ')}]) ${name}();`;
+    blocks.push(`module ${name}() {\n${body}\n}\n${xform}`);
+  });
+  return cadWriteSource(
+    ctx,
+    {
+      title: input.title,
+      source: blocks.join('\n\n') + '\n',
+      rationale: input.rationale || 'composed from existing parts',
+      timeoutMs: input.timeoutMs,
+    },
+    origin,
+  );
 }
 
 /* ------------------------------------------------------------------ */

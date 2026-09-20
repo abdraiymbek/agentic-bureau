@@ -38,6 +38,19 @@ Tolerances: 0.1 mm linear (0.15–0.3 on polygonal circles' bounding boxes),
 1.5 % volume (absorbs `$fn` faceting), roundness ≥ 0.97 for circular holes
 (≈ `$fn ≥ 13`; a default-`$fn` pentagon is a failure).
 
+Harness notes that help smaller models (still OpenSCAD / STL — no STEP or mates):
+
+- `$fn = 64` is injected when curved primitives have no `$fn`.
+- Watertight inside-out meshes are rewound and stored; open meshes are only diagnosed.
+- `cad.inspect` accepts `origin`+`normal` for an inclined cut (plus probes).
+- `cad.check` flags loosened tolerances on a retry, can require
+  `preserve.changeRegions` vs the parent revision, and can fail
+  `maxSelfIntersections`.
+- File-scope expressions (`height = 2 * plate_w`) are evaluated and shown as
+  derived parameters; only literals are `-D`-able.
+- `cad.patch_source` is unique search-replace; `cad.compose` module-wraps
+  existing parts at translate/rotate.
+
 ## Suite
 
 | tier | task                 | category                | what it stresses                               |

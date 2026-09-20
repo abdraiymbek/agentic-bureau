@@ -319,6 +319,8 @@ export interface CrossSection {
   /** Net material area in the plane. */
   materialArea: number;
   openChains: number;
+  origin?: Vec3;
+  normal?: Vec3;
 }
 
 function polygonArea(pts: [number, number][]): number {
@@ -461,7 +463,17 @@ export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): Cros
     }
   }
 
-  // Chain segments into loops using quantized endpoint keys.
+  const built = loopsFromSegments(segs);
+  return { axis, at, planeAxes, ...built };
+}
+
+type Seg2 = { a: [number, number]; b: [number, number] };
+
+function loopsFromSegments(segs: Seg2[]): {
+  loops: SectionLoop[];
+  materialArea: number;
+  openChains: number;
+} {
   const Q = 1e-6;
   const key = (p: [number, number]) => `${Math.round(p[0] / Q)},${Math.round(p[1] / Q)}`;
   const byStart = new Map<string, number[]>();
@@ -497,7 +509,7 @@ export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): Cros
       chain.push(cur);
     }
     if (closed) {
-      chain.pop(); // last point == first
+      chain.pop();
       const simplified = dropCollinear(chain);
       if (simplified.length >= 3) loops.push(simplified);
     } else {
@@ -505,7 +517,6 @@ export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): Cros
     }
   }
 
-  // Nesting depth.
   const out: SectionLoop[] = loops.map((pts) => {
     const signed = polygonArea(pts);
     const area = Math.abs(signed);
@@ -559,7 +570,101 @@ export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): Cros
   let materialArea = 0;
   for (const l of out) materialArea += l.isHole ? -l.area : l.area;
   out.sort((a, b) => a.depth - b.depth || b.area - a.area);
-  return { axis, at, planeAxes, loops: out, materialArea: round(materialArea), openChains };
+  return { loops: out, materialArea: round(materialArea), openChains };
+}
+
+function norm3(v: Vec3): Vec3 {
+  const L = Math.hypot(v[0], v[1], v[2]);
+  return L > 0 ? [v[0] / L, v[1] / L, v[2] / L] : [0, 0, 1];
+}
+
+function cross3(a: Vec3, b: Vec3): Vec3 {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+
+/** Orthonormal plane basis. Axis-aligned normals match `crossSection` planeAxes. */
+function planeBasis(n: Vec3): { u: Vec3; v: Vec3 } {
+  const ax = Math.abs(n[0]),
+    ay = Math.abs(n[1]),
+    az = Math.abs(n[2]);
+  if (az > 0.999 && ax < 1e-6 && ay < 1e-6) {
+    return n[2] >= 0 ? { u: [1, 0, 0], v: [0, 1, 0] } : { u: [1, 0, 0], v: [0, -1, 0] };
+  }
+  if (ay > 0.999 && ax < 1e-6 && az < 1e-6) {
+    return n[1] >= 0 ? { u: [1, 0, 0], v: [0, 0, 1] } : { u: [1, 0, 0], v: [0, 0, -1] };
+  }
+  if (ax > 0.999 && ay < 1e-6 && az < 1e-6) {
+    return n[0] >= 0 ? { u: [0, 1, 0], v: [0, 0, 1] } : { u: [0, 1, 0], v: [0, 0, -1] };
+  }
+  const helper: Vec3 = ay < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = norm3(cross3(helper, n));
+  return { u, v: cross3(n, u) };
+}
+
+/**
+ * Slice the mesh with an arbitrary plane through `origin` with `normal`.
+ * Axis-aligned normals reproduce `crossSection` loop geometry.
+ */
+export function crossSectionPlane(
+  tris: TriangleBuffer,
+  origin: Vec3,
+  normal: Vec3,
+): CrossSection {
+  const n = norm3(normal);
+  let ox = origin[0],
+    oy = origin[1],
+    oz = origin[2];
+  for (let i = 0; i < tris.length; i += 3) {
+    const d = (tris[i]! - ox) * n[0] + (tris[i + 1]! - oy) * n[1] + (tris[i + 2]! - oz) * n[2];
+    if (Math.abs(d) < 1e-9) {
+      ox += n[0] * 1e-6;
+      oy += n[1] * 1e-6;
+      oz += n[2] * 1e-6;
+      break;
+    }
+  }
+  const { u, v } = planeBasis(n);
+  const segs: Seg2[] = [];
+  for (let i = 0; i < tris.length; i += 9) {
+    const pts: [number, number][] = [];
+    for (let e = 0; e < 3; e++) {
+      const p = i + e * 3;
+      const q = i + ((e + 1) % 3) * 3;
+      const pa = (tris[p]! - ox) * n[0] + (tris[p + 1]! - oy) * n[1] + (tris[p + 2]! - oz) * n[2];
+      const qa = (tris[q]! - ox) * n[0] + (tris[q + 1]! - oy) * n[1] + (tris[q + 2]! - oz) * n[2];
+      if ((pa > 0 && qa > 0) || (pa < 0 && qa < 0) || pa === qa) continue;
+      const t = pa / (pa - qa);
+      const ix = tris[p]! + t * (tris[q]! - tris[p]!);
+      const iy = tris[p + 1]! + t * (tris[q + 1]! - tris[p + 1]!);
+      const iz = tris[p + 2]! + t * (tris[q + 2]! - tris[p + 2]!);
+      pts.push([
+        (ix - ox) * u[0] + (iy - oy) * u[1] + (iz - oz) * u[2],
+        (ix - ox) * v[0] + (iy - oy) * v[1] + (iz - oz) * v[2],
+      ]);
+    }
+    if (pts.length === 2) {
+      const [a, b] = pts as [[number, number], [number, number]];
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-9) segs.push({ a, b });
+    }
+  }
+  const built = loopsFromSegments(segs);
+  let axis: Axis = 'z';
+  let at = origin[2];
+  let planeAxes: [Axis, Axis] = ['x', 'y'];
+  if (Math.abs(n[2]) > 0.999) {
+    axis = 'z';
+    at = origin[2];
+    planeAxes = ['x', 'y'];
+  } else if (Math.abs(n[1]) > 0.999) {
+    axis = 'y';
+    at = origin[1];
+    planeAxes = ['x', 'z'];
+  } else if (Math.abs(n[0]) > 0.999) {
+    axis = 'x';
+    at = origin[0];
+    planeAxes = ['y', 'z'];
+  }
+  return { axis, at, planeAxes, origin, normal: n, ...built };
 }
 
 /* ------------------------------------------------------------------ */
@@ -586,6 +691,188 @@ export function analyzeMesh(tris: TriangleBuffer): MeshReport {
     invertedNormals: sv < 0,
     topology: topology(tris),
   };
+}
+
+/**
+ * Reverse winding when the mesh is watertight and inside-out. Open (non-closed)
+ * meshes are left alone — flipping them would still be a guess.
+ */
+export function orientTriangles(tris: TriangleBuffer): { tris: TriangleBuffer; flipped: boolean } {
+  if (tris.length === 0) return { tris, flipped: false };
+  const topo = topology(tris);
+  if (!topo.watertight || signedVolume(tris) >= 0) return { tris, flipped: false };
+  const out = new Float64Array(tris.length);
+  for (let i = 0; i < tris.length; i += 9) {
+    out[i] = tris[i]!;
+    out[i + 1] = tris[i + 1]!;
+    out[i + 2] = tris[i + 2]!;
+    out[i + 3] = tris[i + 6]!;
+    out[i + 4] = tris[i + 7]!;
+    out[i + 5] = tris[i + 8]!;
+    out[i + 6] = tris[i + 3]!;
+    out[i + 7] = tris[i + 4]!;
+    out[i + 8] = tris[i + 5]!;
+  }
+  return { tris: out, flipped: true };
+}
+
+/** Binary STL for a triangle buffer (normals left zero; consumers recompute). */
+export function writeBinaryStl(tris: TriangleBuffer): Buffer {
+  const n = triangleCount(tris);
+  const buf = Buffer.alloc(84 + n * 50);
+  buf.write('omenflow', 0, 'ascii');
+  buf.writeUInt32LE(n, 80);
+  for (let i = 0; i < n; i++) {
+    const base = 84 + i * 50 + 12;
+    for (let k = 0; k < 9; k++) buf.writeFloatLE(tris[i * 9 + k]!, base + k * 4);
+  }
+  return buf;
+}
+
+function triBBox(tris: TriangleBuffer, i: number): { min: Vec3; max: Vec3 } {
+  const min: Vec3 = [Infinity, Infinity, Infinity];
+  const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < 9; k += 3) {
+    for (let a = 0; a < 3; a++) {
+      const v = tris[i + k + a]!;
+      if (v < min[a]!) min[a] = v;
+      if (v > max[a]!) max[a] = v;
+    }
+  }
+  return { min, max };
+}
+
+function boxesOverlap(
+  a: { min: Vec3; max: Vec3 },
+  b: { min: Vec3; max: Vec3 },
+  eps = 1e-9,
+): boolean {
+  return (
+    a.min[0]! <= b.max[0]! + eps &&
+    a.max[0]! >= b.min[0]! - eps &&
+    a.min[1]! <= b.max[1]! + eps &&
+    a.max[1]! >= b.min[1]! - eps &&
+    a.min[2]! <= b.max[2]! + eps &&
+    a.max[2]! >= b.min[2]! - eps
+  );
+}
+
+function sharedVertices(tris: TriangleBuffer, i: number, j: number): number {
+  let n = 0;
+  for (let a = 0; a < 3; a++) {
+    const ak = vkey(tris[i + a * 3]!, tris[i + a * 3 + 1]!, tris[i + a * 3 + 2]!);
+    for (let b = 0; b < 3; b++) {
+      const bk = vkey(tris[j + b * 3]!, tris[j + b * 3 + 1]!, tris[j + b * 3 + 2]!);
+      if (ak === bk) {
+        n++;
+        break;
+      }
+    }
+  }
+  return n;
+}
+
+function segmentHitsTriangle(
+  ax: number,
+  ay: number,
+  az: number,
+  bx: number,
+  by: number,
+  bz: number,
+  tris: TriangleBuffer,
+  i: number,
+): boolean {
+  const t = rayTri(ax, ay, az, bx - ax, by - ay, bz - az, tris, i);
+  return t !== null && t < 1 - 1e-6;
+}
+
+function trianglesIntersect(tris: TriangleBuffer, i: number, j: number): boolean {
+  for (let e = 0; e < 3; e++) {
+    const p = i + e * 3;
+    const q = i + ((e + 1) % 3) * 3;
+    if (segmentHitsTriangle(tris[p]!, tris[p + 1]!, tris[p + 2]!, tris[q]!, tris[q + 1]!, tris[q + 2]!, tris, j))
+      return true;
+  }
+  for (let e = 0; e < 3; e++) {
+    const p = j + e * 3;
+    const q = j + ((e + 1) % 3) * 3;
+    if (segmentHitsTriangle(tris[p]!, tris[p + 1]!, tris[p + 2]!, tris[q]!, tris[q + 1]!, tris[q + 2]!, tris, i))
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Count triangle pairs whose interiors intersect. Adjacent faces that share an
+ * edge are ignored. Used to catch STL soup (overlapping bodies, self-piercing).
+ */
+export function countIntersectingPairs(tris: TriangleBuffer): number {
+  const n = triangleCount(tris);
+  const boxes = new Array<{ min: Vec3; max: Vec3 }>(n);
+  for (let t = 0; t < n; t++) boxes[t] = triBBox(tris, t * 9);
+  let count = 0;
+  for (let a = 0; a < n; a++) {
+    for (let b = a + 1; b < n; b++) {
+      if (!boxesOverlap(boxes[a]!, boxes[b]!)) continue;
+      const ia = a * 9,
+        ib = b * 9;
+      if (sharedVertices(tris, ia, ib) >= 2) continue;
+      if (trianglesIntersect(tris, ia, ib)) count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Estimated minimum wall thickness: from each triangle centroid, ray along
+ * the inward normal to the next hit. Returns null when no opposite face is found.
+ */
+export function minWallThickness(tris: TriangleBuffer, samples?: number): number | null {
+  const n = triangleCount(tris);
+  if (n === 0) return null;
+  const inverted = signedVolume(tris) < 0;
+  const step = samples && samples < n ? Math.max(1, Math.floor(n / samples)) : 1;
+  let minT = Infinity;
+  for (let t = 0; t < n; t += step) {
+    const i = t * 9;
+    const ax = tris[i]!,
+      ay = tris[i + 1]!,
+      az = tris[i + 2]!;
+    const ux = tris[i + 3]! - ax,
+      uy = tris[i + 4]! - ay,
+      uz = tris[i + 5]! - az;
+    const vx = tris[i + 6]! - ax,
+      vy = tris[i + 7]! - ay,
+      vz = tris[i + 8]! - az;
+    let nx = uy * vz - uz * vy,
+      ny = uz * vx - ux * vz,
+      nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz);
+    if (len < 1e-12) continue;
+    nx /= len;
+    ny /= len;
+    nz /= len;
+    if (inverted) {
+      nx = -nx;
+      ny = -ny;
+      nz = -nz;
+    }
+    const px = (ax + tris[i + 3]! + tris[i + 6]!) / 3;
+    const py = (ay + tris[i + 4]! + tris[i + 7]!) / 3;
+    const pz = (az + tris[i + 5]! + tris[i + 8]!) / 3;
+    const eps = 1e-4;
+    const ox = px - nx * eps,
+      oy = py - ny * eps,
+      oz = pz - nz * eps;
+    let best: number | null = null;
+    for (let j = 0; j < tris.length; j += 9) {
+      if (j === i) continue;
+      const hit = rayTri(ox, oy, oz, -nx, -ny, -nz, tris, j);
+      if (hit !== null && (best === null || hit < best)) best = hit;
+    }
+    if (best !== null && best < minT) minT = best;
+  }
+  return minT === Infinity ? null : minT;
 }
 
 /** Sort loops for a compact human/LLM-readable description of a section. */

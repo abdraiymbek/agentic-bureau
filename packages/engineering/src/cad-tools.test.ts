@@ -177,4 +177,132 @@ describe.skipIf(
     });
     expect(typo.render.warnings.some((w) => /sizey/.test(w))).toBe(true);
   });
+
+  it('injects $fn for curved primitives and auto-orients an inside-out solid', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const ring = await call<CadReport>('cad.write_source', {
+      title: 'Ring',
+      source: 'difference(){ cylinder(d=20,h=8); translate([0,0,-1]) cylinder(d=8,h=10); }',
+    });
+    expect(ring.render.ok).toBe(true);
+    expect(ring.notes.some((n) => /\$fn/.test(n))).toBe(true);
+    const src = await call('cad.read_source', { artifactId: ring.artifactId });
+    expect(src.source).toMatch(/\$fn\s*=\s*64/);
+    const chk = await call('cad.check', {
+      artifactId: ring.artifactId,
+      expect: {
+        sections: [{ axis: 'z', at: 4, holes: [{ center: [0, 0], d: 8 }] }],
+        minRoundness: 0.97,
+      },
+    });
+    expect(chk.pass).toBe(true);
+
+    // OpenSCAD polyhedron with reversed winding — a watertight tetrahedron.
+    const inverted = await call<CadReport>('cad.write_source', {
+      title: 'Inverted tet',
+      source:
+        'polyhedron(points=[[0,0,0],[10,0,0],[5,8,0],[5,3,9]], faces=[[0,2,1],[0,1,3],[1,2,3],[2,0,3]]);',
+    });
+    expect(inverted.geometry?.watertight).toBe(true);
+    expect(inverted.notes.some((n) => /oriented|inside-out/i.test(n))).toBe(true);
+  });
+
+  it('patches a unique snippet without rewriting the whole file by hand', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const w = await call<CadReport>('cad.write_source', { title: 'Plate', source: PLATE });
+    const p = await call<CadReport>('cad.patch_source', {
+      artifactId: w.artifactId,
+      oldString: 'hole_d = 8;',
+      newString: 'hole_d = 10;',
+      rationale: 'enlarge hole',
+    });
+    expect(p.artifactId).toBe(w.artifactId);
+    expect(p.revisionId).not.toBe(w.revisionId);
+    const src = await call('cad.read_source', { artifactId: w.artifactId });
+    expect(src.source).toContain('hole_d = 10;');
+    expect(src.source).toContain('w = 100;');
+  });
+
+  it('composes two existing parts at transforms into one assembly mesh', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const a = await call<CadReport>('cad.write_source', {
+      title: 'Block A',
+      source: 'cube([10,10,10]);',
+    });
+    const b = await call<CadReport>('cad.write_source', {
+      title: 'Block B',
+      source: 'cube([10,10,10]);',
+    });
+    const asm = await call<CadReport>('cad.compose', {
+      title: 'Two blocks',
+      instances: [
+        { artifactId: a.artifactId, translate: [0, 0, 0] },
+        { artifactId: b.artifactId, translate: [20, 0, 0] },
+      ],
+      rationale: 'place two cubes 20 mm apart',
+    });
+    expect(asm.render.ok).toBe(true);
+    expect(asm.geometry?.bounds.max[0]).toBeCloseTo(30, 1);
+    expect(asm.geometry?.shells).toBe(2);
+  });
+
+  it('cad.check can require unrelated geometry to be preserved vs the parent revision', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const w = await call<CadReport>('cad.write_source', { title: 'Plate', source: PLATE });
+    await call<CadReport>('cad.patch_source', {
+      artifactId: w.artifactId,
+      oldString: 'hole_d = 8;',
+      newString: 'hole_d = 10;',
+      rationale: 'bigger hole',
+    });
+    const ok = await call('cad.check', {
+      artifactId: w.artifactId,
+      expect: {
+        preserve: { changeRegions: [{ center: [50, 20, 3], radius: 8 }] },
+        bbox: { min: [0, 0, 0], max: [100, 40, 6] },
+      },
+    });
+    expect(ok.pass).toBe(true);
+    const bad = await call<CadReport>('cad.patch_source', {
+      artifactId: w.artifactId,
+      oldString: 't = 6;',
+      newString: 't = 12;',
+      rationale: 'thicken whole plate',
+    });
+    expect(bad.render.ok).toBe(true);
+    const fail = await call('cad.check', {
+      artifactId: w.artifactId,
+      expect: { preserve: { changeRegions: [{ center: [50, 20, 3], radius: 8 }] } },
+    });
+    expect(fail.pass).toBe(false);
+    expect(fail.checks.some((c: { name: string }) => c.name === 'unrelated geometry preserved')).toBe(
+      true,
+    );
+  });
+
+  it('inspects an oblique plane and flags a loosened tolerance as weakening', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const w = await call<CadReport>('cad.write_source', { title: 'Plate', source: PLATE });
+    const i = await call<CadReport>('cad.inspect', {
+      artifactId: w.artifactId,
+      sections: [{ origin: [50, 20, 3], normal: [0, 0, 1] }],
+    });
+    expect(i.sections!.some((s) => s.plane.includes('origin') || s.plane.includes('n='))).toBe(true);
+
+    await call('cad.check', {
+      artifactId: w.artifactId,
+      expect: { bbox: { min: [0, 0, 0], max: [100, 40, 5] } },
+    });
+    const loose = await call('cad.check', {
+      artifactId: w.artifactId,
+      expect: { bbox: { min: [0, 0, 0], max: [100, 40, 5], tol: 5 } },
+    });
+    expect(loose.pass).toBe(true);
+    expect(loose.loosenedAssertions).toContain('bounding box');
+  });
 });

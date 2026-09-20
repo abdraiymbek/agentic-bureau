@@ -1,8 +1,8 @@
 /**
- * Top-level OpenSCAD parameter discovery. A "parameter" is a top-level
- * assignment of a literal (number, string, boolean) — the same set OpenSCAD's
- * customizer exposes and the only names `-D name=value` can meaningfully
- * override. Assignments inside modules/functions are ignored.
+ * Top-level OpenSCAD parameter discovery. File-scope literals are `-D`-able
+ * (OpenSCAD customizer). File-scope arithmetic expressions are also exposed
+ * with `derived: true` so an agent can see computed sizes, even though `-D`
+ * cannot rewrite the expression itself. Assignments inside modules are ignored.
  */
 
 export interface ScadParameter {
@@ -11,10 +11,15 @@ export interface ScadParameter {
   /** Trailing `// comment` on the same line, if any. */
   comment?: string;
   line: number;
+  /** True when the right-hand side is an expression, not a literal. */
+  derived: boolean;
+  /** Original expression when `derived` (file-scope, not `-D`-able as a literal). */
+  expr?: string;
 }
 
 export function parseScadParameters(source: string): ScadParameter[] {
   const out: ScadParameter[] = [];
+  const env: Record<string, number> = {};
   const lines = source.split(/\r?\n/);
   let depth = 0;
   let inBlockComment = false;
@@ -54,9 +59,31 @@ export function parseScadParameters(source: string): ScadParameter[] {
       for (const stmt of line.split(';')) {
         const m = /^\s*([A-Za-z_$][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$/.exec(stmt);
         if (!m) continue;
-        const value = literal(m[2]!);
+        const name = m[1]!;
+        const rhs = m[2]!;
+        const value = literal(rhs);
         if (value !== undefined) {
-          out.push({ name: m[1]!, value, ...(comment ? { comment } : {}), line: i + 1 });
+          out.push({
+            name,
+            value,
+            derived: false,
+            ...(comment ? { comment } : {}),
+            line: i + 1,
+          });
+          if (typeof value === 'number') env[name] = value;
+          continue;
+        }
+        const evaluated = evalExpr(rhs, env);
+        if (evaluated !== undefined) {
+          out.push({
+            name,
+            value: evaluated,
+            derived: true,
+            expr: rhs.trim(),
+            ...(comment ? { comment } : {}),
+            line: i + 1,
+          });
+          env[name] = evaluated;
         }
       }
     }
@@ -76,4 +103,114 @@ function literal(expr: string): number | string | boolean | undefined {
   const s = /^"((?:[^"\\]|\\.)*)"$/.exec(t);
   if (s) return s[1]!.replace(/\\(.)/g, '$1');
   return undefined;
+}
+
+type Tok = number | string;
+
+function tokenizeExpr(expr: string): Tok[] | undefined {
+  const out: Tok[] = [];
+  let i = 0;
+  const s = expr.trim();
+  while (i < s.length) {
+    const ch = s[i]!;
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
+    }
+    if ('+-*/()'.includes(ch)) {
+      out.push(ch);
+      i++;
+      continue;
+    }
+    if (/[0-9.]/.test(ch)) {
+      const m = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?/.exec(s.slice(i));
+      if (!m) return undefined;
+      out.push(Number(m[0]));
+      i += m[0].length;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(ch)) {
+      const m = /^[A-Za-z_$][A-Za-z0-9_]*/.exec(s.slice(i));
+      if (!m) return undefined;
+      out.push(m[0]);
+      i += m[0].length;
+      continue;
+    }
+    return undefined;
+  }
+  return out;
+}
+
+/** File-scope arithmetic: + - * / and parentheses over numbers / earlier names. */
+function evalExpr(expr: string, env: Record<string, number>): number | undefined {
+  const tokens = tokenizeExpr(expr);
+  if (!tokens || tokens.length === 0) return undefined;
+  let i = 0;
+  const peek = () => tokens[i];
+  const eat = () => tokens[i++];
+  const parseExpr = (): number | undefined => {
+    let v = parseTerm();
+    if (v === undefined) return undefined;
+    while (peek() === '+' || peek() === '-') {
+      const op = eat();
+      const r = parseTerm();
+      if (r === undefined) return undefined;
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  };
+  const parseTerm = (): number | undefined => {
+    let v = parseUnary();
+    if (v === undefined) return undefined;
+    while (peek() === '*' || peek() === '/') {
+      const op = eat();
+      const r = parseUnary();
+      if (r === undefined) return undefined;
+      if (op === '/' && r === 0) return undefined;
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  const parseUnary = (): number | undefined => {
+    if (peek() === '-') {
+      eat();
+      const v = parseUnary();
+      return v === undefined ? undefined : -v;
+    }
+    if (peek() === '+') {
+      eat();
+      return parseUnary();
+    }
+    return parseAtom();
+  };
+  const parseAtom = (): number | undefined => {
+    const t = eat();
+    if (t === undefined) return undefined;
+    if (t === '(') {
+      const v = parseExpr();
+      if (eat() !== ')') return undefined;
+      return v;
+    }
+    if (typeof t === 'number') return t;
+    if (typeof t === 'string' && Object.prototype.hasOwnProperty.call(env, t)) return env[t];
+    return undefined;
+  };
+  const v = parseExpr();
+  if (i !== tokens.length || v === undefined || !Number.isFinite(v)) return undefined;
+  return v;
+}
+
+const CURVED = /\b(cylinder|sphere|circle|rotate_extrude)\s*\(/;
+
+/**
+ * Prepend `$fn = 64;` when the source uses curved primitives and does not
+ * already set `$fn`. Prismatic-only files are left alone.
+ */
+export function ensureDefaultFaceting(source: string): { source: string; injected: boolean } {
+  const stripped = source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+  if (/\$fn\s*=/.test(stripped)) return { source, injected: false };
+  if (!CURVED.test(stripped)) return { source, injected: false };
+  return { source: `$fn = 64;\n${source}`, injected: true };
 }

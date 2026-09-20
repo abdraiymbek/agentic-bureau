@@ -11,6 +11,7 @@ import type { Expectation } from '@omenflow/contracts';
 import {
   analyzeMesh,
   containsPoint,
+  countIntersectingPairs,
   crossSection,
   type SectionLoop,
   type TriangleBuffer,
@@ -44,12 +45,16 @@ interface ExpectationT {
   watertight?: boolean;
   shells?: number;
   minRoundness?: number;
+  maxSelfIntersections?: number;
+  preserve?: { changeRegions: { center: Vec3; radius: number }[] };
 }
 
 export interface CheckResult {
   name: string;
   pass: boolean;
   detail: string;
+  /** 1 / tolerance — higher is stricter. Used to flag silently loosened retries. */
+  tightness?: number;
 }
 
 const LIN_TOL = 0.1; // mm
@@ -95,6 +100,7 @@ export function runChecks(tris: TriangleBuffer, expIn: Expectation): CheckResult
       name: 'bounding box',
       pass: okMin && okMax,
       detail: `min ${vec(report.bounds.min)} max ${vec(report.bounds.max)} — expected min ${vec(exp.bbox.min)} max ${vec(exp.bbox.max)} ±${tol}`,
+      tightness: 1 / tol,
     });
   }
 
@@ -112,6 +118,7 @@ export function runChecks(tris: TriangleBuffer, expIn: Expectation): CheckResult
       detail: restated
         ? `${fmtNum(report.volume)} mm³ — expected value is a copy of the measurement; compute the expected volume from the request (nominal dimensions) instead`
         : `${fmtNum(report.volume)} mm³ — expected ${fmtNum(exp.volume.value)} ±${tolPct}% (off by ${err.toFixed(2)}%)`,
+      tightness: 1 / tolPct,
     });
   }
 
@@ -127,6 +134,15 @@ export function runChecks(tris: TriangleBuffer, expIn: Expectation): CheckResult
       name: 'single body',
       pass: report.topology.shells === exp.shells,
       detail: `${report.topology.shells} shell(s) — expected ${exp.shells}`,
+    });
+  }
+  if (exp.maxSelfIntersections !== undefined) {
+    const pairs = countIntersectingPairs(tris);
+    out.push({
+      name: 'self-intersections',
+      pass: pairs <= exp.maxSelfIntersections,
+      detail: `${pairs} intersecting triangle pair(s) — allowed ${exp.maxSelfIntersections}`,
+      tightness: 1 / (exp.maxSelfIntersections + 1),
     });
   }
 
@@ -195,6 +211,7 @@ export function runChecks(tris: TriangleBuffer, expIn: Expectation): CheckResult
             (!posOk ? ` — POSITION off by ${fmtNum(dist)}` : '') +
             (!dOk ? ` — DIAMETER off by ${fmtNum(measuredD - h.d)}` : '') +
             (!roundOk ? ` — FACETED (roundness < ${minRound}; increase $fn)` : ''),
+          tightness: 1 / tol,
         });
       } else {
         out.push({
@@ -334,7 +351,18 @@ export function preservationCheck(
   changeRegions: { center: Vec3; radius: number }[],
   samples = 400,
 ): CheckResult {
-  const b = analyzeMesh(original).bounds;
+  const b0 = analyzeMesh(original).bounds;
+  const b1 = analyzeMesh(modified).bounds;
+  const min: Vec3 = [
+    Math.min(b0.min[0], b1.min[0]),
+    Math.min(b0.min[1], b1.min[1]),
+    Math.min(b0.min[2], b1.min[2]),
+  ];
+  const size: Vec3 = [
+    Math.max(b0.max[0], b1.max[0]) - min[0],
+    Math.max(b0.max[1], b1.max[1]) - min[1],
+    Math.max(b0.max[2], b1.max[2]) - min[2],
+  ];
   let rng = 0x2545f491;
   const rand = () => {
     rng ^= rng << 13;
@@ -347,9 +375,9 @@ export function preservationCheck(
   const examples: string[] = [];
   for (let i = 0; i < samples; i++) {
     const p: Vec3 = [
-      b.min[0] + rand() * b.size[0],
-      b.min[1] + rand() * b.size[1],
-      b.min[2] + rand() * b.size[2],
+      min[0] + rand() * size[0],
+      min[1] + rand() * size[1],
+      min[2] + rand() * size[2],
     ];
     if (
       changeRegions.some(
@@ -373,4 +401,24 @@ export function preservationCheck(
       `${tested} sample points outside change regions, ${mismatched} differ` +
       (examples.length ? `: ${examples.join('; ')}` : ''),
   };
+}
+
+/**
+ * Flag assertions that now pass only because the tolerance grew (same name,
+ * prior FAIL, current PASS, lower tightness). Dropped prior FAILs are a
+ * separate check in `cad.check`.
+ */
+export function findLoosenedAssertions(
+  prior: { name: string; pass: boolean; tightness?: number }[],
+  current: { name: string; pass: boolean; tightness?: number }[],
+): string[] {
+  const byName = new Map(prior.map((c) => [c.name, c]));
+  const out: string[] = [];
+  for (const c of current) {
+    const p = byName.get(c.name);
+    if (!p || p.pass || !c.pass) continue;
+    if (p.tightness === undefined || c.tightness === undefined) continue;
+    if (c.tightness < p.tightness - 1e-12) out.push(c.name);
+  }
+  return out;
 }

@@ -110,6 +110,29 @@ export const expectationSchema = z.object({
     .max(1)
     .optional()
     .describe('Minimum roundness for circular features, apothem/radius (default 0.97 ≈ $fn ≥ 13).'),
+  maxSelfIntersections: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe(
+      'Fail if more than this many triangle pairs interpenetrate (0 = no self-intersection). Detects overlapping bodies that still look like a valid bbox/volume.',
+    ),
+  preserve: z
+    .object({
+      changeRegions: z
+        .array(
+          z.object({
+            center: vec3.describe('Center of a sphere (mm) that is allowed to change.'),
+            radius: z.number().positive().describe('Radius of the allowed-change sphere (mm).'),
+          }),
+        )
+        .describe('Regions where the edit is allowed; everything else must match the parent revision.'),
+    })
+    .optional()
+    .describe(
+      'Require unrelated geometry to match the parent revision (sampled points outside changeRegions).',
+    ),
 });
 
 export type HoleSpec = z.infer<typeof holeSpecSchema>;

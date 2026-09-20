@@ -349,12 +349,26 @@ const scadParams = z
   );
 
 const sectionRequest = z.object({
-  axis: z.enum(['x', 'y', 'z']).describe('Axis normal to the cutting plane.'),
+  axis: z
+    .enum(['x', 'y', 'z'])
+    .optional()
+    .describe('Axis normal to the cutting plane (axis-aligned cut).'),
   at: z
     .number()
+    .optional()
     .describe(
       'Plane coordinate along that axis, in mm. Cut through the middle of the feature you want to see, not exactly on a face.',
     ),
+  origin: z
+    .array(z.number())
+    .length(3)
+    .optional()
+    .describe('Point on an oblique cutting plane [x,y,z] mm. Use with `normal` for inclined holes.'),
+  normal: z
+    .array(z.number())
+    .length(3)
+    .optional()
+    .describe('Normal of an oblique cutting plane. Use with `origin` when the cut is not axis-aligned.'),
 });
 
 const cadWriteSource = z.object({
@@ -415,6 +429,42 @@ const cadExport = z.object({
   artifactId: idSchema,
   destPath: z.string().min(1),
   format: z.enum(['stl', 'scad']).default('stl'),
+});
+const cadPatchSource = z.object({
+  artifactId: idSchema.describe('Existing mechanical part to edit.'),
+  oldString: z
+    .string()
+    .min(1)
+    .describe('Exact snippet to replace. Must occur exactly once in the current source.'),
+  newString: z.string().describe('Replacement text (may be empty to delete the snippet).'),
+  rationale: z.string().default('').describe('One line on what this edit changes and why.'),
+  timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
+  ...idem,
+});
+const cadCompose = z.object({
+  title: z.string().min(1).describe('Name of the assembled part.'),
+  instances: z
+    .array(
+      z.object({
+        artifactId: idSchema.describe('Existing mechanical part to place.'),
+        translate: z
+          .array(z.number())
+          .length(3)
+          .optional()
+          .describe('Translation [x,y,z] mm applied after rotate.'),
+        rotate: z
+          .array(z.number())
+          .length(3)
+          .optional()
+          .describe('OpenSCAD Euler rotation [x,y,z] degrees.'),
+      }),
+    )
+    .min(1)
+    .max(32)
+    .describe('Parts to place. Each source is wrapped in its own module so file-scope names do not collide.'),
+  rationale: z.string().default('').describe('One line on why these parts are placed together.'),
+  timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
+  ...idem,
 });
 
 /* ------------------------------- calculation --------------------------- */
@@ -784,14 +834,28 @@ export const OPS: OpDef[] = [
     cadInspect,
     'both',
     false,
-    'Measure a rendered part: envelope, volume, watertightness, body count, cross-sections at chosen planes (holes, slots, outlines with positions and diameters), and solid/empty classification of probe points. Optionally re-render with parameter overrides. Read-only.',
+    'Measure a rendered part: envelope, volume, watertightness, body count, cross-sections at chosen planes (axis-aligned axis/at, or oblique origin+normal for inclined holes), and solid/empty classification of probe points. Optionally re-render with parameter overrides. Read-only.',
   ),
   def(
     'cad.check',
     cadCheck,
     'both',
     false,
-    'Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections). Returns PASS/FAIL per assertion with measured vs expected values. A part is done only when its checks pass.',
+    'Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections, optional preserve vs the parent revision). Returns PASS/FAIL per assertion with measured vs expected values. A part is done only when its checks pass.',
+  ),
+  def(
+    'cad.patch_source',
+    cadPatchSource,
+    'both',
+    true,
+    'Replace one unique snippet in an existing part\'s OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.',
+  ),
+  def(
+    'cad.compose',
+    cadCompose,
+    'both',
+    true,
+    'Place existing parts together with translate/rotate (no mates, no STEP). Each part\'s source is wrapped in a module so its variables stay isolated. Returns a new mechanical artifact with the combined mesh.',
   ),
   def('cad.export', cadExport, 'user', false, 'Export STL/SCAD file to a chosen path'),
 
