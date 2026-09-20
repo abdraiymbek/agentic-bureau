@@ -3,7 +3,7 @@ import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import type { Proposal, Revision, Artifact, ProposedChange } from '@omenflow/contracts';
 import { formatQty, isUnknown } from '@omenflow/contracts';
-import { EmptyState, PageHeader, StatusBadge, SearchField } from '../components/ui';
+import { ArtifactIcon, EmptyState, PageHeader, StatusBadge, SearchField } from '../components/ui';
 import { GitBranch, CheckCircle } from '@phosphor-icons/react';
 
 interface ProposalDetail {
@@ -79,7 +79,7 @@ export function ReviewsView() {
       <PageHeader
         title="Review queue"
         count={proposals.filter((p) => p.state === 'pending').length}
-        description="Inspect the changes. Understand the impact. You decide what lands."
+        compact
       />
       <div className="toolbar">
         <div className="segmented">
@@ -188,12 +188,15 @@ function ReviewDetail(props: {
           }}
         >
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span
-              style={{ fontWeight: 600, cursor: 'pointer' }}
+            <button
+              className="table-title-button review-object"
+              title="Inspect this object"
+              disabled={!artifact}
               onClick={() => artifact && props.selectArtifact(artifact.id)}
             >
+              {artifact && <ArtifactIcon type={artifact.type} size={14} />}
               {artifact?.title ?? change.artifactId.slice(0, 8)}
-            </span>
+            </button>
             <span className="pill">{change.kind.replaceAll('_', ' ')}</span>
           </div>
           <div className="faint" style={{ fontSize: 11, margin: '4px 0' }}>
@@ -247,16 +250,15 @@ function ReviewDetail(props: {
       )}
 
       {(p.state === 'pending' || p.state === 'changes_requested') && (
-        <div className="review-decision">
+        <div className="review-decision" role="group" aria-label="Decision">
           <label htmlFor="review-rationale">Decision rationale</label>
           <textarea
             id="review-rationale"
             disabled={props.busy}
             rows={2}
-            placeholder="Rationale (optional)"
+            placeholder="Why this decision is right for the design (optional, kept in the record)"
             value={props.rationale}
             onChange={(e) => props.setRationale(e.target.value)}
-            style={{ width: '100%', marginBottom: 8 }}
           />
           <div className="row">
             <button
@@ -264,7 +266,7 @@ function ReviewDetail(props: {
               disabled={props.busy}
               onClick={() => props.act('proposal.approve', p.id)}
             >
-              Approve changes
+              {props.busy ? 'Recording decision…' : 'Approve changes'}
             </button>
             <button
               disabled={props.busy}
@@ -272,8 +274,9 @@ function ReviewDetail(props: {
             >
               Request changes
             </button>
+            <span className="grow" />
             <button
-              className="danger"
+              className="danger ghost"
               disabled={props.busy}
               onClick={() => props.act('proposal.reject', p.id)}
             >

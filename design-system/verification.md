@@ -2,6 +2,22 @@
 
 19 September 2026. Checks apply to this working-tree redesign, not a packaged release certification.
 
+## UX refinement pass (same day, later)
+
+Scope: information hierarchy and workflow, no visual redesign. Verified in the design preview at the default viewport and at 1024 × 700, dark and light.
+
+- Shell: breadcrumb shows Project › Route › Object; project crumb returns to Overview. Sidebar “Recent objects” fills as objects are opened (Camera tray → Rover mass budget → Payload capacity), carries the out-of-date mark, and persists per project. Design-system button removed from the titlebar (still reachable from the sidebar, launcher, and ⌘K).
+- Agent panel idle state is compact (provider, detection state, one start action, review boundary); duplicated project counts and the footer strip are gone. Session state renders as words with the provider name; the Agent tab shows a live mark when running.
+- Status strip: Local project · N awaiting review · N out of date · tool job activity · agent state. Full path moved to a tooltip; Files & exports keeps it visible.
+- Overview: summary strip opens its workspaces; attention rows name the discipline and reason; the engineering record is one row per discipline with state summary; the workstream card grid and the six-row object table are removed. After approving the preview proposal the strip flags 3 out of date and three attention rows appear.
+- Design files / Requirements / Review queue use the compact header; the browser groups fold and the selected group stays open; Inspect sits in the object heading and shows an active state while the Inspector is open.
+- Mechanical: canvas first, Parameters section with Apply/Discard appearing only when edited, Source disclosure carrying Validate and Save. Wiring/calculation actions use the shared compact button style.
+- Review queue: decision area pinned to the bottom; Approve primary, Reject demoted; controls disable during the decision; object titles in change cards are real buttons that open the Inspector.
+- Inspector: identifier moved to a metadata row; “Open in Design files / Requirements” appears when the object’s workspace is not the current route.
+- `pnpm typecheck`, renderer lint, and `pnpm test` (13 files, 95 passed, 1 skipped) pass after the changes.
+
+Not covered here: a running agent CLI session (the preview cannot start one), so the live tab mark and terminal state labels were checked by code review only.
+
 ## Automated checks
 
 | Check                                                                              | Result                                                                       |

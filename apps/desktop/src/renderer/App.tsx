@@ -21,7 +21,7 @@ import { StatusBar } from './components/StatusBar';
 import { Inspector } from './components/Inspector';
 import { TerminalPane } from './components/TerminalPane';
 import { CommandPalette } from './components/CommandPalette';
-import { IconButton } from './components/ui';
+import { ArtifactIcon, IconButton } from './components/ui';
 import { WelcomeView } from './views/WelcomeView';
 import { OverviewView } from './views/OverviewView';
 import { RequirementsView } from './views/RequirementsView';
@@ -48,8 +48,18 @@ export default function App() {
     sidecarOpen,
     sidecarTab,
     sidebarOpen,
+    artifacts,
+    selectedArtifactId,
+    session,
+    navigate,
   } = useStore();
   const sidePanel = useRef<ImperativePanelHandle>(null);
+  // The breadcrumb names the object being worked on, not just the section.
+  const selected =
+    nav === 'artifacts' || nav === 'requirements'
+      ? artifacts.find((v) => v.artifact.id === selectedArtifactId)
+      : undefined;
+  const agentRunning = session?.state === 'running' || session?.state === 'starting';
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.documentElement.dataset.density = density;
@@ -124,12 +134,29 @@ export default function App() {
               <PanelGroup direction="horizontal" autoSaveId="omen-workspace-v1">
                 <Panel minSize={40}>
                   <main className="main-panel">
-                    <div className="breadcrumb-bar">
+                    <nav className="breadcrumb-bar" aria-label="Location">
                       <Cube size={14} />
-                      <span className="truncate">{project?.name}</span>
+                      <button
+                        className="crumb truncate"
+                        onClick={() => navigate('overview')}
+                        title={project?.name}
+                      >
+                        {project?.name}
+                      </button>
                       <CaretRight size={11} />
-                      <span>{NAV_ITEMS.find((n) => n.id === nav)?.label}</span>
-                    </div>
+                      <span className={selected ? 'crumb' : 'crumb current'}>
+                        {NAV_ITEMS.find((n) => n.id === nav)?.label}
+                      </span>
+                      {selected && (
+                        <>
+                          <CaretRight size={11} />
+                          <span className="crumb current truncate" title={selected.artifact.title}>
+                            <ArtifactIcon type={selected.artifact.type} size={13} />
+                            {selected.artifact.title}
+                          </span>
+                        </>
+                      )}
+                    </nav>
                     <div className="surface">
                       <Surface nav={nav} />
                     </div>
@@ -152,6 +179,9 @@ export default function App() {
                       >
                         <TerminalWindow size={14} />
                         Agent
+                        {agentRunning && (
+                          <span className="live-dot" aria-label="Agent session running" />
+                        )}
                       </button>
                       <button
                         className={`sidecar-tab ${sidecarTab === 'inspector' ? 'active' : ''}`}

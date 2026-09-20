@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import {
   ArrowRight,
+  CaretRight,
   CheckCircle,
   Circle,
   Cube,
@@ -116,20 +117,23 @@ export function PageHeader({
   description,
   children,
   count,
+  compact = false,
 }: {
   title: string;
   description?: string;
   children?: React.ReactNode;
   count?: number;
+  /** Object workspaces: the object is the subject, so the header only names the route. */
+  compact?: boolean;
 }) {
   return (
-    <header className="page-header">
+    <header className={`page-header ${compact ? 'compact' : ''}`}>
       <div>
         <div className="page-title-row">
           <h1>{title}</h1>
           {count !== undefined && <span className="count">{count}</span>}
         </div>
-        {description && <p>{description}</p>}
+        {description && !compact && <p>{description}</p>}
       </div>
       {children && <div className="page-actions">{children}</div>}
     </header>
@@ -178,6 +182,39 @@ export function SearchField({
           <X size={13} />
         </IconButton>
       )}
+    </div>
+  );
+}
+/**
+ * Collapsible group inside an object browser. Groups stay open by default; the engineer
+ * folds the disciplines they are not working in. A group holding the selection never hides it.
+ */
+export function ObjectGroup({
+  label,
+  count,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="object-group">
+      <button
+        className="object-group-label"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+        title={collapsed ? `Show ${label.toLowerCase()}` : `Hide ${label.toLowerCase()}`}
+      >
+        <CaretRight size={11} className={`object-group-caret ${collapsed ? '' : 'open'}`} />
+        <span className="grow truncate">{label}</span>
+        <span>{count}</span>
+      </button>
+      {!collapsed && children}
     </div>
   );
 }

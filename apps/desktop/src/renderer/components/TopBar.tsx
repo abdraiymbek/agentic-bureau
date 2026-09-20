@@ -6,7 +6,6 @@ import {
   Moon,
   Sun,
   TerminalWindow,
-  SquaresFour,
 } from '@phosphor-icons/react';
 import { useStore } from '../store';
 import { Brand, IconButton } from './ui';
@@ -55,9 +54,6 @@ export function TopBar() {
             </IconButton>
           </>
         )}
-        <IconButton label="Design system" onClick={() => set({ nav: 'design-system' })}>
-          <SquaresFour size={16} />
-        </IconButton>
       </div>
     </header>
   );

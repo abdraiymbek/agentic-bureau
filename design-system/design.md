@@ -37,9 +37,22 @@ Internal domain terms remain valid in APIs. Prefer the user-facing names in navi
 
 ### Navigation
 
-Primary order: **Overview → Requirements → Design files → Parts & materials → Review queue → History & impact → Files & exports**. Project object shortcuts sit below these routes in their own scrolling region. Connections and Design system stay at the bottom. The project switcher opens another active project or the launcher. Long names truncate with their full text available through tooltips or the selected detail.
+Primary order: **Overview → Requirements → Design files → Parts & materials → Review queue → History & impact → Files & exports**. Below these routes, **Recent objects** lists the objects the engineer actually opened (newest first, at most six, remembered per project) so the working set is one click away; it is not a copy of the Design files browser. Connections and Design system stay at the bottom. The project switcher opens another active project or the launcher. Long names truncate with their full text available through tooltips or the selected detail.
 
-Only show counts from actual project state. Pending reviews and out-of-date objects are useful interruptions; decorative activity counters are not.
+The breadcrumb answers “where am I”: **Project › Route › Object**. The project crumb returns to Overview; the object crumb appears whenever an object workspace has a selection. Only show counts from actual project state. Pending reviews and out-of-date objects are useful interruptions; decorative activity counters are not.
+
+### Information hierarchy
+
+Every persistent element must earn its place. Use four tiers:
+
+| Tier                 | Examples                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| Always visible       | Navigation, breadcrumb, the current object and its review/freshness state, pending/stale counts  |
+| One interaction away | Inspector, agent terminal, object browser groups, source editor, command palette                 |
+| Contextual           | Actions that belong to the selected object (Render, Validate, Apply parameters, Approve changes) |
+| Deep                 | Adapter arguments, diagnostics, identifiers, tool versions                                       |
+
+Do not duplicate the same count in more than two places. Status colour marks state; it never decorates chrome.
 
 ## 3. Brand assets
 
@@ -126,7 +139,7 @@ The preview uses disposable projects. Production keeps native folder and archive
 
 ### Overview
 
-Start with project name and intent. Then show compact actual counts and actionable attention items. Follow with engineering disciplines, the engineering record, and recent decisions. Attention rows link to review or affected objects. Empty projects explain how an agent begins the record. Avoid a generic dashboard grid of unrelated cards or vanity metrics.
+Start with project name and intent. Then show a summary strip whose four counts (requirements, approved, awaiting review, out of date) are entry points into their workspaces, not vanity metrics. Follow with actionable attention items, then **one** engineering record: a row per discipline with its count and state summary (out of date, in review, without baseline) that opens that discipline. Finish with recent decisions naming the object they touched. Attention rows link to review or affected objects. Empty projects explain how an agent begins the record. Avoid a dashboard grid of discipline cards, arbitrary object tables, or any count that cannot be acted on.
 
 ### Requirements and assumptions
 
@@ -134,7 +147,7 @@ Use a searchable object list beside a readable form. Every requirement exposes i
 
 ### Design files
 
-One grouped browser serves multiple engineering disciplines. Object type determines the working surface:
+One grouped browser serves multiple engineering disciplines. Groups fold (`ObjectGroup`); a search or the current selection always keeps its group open. Object workspaces use the compact page header: the route is named once and the object owns the surface. The Inspect action sits in the object heading, not at page level. Object type determines the working surface:
 
 | Type                                | Primary surface                                                             | Evidence/context                                                     |
 | ----------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -160,7 +173,7 @@ BOM and Candidates are adjacent modes. BOM keeps part identity, quantity, cost, 
 
 The review list stays distinct from the selected proposal. Present a human title, change count, baseline/proposed values, named downstream impact, and decision rationale. Quantities remain atomic in the diff: **0.3 kg → 0.5 kg**, not disconnected value and unit changes.
 
-Approval is the single primary decision action. Request changes and Reject remain distinct, clearly labeled alternatives. Pending, approved, rejected, and changes requested have different states. Disable controls during a decision. A successful decision refreshes the project record and its impact state. Human approval never means the model has passed validation or become fit for manufacture.
+Approval is the single primary decision action. Request changes and Reject remain distinct, clearly labeled alternatives; Reject is visually demoted and placed apart. The decision area stays pinned to the bottom of the proposal so a long diff never hides it. Pending, approved, rejected, and changes requested have different states. Disable controls during a decision. A successful decision refreshes the project record and its impact state. Human approval never means the model has passed validation or become fit for manufacture.
 
 ### History & impact
 
@@ -176,9 +189,9 @@ Show actual agent availability, setup instructions, and test outcomes. Support t
 
 ### Agent and Inspector
 
-The Agent panel explains project context before connecting and provides a real embedded terminal after connection. Keep provider, find, expand, interrupt, stop, and restart discoverable. Display actual session state. Do not replace the functioning CLI with fabricated conversational bubbles or invented progress.
+Before connection the Agent panel is quiet: the selected provider, whether it is detected, one start action, and the review boundary. It does not restate project counts shown elsewhere and it is not a hero. After connection it provides a real embedded terminal. Keep provider, find, expand, interrupt, stop, and restart discoverable. Display actual session state in words (Starting, Running, Ended, Failed) with the provider name; the Agent tab shows a live mark while a session runs and the status strip reports session and tool-job state. Do not replace the functioning CLI with fabricated conversational bubbles or invented progress.
 
-Inspector explains the selected object without forcing a route change: baseline, review/freshness, properties, sources, inputs, dependents, and stale reasons. Empty selection, loading, and read failures must remain intelligible. Technical identifiers belong in metadata, not as the first or only label.
+Inspector explains the selected object without forcing a route change: baseline, review/freshness, properties, sources, inputs, dependents, and stale reasons. When the object’s workspace is not the current route, offer “Open in Design files / Requirements”. Empty selection, loading, and read failures must remain intelligible. Technical identifiers belong in metadata rows, not as the first or only label.
 
 ## 7. Component and interaction rules
 
@@ -186,9 +199,11 @@ Shared primitives live in `apps/desktop/src/renderer/components/ui.tsx`:
 
 - `Brand`, `ArtifactIcon`: consistent identity and object language.
 - `IconButton`: accessible name, native hover title, focus ring, forwarded ref for Radix.
-- `PageHeader`, `SectionHeading`: stable heading and action placement.
+- `PageHeader`, `SectionHeading`: stable heading and action placement. `PageHeader compact` for object workspaces.
 - `StatusBadge`: text plus icon plus semantic color.
+- `ObjectGroup`: foldable discipline group inside an object browser, with count and caret.
 - `ObjectRow`: selected state, name, revision metadata, attention indicator.
+- `InspectButton` (`components/InspectButton.tsx`): opens the Inspector from an object heading.
 - `SearchField`: visible query, accessible label, clear action.
 - `FormField`: connected label, input ID, optional described hint.
 - `EmptyState`: specific explanation and a relevant recovery or first action.

@@ -36,6 +36,8 @@ interface State {
   recents: string[];
   artifacts: ArtifactView[];
   selectedArtifactId: string | null;
+  /** Most recently worked-on objects, newest first. The sidebar shows these as the working set. */
+  recentArtifactIds: string[];
   nav: Nav;
   proposals: Proposal[];
   events: ProjectEvent[];
@@ -63,6 +65,8 @@ interface State {
   refreshAdapters: () => Promise<void>;
   refreshSession: () => Promise<void>;
   selectArtifact: (id: string | null) => void;
+  /** Select an object and move to the workspace that edits its type. */
+  openArtifact: (id: string, type: string) => void;
   navigate: (n: Nav) => void;
   toast: (kind: Toast['kind'], text: string) => void;
   pushEvent: (e: ProjectEvent) => void;
@@ -78,6 +82,33 @@ function readPreference(key: string): string | null {
 
 let toastSeq = 0;
 
+const RECENT_LIMIT = 6;
+const recentKey = (projectId: string) => `omen.recent.${projectId}`;
+function readRecents(projectId: string | null): string[] {
+  if (!projectId) return [];
+  try {
+    const raw = localStorage.getItem(recentKey(projectId));
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function writeRecents(projectId: string | null, ids: string[]) {
+  if (!projectId) return;
+  try {
+    localStorage.setItem(recentKey(projectId), JSON.stringify(ids));
+  } catch {
+    /* the working set is a convenience; storage failure is not an error */
+  }
+}
+
+/** The workspace that edits an object of this type. */
+export function navForType(type: string): Nav {
+  if (type === 'requirement' || type === 'assumption') return 'requirements';
+  return 'artifacts';
+}
+
 export const useStore = create<State>((set, get) => ({
   projectId: null,
   project: null,
@@ -86,6 +117,7 @@ export const useStore = create<State>((set, get) => ({
   recents: [],
   artifacts: [],
   selectedArtifactId: null,
+  recentArtifactIds: [],
   nav: 'overview',
   proposals: [],
   events: [],
@@ -104,9 +136,16 @@ export const useStore = create<State>((set, get) => ({
   quickOpen: false,
   toasts: [],
 
-  set: (p) => set(p),
+  set: (p) => {
+    // Opening or switching projects swaps the remembered working set with it.
+    if ('projectId' in p && p.projectId !== get().projectId) {
+      set({ ...p, recentArtifactIds: readRecents(p.projectId ?? null) });
+      return;
+    }
+    set(p);
+  },
   setActive: (projectId) => {
-    set({ projectId });
+    set({ projectId, recentArtifactIds: readRecents(projectId) });
     void window.omenflow.setActiveProject(projectId);
   },
   refreshArtifacts: async () => {
@@ -153,7 +192,20 @@ export const useStore = create<State>((set, get) => ({
     const r = await cmd<{ session: SessionInfo | null }>('terminal.state', {}, { projectId });
     set({ session: r.session });
   },
-  selectArtifact: (id) => set({ selectedArtifactId: id }),
+  selectArtifact: (id) => {
+    if (!id) {
+      set({ selectedArtifactId: null });
+      return;
+    }
+    const { projectId, recentArtifactIds } = get();
+    const recentIds = [id, ...recentArtifactIds.filter((x) => x !== id)].slice(0, RECENT_LIMIT);
+    writeRecents(projectId, recentIds);
+    set({ selectedArtifactId: id, recentArtifactIds: recentIds });
+  },
+  openArtifact: (id, type) => {
+    get().selectArtifact(id);
+    set({ nav: navForType(type) });
+  },
   navigate: (nav) => set({ nav }),
   toast: (kind, text) => {
     const id = ++toastSeq;
@@ -186,8 +238,8 @@ export const useStore = create<State>((set, get) => ({
     }
     if (e.type === 'ui.open_artifact') {
       const d = e.data as { artifactId: string };
-      s.selectArtifact(d.artifactId);
-      s.navigate('artifacts');
+      const type = s.artifacts.find((v) => v.artifact.id === d.artifactId)?.artifact.type;
+      s.openArtifact(d.artifactId, type ?? 'note');
     }
     if (e.type === 'ui.request_review') {
       s.navigate('reviews');

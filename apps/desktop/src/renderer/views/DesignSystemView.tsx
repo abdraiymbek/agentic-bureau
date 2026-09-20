@@ -12,10 +12,12 @@ import {
   ListChecks,
 } from '@phosphor-icons/react';
 import {
+  ArtifactIcon,
   Brand,
   EmptyState,
   FormField,
   IconButton,
+  ObjectGroup,
   PageHeader,
   SearchField,
   SectionHeading,
@@ -28,6 +30,7 @@ export function DesignSystemView() {
   const [filter, setFilter] = useState('');
   const [name, setName] = useState('Camera mounting plate');
   const [selected, setSelected] = useState('Requirements');
+  const [groupCollapsed, setGroupCollapsed] = useState(false);
   const swatches = [
     { label: 'Application', token: '--bg-app' },
     { label: 'Workspace', token: '--bg-main' },
@@ -172,6 +175,48 @@ export function DesignSystemView() {
                 );
               })}
             <p className="ds-note">Selected: {selected}</p>
+          </div>
+        </div>
+        <div className="ds-form-grid">
+          <div className="ds-nav-example" style={{ background: 'var(--bg-main)' }}>
+            <ObjectGroup
+              label="Calculations"
+              count={2}
+              collapsed={groupCollapsed}
+              onToggle={() => setGroupCollapsed((c) => !c)}
+            >
+              <button className="object-row selected" aria-pressed="true">
+                <span className="object-icon">
+                  <ArtifactIcon type="calculation" />
+                </span>
+                <span className="object-row-copy">
+                  <span>Rover mass budget</span>
+                  <small>Revision 1</small>
+                </span>
+              </button>
+              <button className="object-row">
+                <span className="object-icon">
+                  <ArtifactIcon type="calculation" />
+                </span>
+                <span className="object-row-copy">
+                  <span>Wheel torque at 15° incline</span>
+                  <small>Revision 1</small>
+                </span>
+              </button>
+            </ObjectGroup>
+            <p className="ds-note">
+              Object browser group. Groups fold so the engineer sees only the disciplines in play; a
+              search or the current selection always keeps its group open.
+            </p>
+          </div>
+          <div>
+            <div className="ds-nav-example" style={{ padding: 0, overflow: 'hidden' }}>
+              <PageHeader title="Design files" count={26} compact />
+            </div>
+            <p className="ds-note">
+              Compact page header for object workspaces: the route is named once, the object owns
+              the surface, and the breadcrumb carries the full location.
+            </p>
           </div>
         </div>
       </section>

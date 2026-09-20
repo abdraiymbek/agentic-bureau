@@ -8,9 +8,6 @@ import {
   Pause,
   ArrowClockwise,
   TerminalWindow,
-  ListChecks,
-  Cube,
-  GitBranch,
 } from '@phosphor-icons/react';
 import { Brand, IconButton } from './ui';
 import { Terminal } from '@xterm/xterm';
@@ -40,9 +37,8 @@ export function TerminalPane() {
     set,
     toast,
     projectId,
+    project,
     theme,
-    artifacts,
-    proposals,
     sidecarTab,
     sidecarOpen,
   } = useStore();
@@ -237,45 +233,28 @@ export function TerminalPane() {
       {!session && (
         <div className="agent-welcome">
           <Brand compact />
-          <h2>
-            Think it through.
-            <br />
-            Build it together.
-          </h2>
-          <p>Your agent works with the requirements, design files, and evidence in this project.</p>
-          <div className="agent-context">
-            <div>
-              <ListChecks size={15} />
-              <span>Project requirements</span>
-              <span className="count">
-                {artifacts.filter((v) => v.artifact.type === 'requirement').length}
-              </span>
-            </div>
-            <div>
-              <Cube size={15} />
-              <span>Engineering objects</span>
-              <span className="count">{artifacts.length}</span>
-            </div>
-            <div>
-              <GitBranch size={15} />
-              <span>Proposals to review</span>
-              <span className="count">{proposals.filter((p) => p.state === 'pending').length}</span>
-            </div>
-          </div>
+          <h2>No agent session</h2>
+          <p>
+            {currentAdapter?.available
+              ? `Start ${currentAdapter.label} here. It works inside ${project?.name ?? 'this project'} and proposes changes for you to review.`
+              : `${currentAdapter?.label ?? 'The selected agent'} is not detected on this machine. Connect it to work on ${project?.name ?? 'this project'} from this terminal.`}
+          </p>
           <button
             className="primary"
             onClick={() => void start()}
             disabled={starting || !currentAdapter?.available}
           >
             <Play size={14} />
-            {starting ? 'Connecting…' : 'Start agent session'}
+            {starting ? 'Connecting…' : `Start ${currentAdapter?.label ?? 'agent'}`}
           </button>
           {currentAdapter && !currentAdapter.available && (
             <button className="text-link" onClick={() => set({ nav: 'connections' })}>
               Set up {currentAdapter.label} in Connections
             </button>
           )}
-          <span className="agent-boundary">You approve what becomes the baseline.</span>
+          <span className="agent-boundary">
+            Nothing an agent proposes becomes the baseline until you approve it.
+          </span>
         </div>
       )}
       <div
@@ -287,9 +266,11 @@ export function TerminalPane() {
       {session && (
         <div className="agent-session-actions">
           <span
-            className={`session-indicator ${running ? 'ok' : session.state === 'failed' ? 'err' : 'dim'}`}
+            className={`session-indicator row ${running ? 'ok' : session.state === 'failed' ? 'err' : 'dim'}`}
           >
-            {session.state}
+            {running && <span className="live-dot" aria-hidden="true" />}
+            {sessionLabels[session.state] ?? session.state}
+            <span className="faint">· {currentAdapter?.label ?? session.adapterId}</span>
           </span>
           <span className="grow" />
           {running ? (
@@ -314,15 +295,17 @@ export function TerminalPane() {
           )}
         </div>
       )}
-      <div className="agent-footer">
-        <TerminalWindow size={12} />
-        <span>Local agent session</span>
-        <span className="grow" />
-        <kbd>⌘ J</kbd>
-      </div>
     </div>
   );
 }
+const sessionLabels: Record<string, string> = {
+  starting: 'Starting',
+  running: 'Running',
+  exited: 'Ended',
+  failed: 'Failed',
+  stopped: 'Stopped',
+  interrupted: 'Interrupted',
+};
 function terminalTheme() {
   const css = getComputedStyle(document.documentElement);
   const color = (token: string) => css.getPropertyValue(token).trim();

@@ -12,12 +12,12 @@ import {
   CaretUpDown,
   ArrowSquareOut,
   CheckSquare,
-  HardDrive,
   SquaresFour,
+  WarningCircle,
 } from '@phosphor-icons/react';
 import { useStore, type Nav } from '../store';
 import { cmd, errMsg } from '../api';
-import { ArtifactIcon } from './ui';
+import { ArtifactIcon, typeLabels } from './ui';
 
 export const NAV_ITEMS: { id: Nav; label: string; icon: typeof Cube }[] = [
   { id: 'overview', label: 'Overview', icon: House },
@@ -37,8 +37,9 @@ export function Sidebar() {
     navigate,
     proposals,
     artifacts,
-    selectArtifact,
+    openArtifact,
     selectedArtifactId,
+    recentArtifactIds,
     project,
     projectId,
     set,
@@ -48,9 +49,10 @@ export function Sidebar() {
     [],
   );
   const pending = proposals.filter((p) => p.state === 'pending').length;
-  const designFiles = artifacts
-    .filter((v) => ['mechanical', 'wiring', 'calculation', 'software'].includes(v.artifact.type))
-    .slice(0, 7);
+  // The working set: objects the engineer actually opened, newest first.
+  const recent = recentArtifactIds
+    .map((id) => artifacts.find((v) => v.artifact.id === id))
+    .filter((v): v is NonNullable<typeof v> => !!v);
   const closeProject = async () => {
     try {
       await cmd('project.close', {}, { projectId: projectId ?? undefined });
@@ -169,25 +171,28 @@ export function Sidebar() {
           </button>
         ))}
       </nav>
-      {designFiles.length > 0 && (
-        <div className="nav-group">
-          <div className="nav-label">
-            Project objects<span>{artifacts.length}</span>
-          </div>
-          {designFiles.map((v) => (
-            <button
-              key={v.artifact.id}
-              className={`nav-item ${nav === 'artifacts' && selectedArtifactId === v.artifact.id ? 'active' : ''}`}
-              title={v.artifact.title}
-              onClick={() => {
-                selectArtifact(v.artifact.id);
-                navigate('artifacts');
-              }}
-            >
-              <ArtifactIcon type={v.artifact.type} size={14} />
-              <span>{v.artifact.title}</span>
-            </button>
-          ))}
+      {recent.length > 0 && (
+        <div className="nav-group" aria-label="Recently opened objects">
+          <div className="nav-label">Recent objects</div>
+          {recent.map((v) => {
+            const active =
+              selectedArtifactId === v.artifact.id &&
+              (nav === 'artifacts' || nav === 'requirements');
+            return (
+              <button
+                key={v.artifact.id}
+                className={`nav-item ${active ? 'active' : ''}`}
+                title={`${v.artifact.title} · ${typeLabels[v.artifact.type] ?? v.artifact.type}`}
+                onClick={() => openArtifact(v.artifact.id, v.artifact.type)}
+              >
+                <ArtifactIcon type={v.artifact.type} size={14} />
+                <span>{v.artifact.title}</span>
+                {v.freshness !== 'current' && (
+                  <WarningCircle size={13} className="warn" aria-label="Out of date" />
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
       <div className="sidebar-bottom">
@@ -205,10 +210,6 @@ export function Sidebar() {
           <FileText size={16} />
           Design system
         </button>
-        <div className="sidebar-note">
-          <HardDrive size={13} />
-          Your project. On your machine.
-        </div>
       </div>
     </aside>
   );

@@ -26,12 +26,15 @@ import {
   ArtifactIcon,
   FormField,
   EmptyState,
+  ObjectGroup,
   ObjectRow,
   PageHeader,
   SearchField,
   StatusBadge,
   typeLabels,
 } from '../components/ui';
+import { InspectButton } from '../components/InspectButton';
+import { CaretRight } from '@phosphor-icons/react';
 
 const TYPE_ORDER: ArtifactType[] = [
   'mechanical',
@@ -51,8 +54,16 @@ const TYPE_ORDER: ArtifactType[] = [
 ];
 
 export function ArtifactsView() {
-  const { artifacts, selectedArtifactId, selectArtifact, set } = useStore();
+  const { artifacts, selectedArtifactId, selectArtifact } = useStore();
   const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<ArtifactType>>(new Set());
+  const toggleGroup = (type: ArtifactType) =>
+    setCollapsed((s) => {
+      const next = new Set(s);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
   const grouped = useMemo(
     () =>
       TYPE_ORDER.map(
@@ -76,37 +87,32 @@ export function ArtifactsView() {
   }, [selected, selectedArtifactId, selectArtifact]);
   return (
     <div className="page">
-      <PageHeader
-        title="Design files"
-        count={artifacts.length}
-        description="Models, calculations, and the evidence that connects them."
-      >
-        <button
-          className="ghost"
-          onClick={() => set({ sidecarOpen: true, sidecarTab: 'inspector' })}
-        >
-          Inspect object
-        </button>
-      </PageHeader>
+      <PageHeader title="Design files" count={artifacts.length} compact />
       <div className="object-layout">
         <aside className="object-browser" aria-label="Project objects">
           <SearchField value={query} onChange={setQuery} placeholder="Find a design file" />
-          {grouped.map(([type, views]) => (
-            <div key={type}>
-              <div className="object-group-label">
-                {typeLabels[type]}
-                <span>{views.length}</span>
-              </div>
-              {views.map((v) => (
-                <ObjectRow
-                  key={v.artifact.id}
-                  view={v}
-                  selected={selected?.artifact.id === v.artifact.id}
-                  onClick={() => selectArtifact(v.artifact.id)}
-                />
-              ))}
-            </div>
-          ))}
+          {grouped.map(([type, views]) => {
+            const holdsSelection = views.some((v) => v.artifact.id === selected?.artifact.id);
+            return (
+              <ObjectGroup
+                key={type}
+                label={typeLabels[type] ?? type}
+                count={views.length}
+                // A search or the current selection always shows its group.
+                collapsed={collapsed.has(type) && !query && !holdsSelection}
+                onToggle={() => toggleGroup(type)}
+              >
+                {views.map((v) => (
+                  <ObjectRow
+                    key={v.artifact.id}
+                    view={v}
+                    selected={selected?.artifact.id === v.artifact.id}
+                    onClick={() => selectArtifact(v.artifact.id)}
+                  />
+                ))}
+              </ObjectGroup>
+            );
+          })}
           {!grouped.length && (
             <p className="browser-empty">
               {query ? 'No matching design files.' : 'No engineering objects yet.'}
@@ -249,55 +255,39 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 24, gap: 12 }}>
+    <div className="mechanical-detail">
       <Header
         view={view}
         actions={
           <>
-            <button style={{ height: 26, fontSize: 12 }} onClick={validate}>
-              Validate source
-            </button>
-            <button
-              className="primary"
-              style={{ height: 26, fontSize: 12 }}
-              onClick={render}
-              disabled={busy}
-            >
-              Render STL
+            <button className="primary compact" onClick={render} disabled={busy}>
+              {busy ? 'Starting render…' : 'Render STL'}
             </button>
             {draft && (
-              <button style={{ height: 26, fontSize: 12 }} onClick={acceptDraft}>
-                Accept draft rev {draft.seq}
+              <button className="compact" onClick={acceptDraft}>
+                Accept draft revision {draft.seq}
               </button>
             )}
           </>
         }
       />
-      <div
-        style={{
-          flex: 1,
-          minHeight: 260,
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          overflow: 'hidden',
-        }}
-      >
+      <div className="canvas-frame">
         {stl ? (
           <StlViewport stlData={stl} compareData={compareStl} modelUnit={p.modelUnit ?? 'mm'} />
         ) : (
-          <div className="faint" style={{ padding: 24 }}>
-            No geometry on this revision. Render the model to inspect it in 3D.
-          </div>
+          <EmptyState
+            title="No geometry on this revision"
+            body="Render the model from its source to inspect it in 3D. Rendering needs OpenSCAD on this machine."
+            action={
+              <button className="primary" onClick={render} disabled={busy}>
+                Render STL
+              </button>
+            }
+          />
         )}
       </div>
       {p.manufacturing?.includes('Illustrative') && (
         <div className="inline-notice warning">{p.manufacturing}</div>
-      )}
-      {p.bounds && (
-        <div className="mono dim" style={{ fontSize: 12 }}>
-          Bounds: {p.bounds.min.map((n) => n.toFixed(1)).join(', ')} →{' '}
-          {p.bounds.max.map((n) => n.toFixed(1)).join(', ')} {p.modelUnit}
-        </div>
       )}
       <ParamsTable
         params={p.params ?? {}}
@@ -305,7 +295,7 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
         artifactId={view.artifact.id}
         revisionId={rev?.id}
       />
-      <ScadEditor view={view} />
+      <ScadEditor view={view} onValidate={validate} />
     </div>
   );
 }
@@ -353,57 +343,62 @@ function ParamsTable(props: {
       toast('error', errMsg(e));
     }
   };
+  const dirty = Object.values(edits).some((v) => v !== '');
   return (
-    <div>
-      <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>
-        Parameters
+    <section className="detail-section">
+      <div className="section-heading">
+        <h2>
+          Parameters<span className="count">{entries.length}</span>
+        </h2>
+        {dirty && (
+          <div className="row">
+            <button className="ghost compact" onClick={() => setEdits({})}>
+              Discard
+            </button>
+            <button className="primary compact" onClick={commit}>
+              Apply parameters
+            </button>
+          </div>
+        )}
       </div>
-      <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+      <table className="params-table">
         <tbody>
           {entries.map(([k, v]) => {
             const n = numOf(v);
             return (
               <tr key={k}>
-                <td className="dim" style={{ padding: '3px 8px 3px 0' }}>
-                  {k}
-                </td>
+                <td className="dim">{k}</td>
                 <td>
                   {n !== undefined ? (
                     <input
                       aria-label={`${k} (${unitOf(v)})`}
                       className="num"
-                      style={{ width: 90, height: 24, fontSize: 12 }}
-                      defaultValue={n}
+                      value={edits[k] ?? String(n)}
                       onChange={(e) => setEdits((s) => ({ ...s, [k]: e.target.value }))}
                     />
                   ) : (
-                    <span className="mono" style={{ fontSize: 12 }}>
+                    <span className="mono">
                       {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                     </span>
                   )}
                 </td>
-                <td className="faint" style={{ padding: '3px 0 3px 6px' }}>
-                  {unitOf(v)}
-                </td>
+                <td className="faint">{unitOf(v)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      {Object.values(edits).some((v) => v !== '') && (
-        <button
-          className="primary"
-          style={{ height: 26, fontSize: 12, marginTop: 6 }}
-          onClick={commit}
-        >
-          Apply
-        </button>
+      {dirty && (
+        <p className="table-footnote">
+          Applying creates a new revision and marks dependent objects out of date until they are
+          re-run.
+        </p>
       )}
-    </div>
+    </section>
   );
 }
 
-function ScadEditor({ view }: { view: ArtifactView }) {
+function ScadEditor({ view, onValidate }: { view: ArtifactView; onValidate: () => void }) {
   const { refreshArtifacts, toast } = useStore();
   const scad = view.revision?.files.find((f) => f.path.endsWith('.scad'));
   const [src, setSrc] = useState<string | null>(null);
@@ -438,34 +433,37 @@ function ScadEditor({ view }: { view: ArtifactView }) {
 
   if (!scad) return null;
   return (
-    <div>
-      <button style={{ height: 24, fontSize: 12 }} onClick={() => setOpen((o) => !o)}>
-        {open ? 'Hide' : 'Show'} source ({scad.path})
-      </button>
+    <section className="detail-section">
+      <div className="section-heading">
+        <button className="disclosure" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          <CaretRight size={12} className={`object-group-caret ${open ? 'open' : ''}`} />
+          Source
+          <span className="mono faint">{scad.path}</span>
+        </button>
+        {open && (
+          <div className="row">
+            <button className="compact" onClick={onValidate}>
+              Validate source
+            </button>
+            <button className="primary compact" onClick={save} disabled={!dirty.current}>
+              Save source
+            </button>
+          </div>
+        )}
+      </div>
       {open && (
-        <div style={{ marginTop: 8 }}>
-          <textarea
-            aria-label="OpenSCAD source"
-            className="mono"
-            rows={14}
-            style={{ width: '100%', fontSize: 12 }}
-            value={src ?? ''}
-            onChange={(e) => {
-              setSrc(e.target.value);
-              dirty.current = true;
-            }}
-          />
-          <button
-            className="primary"
-            style={{ height: 26, fontSize: 12 }}
-            onClick={save}
-            disabled={!dirty.current}
-          >
-            Save source
-          </button>
-        </div>
+        <textarea
+          aria-label="OpenSCAD source"
+          className="mono source-editor"
+          rows={16}
+          value={src ?? ''}
+          onChange={(e) => {
+            setSrc(e.target.value);
+            dirty.current = true;
+          }}
+        />
       )}
-    </div>
+    </section>
   );
 }
 
@@ -514,10 +512,10 @@ function WiringDetail({ view }: { view: ArtifactView }) {
         view={view}
         actions={
           <>
-            <button style={{ height: 26, fontSize: 12 }} disabled={busy} onClick={validate}>
-              {busy ? 'Checking…' : 'Validate'}
+            <button className="compact" disabled={busy} onClick={validate}>
+              {busy ? 'Checking…' : 'Validate wiring'}
             </button>
-            <button style={{ height: 26, fontSize: 12 }} onClick={render}>
+            <button className="compact" onClick={render}>
               Render diagram
             </button>
           </>
@@ -696,12 +694,7 @@ function CalcDetail({ view }: { view: ArtifactView }) {
       <Header
         view={view}
         actions={
-          <button
-            className="primary"
-            disabled={running || !view.revision}
-            style={{ fontSize: 12 }}
-            onClick={rerun}
-          >
+          <button className="primary compact" disabled={running || !view.revision} onClick={rerun}>
             {running ? 'Calculating…' : 'Re-run recorded inputs'}
           </button>
         }
@@ -1102,6 +1095,7 @@ function Header({ view: v, actions }: { view: ArtifactView; actions?: React.Reac
         <span className="dim">{typeLabels[v.artifact.type]}</span>
         <span className="grow" />
         <StatusBadge state={v.freshness} />
+        <InspectButton />
       </div>
       <h3>{v.artifact.title}</h3>
       <div className="row">

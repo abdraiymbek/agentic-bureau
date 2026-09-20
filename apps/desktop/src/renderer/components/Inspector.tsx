@@ -9,12 +9,13 @@ import {
   SlidersHorizontal,
 } from '@phosphor-icons/react';
 import { cmd, errMsg } from '../api';
-import { useStore } from '../store';
+import { navForType, useStore } from '../store';
 import { ArtifactIcon, EmptyState, StatusBadge, typeLabels } from './ui';
 import type { Revision } from '@omenflow/contracts';
 
 export function Inspector() {
-  const { selectedArtifactId, artifacts, stale, selectArtifact, navigate, toast, set } = useStore();
+  const { selectedArtifactId, artifacts, stale, openArtifact, navigate, toast, set, nav } =
+    useStore();
   const view = artifacts.find((v) => v.artifact.id === selectedArtifactId);
   const [revision, setRevision] = useState<Revision | null>(null);
   const [neighbors, setNeighbors] = useState<{
@@ -62,9 +63,11 @@ export function Inspector() {
   const titleOf = (id: string) =>
     artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
   const showObject = (id: string) => {
-    selectArtifact(id);
-    navigate('artifacts');
+    const type = artifacts.find((v) => v.artifact.id === id)?.artifact.type ?? 'note';
+    openArtifact(id, type);
   };
+  // The object is "open" when its editing workspace is the current route.
+  const isOpen = nav === navForType(a.type);
   return (
     <div className="inspector">
       <div className="inspector-object">
@@ -73,9 +76,12 @@ export function Inspector() {
           {typeLabels[a.type]}
         </span>
         <h2>{a.title}</h2>
-        <span className="mono inspector-id" title={a.id}>
-          {a.id.slice(0, 12)}
-        </span>
+        {!isOpen && (
+          <button className="text-link" onClick={() => showObject(a.id)}>
+            Open in {navForType(a.type) === 'requirements' ? 'Requirements' : 'Design files'}
+            <ArrowRight size={12} />
+          </button>
+        )}
       </div>
       {error && (
         <div className="inline-notice warning" role="alert">
@@ -107,6 +113,11 @@ export function Inspector() {
             <span>{view.draftCount}</span>
           </Row>
         )}
+        <Row label="Identifier">
+          <span className="mono inspector-id" title={a.id}>
+            {a.id.slice(0, 8)}
+          </span>
+        </Row>
       </Section>
       {staleReasons.length > 0 && (
         <Section title="What changed">

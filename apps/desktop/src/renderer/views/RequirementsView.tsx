@@ -16,6 +16,7 @@ import {
   SearchField,
   StatusBadge,
 } from '../components/ui';
+import { InspectButton } from '../components/InspectButton';
 
 export function RequirementsView() {
   const { artifacts, selectedArtifactId, selectArtifact } = useStore();
@@ -31,11 +32,7 @@ export function RequirementsView() {
   const matches = (v: ArtifactView) => v.artifact.title.toLowerCase().includes(query.toLowerCase());
   return (
     <div className="page">
-      <PageHeader
-        title="Requirements"
-        count={reqs.length}
-        description="Define the constraints. Make every decision traceable."
-      />
+      <PageHeader title="Requirements" count={reqs.length} compact />
       <div className="object-layout">
         <aside className="object-browser" aria-label="Requirements and assumptions">
           <SearchField value={query} onChange={setQuery} placeholder="Find a requirement" />
@@ -135,7 +132,9 @@ export function RequirementSurface({ view }: { view: ArtifactView }) {
           </span>
           <span className="grow" />
           <StatusBadge state={view.freshness} />
+          <InspectButton />
         </div>
+        <h3>{view.artifact.title}</h3>
         <div className="row">
           <StatusBadge state={display.revision?.reviewState ?? 'draft'} />
           <span className="faint">
@@ -233,8 +232,7 @@ function RequirementEditor(props: {
   };
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <h3 style={{ margin: '0 0 12px' }}>{view.artifact.title}</h3>
+    <div className="detail-form">
       <Field label="Statement">
         <textarea
           rows={3}
@@ -390,8 +388,7 @@ function AssumptionEditor(props: {
   };
 
   return (
-    <div style={{ maxWidth: 640 }}>
-      <h3 style={{ margin: '0 0 12px' }}>{view.artifact.title}</h3>
+    <div className="detail-form">
       <Field label="Assumption">
         <textarea
           rows={3}
