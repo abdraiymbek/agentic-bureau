@@ -1,12 +1,12 @@
 [package]
-name = "stark-bridge"
+name = "omenflow-bridge"
 version = "0.1.0"
 edition = "2021"
-description = "stark CLI helper — connects agent sessions to the STARK app bridge"
+description = "omenflow CLI helper — connects agent sessions to the Omen Flow app bridge"
 license = "Apache-2.0"
 
 [[bin]]
-name = "stark"
+name = "omenflow"
 path = "src/main.rs"
 
 [dependencies]

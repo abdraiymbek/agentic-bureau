@@ -4,16 +4,16 @@
 
 ## Automated checks
 
-| Check                                                                           | Result                                                                       |
-| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm typecheck`                                                                | Passed across all workspace packages                                         |
-| Desktop typecheck after the final UI changes                                    | Passed                                                                       |
-| `pnpm test`                                                                     | 13 files passed; 95 tests passed, 1 skipped                                  |
-| `pnpm lint`                                                                     | Completed with 0 errors and 44 existing warnings in main/core/fixtures/tests |
-| Renderer, preview script, and preview-mesh lint after final changes             | Passed with 0 warnings/errors                                                |
-| `pnpm --filter @stark/desktop exec vite build --config vite.renderer.config.ts` | Passed                                                                       |
-| Prettier on changed text/code resources                                         | Applied; checked before delivery                                             |
-| `git diff --check`                                                              | Passed                                                                       |
+| Check                                                                              | Result                                                                       |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm typecheck`                                                                   | Passed across all workspace packages                                         |
+| Desktop typecheck after the final UI changes                                       | Passed                                                                       |
+| `pnpm test`                                                                        | 13 files passed; 95 tests passed, 1 skipped                                  |
+| `pnpm lint`                                                                        | Completed with 0 errors and 44 existing warnings in main/core/fixtures/tests |
+| Renderer, preview script, and preview-mesh lint after final changes                | Passed with 0 warnings/errors                                                |
+| `pnpm --filter @omenflow/desktop exec vite build --config vite.renderer.config.ts` | Passed                                                                       |
+| Prettier on changed text/code resources                                            | Applied; checked before delivery                                             |
+| `git diff --check`                                                                 | Passed                                                                       |
 
 The skipped test requires OpenSCAD. The production renderer reports a large-chunk warning (approximately 1.75 MB minified JavaScript, 483 KB gzip, including the engineering viewers and terminal). Route-level code splitting is an appropriate later performance task; the warning was not suppressed.
 

@@ -32,7 +32,7 @@ import { HistoryView } from './views/HistoryView';
 import { FilesView } from './views/FilesView';
 import { ConnectionsView } from './views/ConnectionsView';
 import { DesignSystemView } from './views/DesignSystemView';
-import type { ProjectEvent } from '@stark/contracts';
+import type { ProjectEvent } from '@omenflow/contracts';
 
 export default function App() {
   const {
@@ -64,9 +64,9 @@ export default function App() {
     sidePanel.current?.resize(terminalExpanded ? 50 : 29);
   }, [terminalExpanded]);
   useEffect(() => {
-    const un = window.stark.onEvent((e) => pushEvent(e as ProjectEvent));
-    const unJob = window.stark.onJobProgress(() => void useStore.getState().refreshJobs());
-    const unTerm = window.stark.onTerminalState((s) => set({ session: s as never }));
+    const un = window.omenflow.onEvent((e) => pushEvent(e as ProjectEvent));
+    const unJob = window.omenflow.onJobProgress(() => void useStore.getState().refreshJobs());
+    const unTerm = window.omenflow.onTerminalState((s) => set({ session: s as never }));
     return () => {
       un();
       unJob();
@@ -96,10 +96,10 @@ export default function App() {
       }
     };
     window.addEventListener('keydown', onKey);
-    window.addEventListener('stark:focus-terminal', focusAgent);
+    window.addEventListener('omenflow:focus-terminal', focusAgent);
     return () => {
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('stark:focus-terminal', focusAgent);
+      window.removeEventListener('omenflow:focus-terminal', focusAgent);
     };
   }, [set]);
   return (

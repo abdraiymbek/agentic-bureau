@@ -65,7 +65,7 @@ export function Sidebar() {
         selectedArtifactId: null,
         nav: 'overview',
       });
-      await window.stark.setActiveProject(null);
+      await window.omenflow.setActiveProject(null);
     } catch (error) {
       toast('error', errMsg(error));
     }
@@ -119,7 +119,7 @@ export function Sidebar() {
                         jobs: [],
                         session: null,
                       });
-                      await window.stark.setActiveProject(p.id);
+                      await window.omenflow.setActiveProject(p.id);
                       const s = useStore.getState();
                       await Promise.all([
                         s.refreshArtifacts(),

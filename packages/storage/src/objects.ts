@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, MAX_FILE_BYTES, StarkError } from '@stark/contracts';
+import { ErrorCodes, MAX_FILE_BYTES, OmenflowError } from '@omenflow/contracts';
 import { sha256Hex } from './paths.js';
 
 /**
- * Content-addressed immutable object store under `.stark/objects/`.
+ * Content-addressed immutable object store under `.omenflow/objects/`.
  * Objects are written once and never mutated; revisions reference hashes.
  */
 export class ObjectStore {
@@ -19,7 +19,7 @@ export class ObjectStore {
   /** Write bytes into the store; returns the sha256. Idempotent. */
   put(buf: Buffer): string {
     if (buf.byteLength > MAX_FILE_BYTES) {
-      throw new StarkError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
+      throw new OmenflowError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
     }
     const hash = sha256Hex(buf);
     const dest = this.objectPath(hash);

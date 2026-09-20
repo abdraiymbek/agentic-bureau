@@ -5,8 +5,8 @@ import type {
   TransportSendOptions,
 } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import { MAX_FRAME_BYTES, OPS_BY_NAME, StarkError, toErrorBody } from '@stark/contracts';
-import type { CoreApp } from '@stark/core';
+import { MAX_FRAME_BYTES, OPS_BY_NAME, OmenflowError, toErrorBody } from '@omenflow/contracts';
+import type { CoreApp } from '@omenflow/core';
 import type { z } from 'zod';
 
 /** Grant handed over by the bridge after hello authentication (structural). */
@@ -94,10 +94,10 @@ export class FrameTransport implements Transport {
 }
 
 /* ------------------------------------------------------------------ */
-/* StarkMcpServer — one McpServer per bridge connection                 */
+/* OmenflowMcpServer — one McpServer per bridge connection                 */
 /* ------------------------------------------------------------------ */
 
-export class StarkMcpServer {
+export class OmenflowMcpServer {
   readonly server: McpServer;
   private transport: FrameTransport | null = null;
 
@@ -105,7 +105,7 @@ export class StarkMcpServer {
     private app: CoreApp,
     private grant: McpGrant,
   ) {
-    this.server = new McpServer({ name: 'stark', version: '0.1.0' });
+    this.server = new McpServer({ name: 'omenflow', version: '0.1.0' });
     this.registerTools();
     this.registerResources();
   }
@@ -140,7 +140,7 @@ export class StarkMcpServer {
               content: [{ type: 'text' as const, text: JSON.stringify(result ?? null, null, 2) }],
             };
           } catch (e) {
-            const body = e instanceof StarkError ? e.toBody() : toErrorBody(e);
+            const body = e instanceof OmenflowError ? e.toBody() : toErrorBody(e);
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(body, null, 2) }],
               isError: true,
@@ -156,7 +156,7 @@ export class StarkMcpServer {
     if (!ops.has('project.summary')) return;
     this.server.registerResource(
       'project_summary',
-      'stark://project/summary',
+      'omenflow://project/summary',
       { description: 'Bounded structured project summary', mimeType: 'application/json' },
       async (uri) => {
         const result = await this.app.dispatch(
@@ -195,8 +195,8 @@ export async function connectMcpToBridge(
   app: CoreApp,
   grant: McpGrant,
   buffered?: Buffer,
-): Promise<StarkMcpServer> {
-  const server = new StarkMcpServer(app, grant);
+): Promise<OmenflowMcpServer> {
+  const server = new OmenflowMcpServer(app, grant);
   await server.attach(socket, buffered);
   return server;
 }

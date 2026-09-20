@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ErrorCodes, StarkError } from './errors.js';
+import { ErrorCodes, OmenflowError } from './errors.js';
 
 /**
  * Physical quantities with explicit units. Values normalize to SI-ish base
@@ -144,14 +144,14 @@ export function unitDef(unit: string): (UnitDef & { name: string }) | undefined 
 
 export function dimOf(q: Quantity): Dim {
   const def = CANONICAL[q.unit];
-  if (!def) throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown unit '${q.unit}'`);
+  if (!def) throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown unit '${q.unit}'`);
   return def.dim;
 }
 
 /** Value in base units for its dimension. */
 export function toBase(q: Quantity): number {
   const def = CANONICAL[q.unit];
-  if (!def) throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown unit '${q.unit}'`);
+  if (!def) throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown unit '${q.unit}'`);
   return q.value * def.scale + (def.offset ?? 0);
 }
 
@@ -159,10 +159,10 @@ export function convert(q: Quantity, toUnit: string): Quantity {
   const from = CANONICAL[q.unit];
   const to = CANONICAL[toUnit];
   if (!from || !to) {
-    throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown unit '${!from ? q.unit : toUnit}'`);
+    throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown unit '${!from ? q.unit : toUnit}'`);
   }
   if (from.dim !== to.dim) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.INVALID_UNITS,
       `Cannot convert ${q.unit} (${from.dim}) to ${toUnit} (${to.dim})`,
     );
@@ -185,7 +185,7 @@ export function compatible(a: Quantity, b: Quantity): boolean {
 
 export function assertCompatible(a: Quantity, b: Quantity): void {
   if (!compatible(a, b)) {
-    throw new StarkError(ErrorCodes.INVALID_UNITS, `Incompatible units: ${a.unit} vs ${b.unit}`);
+    throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Incompatible units: ${a.unit} vs ${b.unit}`);
   }
 }
 
@@ -211,7 +211,7 @@ export function scaleQty(q: Quantity, factor: number): Quantity {
 
 export function qty(value: number, unit: string): Quantity {
   if (!CANONICAL[unit]) {
-    throw new StarkError(ErrorCodes.INVALID_UNITS, `Unknown unit '${unit}'`);
+    throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown unit '${unit}'`);
   }
   return { value, unit };
 }
@@ -241,7 +241,7 @@ export type Money = z.infer<typeof moneySchema>;
 
 export function addMoney(a: Money, b: Money): Money {
   if (a.currency !== b.currency) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.MIXED_CURRENCY,
       `Cannot add ${a.currency} to ${b.currency} without a dated conversion record`,
     );

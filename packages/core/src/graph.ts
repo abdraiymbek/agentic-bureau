@@ -6,10 +6,10 @@ import {
   MAX_IMPACT_DEPTH,
   Relationship,
   RevisionRef,
-  StarkError,
+  OmenflowError,
   StaleRecord,
   newId,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 
 /**
@@ -72,12 +72,12 @@ export function addEdge(
   ctx.requireArtifact(upstreamArtifactId);
   ctx.requireArtifact(downstreamArtifactId);
   if (upstreamArtifactId === downstreamArtifactId) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Self-edge not allowed');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Self-edge not allowed');
   }
   if (EVAL_RELATIONSHIPS.includes(relationship)) {
     const cycle = findCycle(ctx, upstreamArtifactId, downstreamArtifactId);
     if (cycle) {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.CYCLE_DETECTED,
         `Adding ${relationship} edge would create a cycle`,
         { details: { path: cycle } },

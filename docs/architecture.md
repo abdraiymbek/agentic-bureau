@@ -1,4 +1,4 @@
-# STARK architecture
+# Omen Flow architecture
 
 ## Processes
 
@@ -11,7 +11,7 @@ renderer (React, sandboxed)  ──narrow preload──▶  main (Electron)
                                                     │
               agent CLI (PTY)   OpenSCAD (child)   calc worker
                     │
-            stark bridge (stdio/MCP or JSON CLI)
+            omenflow bridge (stdio/MCP or JSON CLI)
                     │
             authenticated local socket → core
 ```
@@ -32,7 +32,7 @@ renderer (React, sandboxed)  ──narrow preload──▶  main (Electron)
 - `packages/ui` — design tokens + shared components for the renderer.
 - `apps/desktop` — Electron app: `src/main`, `src/preload`, `src/renderer`,
   `src/utility` (core host entry).
-- `native/stark-bridge` — Rust stdio/CLI → local socket forwarder.
+- `native/omenflow-bridge` — Rust stdio/CLI → local socket forwarder.
 
 ## Invariants
 

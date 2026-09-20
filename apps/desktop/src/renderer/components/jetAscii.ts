@@ -1,4 +1,4 @@
-/** ASCII rendering of the STARK jet hero artwork (generated from the brand image). */
+/** ASCII rendering of the Omen Flow jet hero artwork (generated from the brand image). */
 export const JET_ASCII = `
                                                                                                             ..:=:=::.
                                                                                                           ..:-*%+@++=--.

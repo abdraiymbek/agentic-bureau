@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AdapterStatus, SessionInfo } from '@stark/contracts';
-import type { ProjectContext } from '@stark/core';
+import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
+import type { ProjectContext } from '@omenflow/core';
 
 /** Per-adapter persisted config (CoreApp settings.adapters[adapterId]). */
 export interface AdapterConfig {
@@ -29,9 +29,9 @@ export interface LaunchRequest {
   sessionId: string;
   /** Effective config for this launch: persisted config + start() overrides. */
   config: AdapterConfig;
-  /** Per-session bridge credentials (STARK_BRIDGE_*). */
+  /** Per-session bridge credentials (OMENFLOW_BRIDGE_*). */
   bridgeEnv: Record<string, string>;
-  /** Absolute path of the generated bootstrap brief (`.stark/work/<session>/bootstrap.md`). */
+  /** Absolute path of the generated bootstrap brief (`.omenflow/work/<session>/bootstrap.md`). */
   bootstrapPath: string;
 }
 
@@ -202,7 +202,7 @@ const BRIEF_ARTIFACT_CAP = 50;
 
 /**
  * Markdown bootstrap context delivered to the agent at session start.
- * Written to `.stark/work/<sessionId>/bootstrap.md`; returns the path.
+ * Written to `.omenflow/work/<sessionId>/bootstrap.md`; returns the path.
  */
 export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): string {
   const project = ctx.handle.project;
@@ -222,7 +222,7 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
   const bounded = artifacts.slice(0, BRIEF_ARTIFACT_CAP);
 
   const lines = [
-    `# STARK session bootstrap`,
+    `# Omen Flow session bootstrap`,
     ``,
     `**Project:** ${project.name} (\`${project.id}\`)`,
     `**Session:** \`${sessionId}\``,
@@ -253,18 +253,18 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
     ``,
     `## Tools`,
     ``,
-    'Session credentials are in env (`STARK_BRIDGE_SOCK`, `STARK_BRIDGE_TOKEN`,',
-    '`STARK_PROJECT_ID`, `STARK_SESSION_ID`). The `stark` helper reads them.',
+    'Session credentials are in env (`OMENFLOW_BRIDGE_SOCK`, `OMENFLOW_BRIDGE_TOKEN`,',
+    '`OMENFLOW_PROJECT_ID`, `OMENFLOW_SESSION_ID`). The `omenflow` helper reads them.',
     ``,
-    '- `stark call <op> --input <file|->` — call one op; payload is JSON.',
-    '- `stark mcp` — MCP stdio server exposing every granted op as a tool',
+    '- `omenflow call <op> --input <file|->` — call one op; payload is JSON.',
+    '- `omenflow mcp` — MCP stdio server exposing every granted op as a tool',
     '  (tool names use `_` for `.`, e.g. `project.summary` → `project_summary`).',
-    '- `stark call tool.list --input - <<< "{}"` — what is available.',
+    '- `omenflow call tool.list --input - <<< "{}"` — what is available.',
     ``,
     `## Rules`,
     ``,
     `- Accepted engineering changes go through **proposals** (`,
-    '  `stark call proposal.submit --input changes.json`); drafts are free.',
+    '  `omenflow call proposal.submit --input changes.json`); drafts are free.',
     `- Direct baseline edits return APPROVAL_REQUIRED — propose instead.`,
     `- Use \`project.summary\` for a fresh bounded summary any time.`,
     ``,

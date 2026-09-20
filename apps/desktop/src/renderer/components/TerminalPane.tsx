@@ -77,8 +77,8 @@ export function TerminalPane() {
       // Keystrokes go straight to the PTY — terminal semantics preserved.
       void cmd('terminal.write', { data }).catch(() => {});
     });
-    const unData = window.stark.onTerminalData((chunk) => t.write(chunk));
-    const unState = window.stark.onTerminalState(() => void refreshSession());
+    const unData = window.omenflow.onTerminalData((chunk) => t.write(chunk));
+    const unState = window.omenflow.onTerminalState(() => void refreshSession());
     const ro = new ResizeObserver(() => {
       try {
         f.fit();
@@ -93,7 +93,7 @@ export function TerminalPane() {
     });
     ro.observe(host.current);
     const onFocus = () => t.focus();
-    window.addEventListener('stark:focus-terminal', onFocus);
+    window.addEventListener('omenflow:focus-terminal', onFocus);
 
     // Restore scrollback for a still-running session after reload.
     void (async () => {
@@ -111,7 +111,7 @@ export function TerminalPane() {
       unData();
       unState();
       ro.disconnect();
-      window.removeEventListener('stark:focus-terminal', onFocus);
+      window.removeEventListener('omenflow:focus-terminal', onFocus);
       t.dispose();
       term.current = null;
     };

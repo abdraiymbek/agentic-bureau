@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
-import type { Proposal, Revision, Artifact, ProposedChange } from '@stark/contracts';
-import { formatQty, isUnknown } from '@stark/contracts';
+import type { Proposal, Revision, Artifact, ProposedChange } from '@omenflow/contracts';
+import { formatQty, isUnknown } from '@omenflow/contracts';
 import { EmptyState, PageHeader, StatusBadge, SearchField } from '../components/ui';
 import { GitBranch, CheckCircle } from '@phosphor-icons/react';
 

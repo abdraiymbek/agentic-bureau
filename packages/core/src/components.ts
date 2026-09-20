@@ -4,7 +4,7 @@ import {
   Money,
   Offer,
   Origin,
-  StarkError,
+  OmenflowError,
   addMoney,
   convert,
   formatQty,
@@ -12,7 +12,7 @@ import {
   newId,
   scaleMoney,
   type MaybeQuantity,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft } from './artifacts.js';
 import { addEdge } from './graph.js';
@@ -47,12 +47,12 @@ export function addCandidate(
 ) {
   // Enforce "selectable real component" requirements up front.
   if (!input.manufacturer && !input.vendor) {
-    throw new StarkError(ErrorCodes.MISSING_SOURCE, 'Component needs a manufacturer or vendor', {
+    throw new OmenflowError(ErrorCodes.MISSING_SOURCE, 'Component needs a manufacturer or vendor', {
       repair: 'Provide manufacturer/vendor plus a source URL or datasheet.',
     });
   }
   if (!input.sourceId && !input.offer?.url && !input.offer?.sourceId) {
-    throw new StarkError(
+    throw new OmenflowError(
       ErrorCodes.MISSING_SOURCE,
       'Component needs a source (URL/datasheet capture)',
       {
@@ -121,7 +121,7 @@ export function addOffer(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'component') {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Offers attach to component artifacts');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Offers attach to component artifacts');
   }
   const offer: Offer = {
     id: newId(),
@@ -142,7 +142,7 @@ export function compareComponents(ctx: ProjectContext, artifactIds: string[]) {
   const rows = artifactIds.map((id) => {
     const a = ctx.requireArtifact(id);
     if (a.type !== 'component') {
-      throw new StarkError(ErrorCodes.VALIDATION, `${a.title} is not a component`);
+      throw new OmenflowError(ErrorCodes.VALIDATION, `${a.title} is not a component`);
     }
     const rev = a.selectedRevisionId
       ? ctx.repo.getRevision(a.selectedRevisionId)
@@ -193,11 +193,11 @@ export function proposeSelection(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'component') {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Selection target must be a component');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Selection target must be a component');
   }
   const rev = ctx.requireRevision(input.revisionId);
   if (rev.artifactId !== artifact.id) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'Revision does not belong to component');
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to component');
   }
   const payload = { ...(rev.payload as ComponentPayload), status: 'selected' as const };
   // Draft carrying the new status.

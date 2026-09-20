@@ -6,7 +6,7 @@ import type {
   RequirementPayload,
   AssumptionPayload,
   Revision,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import {
   ArtifactIcon,
   EmptyState,

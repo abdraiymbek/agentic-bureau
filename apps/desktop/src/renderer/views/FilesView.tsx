@@ -51,8 +51,8 @@ export function FilesView() {
     if (busy) return;
     setBusy(true);
     try {
-      const dest = await window.stark.saveFile({
-        defaultPath: kind === 'archive' ? 'project.stark.zip' : 'build-package.zip',
+      const dest = await window.omenflow.saveFile({
+        defaultPath: kind === 'archive' ? 'project.omenflow.zip' : 'build-package.zip',
       });
       if (!dest) return;
       const result = await cmd<{ path: string; files: number; status?: string; issues?: number }>(
@@ -103,7 +103,7 @@ export function FilesView() {
           <IconButton
             label="Reveal project folder"
             onClick={() => {
-              if (projectPath) void window.stark.revealPath(projectPath);
+              if (projectPath) void window.omenflow.revealPath(projectPath);
             }}
           >
             <ArrowSquareOut size={15} />

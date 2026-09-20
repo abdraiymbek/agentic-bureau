@@ -11,7 +11,7 @@ import {
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { ArtifactIcon, EmptyState, StatusBadge, typeLabels } from './ui';
-import type { Revision } from '@stark/contracts';
+import type { Revision } from '@omenflow/contracts';
 
 export function Inspector() {
   const { selectedArtifactId, artifacts, stale, selectArtifact, navigate, toast, set } = useStore();
@@ -206,7 +206,7 @@ export function Inspector() {
         <Section title="Source">
           <button
             className="inspector-link"
-            onClick={() => void window.stark.openExternal(payload.url as string)}
+            onClick={() => void window.omenflow.openExternal(payload.url as string)}
           >
             <ArrowSquareOut size={14} />
             <span className="truncate">{payload.url}</span>
@@ -217,7 +217,7 @@ export function Inspector() {
         <button
           onClick={() => {
             set({ sidecarTab: 'agent' });
-            window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+            window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
           }}
         >
           <TerminalWindow size={14} />

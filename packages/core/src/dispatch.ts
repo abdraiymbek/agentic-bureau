@@ -4,11 +4,11 @@ import {
   ErrorCodes,
   OPS_BY_NAME,
   Origin,
-  StarkError,
+  OmenflowError,
   okResponse,
   errResponse,
   type ResponseEnvelope,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import * as artifacts from './artifacts.js';
 import * as proposals from './proposals.js';
@@ -22,7 +22,7 @@ import * as wiring from './wiring.js';
 import * as tests from './tests.js';
 import * as build from './build.js';
 import * as summary from './summary.js';
-import { newId } from '@stark/contracts';
+import { newId } from '@omenflow/contracts';
 import { createHash } from 'node:crypto';
 
 export interface DispatchInput {
@@ -95,7 +95,10 @@ const H: Record<string, Handler> = {
       );
     }
     if (!i.type || !i.title)
-      throw new StarkError(ErrorCodes.VALIDATION, 'import_file needs type+title for new artifacts');
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        'import_file needs type+title for new artifacts',
+      );
     return artifacts.createDraft(
       c,
       {
@@ -122,7 +125,7 @@ const H: Record<string, Handler> = {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files[0];
-    if (!f) throw new StarkError(ErrorCodes.NOT_FOUND, 'Artifact has no file to reveal');
+    if (!f) throw new OmenflowError(ErrorCodes.NOT_FOUND, 'Artifact has no file to reveal');
     await c.host.revealPath(c.resolvePath(f.path));
     return { ok: true };
   },
@@ -139,13 +142,14 @@ const H: Record<string, Handler> = {
         ? c.repo.getRevision(a.selectedRevisionId)
         : c.repo.listRevisions(a.id).at(-1);
     const f = rev?.files.find((x) => x.path === i.path);
-    if (!f) throw new StarkError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
+    if (!f) throw new OmenflowError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
     // Object store is authoritative; fall back to working file.
     if (f.sha256 && c.objects.has(f.sha256)) {
       return { contentBase64: c.objects.read(f.sha256).toString('base64'), sha256: f.sha256 };
     }
     const abs = c.resolvePath(i.path);
-    if (!fs.existsSync(abs)) throw new StarkError(ErrorCodes.NOT_FOUND, `File missing: ${i.path}`);
+    if (!fs.existsSync(abs))
+      throw new OmenflowError(ErrorCodes.NOT_FOUND, `File missing: ${i.path}`);
     return { contentBase64: fs.readFileSync(abs).toString('base64') };
   },
 
@@ -237,7 +241,7 @@ const H: Record<string, Handler> = {
     // Anchor the proposal on a real artifact (first line's component) so the
     // change-set binds properly.
     const anchor = lines[0];
-    if (!anchor) throw new StarkError(ErrorCodes.VALIDATION, 'No BOM lines');
+    if (!anchor) throw new OmenflowError(ErrorCodes.VALIDATION, 'No BOM lines');
     const comp = c.requireArtifact(anchor.componentArtifactId);
     const rev = c.requireRevision(anchor.componentRevisionId);
     const draft = artifacts.commitRevision(c, {
@@ -302,7 +306,7 @@ const H: Record<string, Handler> = {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files.find((x) => x.path.endsWith(`.${i.format}`));
-    if (!f?.sha256) throw new StarkError(ErrorCodes.NOT_FOUND, `No .${i.format} on baseline`);
+    if (!f?.sha256) throw new OmenflowError(ErrorCodes.NOT_FOUND, `No .${i.format} on baseline`);
     fs.mkdirSync(path.dirname(i.destPath), { recursive: true });
     fs.writeFileSync(i.destPath, c.objects.read(f.sha256));
     return { path: i.destPath };
@@ -338,12 +342,12 @@ const H: Record<string, Handler> = {
   /* jobs + tools */
   'job.read': (c, i: { jobId: string }) => {
     const j = c.repo.getJob(i.jobId);
-    if (!j) throw new StarkError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
+    if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
     return { job: j };
   },
   'job.cancel': (c, i: { jobId: string }) => {
     const j = c.repo.getJob(i.jobId);
-    if (!j) throw new StarkError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
+    if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
     const cancel = c.jobCancels.get(i.jobId);
     if (cancel) cancel();
     if (j.status === 'running' || j.status === 'queued') {
@@ -410,13 +414,13 @@ function requestHash(op: string, payload: unknown): string {
  */
 export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise<unknown> {
   const op = OPS_BY_NAME.get(req.op);
-  if (!op) throw new StarkError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
+  if (!op) throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
   if (req.origin.kind === 'agent' && op.capability === 'user') {
     const code =
       req.op === 'artifact.apply_edit'
         ? ErrorCodes.APPROVAL_REQUIRED
         : ErrorCodes.CAPABILITY_DENIED;
-    throw new StarkError(code, `Agents cannot call ${req.op}`, {
+    throw new OmenflowError(code, `Agents cannot call ${req.op}`, {
       repair: req.op === 'artifact.apply_edit' ? 'Submit a proposal instead.' : undefined,
     });
   }
@@ -429,7 +433,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     if (issues?.length) {
       const first = issues[0]!;
       const where = first.path.length ? `${first.path.join('.')}: ` : '';
-      throw new StarkError(ErrorCodes.VALIDATION, `Invalid input — ${where}${first.message}`, {
+      throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid input — ${where}${first.message}`, {
         details: { issues: issues.map((i) => `${i.path.join('.')}: ${i.message}`) },
       });
     }
@@ -442,7 +446,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     const prior = ctx.repo.getIdempotent(req.idempotencyKey);
     if (prior) {
       if (prior.requestHash !== requestHash(req.op, req.payload)) {
-        throw new StarkError(
+        throw new OmenflowError(
           ErrorCodes.VALIDATION,
           `Idempotency key reused with different payload: ${req.idempotencyKey}`,
         );
@@ -452,7 +456,8 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
   }
 
   const handler = H[req.op];
-  if (!handler) throw new StarkError(ErrorCodes.VALIDATION, `Operation not implemented: ${req.op}`);
+  if (!handler)
+    throw new OmenflowError(ErrorCodes.VALIDATION, `Operation not implemented: ${req.op}`);
   const result = await handler(ctx, input, req.origin);
 
   if (op.mutating && req.idempotencyKey) {
@@ -465,7 +470,7 @@ export function envelopeResult(requestId: string, result: unknown): ResponseEnve
   return okResponse(requestId, result);
 }
 export function envelopeError(requestId: string, err: unknown): ResponseEnvelope {
-  const e = err instanceof StarkError ? err : StarkError.from(err);
+  const e = err instanceof OmenflowError ? err : OmenflowError.from(err);
   return errResponse(requestId, e.code, e.message, e.repair, e.details);
 }
 export { newId };

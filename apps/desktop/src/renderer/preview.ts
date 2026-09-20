@@ -1,7 +1,7 @@
 /** Development-only bridge. Uses real core operations on disposable fixture projects. */
-import type { StarkApi } from './api';
+import type { OmenflowApi } from './api';
 import { useStore, type Nav } from './store';
-import type { Project } from '@stark/contracts';
+import type { Project } from '@omenflow/contracts';
 export async function installDesignPreview() {
   const bootstrap = (await fetch('/__omen_preview/bootstrap').then((r) => r.json())) as {
     token: string;
@@ -23,7 +23,7 @@ export async function installDesignPreview() {
       );
     return Promise.resolve();
   };
-  const api: StarkApi = {
+  const api: OmenflowApi = {
     command: (op, payload, opts) =>
       fetch('/__omen_preview/command', {
         method: 'POST',
@@ -60,7 +60,7 @@ export async function installDesignPreview() {
     revealPath: hint,
     toggleResearch: hint,
   };
-  window.stark = api;
+  window.omenflow = api;
   document.documentElement.dataset.preview = 'true';
   const params = new URLSearchParams(location.search);
   const screen = params.get('screen');

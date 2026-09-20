@@ -7,9 +7,9 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const pkg = (name: string) => path.join(root, '..', '..', 'packages', name, 'src', 'index.ts');
 
 /**
- * Ship the calc worker + stark CLI shim next to the bundle under
+ * Ship the calc worker + omenflow CLI shim next to the bundle under
  * resources/core — `new URL('./calc-worker.mjs', import.meta.url)` must
- * resolve at runtime, and `stark` must be a real spawnable file.
+ * resolve at runtime, and `omenflow` must be a real spawnable file.
  */
 function copyHelpers(): Plugin {
   return {
@@ -21,7 +21,7 @@ function copyHelpers(): Plugin {
           path.join(root, '..', '..', 'packages', 'engineering', 'src', 'calc-worker.mjs'),
           'calc-worker.mjs',
         ],
-        [path.join(root, '..', '..', 'packages', 'agent-host', 'bin', 'stark.mjs'), 'stark'],
+        [path.join(root, '..', '..', 'packages', 'agent-host', 'bin', 'omenflow.mjs'), 'omenflow'],
       ];
       for (const [src, name] of pairs) {
         const dest = path.join(out, name);
@@ -41,12 +41,12 @@ function copyHelpers(): Plugin {
 export default defineConfig({
   resolve: {
     alias: {
-      '@stark/contracts': pkg('contracts'),
-      '@stark/storage': pkg('storage'),
-      '@stark/core': pkg('core'),
-      '@stark/agent-host': pkg('agent-host'),
-      '@stark/mcp-server': pkg('mcp-server'),
-      '@stark/engineering': pkg('engineering'),
+      '@omenflow/contracts': pkg('contracts'),
+      '@omenflow/storage': pkg('storage'),
+      '@omenflow/core': pkg('core'),
+      '@omenflow/agent-host': pkg('agent-host'),
+      '@omenflow/mcp-server': pkg('mcp-server'),
+      '@omenflow/engineering': pkg('engineering'),
     },
   },
   plugins: [copyHelpers()],

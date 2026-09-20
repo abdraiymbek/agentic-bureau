@@ -49,9 +49,9 @@ Use `brand/omen-symbol.svg`. Its two opposing directional arcs form an open O an
 - Wordmark: **Omen Flow** in Geist. Omen is medium/semibold, Flow regular and secondary. Sentence casing is fixed.
 - Maintain at least half a symbol’s width of clear space around standalone marks.
 - Keep the brand present at entry and in global chrome. Do not stamp it on every object or chart.
-- Previous Michroma lettering, aircraft artwork, ASCII aircraft, and STARK display branding are retired from the renderer. Original assets may remain for provenance; they are not design resources for new work.
+- Previous Michroma lettering, aircraft artwork, ASCII aircraft, and Omen Flow display branding are retired from the renderer. Original assets may remain for provenance; they are not design resources for new work.
 
-The display name is Omen Flow. The existing `@stark/*` packages, bridge identifiers, `.stark` storage, archive compatibility, and installer names are legacy technical contracts. Their migration is a separate release task; do not rename them incidentally while building UI.
+The display name is Omen Flow. The existing `@omenflow/*` packages, bridge identifiers, `.omenflow` storage, archive compatibility, and installer names are legacy technical contracts. Their migration is a separate release task; do not rename them incidentally while building UI.
 
 ## 4. Foundations
 

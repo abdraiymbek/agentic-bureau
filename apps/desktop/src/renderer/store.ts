@@ -8,7 +8,7 @@ import type {
   Proposal,
   SessionInfo,
   StaleRecord,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import { cmd } from './api';
 
 export type Nav =
@@ -107,7 +107,7 @@ export const useStore = create<State>((set, get) => ({
   set: (p) => set(p),
   setActive: (projectId) => {
     set({ projectId });
-    void window.stark.setActiveProject(projectId);
+    void window.omenflow.setActiveProject(projectId);
   },
   refreshArtifacts: async () => {
     const { projectId } = get();
@@ -193,7 +193,7 @@ export const useStore = create<State>((set, get) => ({
       s.navigate('reviews');
     }
     if (e.type === 'ui.focus_terminal') {
-      window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+      window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
     }
   },
 }));

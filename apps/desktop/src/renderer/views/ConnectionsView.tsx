@@ -10,7 +10,7 @@ import {
   Moon,
   PlugsConnected,
 } from '@phosphor-icons/react';
-import type { AdapterStatus } from '@stark/contracts';
+import type { AdapterStatus } from '@omenflow/contracts';
 
 /** Connections + diagnostics: adapters, their status, custom CLI config, tool paths. */
 export function ConnectionsView() {
@@ -183,7 +183,7 @@ export function ConnectionsView() {
             <button
               className="ghost"
               onClick={async () => {
-                const path = await window.stark.pickFile({ title: 'Locate OpenSCAD' });
+                const path = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
                 if (path) setScadPath(path);
               }}
             >

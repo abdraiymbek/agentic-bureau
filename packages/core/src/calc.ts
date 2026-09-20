@@ -2,14 +2,14 @@ import {
   CalculationPayload,
   ErrorCodes,
   Origin,
-  StarkError,
+  OmenflowError,
   convert,
   formatQty,
   isUnknown,
   newId,
   qty,
   type MaybeQuantity,
-} from '@stark/contracts';
+} from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft } from './artifacts.js';
 import { submitProposal } from './proposals.js';
@@ -18,7 +18,7 @@ import type { CalcEngine, CalcTemplate } from './tools.js';
 function calcTool(ctx: ProjectContext): CalcEngine {
   const calc = ctx.tools.calc as CalcEngine | undefined;
   if (!calc) {
-    throw new StarkError(ErrorCodes.TOOL_MISSING, 'Calculation engine not registered');
+    throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'Calculation engine not registered');
   }
   return calc;
 }
@@ -57,13 +57,13 @@ export async function runCalculation(
   if (input.templateId) {
     template = calc.templates().find((t) => t.id === input.templateId);
     if (!template)
-      throw new StarkError(ErrorCodes.NOT_FOUND, `Unknown template: ${input.templateId}`);
+      throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown template: ${input.templateId}`);
     expression = template.expression;
     // Validate required template inputs are present.
     for (const req of template.inputs.filter((i) => i.required)) {
       const provided = input.inputs.find((i) => i.name === req.name);
       if (!provided || isUnknown(provided.quantity)) {
-        throw new StarkError(
+        throw new OmenflowError(
           ErrorCodes.INVALID_UNITS,
           `Missing required input '${req.name}' (${req.unit})`,
           {
@@ -77,11 +77,14 @@ export async function runCalculation(
     }
   }
   if (!expression) {
-    throw new StarkError(ErrorCodes.VALIDATION, 'calculation.run needs templateId or expression');
+    throw new OmenflowError(
+      ErrorCodes.VALIDATION,
+      'calculation.run needs templateId or expression',
+    );
   }
   for (const i of input.inputs) {
     if (isUnknown(i.quantity)) {
-      throw new StarkError(
+      throw new OmenflowError(
         ErrorCodes.INVALID_UNITS,
         `Input '${i.name}' is unknown (${(i.quantity as { reason?: string }).reason ?? 'no value'})`,
       );
@@ -177,7 +180,7 @@ export function explainInputs(ctx: ProjectContext, artifactId: string) {
   const rev = artifact.selectedRevisionId
     ? ctx.repo.getRevision(artifact.selectedRevisionId)
     : ctx.repo.listRevisions(artifact.id).at(-1);
-  if (!rev) throw new StarkError(ErrorCodes.VALIDATION, 'No revision on calculation');
+  if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'No revision on calculation');
   const payload = rev.payload as CalculationPayload;
   return {
     artifact,

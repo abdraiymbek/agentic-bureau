@@ -14,7 +14,7 @@ import { cmd } from '../api';
 import { useStore } from '../store';
 import { PageHeader, ArtifactIcon, EmptyState } from '../components/ui';
 import { GitBranch, ClockCounterClockwise } from '@phosphor-icons/react';
-import type { Edge as GraphEdge } from '@stark/contracts';
+import type { Edge as GraphEdge } from '@omenflow/contracts';
 
 /** History: decision log + event stream + dependency graph. */
 export function HistoryView() {

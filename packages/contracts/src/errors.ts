@@ -26,7 +26,7 @@ export const ErrorCodes = {
 } as const;
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
-export interface StarkErrorBody {
+export interface OmenflowErrorBody {
   code: ErrorCode;
   message: string;
   /** Concrete repair action shown to the user/agent, e.g. 'Select agent executable'. */
@@ -34,34 +34,37 @@ export interface StarkErrorBody {
   details?: unknown;
 }
 
-export class StarkError extends Error {
+export class OmenflowError extends Error {
   readonly code: ErrorCode;
   readonly repair?: string;
   readonly details?: unknown;
 
   constructor(code: ErrorCode, message: string, opts?: { repair?: string; details?: unknown }) {
     super(message);
-    this.name = 'StarkError';
+    this.name = 'OmenflowError';
     this.code = code;
     this.repair = opts?.repair;
     this.details = opts?.details;
   }
 
-  toBody(): StarkErrorBody {
+  toBody(): OmenflowErrorBody {
     return { code: this.code, message: this.message, repair: this.repair, details: this.details };
   }
 
-  static from(err: unknown): StarkError {
-    if (err instanceof StarkError) return err;
+  static from(err: unknown): OmenflowError {
+    if (err instanceof OmenflowError) return err;
     const message = err instanceof Error ? err.message : String(err);
-    return new StarkError(ErrorCodes.INTERNAL, message);
+    return new OmenflowError(ErrorCodes.INTERNAL, message);
   }
 
-  static fromBody(body: StarkErrorBody): StarkError {
-    return new StarkError(body.code, body.message, { repair: body.repair, details: body.details });
+  static fromBody(body: OmenflowErrorBody): OmenflowError {
+    return new OmenflowError(body.code, body.message, {
+      repair: body.repair,
+      details: body.details,
+    });
   }
 }
 
-export function toErrorBody(err: unknown): StarkErrorBody {
-  return StarkError.from(err).toBody();
+export function toErrorBody(err: unknown): OmenflowErrorBody {
+  return OmenflowError.from(err).toBody();
 }

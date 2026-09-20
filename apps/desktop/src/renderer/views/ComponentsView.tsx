@@ -9,7 +9,7 @@ import { cmd, errMsg } from '../api';
 import { DownloadSimple, Cube, CheckSquare } from '@phosphor-icons/react';
 import { PageHeader, SearchField, StatusBadge, EmptyState } from '../components/ui';
 import { useStore } from '../store';
-import { formatQty, type ComponentPayload, type MaybeQuantity } from '@stark/contracts';
+import { formatQty, type ComponentPayload, type MaybeQuantity } from '@omenflow/contracts';
 
 interface BomRow {
   lineId: string;
@@ -155,7 +155,7 @@ export function ComponentsView() {
 
   const exportBom = async (format: 'csv' | 'markdown') => {
     const r = await cmd<{ content: string }>('bom.export', { format });
-    const path = await window.stark.saveFile({
+    const path = await window.omenflow.saveFile({
       defaultPath: `bom.${format === 'csv' ? 'csv' : 'md'}`,
     });
     if (!path) return;

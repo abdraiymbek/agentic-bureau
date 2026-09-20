@@ -7,7 +7,15 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@stark/contracts': path.join(root, '..', '..', 'packages', 'contracts', 'src', 'index.ts'),
+      '@omenflow/contracts': path.join(
+        root,
+        '..',
+        '..',
+        'packages',
+        'contracts',
+        'src',
+        'index.ts',
+      ),
     },
   },
   build: {

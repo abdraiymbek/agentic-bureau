@@ -29,4 +29,4 @@ ABI (`pnpm rebuild:electron`). Switch when changing contexts.
 ## Layout
 
 See `docs/architecture.md`. Domain logic lives in `packages/`; the Electron
-app is a thin host over `@stark/core`.
+app is a thin host over `@omenflow/core`.

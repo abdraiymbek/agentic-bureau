@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ErrorCodes, Origin, StarkError, qty } from '@stark/contracts';
-import { openProject } from '@stark/storage';
+import { ErrorCodes, Origin, OmenflowError, qty } from '@omenflow/contracts';
+import { openProject } from '@omenflow/storage';
 import { CoreApp, nullHost } from './index.js';
 import { dispatch } from './dispatch.js';
 import type { ProjectContext } from './context.js';
@@ -13,7 +13,7 @@ const USER: Origin = { kind: 'user' };
 const AGENT: Origin = { kind: 'agent', sessionId: '00000000-0000-4000-8000-000000000001' };
 
 function tmpdir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'stark-core-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-core-'));
 }
 
 /** Trivial calc engine for tests: sums input values, unit of first input. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ErrorCodes, qty } from '@stark/contracts';
+import { ErrorCodes, qty } from '@omenflow/contracts';
 import { MathJsCalcEngine } from './calc-engine.js';
 
 const engine = () => new MathJsCalcEngine();

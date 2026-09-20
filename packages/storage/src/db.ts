@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { ErrorCodes, SCHEMA_VERSION, StarkError } from '@stark/contracts';
+import { ErrorCodes, SCHEMA_VERSION, OmenflowError } from '@omenflow/contracts';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './schema.js';
 
 export class ProjectDb {
@@ -12,7 +12,7 @@ export class ProjectDb {
   constructor(dbPath: string, opts?: { create?: boolean }) {
     const exists = fs.existsSync(dbPath);
     if (!exists && !opts?.create) {
-      throw new StarkError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
+      throw new OmenflowError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
     }
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
@@ -77,5 +77,5 @@ export class ProjectDb {
   }
 }
 
-export const STARK_DIR = '.stark';
+export const OMENFLOW_DIR = '.omenflow';
 export const SCHEMA_META_VERSION = SCHEMA_VERSION;

@@ -41,7 +41,7 @@ export function CommandPalette() {
                   hint: '⌘ J',
                   run: () => {
                     set({ sidecarOpen: true, sidecarTab: 'agent' });
-                    window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+                    window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
                   },
                 },
                 {

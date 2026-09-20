@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Packaged smoke: launch the built app, wait for the bridge socket and the
- * gated smoke grant, run a real `stark call` roundtrip, then shut down.
+ * gated smoke grant, run a real `omenflow call` roundtrip, then shut down.
  *
- *   node scripts/packaged-smoke.mjs [path-to-STARK.app-or-binary]
+ *   node scripts/packaged-smoke.mjs [path-to-Omen Flow.app-or-binary]
  *
  * Requires a packaged build first (`pnpm package` inside apps/desktop).
  * Exits 0 on success, 1 on failure — deterministic for CI.
@@ -26,20 +26,22 @@ function fail(msg) {
 function findApp() {
   const out = path.join(root, 'apps', 'desktop', 'out');
   if (arg) {
-    const bin = arg.endsWith('.app') ? path.join(arg, 'Contents', 'MacOS', 'stark-desktop') : arg;
+    const bin = arg.endsWith('.app')
+      ? path.join(arg, 'Contents', 'MacOS', 'omenflow-desktop')
+      : arg;
     if (fs.existsSync(bin))
       return { bin, resources: path.join(path.dirname(bin), '..', 'Resources') };
     fail(`no executable at ${bin}`);
   }
-  const dirName = `STARK-${process.platform}-${process.arch}`;
+  const dirName = `Omen Flow-${process.platform}-${process.arch}`;
   const appDir = path.join(out, dirName);
   const bin =
     process.platform === 'darwin'
-      ? path.join(appDir, 'STARK.app', 'Contents', 'MacOS', 'stark-desktop')
-      : path.join(appDir, 'stark-desktop' + (process.platform === 'win32' ? '.exe' : ''));
+      ? path.join(appDir, 'Omen Flow.app', 'Contents', 'MacOS', 'omenflow-desktop')
+      : path.join(appDir, 'omenflow-desktop' + (process.platform === 'win32' ? '.exe' : ''));
   const resources =
     process.platform === 'darwin'
-      ? path.join(appDir, 'STARK.app', 'Contents', 'Resources')
+      ? path.join(appDir, 'Omen Flow.app', 'Contents', 'Resources')
       : path.join(appDir, 'resources');
   if (!fs.existsSync(bin)) {
     fail(`packaged app not found at ${bin} — run pnpm package in apps/desktop first`);
@@ -48,11 +50,11 @@ function findApp() {
 }
 
 const { bin, resources } = findApp();
-const shim = path.join(resources, 'app.asar.unpacked', 'resources', 'core', 'stark');
-if (!fs.existsSync(shim)) fail(`stark shim not packaged at ${shim}`);
+const shim = path.join(resources, 'app.asar.unpacked', 'resources', 'core', 'omenflow');
+if (!fs.existsSync(shim)) fail(`omenflow shim not packaged at ${shim}`);
 
-const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-smoke-'));
-const env = { ...process.env, STARK_APP_DATA: appData, STARK_SMOKE: '1' };
+const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-smoke-'));
+const env = { ...process.env, OMENFLOW_APP_DATA: appData, OMENFLOW_SMOKE: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
 
 console.log(`packaged-smoke: launching ${bin}`);
@@ -77,13 +79,13 @@ while (!fs.existsSync(smokeFile)) {
 const smoke = JSON.parse(fs.readFileSync(smokeFile, 'utf8'));
 console.log(`packaged-smoke: bridge at ${smoke.socketPath}`);
 
-/* Real bridge roundtrip through the packaged `stark` shim. */
+/* Real bridge roundtrip through the packaged `omenflow` shim. */
 const out = execFileSync(process.execPath, [shim, 'call', 'artifact.list', '--input', '-'], {
   env: {
     ...process.env,
-    STARK_BRIDGE_SOCK: smoke.socketPath,
-    STARK_BRIDGE_TOKEN: smoke.token,
-    STARK_PROJECT_ID: smoke.projectId,
+    OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
+    OMENFLOW_BRIDGE_TOKEN: smoke.token,
+    OMENFLOW_PROJECT_ID: smoke.projectId,
   },
   input: '{}',
   encoding: 'utf8',
@@ -91,12 +93,16 @@ const out = execFileSync(process.execPath, [shim, 'call', 'artifact.list', '--in
 });
 const res = JSON.parse(out.trim());
 if (!res || !Array.isArray(res.artifacts))
-  fail(`stark call returned unexpected result: ${out.trim().slice(0, 300)}`);
-console.log(`packaged-smoke: stark call artifact.list → ok (${res.artifacts.length} artifacts)`);
+  fail(`omenflow call returned unexpected result: ${out.trim().slice(0, 300)}`);
+console.log(`packaged-smoke: omenflow call artifact.list → ok (${res.artifacts.length} artifacts)`);
 
 /* Second call: project summary for the smoke project. */
 const out2 = execFileSync(process.execPath, [shim, 'call', 'project.summary', '--input', '-'], {
-  env: { ...process.env, STARK_BRIDGE_SOCK: smoke.socketPath, STARK_BRIDGE_TOKEN: smoke.token },
+  env: {
+    ...process.env,
+    OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
+    OMENFLOW_BRIDGE_TOKEN: smoke.token,
+  },
   input: '{}',
   encoding: 'utf8',
   timeout: 20_000,

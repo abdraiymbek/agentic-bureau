@@ -16,7 +16,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react';
-import type { ArtifactView } from '@stark/contracts';
+import type { ArtifactView } from '@omenflow/contracts';
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (

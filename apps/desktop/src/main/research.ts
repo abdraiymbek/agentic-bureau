@@ -1,5 +1,5 @@
 import { BrowserWindow, WebContentsView } from 'electron';
-import { MAX_EXTRACT_CHARS } from '@stark/contracts';
+import { MAX_EXTRACT_CHARS } from '@omenflow/contracts';
 
 /**
  * Isolated research browser: a WebContentsView on a separate partition with no

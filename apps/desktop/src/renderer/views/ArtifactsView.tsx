@@ -20,8 +20,8 @@ import type {
   WiringPayload,
   MaybeQuantity,
   EvidenceKind,
-} from '@stark/contracts';
-import { formatQty, isUnknown } from '@stark/contracts';
+} from '@omenflow/contracts';
+import { formatQty, isUnknown } from '@omenflow/contracts';
 import {
   ArtifactIcon,
   FormField,
@@ -939,7 +939,7 @@ function SourceDetail({ view }: { view: ArtifactView }) {
         )}
       </dl>
       {p.url && (
-        <button className="source-url" onClick={() => void window.stark.openExternal(p.url!)}>
+        <button className="source-url" onClick={() => void window.omenflow.openExternal(p.url!)}>
           {p.url}
         </button>
       )}

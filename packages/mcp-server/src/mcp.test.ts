@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { AGENT_OPS, newId } from '@stark/contracts';
-import { CoreApp } from '@stark/core';
-import { createProject } from '@stark/storage';
+import { AGENT_OPS, newId } from '@omenflow/contracts';
+import { CoreApp } from '@omenflow/core';
+import { createProject } from '@omenflow/storage';
 import { connectMcpToBridge, FrameTransport } from './index.js';
 
 /* Minimal frame codec for the fake client (same 4-byte LE + JSON wire). */
@@ -69,7 +69,7 @@ class FakeMcpClient {
   }
 }
 
-describe('StarkMcpServer over bridge frames', () => {
+describe('OmenflowMcpServer over bridge frames', () => {
   let dir: string;
   let app: CoreApp;
   let projectId: string;
@@ -78,7 +78,7 @@ describe('StarkMcpServer over bridge frames', () => {
   const sockets: net.Socket[] = [];
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-mcp-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-mcp-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     const ctx = app.register(createProject(path.join(dir, 'proj'), 'MCP Project', 'intent'));
     projectId = ctx.projectId;
@@ -120,7 +120,7 @@ describe('StarkMcpServer over bridge frames', () => {
       capabilities: {},
       clientInfo: { name: 'test', version: '0' },
     })) as { result: { serverInfo: { name: string } } };
-    expect(init.result.serverInfo.name).toBe('stark');
+    expect(init.result.serverInfo.name).toBe('omenflow');
     client.notify('notifications/initialized');
 
     const list = (await client.rpc('tools/list')) as { result: { tools: { name: string }[] } };

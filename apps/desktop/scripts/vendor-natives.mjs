@@ -25,7 +25,7 @@ fs.writeFileSync(
   path.join(root, 'resources', 'package.json'),
   JSON.stringify(
     {
-      name: 'stark-runtime',
+      name: 'omenflow-runtime',
       private: true,
       dependencies: Object.fromEntries(roots.map((m) => [m, '*'])),
     },

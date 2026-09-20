@@ -61,9 +61,9 @@
   ],
   "rasterAssets": "Captured application screenshots only; no stock or generated decorative imagery",
   "legacyCompatibility": [
-    "@stark package namespace",
-    ".stark project storage",
-    "stark bridge and CLI",
-    "STARK installer packaging"
+    "@omenflow package namespace",
+    ".omenflow project storage",
+    "omenflow bridge and CLI",
+    "Omen Flow installer packaging"
   ]
 }

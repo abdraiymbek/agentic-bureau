@@ -18,7 +18,7 @@ import {
 import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
 import { Brand, FormField, IconButton, EmptyState, SearchField } from '../components/ui';
-import type { Project } from '@stark/contracts';
+import type { Project } from '@omenflow/contracts';
 import './welcome.css';
 
 export function WelcomeView() {
@@ -102,7 +102,7 @@ export function WelcomeView() {
   const create = () =>
     run(async () => {
       if (!name.trim()) return;
-      const dir = await window.stark.pickDirectory('Choose project folder');
+      const dir = await window.omenflow.pickDirectory('Choose project folder');
       if (!dir) return;
       const r = await cmd<{ project: Project; projectId: string }>('project.create', {
         name: name.trim(),
@@ -115,7 +115,7 @@ export function WelcomeView() {
 
   const open = (dir?: string) =>
     run(async () => {
-      const path = dir ?? (await window.stark.pickDirectory('Open Omen Flow project'));
+      const path = dir ?? (await window.omenflow.pickDirectory('Open Omen Flow project'));
       if (!path) return;
       const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>(
         'project.open',
@@ -126,12 +126,12 @@ export function WelcomeView() {
 
   const importArchive = () =>
     run(async () => {
-      const archivePath = await window.stark.pickFile({
+      const archivePath = await window.omenflow.pickFile({
         title: 'Import project archive',
-        filters: [{ name: 'Project archive', extensions: ['zip', 'stark.zip'] }],
+        filters: [{ name: 'Project archive', extensions: ['zip', 'omenflow.zip'] }],
       });
       if (!archivePath) return;
-      const destDir = await window.stark.pickDirectory('Choose where to extract the project');
+      const destDir = await window.omenflow.pickDirectory('Choose where to extract the project');
       if (!destDir) return;
       const input = { archivePath, destDir };
       let r: { project: Project; projectId: string };

@@ -7,7 +7,7 @@ import './global.css';
 
 async function mount() {
   if (
-    !window.stark &&
+    !window.omenflow &&
     import.meta.env.DEV &&
     new URLSearchParams(location.search).has('design-preview')
   ) {

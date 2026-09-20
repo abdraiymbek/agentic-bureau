@@ -8,7 +8,7 @@ import type {
   CadRenderSpec,
   StlInspect,
   ToolProbeResult,
-} from '@stark/core';
+} from '@omenflow/core';
 
 /** A resolved executable: command plus fixed leading args (e.g. flatpak run). */
 interface ResolvedExe {
@@ -264,7 +264,7 @@ export class OpenScadAdapter implements CadAdapter {
     const version = m[1]!;
 
     // Real probe render: cube(1) → STL must be nonempty.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stark-openscad-probe-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-openscad-probe-'));
     try {
       const scad = path.join(dir, 'probe.scad');
       const stl = path.join(dir, 'probe.stl');
@@ -290,7 +290,10 @@ export class OpenScadAdapter implements CadAdapter {
   async validateSource(scadPath: string): Promise<{ ok: boolean; errors: string[] }> {
     const exe = this.discover();
     if (!exe) return { ok: false, errors: ['OpenSCAD not found'] };
-    const csg = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stark-scad-check-')), 'out.csg');
+    const csg = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-scad-check-')),
+      'out.csg',
+    );
     try {
       const r = await this.runCapture(exe, ['-o', csg, scadPath], VALIDATE_TIMEOUT_MS);
       const lines = r.stderr.split(/\r?\n/).filter((l) => l.trim().length > 0);

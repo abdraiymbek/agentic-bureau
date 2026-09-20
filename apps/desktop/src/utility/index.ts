@@ -5,11 +5,11 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { StarkError, toErrorBody, AGENT_OPS } from '@stark/contracts';
-import { CoreApp, HostServices, type ProjectContext } from '@stark/core';
-import { createEngineTools } from '@stark/engineering';
-import { PtySessionManager, BridgeServer, ConnectionManager } from '@stark/agent-host';
-import { attachMcpToBridge } from '@stark/mcp-server';
+import { OmenflowError, toErrorBody, AGENT_OPS } from '@omenflow/contracts';
+import { CoreApp, HostServices, type ProjectContext } from '@omenflow/core';
+import { createEngineTools } from '@omenflow/engineering';
+import { PtySessionManager, BridgeServer, ConnectionManager } from '@omenflow/agent-host';
+import { attachMcpToBridge } from '@omenflow/mcp-server';
 
 interface ParentPort {
   postMessage(m: unknown): void;
@@ -18,7 +18,8 @@ interface ParentPort {
 declare const process: NodeJS.Process & { parentPort: ParentPort };
 const port = process.parentPort;
 
-const appDataDir = process.env.STARK_APP_DATA ?? path.join(process.env.HOME ?? '.', '.stark-dev');
+const appDataDir =
+  process.env.OMENFLOW_APP_DATA ?? path.join(process.env.HOME ?? '.', '.omenflow-dev');
 fs.mkdirSync(appDataDir, { recursive: true });
 
 /* Host services are proxied to the main process over the port. */
@@ -34,7 +35,7 @@ function hostCall<T>(method: string, args: unknown[]): Promise<T> {
     port.postMessage({ type: 'hostCall', id, method, args });
     setTimeout(() => {
       if (hostPending.delete(id))
-        reject(new StarkError('INTERNAL' as never, `host call timeout: ${method}`));
+        reject(new OmenflowError('INTERNAL' as never, `host call timeout: ${method}`));
     }, 60_000);
   });
 }
@@ -55,7 +56,7 @@ app.engineTools = createEngineTools({
   onToolPath: (toolId, p) => app.setToolPath(toolId, p),
 });
 const bridge = new BridgeServer(app, appDataDir);
-// `utility.js` is built beside the `stark` CLI shim in resources/core/ — both
+// `utility.js` is built beside the `omenflow` CLI shim in resources/core/ — both
 // in dev and inside the packaged app.asar.unpacked tree.
 const ptyHost = new PtySessionManager(app, bridge, path.dirname(fileURLToPath(import.meta.url)));
 app.terminalHost = ptyHost;
@@ -97,7 +98,7 @@ port.on('message', async (m) => {
   if (msg.type === 'hostResult') {
     const p = hostPending.get(msg.id as string);
     hostPending.delete(msg.id as string);
-    if (msg.error) p?.reject(StarkError.fromBody(msg.error as never));
+    if (msg.error) p?.reject(OmenflowError.fromBody(msg.error as never));
     else p?.resolve(msg.result);
     return;
   }
@@ -131,19 +132,19 @@ port.on('message', async (m) => {
 });
 
 /**
- * Packaged-smoke hook (STARK_SMOKE=1): creates/opens a smoke project, mints a
+ * Packaged-smoke hook (OMENFLOW_SMOKE=1): creates/opens a smoke project, mints a
  * scoped bridge credential, and writes run/smoke.json so
- * scripts/packaged-smoke.mjs can drive a real `stark call` roundtrip.
+ * scripts/packaged-smoke.mjs can drive a real `omenflow call` roundtrip.
  * Gated on the env var — never active in a normal launch.
  */
-if (process.env.STARK_SMOKE === '1') {
+if (process.env.OMENFLOW_SMOKE === '1') {
   void (async () => {
     try {
       await bridge.ready;
       const projectDir = path.join(appDataDir, 'smoke-project');
       fs.mkdirSync(projectDir, { recursive: true });
       let projectId: string;
-      const existing = fs.existsSync(path.join(projectDir, 'stark.project.json'));
+      const existing = fs.existsSync(path.join(projectDir, 'omenflow.project.json'));
       if (existing) {
         const r = (await app.dispatch('project.open', { path: projectDir }, { kind: 'user' })) as {
           projectId: string;
@@ -152,7 +153,11 @@ if (process.env.STARK_SMOKE === '1') {
       } else {
         const r = (await app.dispatch(
           'project.create',
-          { name: 'STARK smoke', path: projectDir, intent: 'packaged smoke verification project' },
+          {
+            name: 'Omen Flow smoke',
+            path: projectDir,
+            intent: 'packaged smoke verification project',
+          },
           { kind: 'user' },
         )) as { projectId: string };
         projectId = r.projectId;

@@ -6,7 +6,7 @@ Before creating or changing any user-facing surface, read [the Omen Flow design 
 
 Preserve the Omen Flow visual language across new features: graphite surfaces, Geist interface text, IBM Plex Mono technical text, Phosphor icons, restrained selection accent, labeled engineering state, and the stable project/workspace/agent hierarchy. Follow the specification’s extension checklist and update the catalog for new reusable patterns.
 
-Preserve quantities and units, unknowns, evidence, revision history, and human review. Do not fabricate tool success, collaboration, production readiness, or data. Keep existing `@stark` APIs and `.stark` storage compatible unless the task explicitly includes migration.
+Preserve quantities and units, unknowns, evidence, revision history, and human review. Do not fabricate tool success, collaboration, production readiness, or data. Keep existing `@omenflow` APIs and `.omenflow` storage compatible unless the task explicitly includes migration.
 
 Use `pnpm design:preview` for disposable populated design review and `pnpm dev` for native desktop validation. See `design-system/verification.md` for the latest checks and limits.
 

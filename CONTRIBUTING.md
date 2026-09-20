@@ -1,6 +1,6 @@
-# Contributing to STARK
+# Contributing to Omen Flow
 
-STARK is a local-first desktop engineering workspace. Contributions are welcome.
+Omen Flow is a local-first desktop engineering workspace. Contributions are welcome.
 
 ## Getting started
 

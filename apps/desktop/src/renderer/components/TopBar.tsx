@@ -42,7 +42,7 @@ export function TopBar() {
             <IconButton
               label="Research browser"
               className="hide-narrow"
-              onClick={() => void window.stark.toggleResearch()}
+              onClick={() => void window.omenflow.toggleResearch()}
             >
               <Globe size={16} />
             </IconButton>

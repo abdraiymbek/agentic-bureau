@@ -3,12 +3,12 @@
 ## Reporting
 
 Please report suspected vulnerabilities privately to the maintainers rather than
-opening a public issue. Contact: security@stark.local (placeholder — replace with
+opening a public issue. Contact: security@omenflow.local (placeholder — replace with
 the project security contact before first public release).
 
 ## Security model summary
 
-STARK is a local-first desktop application. Its responsibilities are bounded:
+Omen Flow is a local-first desktop application. Its responsibilities are bounded:
 
 - The renderer is sandboxed with context isolation and no Node integration.
 - IPC payloads are schema-validated; there is no generic shell or filesystem IPC.
@@ -16,10 +16,10 @@ STARK is a local-first desktop application. Its responsibilities are bounded:
   socket; it is not a remote API.
 - Project mutations cannot escape the selected project directory (canonical
   path + symlink validation).
-- Connection credentials and STARK secrets use OS-protected storage and are
+- Connection credentials and Omen Flow secrets use OS-protected storage and are
   never exported.
 
-STARK does **not** attempt to sandbox a user-installed agent process — the agent
-runs with the user's own OS permissions, exactly as it would outside STARK.
-STARK's review gate controls acceptance into the managed engineering baseline;
+Omen Flow does **not** attempt to sandbox a user-installed agent process — the agent
+runs with the user's own OS permissions, exactly as it would outside Omen Flow.
+Omen Flow's review gate controls acceptance into the managed engineering baseline;
 it is not an OS-level sandbox.

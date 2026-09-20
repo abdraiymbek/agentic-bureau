@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qty, type Pin, type WiringConnection, type WiringPayload } from '@stark/contracts';
+import { qty, type Pin, type WiringConnection, type WiringPayload } from '@omenflow/contracts';
 import { WiringAnalyzer } from './wiring-analyzer.js';
 
 const A = 'aaaaaaaa-0000-4000-8000-000000000001';
