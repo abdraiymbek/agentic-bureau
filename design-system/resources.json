@@ -1,0 +1,69 @@
+{
+  "name": "Omen Flow",
+  "version": "1.0.0",
+  "updated": "2026-09-19",
+  "direction": "Precision in flow",
+  "specification": "design.md",
+  "tokens": "tokens.css",
+  "brand": {
+    "symbol": "brand/omen-symbol.svg",
+    "provenance": "Original vector created for Omen Flow",
+    "usage": "Monochrome, currentColor, preserve geometry"
+  },
+  "fonts": [
+    {
+      "family": "Geist",
+      "weights": [400, 500, 600],
+      "format": "woff2",
+      "source": "@fontsource/geist",
+      "role": "Interface",
+      "license": "fonts/geist-LICENSE.txt"
+    },
+    {
+      "family": "IBM Plex Mono",
+      "weights": [400, 500],
+      "format": "woff2",
+      "source": "@fontsource/ibm-plex-mono",
+      "role": "Code, terminal, technical expressions",
+      "license": "fonts/ibm-plex-mono-LICENSE.txt"
+    }
+  ],
+  "fontStylesheet": "fonts/fonts.css",
+  "icons": {
+    "package": "@phosphor-icons/react",
+    "weight": "regular",
+    "sizes": [14, 16, 20, 24],
+    "license": "MIT",
+    "versions": "../pnpm-lock.yaml"
+  },
+  "libraries": [
+    { "package": "@radix-ui/react-dialog", "role": "Focus-managed dialogs and command palette" },
+    { "package": "@radix-ui/react-dropdown-menu", "role": "Project switcher" },
+    { "package": "react-resizable-panels", "role": "Workspace and side-panel sizing" },
+    { "package": "@tanstack/react-table", "role": "BOM and candidates" },
+    { "package": "@xyflow/react", "role": "Dependency and impact graph" },
+    { "package": "three", "role": "Engineering mesh viewer and illustrative preview geometry" },
+    { "package": "@xterm/xterm", "role": "Real agent PTY terminal" },
+    { "package": "marked", "role": "Engineering text rendering, sanitized with DOMPurify" }
+  ],
+  "preview": {
+    "command": "pnpm design:preview",
+    "url": "http://127.0.0.1:5173/?design-preview",
+    "gallery": "http://127.0.0.1:5173/design-system/",
+    "data": "Disposable rover and drone projects created through CoreApp",
+    "mesh": "fixtures/preview-mesh.ts",
+    "meshStatus": "Illustrative only; not a verified OpenSCAD render or manufacturing model",
+    "agentExecution": "Disabled in browser preview; actual desktop adapter integration retained"
+  },
+  "references": [
+    "https://cursor.com/help/customization/themes",
+    "https://www.autodesk.com/learn/ondemand/tutorial/tour-the-fusion-user-interface"
+  ],
+  "rasterAssets": "Captured application screenshots only; no stock or generated decorative imagery",
+  "legacyCompatibility": [
+    "@stark package namespace",
+    ".stark project storage",
+    "stark bridge and CLI",
+    "STARK installer packaging"
+  ]
+}

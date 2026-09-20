@@ -1,4 +1,4 @@
-# STARK
+# Omen Flow
 
 A local desktop engineering workspace: bring an existing AI coding/agent CLI
 (Codex CLI, Claude Code, or any command-line tool) into a persistent local
@@ -12,7 +12,7 @@ archive — the engineering record survives the chat.
 
 ## What it is
 
-- **Electron desktop app** — React renderer, dark-only workspace, real PTY
+- **Electron desktop app** — React renderer, dark/light workspaces, real PTY
   terminal (xterm.js + node-pty), STL viewport, inspector, review queue,
   BOM table, dependency graph.
 - **Core domain layer** — every operation (GUI, MCP, CLI) goes through one
@@ -28,6 +28,24 @@ archive — the engineering record survives the chat.
 - **Adapters** — Codex CLI, Claude Code, and a generic custom-CLI adapter;
   OpenSCAD as the first CAD tool (detected on the system, never bundled).
 
+## Design system
+
+The Omen Flow redesign covers the project launcher, engineering workspace,
+agent/inspector panels, object editors, reviews, impact, delivery, and settings.
+Read [design-system/design.md](design-system/design.md) before building new UI.
+Tokens, fonts, brand assets, a live component catalog, and captured reference
+screens are included. [AGENTS.md](AGENTS.md) makes this the shared design contract.
+
+```sh
+pnpm design:preview      # populated, disposable projects at http://127.0.0.1:5173
+```
+
+Open `/design-system/` on the preview server for the screen presentation.
+The browser preview uses the real renderer and core; native agent execution
+is disabled. Its example mesh is illustrative, not a verified CAD render.
+Legacy `@stark` package names, `.stark` project storage, bridge commands, and
+installer names remain compatible; the UI display name is Omen Flow.
+
 ## Layout
 
 ```
@@ -40,6 +58,7 @@ packages/agent-host     PTY sessions, adapters, bridge server, CLI shim
 packages/mcp-server     MCP tools riding the bridge
 native/stark-bridge     Rust bridge helper (source; Node shim ships for dev)
 fixtures/               Rover + drone reference fixtures (see fixtures/README)
+design-system/          Canonical design, tokens, fonts, brand, screen references
 tests/                  Golden-path integration suite
 scripts/                Native rebuild + packaged smoke harnesses
 ```

@@ -3,17 +3,17 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
-import type { ArtifactView, Revision } from '@stark/contracts';
+import type { ArtifactView } from '@stark/contracts';
 
 /** Read a revision's markdown-ish content + file list, with sanitized render. */
 export function MarkdownView({ view }: { view: ArtifactView }) {
-  const { refreshArtifacts, toast } = useStore();
+  const { refreshArtifacts, toast, readOnly } = useStore();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const rev = view.revision;
 
   const contentOf = (payload: unknown): string => {
-    const p = payload as Record<string, unknown>;
+    const p = (payload ?? {}) as Record<string, unknown>;
     for (const k of ['markdown', 'statement', 'description', 'body', 'notes']) {
       if (typeof p[k] === 'string') return p[k];
     }
@@ -53,17 +53,27 @@ export function MarkdownView({ view }: { view: ArtifactView }) {
   return (
     <div>
       <div className="row" style={{ marginBottom: 8 }}>
-        <button style={{ height: 24, fontSize: 12 }} onClick={() => setEditing((e) => !e)}>
+        <button
+          style={{ height: 24, fontSize: 12 }}
+          disabled={readOnly || !rev}
+          onClick={() => setEditing((e) => !e)}
+        >
           {editing ? 'Preview' : 'Edit'}
         </button>
         {editing && (
-          <button className="primary" style={{ height: 24, fontSize: 12 }} onClick={save}>
+          <button
+            className="primary"
+            style={{ height: 24, fontSize: 12 }}
+            disabled={readOnly}
+            onClick={save}
+          >
             Save
           </button>
         )}
       </div>
       {editing ? (
         <textarea
+          aria-label="Object text"
           className="mono"
           rows={18}
           style={{ width: '100%', fontSize: 12 }}

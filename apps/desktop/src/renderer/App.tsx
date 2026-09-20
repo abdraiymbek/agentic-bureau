@@ -1,12 +1,27 @@
-import React, { useEffect } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import React, { useEffect, useRef } from 'react';
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelHandle,
+} from 'react-resizable-panels';
+import {
+  CaretRight,
+  Cube,
+  TerminalWindow,
+  SlidersHorizontal,
+  X,
+  CheckCircle,
+  WarningCircle,
+} from '@phosphor-icons/react';
 import { useStore } from './store';
 import { TopBar } from './components/TopBar';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, NAV_ITEMS } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { Inspector } from './components/Inspector';
 import { TerminalPane } from './components/TerminalPane';
 import { CommandPalette } from './components/CommandPalette';
+import { IconButton } from './components/ui';
 import { WelcomeView } from './views/WelcomeView';
 import { OverviewView } from './views/OverviewView';
 import { RequirementsView } from './views/RequirementsView';
@@ -16,12 +31,38 @@ import { ReviewsView } from './views/ReviewsView';
 import { HistoryView } from './views/HistoryView';
 import { FilesView } from './views/FilesView';
 import { ConnectionsView } from './views/ConnectionsView';
+import { DesignSystemView } from './views/DesignSystemView';
 import type { ProjectEvent } from '@stark/contracts';
 
 export default function App() {
-  const { projectId, nav, set, pushEvent, terminalExpanded, toasts } = useStore();
-
-  // Global event stream → store.
+  const {
+    projectId,
+    project,
+    nav,
+    set,
+    pushEvent,
+    terminalExpanded,
+    toasts,
+    theme,
+    density,
+    sidecarOpen,
+    sidecarTab,
+    sidebarOpen,
+  } = useStore();
+  const sidePanel = useRef<ImperativePanelHandle>(null);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.density = density;
+    try {
+      localStorage.setItem('omen.theme', theme);
+      localStorage.setItem('omen.density', density);
+    } catch {
+      /* preferences remain usable without storage */
+    }
+  }, [theme, density]);
+  useEffect(() => {
+    sidePanel.current?.resize(terminalExpanded ? 50 : 29);
+  }, [terminalExpanded]);
   useEffect(() => {
     const un = window.stark.onEvent((e) => pushEvent(e as ProjectEvent));
     const unJob = window.stark.onJobProgress(() => void useStore.getState().refreshJobs());
@@ -31,98 +72,143 @@ export default function App() {
       unJob();
       unTerm();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Shortcuts: Cmd/Ctrl+K palette, Cmd/Ctrl+P quick-open, Cmd/Ctrl+J terminal.
+  }, [pushEvent, set]);
   useEffect(() => {
+    const focusAgent = () => set({ sidecarOpen: true, sidecarTab: 'agent' });
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === 'k') {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const key = e.key.toLowerCase();
+      if (key === 'k' || key === 'p') {
         e.preventDefault();
-        set({ paletteOpen: true, quickOpen: false });
+        set({ paletteOpen: key === 'k', quickOpen: key === 'p' });
       }
-      if (mod && e.key.toLowerCase() === 'p') {
+      if (key === 'j') {
         e.preventDefault();
-        set({ quickOpen: true, paletteOpen: false });
+        set({ sidecarOpen: !useStore.getState().sidecarOpen, sidecarTab: 'agent' });
       }
-      if (mod && e.key.toLowerCase() === 'j') {
+      if (key === 'b') {
         e.preventDefault();
-        const el = document.querySelector<HTMLElement>('[data-terminal-region]');
-        if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
-        window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+        set({ sidebarOpen: !useStore.getState().sidebarOpen });
+      }
+      if (key === 'i' && e.shiftKey) {
+        e.preventDefault();
+        set({ sidecarOpen: true, sidecarTab: 'inspector' });
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('stark:focus-terminal', focusAgent);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('stark:focus-terminal', focusAgent);
+    };
   }, [set]);
-
-  if (!projectId) {
-    return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <WelcomeView />
-        <Toasts items={toasts} />
-      </div>
-    );
-  }
-
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-shell">
       <TopBar />
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <PanelGroup direction="horizontal" autoSaveId="stark-h">
-          <Panel defaultSize={16} minSize={12} maxSize={24}>
-            <Sidebar />
-          </Panel>
-          <PanelResizeHandle className="resize-handle" />
-          <Panel minSize={40}>
-            <PanelGroup direction="vertical" autoSaveId="stark-v">
-              <Panel minSize={30}>
-                <PanelGroup direction="horizontal" autoSaveId="stark-center">
-                  <Panel minSize={40}>
-                    <div
-                      style={{ height: '100%', background: 'var(--bg-main)', overflow: 'hidden' }}
-                    >
+      {!projectId ? (
+        nav === 'design-system' ? (
+          <div className="page-scroll">
+            <button className="ghost" onClick={() => set({ nav: 'overview' })}>
+              Back to projects
+            </button>
+            <DesignSystemView />
+          </div>
+        ) : (
+          <WelcomeView />
+        )
+      ) : (
+        <>
+          <div className="workspace-shell">
+            {sidebarOpen && <Sidebar />}
+            <div className="workspace-content">
+              <PanelGroup direction="horizontal" autoSaveId="omen-workspace-v1">
+                <Panel minSize={40}>
+                  <main className="main-panel">
+                    <div className="breadcrumb-bar">
+                      <Cube size={14} />
+                      <span className="truncate">{project?.name}</span>
+                      <CaretRight size={11} />
+                      <span>{NAV_ITEMS.find((n) => n.id === nav)?.label}</span>
+                    </div>
+                    <div className="surface">
                       <Surface nav={nav} />
                     </div>
-                  </Panel>
-                  <PanelResizeHandle className="resize-handle" />
-                  <Panel defaultSize={22} minSize={14} maxSize={32} collapsible>
-                    <Inspector />
-                  </Panel>
-                </PanelGroup>
-              </Panel>
-              <PanelResizeHandle className="resize-handle-h" />
-              <Panel
-                defaultSize={terminalExpanded ? 55 : 32}
-                minSize={15}
-                collapsible
-                data-terminal-region
-              >
-                <div data-terminal-region style={{ height: '100%' }}>
-                  <TerminalPane />
-                </div>
-              </Panel>
-            </PanelGroup>
-          </Panel>
-        </PanelGroup>
-      </div>
-      <StatusBar />
+                  </main>
+                </Panel>
+                <PanelResizeHandle className="resize-handle" hidden={!sidecarOpen} />
+                <Panel
+                  ref={sidePanel}
+                  defaultSize={29}
+                  minSize={22}
+                  maxSize={55}
+                  style={!sidecarOpen ? { display: 'none' } : undefined}
+                >
+                  <aside className="sidecar" aria-label="Agent and inspector">
+                    <div className="sidecar-tabs">
+                      <button
+                        className={`sidecar-tab ${sidecarTab === 'agent' ? 'active' : ''}`}
+                        aria-pressed={sidecarTab === 'agent'}
+                        onClick={() => set({ sidecarTab: 'agent' })}
+                      >
+                        <TerminalWindow size={14} />
+                        Agent
+                      </button>
+                      <button
+                        className={`sidecar-tab ${sidecarTab === 'inspector' ? 'active' : ''}`}
+                        aria-pressed={sidecarTab === 'inspector'}
+                        onClick={() => set({ sidecarTab: 'inspector' })}
+                      >
+                        <SlidersHorizontal size={14} />
+                        Inspector
+                      </button>
+                      <span className="grow" />
+                      <IconButton
+                        label="Close side panel"
+                        onClick={() => set({ sidecarOpen: false })}
+                      >
+                        <X size={14} />
+                      </IconButton>
+                    </div>
+                    <div className="sidecar-content" hidden={sidecarTab !== 'agent'}>
+                      <TerminalPane key={projectId} />
+                    </div>
+                    <div className="sidecar-content" hidden={sidecarTab !== 'inspector'}>
+                      <Inspector />
+                    </div>
+                  </aside>
+                </Panel>
+              </PanelGroup>
+            </div>
+          </div>
+          <StatusBar />
+        </>
+      )}
       <CommandPalette />
-      <Toasts items={toasts} />
-      <style>{`
-        .resize-handle { width: 4px; background: var(--border); cursor: col-resize; }
-        .resize-handle-h { height: 4px; background: var(--border); cursor: row-resize; }
-        .resize-handle:hover, .resize-handle-h:hover { background: var(--accent); }
-      `}</style>
+      <div className="toast-stack" aria-live="polite">
+        {toasts.map((t) => (
+          <div key={t.id} className="toast" role={t.kind === 'error' ? 'alert' : 'status'}>
+            {t.kind === 'error' ? (
+              <WarningCircle size={16} className="err" />
+            ) : (
+              <CheckCircle size={16} className={t.kind === 'ok' ? 'ok' : 'dim'} />
+            )}
+            <span>{t.text}</span>
+            <IconButton
+              label="Dismiss notification"
+              onClick={() =>
+                set({ toasts: useStore.getState().toasts.filter((x) => x.id !== t.id) })
+              }
+            >
+              <X size={13} />
+            </IconButton>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
-
 function Surface({ nav }: { nav: string }) {
   switch (nav) {
-    case 'overview':
-      return <OverviewView />;
     case 'requirements':
       return <RequirementsView />;
     case 'components':
@@ -137,39 +223,9 @@ function Surface({ nav }: { nav: string }) {
       return <FilesView />;
     case 'connections':
       return <ConnectionsView />;
+    case 'design-system':
+      return <DesignSystemView />;
     default:
       return <OverviewView />;
   }
-}
-
-function Toasts({ items }: { items: { id: number; kind: string; text: string }[] }) {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 40,
-        right: 16,
-        zIndex: 60,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}
-    >
-      {items.map((t) => (
-        <div
-          key={t.id}
-          style={{
-            background: 'var(--bg-raised)',
-            border: `1px solid ${t.kind === 'error' ? 'var(--err)' : t.kind === 'ok' ? 'var(--ok)' : 'var(--border-strong)'}`,
-            borderRadius: 6,
-            padding: '8px 12px',
-            fontSize: 12,
-            maxWidth: 380,
-          }}
-        >
-          {t.text}
-        </div>
-      ))}
-    </div>
-  );
 }

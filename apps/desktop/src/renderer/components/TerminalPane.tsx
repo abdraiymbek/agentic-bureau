@@ -1,4 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
+import {
+  ArrowsOutSimple,
+  ArrowsInSimple,
+  MagnifyingGlass,
+  Play,
+  Stop,
+  Pause,
+  ArrowClockwise,
+  TerminalWindow,
+  ListChecks,
+  Cube,
+  GitBranch,
+} from '@phosphor-icons/react';
+import { Brand, IconButton } from './ui';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -26,7 +40,13 @@ export function TerminalPane() {
     set,
     toast,
     projectId,
+    theme,
+    artifacts,
+    proposals,
+    sidecarTab,
+    sidecarOpen,
   } = useStore();
+  const [starting, setStarting] = useState(false);
   const [adapterId, setAdapterId] = useState('codex');
   const restored = useRef(false);
   // Reflect the running session's adapter so the picker doesn't lie.
@@ -41,26 +61,7 @@ export function TerminalPane() {
       fontSize: 13,
       cursorBlink: true,
       allowProposedApi: true,
-      theme: {
-        background: '#14161a',
-        foreground: '#e6e9ed',
-        cursor: '#87afc7',
-        selectionBackground: '#343b44',
-        black: '#17191c',
-        red: '#e29797',
-        green: '#9bc49e',
-        yellow: '#d7b979',
-        blue: '#87afc7',
-        magenta: '#b39ddb',
-        cyan: '#80cbc4',
-        white: '#e6e9ed',
-        brightBlack: '#6b7480',
-        brightRed: '#e29797',
-        brightGreen: '#9bc49e',
-        brightYellow: '#d7b979',
-        brightBlue: '#87afc7',
-        brightWhite: '#ffffff',
-      },
+      theme: terminalTheme(),
     });
     const f = new FitAddon();
     const s = new SearchAddon();
@@ -135,6 +136,7 @@ export function TerminalPane() {
   }, [session?.id]);
 
   const start = async () => {
+    setStarting(true);
     try {
       // A fresh session shouldn't inherit a dead session's scrollback.
       term.current?.reset();
@@ -143,6 +145,8 @@ export function TerminalPane() {
       term.current?.focus();
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setStarting(false);
     }
   };
   const stop = async () => {
@@ -158,44 +162,42 @@ export function TerminalPane() {
     await refreshSession();
   };
 
+  useEffect(() => {
+    if (term.current) term.current.options.theme = terminalTheme();
+  }, [theme]);
+  useEffect(() => {
+    if (sidecarOpen && sidecarTab === 'agent') {
+      const frame = requestAnimationFrame(() => {
+        fit.current?.fit();
+        if (session?.state === 'running') term.current?.focus();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [sidecarOpen, sidecarTab, session?.state]);
+
+  useEffect(() => {
+    if (host.current) host.current.inert = !session;
+  }, [session]);
+
   const running = session?.state === 'running' || session?.state === 'starting';
   const adapterOptions = adapters.length
     ? adapters
     : ([
-        { adapterId: 'codex', label: 'Codex CLI' },
-        { adapterId: 'claude-code', label: 'Claude Code' },
-        { adapterId: 'custom', label: 'Custom CLI' },
+        { adapterId: 'codex', label: 'Codex CLI', available: false },
+        { adapterId: 'claude-code', label: 'Claude Code', available: false },
+        { adapterId: 'custom', label: 'Custom CLI', available: false },
       ] as never[]);
 
+  const currentAdapter = adapterOptions.find((a) => a.adapterId === adapterId);
   return (
-    <div
-      style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'var(--bg-inset)',
-      }}
-    >
-      <div
-        style={{
-          height: 34,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '0 8px',
-          borderTop: '1px solid var(--border)',
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-app)',
-          fontSize: 12,
-          flexShrink: 0,
-        }}
-      >
-        <span className="dim">Agent:</span>
+    <div className="agent-pane">
+      <div className="agent-toolbar">
+        <TerminalWindow size={14} className="faint" />
         <select
+          aria-label="Agent provider"
           value={adapterId}
           onChange={(e) => setAdapterId(e.target.value)}
-          style={{ height: 24, fontSize: 12 }}
-          disabled={running}
+          disabled={running || starting}
         >
           {adapterOptions.map((a) => (
             <option key={a.adapterId} value={a.adapterId}>
@@ -203,16 +205,23 @@ export function TerminalPane() {
             </option>
           ))}
         </select>
-        <span
-          className={`pill ${running ? 'current' : session?.state === 'failed' ? 'missing' : ''}`}
+        <span className="grow" />
+        <IconButton label="Find in terminal" onClick={() => setFindOpen((v) => !v)}>
+          <MagnifyingGlass size={14} />
+        </IconButton>
+        <IconButton
+          label={terminalExpanded ? 'Reduce agent panel' : 'Expand agent panel'}
+          onClick={() => set({ terminalExpanded: !terminalExpanded })}
         >
-          {session?.state ?? 'stopped'}
-        </span>
-        <span style={{ flex: 1 }} />
-        {findOpen && (
+          {terminalExpanded ? <ArrowsInSimple size={14} /> : <ArrowsOutSimple size={14} />}
+        </IconButton>
+      </div>
+      {findOpen && (
+        <div className="agent-find">
           <input
+            aria-label="Find in terminal"
             autoFocus
-            placeholder="Find"
+            placeholder="Find in terminal…"
             value={findQuery}
             onChange={(e) => {
               setFindQuery(e.target.value);
@@ -222,41 +231,115 @@ export function TerminalPane() {
               if (e.key === 'Enter') search.current?.findNext(findQuery);
               if (e.key === 'Escape') setFindOpen(false);
             }}
-            style={{ height: 24, width: 160, fontSize: 12 }}
           />
-        )}
-        <button style={{ height: 24, fontSize: 12 }} onClick={() => setFindOpen((v) => !v)}>
-          Find
-        </button>
-        <button
-          style={{ height: 24, fontSize: 12 }}
-          onClick={() => set({ terminalExpanded: !terminalExpanded })}
-        >
-          {terminalExpanded ? 'Shrink' : 'Expand'}
-        </button>
-        {running ? (
-          <>
-            <button style={{ height: 24, fontSize: 12 }} onClick={interrupt}>
-              Interrupt
+        </div>
+      )}
+      {!session && (
+        <div className="agent-welcome">
+          <Brand compact />
+          <h2>
+            Think it through.
+            <br />
+            Build it together.
+          </h2>
+          <p>Your agent works with the requirements, design files, and evidence in this project.</p>
+          <div className="agent-context">
+            <div>
+              <ListChecks size={15} />
+              <span>Project requirements</span>
+              <span className="count">
+                {artifacts.filter((v) => v.artifact.type === 'requirement').length}
+              </span>
+            </div>
+            <div>
+              <Cube size={15} />
+              <span>Engineering objects</span>
+              <span className="count">{artifacts.length}</span>
+            </div>
+            <div>
+              <GitBranch size={15} />
+              <span>Proposals to review</span>
+              <span className="count">{proposals.filter((p) => p.state === 'pending').length}</span>
+            </div>
+          </div>
+          <button
+            className="primary"
+            onClick={() => void start()}
+            disabled={starting || !currentAdapter?.available}
+          >
+            <Play size={14} />
+            {starting ? 'Connecting…' : 'Start agent session'}
+          </button>
+          {currentAdapter && !currentAdapter.available && (
+            <button className="text-link" onClick={() => set({ nav: 'connections' })}>
+              Set up {currentAdapter.label} in Connections
             </button>
-            <button style={{ height: 24, fontSize: 12 }} className="danger" onClick={stop}>
-              Stop
-            </button>
-          </>
-        ) : (
-          <>
-            <button style={{ height: 24, fontSize: 12 }} onClick={start} className="primary">
-              Start
-            </button>
-            {session && (
-              <button style={{ height: 24, fontSize: 12 }} onClick={restart}>
-                Restart
+          )}
+          <span className="agent-boundary">You approve what becomes the baseline.</span>
+        </div>
+      )}
+      <div
+        ref={host}
+        className={`terminal-host ${!session ? 'terminal-idle' : ''}`}
+        aria-label="Agent terminal"
+        aria-hidden={!session}
+      />
+      {session && (
+        <div className="agent-session-actions">
+          <span
+            className={`session-indicator ${running ? 'ok' : session.state === 'failed' ? 'err' : 'dim'}`}
+          >
+            {session.state}
+          </span>
+          <span className="grow" />
+          {running ? (
+            <>
+              <IconButton label="Interrupt agent" onClick={() => void interrupt()}>
+                <Pause size={14} />
+              </IconButton>
+              <IconButton label="Stop agent" onClick={() => void stop()}>
+                <Stop size={14} />
+              </IconButton>
+            </>
+          ) : (
+            <>
+              <button className="primary" onClick={() => void start()} disabled={starting}>
+                <Play size={13} />
+                Start
               </button>
-            )}
-          </>
-        )}
+              <IconButton label="Restart agent" onClick={() => void restart()}>
+                <ArrowClockwise size={14} />
+              </IconButton>
+            </>
+          )}
+        </div>
+      )}
+      <div className="agent-footer">
+        <TerminalWindow size={12} />
+        <span>Local agent session</span>
+        <span className="grow" />
+        <kbd>⌘ J</kbd>
       </div>
-      <div ref={host} style={{ flex: 1, minHeight: 0, padding: 4 }} />
     </div>
   );
+}
+function terminalTheme() {
+  const css = getComputedStyle(document.documentElement);
+  const color = (token: string) => css.getPropertyValue(token).trim();
+  return {
+    background: color('--bg-app'),
+    foreground: color('--text-primary'),
+    cursor: color('--accent'),
+    selectionBackground: color('--accent-soft'),
+    black: color('--bg-inset'),
+    red: color('--err'),
+    green: color('--ok'),
+    yellow: color('--warn'),
+    blue: color('--accent'),
+    magenta: '#b7a3d5',
+    cyan: '#90c3ca',
+    white: color('--text-primary'),
+    brightBlack: color('--text-faint'),
+    brightWhite: '#ffffff',
+  };
 }

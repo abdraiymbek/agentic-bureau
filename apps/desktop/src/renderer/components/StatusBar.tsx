@@ -1,34 +1,33 @@
+import { HardDrive, GitBranch, WarningCircle, TerminalWindow } from '@phosphor-icons/react';
 import { useStore } from '../store';
-
 export function StatusBar() {
-  const { proposals, stale, projectPath } = useStore();
+  const { proposals, stale, projectPath, readOnly, session, navigate, set } = useStore();
   const pending = proposals.filter((p) => p.state === 'pending').length;
   const staleCount = Object.values(stale).filter((s) => s.length > 0).length;
   return (
-    <div
-      style={{
-        height: 26,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '0 12px',
-        background: 'var(--bg-app)',
-        borderTop: '1px solid var(--border)',
-        fontSize: 12,
-        color: 'var(--text-secondary)',
-      }}
-    >
-      <span>Saved locally</span>
-      {pending > 0 && (
-        <span className="warn">
-          {pending} artifact{pending > 1 ? 's' : ''} need{pending > 1 ? '' : 's'} review
-        </span>
-      )}
-      {staleCount > 0 && <span className="warn">{staleCount} stale</span>}
-      <span style={{ flex: 1 }} />
-      <span className="faint mono" style={{ fontSize: 11 }}>
-        {projectPath ?? ''}
+    <footer className="statusbar">
+      <span className="row">
+        <HardDrive size={12} />
+        {readOnly ? 'Read-only project' : 'Local workspace'}
       </span>
-    </div>
+      {pending > 0 && (
+        <button className="row" onClick={() => navigate('reviews')}>
+          <GitBranch size={12} />
+          {pending} in review
+        </button>
+      )}
+      {staleCount > 0 && (
+        <button className="row warn" onClick={() => navigate('history')}>
+          <WarningCircle size={12} />
+          {staleCount} out of date
+        </button>
+      )}
+      <span className="grow" />
+      <span className="status-path truncate">{projectPath}</span>
+      <button className="row" onClick={() => set({ sidecarOpen: true, sidecarTab: 'agent' })}>
+        <TerminalWindow size={12} />
+        {session?.state === 'running' ? `${session.adapterId} connected` : 'Agent ready to connect'}
+      </button>
+    </footer>
   );
 }

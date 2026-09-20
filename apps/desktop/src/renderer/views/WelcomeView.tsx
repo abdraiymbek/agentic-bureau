@@ -2,83 +2,38 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowRight,
-  ChartLine,
-  Circuitry,
-  Cube,
-  FilePlus,
+  ArrowUp,
   FolderOpen,
-  GitPullRequest,
-  House,
-  Lightbulb,
-  Package,
   Plus,
+  Package,
+  House,
+  HardDrive,
+  Cube,
+  ListChecks,
+  GitBranch,
   X,
+  SquaresFour,
+  MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
-import aircraft from '../assets/stark-aircraft.png';
+import { Brand, FormField, IconButton, EmptyState, SearchField } from '../components/ui';
 import type { Project } from '@stark/contracts';
 import './welcome.css';
 
-const STEPS = [
-  {
-    n: '01',
-    icon: Lightbulb,
-    title: 'Idea → Concept',
-    desc: 'Shape your idea into clear requirements with AI.',
-    detail:
-      'Describe what you want to build. In Requirements, capture what it needs to do, the constraints it must meet, and the assumptions to validate.',
-  },
-  {
-    n: '02',
-    icon: Cube,
-    title: 'Concept → CAD',
-    desc: 'Create parametric models. Preview every revision.',
-    detail:
-      'Work with your connected agent to create parametric OpenSCAD models from your requirements. Preview rendered models in Artifacts and review changes before accepting them.',
-  },
-  {
-    n: '03',
-    icon: Circuitry,
-    title: 'Parts & Sourcing',
-    desc: 'Find real parts and keep your bill of materials in sync.',
-    detail:
-      'Use Components to organize parts, compare supplier offers, and track quantities. Export your bill of materials when you are ready to source the build.',
-  },
-  {
-    n: '04',
-    icon: GitPullRequest,
-    title: 'Review & Build',
-    desc: 'Inspect proposed changes. You decide what gets built.',
-    detail:
-      'Your agent submits proposed changes to Reviews. Inspect the changes and validation results, then accept or reject them before they become part of your project.',
-  },
-  {
-    n: '05',
-    icon: ChartLine,
-    title: 'Iterate & Improve',
-    desc: 'Trace decisions, check dependencies, and refine.',
-    detail:
-      'Use History and artifact dependencies to follow decisions from requirement to result. See what is out of date when a design changes and rerun the relevant checks.',
-  },
-];
-
-/** Project launcher. The artwork and typography are bundled for offline use. */
 export function WelcomeView() {
-  const { set, setActive, toast } = useStore();
+  const { set, setActive, toast, sidebarOpen } = useStore();
   const [recents, setRecents] = useState<string[]>([]);
   const [recentState, setRecentState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showAllRecents, setShowAllRecents] = useState(false);
   const [recentAttempt, setRecentAttempt] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
-  const [selectedStep, setSelectedStep] = useState<(typeof STEPS)[number] | null>(null);
   const [name, setName] = useState('');
   const [intent, setIntent] = useState('');
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
   const operationPending = useRef(false);
   const newProjectButton = useRef<HTMLButtonElement>(null);
-  const stepTrigger = useRef<HTMLButtonElement | null>(null);
-
   useEffect(() => {
     let cancelled = false;
     setRecentState('loading');
@@ -107,12 +62,25 @@ export function WelcomeView() {
     r: { project: Project; projectId: string; readOnly?: boolean },
     path: string,
   ) => {
-    set({ project: r.project, projectPath: path, readOnly: !!r.readOnly });
+    set({
+      project: r.project,
+      projectPath: path,
+      readOnly: !!r.readOnly,
+      nav: 'overview',
+      selectedArtifactId: null,
+      artifacts: [],
+      proposals: [],
+      events: [],
+      jobs: [],
+      session: null,
+    });
     setActive(r.projectId);
     await useStore.getState().refreshArtifacts();
     await useStore.getState().refreshProposals();
     await useStore.getState().refreshEvents();
     await useStore.getState().refreshSession();
+    await useStore.getState().refreshJobs();
+    await useStore.getState().refreshAdapters();
   };
 
   // Include native pickers in the operation, so cancellation and picker failures
@@ -147,7 +115,7 @@ export function WelcomeView() {
 
   const open = (dir?: string) =>
     run(async () => {
-      const path = dir ?? (await window.stark.pickDirectory('Open STARK project'));
+      const path = dir ?? (await window.stark.pickDirectory('Open Omen Flow project'));
       if (!path) return;
       const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>(
         'project.open',
@@ -159,8 +127,8 @@ export function WelcomeView() {
   const importArchive = () =>
     run(async () => {
       const archivePath = await window.stark.pickFile({
-        title: 'Import STARK archive',
-        filters: [{ name: 'STARK archive', extensions: ['zip', 'stark.zip'] }],
+        title: 'Import project archive',
+        filters: [{ name: 'Project archive', extensions: ['zip', 'stark.zip'] }],
       });
       if (!archivePath) return;
       const destDir = await window.stark.pickDirectory('Choose where to extract the project');
@@ -182,214 +150,197 @@ export function WelcomeView() {
       .split(/[\\/]/)
       .pop() || path;
 
+  const visibleRecents = recents.filter((r) => base(r).toLowerCase().includes(query.toLowerCase()));
   return (
-    <div className="welcome">
-      <header className="welcome-header">
-        <div className="welcome-brand">
-          <span className="welcome-logo">STARK</span>
-        </div>
-        <div className="welcome-header-main">
-          <div className="welcome-steps" aria-label="Engineer, design, source, build">
-            <span>ENGINEER</span>
-            <span aria-hidden="true">›</span>
-            <span>DESIGN</span>
-            <span aria-hidden="true">›</span>
-            <span>SOURCE</span>
-            <span aria-hidden="true">›</span>
-            <span>BUILD</span>
+    <div className="launcher">
+      {sidebarOpen && (
+        <aside className="sidebar launcher-sidebar">
+          <div className="launcher-space">
+            <span className="project-avatar">O</span>
+            <div>
+              <strong>Personal workspace</strong>
+              <small>On this device</small>
+            </div>
           </div>
-          <span className="welcome-edition">ENGINEERING WORKSPACE</span>
-        </div>
-      </header>
-
-      <div className="welcome-body">
-        <aside className="welcome-rail" aria-label="Project launcher">
-          <nav className="welcome-nav" aria-label="Main navigation">
-            <RailItem icon={<House size={20} />} label="Home" active />
-            <RailItem
-              icon={<FilePlus size={20} />}
-              label="New Project"
-              onClick={() => setCreateOpen(true)}
-              disabled={busy}
-            />
-            <RailItem
-              icon={<FolderOpen size={20} />}
-              label="Open Project"
-              onClick={() => open()}
-              disabled={busy}
-            />
-            <RailItem
-              icon={<Package size={20} />}
-              label="Import Archive"
-              onClick={importArchive}
-              disabled={busy}
-            />
+          <nav className="nav-group" aria-label="Project launcher">
+            <button className="nav-item active" aria-current="page">
+              <House size={16} />
+              Projects
+            </button>
+            <button className="nav-item" onClick={() => setCreateOpen(true)} disabled={busy}>
+              <Plus size={16} />
+              New project
+            </button>
+            <button className="nav-item" onClick={() => void open()} disabled={busy}>
+              <FolderOpen size={16} />
+              Open project
+            </button>
+            <button className="nav-item" onClick={() => void importArchive()} disabled={busy}>
+              <Package size={16} />
+              Import archive
+            </button>
           </nav>
-
-          <section
-            className="welcome-recents"
-            aria-labelledby="recent-projects-title"
-            aria-busy={recentState === 'loading'}
-          >
-            <h2 id="recent-projects-title" className="rail-label">
-              Recent Projects
-            </h2>
+          <div className="nav-label">Recently opened</div>
+          {recents.slice(0, 5).map((r) => (
+            <button
+              className="nav-item"
+              key={r}
+              onClick={() => void open(r)}
+              title={r}
+              disabled={busy}
+            >
+              <Cube size={14} />
+              <span>{base(r)}</span>
+            </button>
+          ))}
+          <div className="sidebar-bottom">
+            <button className="nav-item" onClick={() => set({ nav: 'design-system' })}>
+              <SquaresFour size={16} />
+              Design system
+            </button>
+            <div className="sidebar-note">
+              <HardDrive size={13} />
+              Local by design
+            </div>
+          </div>
+        </aside>
+      )}
+      <main className="launcher-main">
+        <div className="launcher-content">
+          <div className="launcher-heading">
+            <span>Projects</span>
+            <button className="ghost" onClick={() => void open()} disabled={busy}>
+              <FolderOpen size={15} />
+              Open folder
+            </button>
+          </div>
+          <section className="launcher-intro">
+            <Brand compact />
+            <h1>Build what comes next.</h1>
+            <p>One workspace for your ideas, your AI, and the engineering behind them.</p>
+            <form
+              className="project-composer"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setCreateOpen(true);
+              }}
+            >
+              <label className="sr-only" htmlFor="project-brief">
+                What are you building?
+              </label>
+              <textarea
+                id="project-brief"
+                placeholder="What are you building?"
+                value={intent}
+                onChange={(e) => setIntent(e.target.value)}
+                rows={2}
+              />
+              <div className="project-composer-footer">
+                <span>
+                  <Cube size={14} />
+                  Start from an idea. Build with evidence.
+                </span>
+                <button ref={newProjectButton} className="primary" disabled={busy}>
+                  Create project
+                  <ArrowUp size={15} />
+                </button>
+              </div>
+            </form>
+            <div className="launcher-domains">
+              <span>
+                <ListChecks size={14} />
+                Requirements
+              </span>
+              <span>
+                <Cube size={14} />
+                Design & engineering
+              </span>
+              <span>
+                <GitBranch size={14} />
+                Review & iterate
+              </span>
+            </div>
+          </section>
+          <section className="launcher-recents" aria-busy={recentState === 'loading'}>
+            <div className="section-heading">
+              <h2>
+                Recent projects <span className="count">{recents.length}</span>
+              </h2>
+              {recents.length > 0 && (
+                <SearchField value={query} onChange={setQuery} placeholder="Find a project" />
+              )}
+            </div>
             {recentState === 'loading' ? (
-              <div className="recent-skeleton" role="status" aria-label="Loading recent projects">
-                <span />
-                <span />
-                <span />
+              <div className="recent-loading" role="status">
+                Loading your projects…
               </div>
             ) : recentState === 'error' ? (
-              <div>
-                <p className="rail-empty">
-                  Recent projects couldn’t be loaded. Try again or reopen STARK.
-                </p>
-                <button
-                  className="recent-toggle"
-                  onClick={() => setRecentAttempt((attempt) => attempt + 1)}
-                >
-                  Try again <ArrowRight size={14} />
+              <EmptyState
+                title="Couldn’t load recent projects"
+                body="Try again, or open a project folder directly."
+                action={<button onClick={() => setRecentAttempt((x) => x + 1)}>Try again</button>}
+              />
+            ) : !recents.length ? (
+              <div className="launcher-empty">
+                <FolderOpen size={23} weight="light" />
+                <div>
+                  <strong>Your next project starts here.</strong>
+                  <p>Create a project above or open an existing folder.</p>
+                </div>
+                <button onClick={() => void open()} disabled={busy}>
+                  Open project
+                  <ArrowRight size={14} />
                 </button>
               </div>
-            ) : recents.length === 0 ? (
-              <p className="rail-empty">
-                A place for your next idea.
-                <br />
-                Create or open a project to begin.
-              </p>
+            ) : !visibleRecents.length ? (
+              <EmptyState
+                title="No matching projects"
+                body="Try another name or clear the filter."
+                icon={<MagnifyingGlass size={24} />}
+              />
             ) : (
-              <>
-                <div className="recent-list">
-                  {(showAllRecents ? recents : recents.slice(0, 5)).map((r) => (
-                    <button
-                      key={r}
-                      className="rail-recent"
-                      title={r}
-                      onClick={() => open(r)}
-                      disabled={busy}
-                    >
-                      <Cube size={18} />
-                      <span>{base(r)}</span>
-                    </button>
-                  ))}
-                </div>
-                {recents.length > 5 && (
+              <div className="recent-project-list">
+                {(showAllRecents ? visibleRecents : visibleRecents.slice(0, 5)).map((r) => (
                   <button
-                    className="recent-toggle"
-                    onClick={() => setShowAllRecents(!showAllRecents)}
-                    aria-expanded={showAllRecents}
+                    className="recent-project"
+                    key={r}
+                    onClick={() => void open(r)}
+                    disabled={busy}
                   >
-                    {showAllRecents ? 'Show less' : 'View all'} <ArrowRight size={14} />
+                    <span className="project-avatar">
+                      <Cube size={18} />
+                    </span>
+                    <span className="grow">
+                      <strong>{base(r)}</strong>
+                      <small className="truncate">{r}</small>
+                    </span>
+                    <span className="recent-location">Local project</span>
+                    <ArrowRight size={15} />
                   </button>
-                )}
-              </>
+                ))}
+              </div>
+            )}
+            {visibleRecents.length > 5 && (
+              <button className="text-link" onClick={() => setShowAllRecents(!showAllRecents)}>
+                {showAllRecents ? 'Show fewer projects' : 'Show all projects'}
+              </button>
             )}
           </section>
-
-          <blockquote className="rail-quote">
-            <p>
-              “Ideas to reality,
-              <br />
-              faster.”
-            </p>
-            <cite>STARK</cite>
-          </blockquote>
-        </aside>
-
-        <main className="welcome-main">
-          <section className="welcome-hero" aria-labelledby="welcome-title">
-            <div className="hero-art" aria-hidden="true">
-              <div className="hero-grid" />
-              <div className="hero-aircraft">
-                <img
-                  src={aircraft}
-                  alt=""
-                  width="2944"
-                  height="1804"
-                  loading="eager"
-                  draggable="false"
-                />
-              </div>
-              <span className="hero-art-caption">
-                IDEAS
-                <br />
-                TAKE FLIGHT
-              </span>
-              <span className="hero-art-process">
-                CONCEPT
-                <br />
-                DESIGN
-                <br />
-                SOURCE
-                <br />
-                BUILD
-                <br />
-                IMPROVE
-              </span>
-            </div>
-            <div className="hero-copy">
-              <p className="hero-eyebrow">YOUR ENGINEERING CO-PILOT</p>
-              <h1 id="welcome-title" className="hero-word">
-                STARK
-              </h1>
-              <p className="hero-tag">Turn your ideas into real-world engineering.</p>
-              <p className="hero-sub">
-                From concept to CAD, parts, wiring and beyond.
-                <br className="hero-linebreak" /> STARK helps you design, source, and build, powered
-                by AI.
-              </p>
-              <div className="hero-ctas">
-                <button
-                  ref={newProjectButton}
-                  className="cta-primary"
-                  onClick={() => setCreateOpen(true)}
-                  disabled={busy}
-                >
-                  <Plus size={20} />
-                  Start New Project
-                  <ArrowRight size={18} />
-                </button>
-                <button className="cta-ghost" onClick={() => open()} disabled={busy}>
-                  <FolderOpen size={20} />
-                  Open Project
-                </button>
-              </div>
-              <span className="welcome-operation" role="status">
-                {busy && !createOpen ? 'Opening your workspace…' : ''}
-              </span>
-            </div>
-          </section>
-
-          <section className="welcome-cards" aria-label="From idea to engineering">
-            {STEPS.map((step) => (
-              <button
-                key={step.n}
-                className="step-card"
-                onClick={(event) => {
-                  stepTrigger.current = event.currentTarget;
-                  setSelectedStep(step);
-                }}
-                aria-haspopup="dialog"
-              >
-                <span className="step-top">
-                  <step.icon size={26} weight="light" />
-                  <span className="step-num">{step.n}</span>
-                </span>
-                <span className="step-title">{step.title}</span>
-                <span className="step-desc">{step.desc}</span>
-                <ArrowRight size={17} className="step-arrow" aria-hidden="true" />
-              </button>
-            ))}
-          </section>
-
-          <footer className="welcome-footer">
-            <span className="welcome-footer-motto">BUILT FOR A BRIGHTER TOMORROW.</span>
-            <span>STARK&nbsp; // &nbsp;ENGINEERING INTELLIGENCE</span>
+          <footer className="launcher-footer">
+            <span>
+              <HardDrive size={13} />
+              Your files and engineering record stay with your project.
+            </span>
+            <button className="text-link" onClick={() => set({ nav: 'design-system' })}>
+              Explore the design system
+              <ArrowRight size={13} />
+            </button>
           </footer>
-        </main>
-      </div>
-
+          <div className="launcher-operation" role="status">
+            {busy && !createOpen ? 'Opening your workspace…' : ''}
+          </div>
+        </div>
+      </main>
       <Dialog.Root
         open={createOpen}
         onOpenChange={(value) => {
@@ -397,17 +348,21 @@ export function WelcomeView() {
         }}
       >
         <Dialog.Portal>
-          <Dialog.Overlay className="dlg-overlay welcome-dialog-overlay" />
+          <Dialog.Overlay className="dlg-overlay" />
           <Dialog.Content
-            className="dlg welcome-dialog"
+            className="dlg"
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               newProjectButton.current?.focus();
             }}
           >
-            <Dialog.Title className="dlg-title">Start a new project</Dialog.Title>
-            <Dialog.Description className="welcome-dialog-description">
-              Give your idea a name. Next, choose a folder for your workspace.
+            <span className="dialog-symbol">
+              <Cube size={22} />
+            </span>
+            <Dialog.Title className="dlg-title">A new space to build.</Dialog.Title>
+            <Dialog.Description className="dlg-description">
+              Name your project, then choose where it lives. Your AI and engineering tools will
+              share this workspace.
             </Dialog.Description>
             <form
               onSubmit={(event) => {
@@ -415,121 +370,47 @@ export function WelcomeView() {
                 void create();
               }}
             >
-              <label className="dlg-label" htmlFor="project-name">
-                Project name
-              </label>
-              <input
-                id="project-name"
-                autoFocus
-                required
-                placeholder="e.g. Sable inspection rover"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={busy}
-              />
-              <label className="dlg-label" htmlFor="project-intent">
-                What are you building? <span>Optional</span>
-              </label>
-              <textarea
-                id="project-intent"
-                placeholder="Describe your idea and what it needs to do."
-                rows={3}
-                value={intent}
-                onChange={(e) => setIntent(e.target.value)}
-                disabled={busy}
-              />
-              <div className="welcome-dialog-actions">
+              <FormField label="Project name">
+                <input
+                  required
+                  placeholder="e.g. Sable inspection rover"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={busy}
+                />
+              </FormField>
+              <FormField
+                label="What are you building?"
+                hint="Optional. Your agent can use this as the project brief."
+              >
+                <textarea
+                  placeholder="Describe the idea and what it needs to do."
+                  rows={3}
+                  value={intent}
+                  onChange={(e) => setIntent(e.target.value)}
+                  disabled={busy}
+                />
+              </FormField>
+              <div className="dlg-actions">
                 <Dialog.Close asChild>
-                  <button type="button" disabled={busy}>
+                  <button type="button" className="ghost" disabled={busy}>
                     Cancel
                   </button>
                 </Dialog.Close>
                 <button className="primary" type="submit" disabled={busy || !name.trim()}>
                   {busy ? 'Creating…' : 'Choose folder & create'}
-                  <ArrowRight size={16} />
+                  <ArrowRight size={15} />
                 </button>
               </div>
             </form>
             <Dialog.Close asChild>
-              <button
-                className="welcome-dialog-close"
-                aria-label="Close new project"
-                disabled={busy}
-              >
-                <X size={18} />
-              </button>
-            </Dialog.Close>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-
-      <Dialog.Root
-        open={!!selectedStep}
-        onOpenChange={(value) => {
-          if (!value) setSelectedStep(null);
-        }}
-      >
-        <Dialog.Portal>
-          <Dialog.Overlay className="dlg-overlay welcome-dialog-overlay" />
-          <Dialog.Content
-            className="dlg welcome-dialog"
-            onCloseAutoFocus={(event) => {
-              event.preventDefault();
-              stepTrigger.current?.focus();
-            }}
-          >
-            {selectedStep && (
-              <>
-                <selectedStep.icon size={30} weight="light" className="welcome-dialog-icon" />
-                <Dialog.Title className="dlg-title">{selectedStep.title}</Dialog.Title>
-                <Dialog.Description className="welcome-dialog-description">
-                  {selectedStep.detail}
-                </Dialog.Description>
-                <div className="welcome-dialog-actions">
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      setSelectedStep(null);
-                      setCreateOpen(true);
-                    }}
-                    disabled={busy}
-                  >
-                    Start New Project
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
-              </>
-            )}
-            <Dialog.Close asChild>
-              <button className="welcome-dialog-close" aria-label="Close workflow details">
-                <X size={18} />
-              </button>
+              <IconButton label="Close new project" className="dlg-close" disabled={busy}>
+                <X size={16} />
+              </IconButton>
             </Dialog.Close>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
     </div>
-  );
-}
-
-function RailItem(props: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  if (props.active)
-    return (
-      <div className="rail-item active" aria-current="page">
-        {props.icon}
-        <span>{props.label}</span>
-      </div>
-    );
-  return (
-    <button className="rail-item" onClick={props.onClick} disabled={props.disabled}>
-      {props.icon}
-      <span>{props.label}</span>
-    </button>
   );
 }

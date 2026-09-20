@@ -5,10 +5,11 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { cmd } from '../api';
+import { cmd, errMsg } from '../api';
+import { DownloadSimple, Cube, CheckSquare } from '@phosphor-icons/react';
+import { PageHeader, SearchField, StatusBadge, EmptyState } from '../components/ui';
 import { useStore } from '../store';
-import { formatQty, isUnknown, type ComponentPayload, type MaybeQuantity } from '@stark/contracts';
-import { EmptyBlock } from './OverviewView';
+import { formatQty, type ComponentPayload, type MaybeQuantity } from '@stark/contracts';
 
 interface BomRow {
   lineId: string;
@@ -27,7 +28,9 @@ interface BomRow {
 
 /** Components + living BOM: candidates, offers, selection, totals. */
 export function ComponentsView() {
-  const { artifacts, selectArtifact, selectedArtifactId, refreshArtifacts, toast } = useStore();
+  const { artifacts, selectArtifact, selectedArtifactId, toast } = useStore();
+  const [tab, setTab] = useState<'bom' | 'candidates'>('bom');
+  const [query, setQuery] = useState('');
   const components = artifacts.filter(
     (v) => v.artifact.type === 'component' && !v.artifact.archived,
   );
@@ -52,7 +55,7 @@ export function ComponentsView() {
     setBom(r);
   };
   useEffect(() => {
-    void refreshBom();
+    void refreshBom().catch((e) => toast('error', errMsg(e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [artifacts]);
 
@@ -97,7 +100,7 @@ export function ComponentsView() {
     }));
   }, [bom]);
 
-  const col = createColumnHelper<BomRow>();
+  const col = useMemo(() => createColumnHelper<BomRow>(), []);
   const columns = useMemo(
     () => [
       col.accessor('title', { header: 'Part' }),
@@ -131,12 +134,23 @@ export function ComponentsView() {
     ],
     [col],
   );
-  const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel() });
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((r) =>
+        `${r.title} ${r.partNumber} ${r.subsystem}`.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [rows, query],
+  );
+  const table = useReactTable({ data: filteredRows, columns, getCoreRowModel: getCoreRowModel() });
 
   const runCompare = async () => {
     if (compareIds.size === 0) return;
-    const r = await cmd<typeof compare>('component.compare', { artifactIds: [...compareIds] });
-    setCompare(r);
+    try {
+      const r = await cmd<typeof compare>('component.compare', { artifactIds: [...compareIds] });
+      setCompare(r);
+    } catch (e) {
+      toast('error', errMsg(e));
+    }
   };
 
   const exportBom = async (format: 'csv' | 'markdown') => {
@@ -154,184 +168,253 @@ export function ComponentsView() {
     URL.revokeObjectURL(a.href);
   };
 
+  const inspect = (id: string) => {
+    selectArtifact(id);
+    useStore.getState().set({ sidecarOpen: true, sidecarTab: 'inspector' });
+  };
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div
-        style={{
-          width: 280,
-          borderRight: '1px solid var(--border)',
-          overflowY: 'auto',
-          padding: 8,
-        }}
+    <div className="page">
+      <PageHeader
+        title="Parts & materials"
+        description="A living bill of materials, grounded in sourced components."
       >
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>
-          Component candidates
-        </div>
-        {components.length === 0 && (
-          <div className="faint" style={{ padding: 8, fontSize: 12 }}>
-            No components yet — the agent adds sourced candidates via component.add_candidate.
-          </div>
-        )}
-        {components.map((v) => {
-          const p = (v.revision?.payload ?? {}) as ComponentPayload;
-          return (
-            <div
-              key={v.artifact.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => selectArtifact(v.artifact.id)}
-              style={{
-                padding: '6px 8px',
-                borderRadius: 4,
-                cursor: 'pointer',
-                background:
-                  selectedArtifactId === v.artifact.id ? 'var(--bg-raised)' : 'transparent',
-              }}
-            >
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13 }}>{v.artifact.title}</span>
-                <span
-                  className={`pill ${p.status === 'selected' ? 'current' : ''}`}
-                  style={{ height: 18, fontSize: 11 }}
-                >
-                  {p.status ?? 'candidate'}
-                </span>
-              </div>
-              <div className="faint" style={{ fontSize: 11 }}>
-                {p.partNumber} — {p.manufacturer ?? p.vendor ?? ''}
-              </div>
-              <label
-                className="row"
-                style={{ fontSize: 11, marginTop: 2 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={compareIds.has(v.artifact.id)}
-                  onChange={(e) => {
-                    const s = new Set(compareIds);
-                    if (e.target.checked) s.add(v.artifact.id);
-                    else s.delete(v.artifact.id);
-                    setCompareIds(s);
-                  }}
-                />
-                compare
-              </label>
-            </div>
-          );
-        })}
-        <button
-          style={{ margin: '8px', height: 26, fontSize: 12 }}
-          disabled={compareIds.size < 2}
-          onClick={runCompare}
-        >
-          Compare {compareIds.size > 1 ? `(${compareIds.size})` : ''}
+        <button onClick={() => void exportBom('csv').catch((e) => toast('error', errMsg(e)))}>
+          <DownloadSimple size={14} />
+          Export CSV
         </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {compare && (
-          <div
-            style={{
-              marginBottom: 16,
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              padding: 12,
-            }}
+        <button
+          className="ghost"
+          onClick={() => void exportBom('markdown').catch((e) => toast('error', errMsg(e)))}
+        >
+          Markdown
+        </button>
+      </PageHeader>
+      <div className="toolbar">
+        <div className="segmented">
+          <button
+            className={tab === 'bom' ? 'active' : ''}
+            aria-pressed={tab === 'bom'}
+            onClick={() => setTab('bom')}
           >
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <div className="dim" style={{ fontSize: 12, fontWeight: 600 }}>
-                Comparison
-              </div>
-              <button style={{ height: 22, fontSize: 11 }} onClick={() => setCompare(null)}>
+            <CheckSquare size={14} />
+            Bill of materials<span className="count">{rows.length}</span>
+          </button>
+          <button
+            className={tab === 'candidates' ? 'active' : ''}
+            aria-pressed={tab === 'candidates'}
+            onClick={() => setTab('candidates')}
+          >
+            <Cube size={14} />
+            Candidates<span className="count">{components.length}</span>
+          </button>
+        </div>
+        <span className="grow" />
+        <SearchField value={query} onChange={setQuery} placeholder="Filter parts" />
+      </div>
+      <div className="page-scroll">
+        {compare && (
+          <section className="comparison-panel">
+            <div className="section-heading">
+              <h2>Component comparison</h2>
+              <button className="ghost" onClick={() => setCompare(null)}>
                 Close
               </button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <Th>Criterion</Th>
-                  {compare.components.map((c) => (
-                    <Th key={c.artifact.id}>{c.artifact.title}</Th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {compare.matrix.map((m) => (
-                  <tr key={m.criterion}>
-                    <Td>{m.criterion}</Td>
-                    {m.values.map((v, i) => (
-                      <Td key={i}>
-                        <span className="num">{v == null ? '—' : formatQty(v)}</span>
-                      </Td>
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Criterion</th>
+                    {compare.components.map((c) => (
+                      <th key={c.artifact.id}>{c.artifact.title}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="faint" style={{ fontSize: 11, marginTop: 6 }}>
-              A price-only match is not compatibility evidence.
+                </thead>
+                <tbody>
+                  {compare.matrix.map((m) => (
+                    <tr key={m.criterion}>
+                      <td>{m.criterion}</td>
+                      {m.values.map((v, i) => (
+                        <td key={i} className="numeric">
+                          {v == null ? 'Unknown' : formatQty(v)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+            <p className="faint">A price match alone is not compatibility evidence.</p>
+          </section>
         )}
-
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0 }}>Bill of materials</h3>
-          <div className="row">
-            <button style={{ height: 26, fontSize: 12 }} onClick={() => exportBom('csv')}>
-              Export CSV
-            </button>
-            <button style={{ height: 26, fontSize: 12 }} onClick={() => exportBom('markdown')}>
-              Export Markdown
-            </button>
-          </div>
-        </div>
-
-        {rows.length === 0 ? (
-          <EmptyBlock
-            title="No selected components"
-            body="BOM fills when component selections are approved through the review flow."
-          />
+        {tab === 'bom' ? (
+          <>
+            {bom && (
+              <div className="bom-summary">
+                <div>
+                  <span>Known subtotal</span>
+                  <strong className="num">
+                    {bom.totals.cost.length
+                      ? bom.totals.cost.map((c) => `${c.amount} ${c.currency}`).join(' + ')
+                      : 'Unknown'}
+                  </strong>
+                </div>
+                <div>
+                  <span>Known mass</span>
+                  <strong className="num">
+                    {bom.totals.knownMass ? formatQty(bom.totals.knownMass) : 'Unknown'}
+                  </strong>
+                </div>
+                <div>
+                  <span>Data to complete</span>
+                  <strong>
+                    {bom.totals.missingPriceCount + bom.totals.missingMassCount}
+                    <span> missing values</span>
+                  </strong>
+                </div>
+              </div>
+            )}
+            {!rows.length ? (
+              <EmptyState
+                title="Your BOM starts with a decision"
+                body="Approve component selections in the review queue to add them to the bill of materials."
+                action={
+                  <button onClick={() => useStore.getState().navigate('reviews')}>
+                    Open review queue
+                  </button>
+                }
+              />
+            ) : (
+              <>
+                <div className="data-table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      {table.getHeaderGroups().map((hg) => (
+                        <tr key={hg.id}>
+                          {hg.headers.map((h) => (
+                            <th
+                              className={
+                                ['quantity', 'unitPrice', 'lineTotal', 'mass'].includes(h.id)
+                                  ? 'numeric'
+                                  : ''
+                              }
+                              key={h.id}
+                            >
+                              {flexRender(h.column.columnDef.header, h.getContext())}
+                            </th>
+                          ))}
+                        </tr>
+                      ))}
+                    </thead>
+                    <tbody>
+                      {table.getRowModel().rows.map((r) => (
+                        <tr
+                          key={r.id}
+                          className={selectedArtifactId === r.original.artifactId ? 'selected' : ''}
+                        >
+                          {r.getVisibleCells().map((c) => (
+                            <td
+                              className={
+                                ['quantity', 'unitPrice', 'lineTotal', 'mass'].includes(c.column.id)
+                                  ? 'numeric'
+                                  : ''
+                              }
+                              key={c.id}
+                            >
+                              {c.column.id === 'title' ? (
+                                <button
+                                  className="table-title-button"
+                                  onClick={() => inspect(r.original.artifactId)}
+                                >
+                                  {r.original.title}
+                                </button>
+                              ) : (
+                                flexRender(c.column.columnDef.cell, c.getContext())
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {!table.getRowModel().rows.length && (
+                  <EmptyState
+                    title="No matching parts"
+                    body="Try a different part name or subsystem."
+                  />
+                )}
+                <p className="table-footnote">
+                  {bom?.totals.missingPriceCount ?? 0} missing prices ·{' '}
+                  {bom?.totals.missingMassCount ?? 0} missing masses. Unknown values are excluded
+                  from known totals.
+                </p>
+              </>
+            )}
+          </>
         ) : (
           <>
-            <table
-              style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 8 }}
-            >
-              <thead>
-                {table.getHeaderGroups().map((hg) => (
-                  <tr key={hg.id}>
-                    {hg.headers.map((h) => (
-                      <Th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</Th>
-                    ))}
+            <div className="section-heading">
+              <h2>Component candidates</h2>
+              <button disabled={compareIds.size < 2} onClick={() => void runCompare()}>
+                Compare selected {compareIds.size > 0 ? `(${compareIds.size})` : ''}
+              </button>
+            </div>
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Component</th>
+                    <th>Part number</th>
+                    <th>Manufacturer</th>
+                    <th>Selection</th>
                   </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => selectArtifact(r.original.artifactId)}
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-raised)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    {r.getVisibleCells().map((c) => (
-                      <Td key={c.id}>{flexRender(c.column.columnDef.cell, c.getContext())}</Td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {bom && (
-              <div className="dim" style={{ fontSize: 12, marginTop: 8 }}>
-                Known subtotal:{' '}
-                {bom.totals.cost.length
-                  ? bom.totals.cost.map((c) => `${c.amount} ${c.currency}`).join(' + ')
-                  : 'unknown'}{' '}
-                · {bom.totals.missingPriceCount} missing price · Known mass:{' '}
-                {bom.totals.knownMass ? formatQty(bom.totals.knownMass) : 'unknown'} ·{' '}
-                {bom.totals.missingMassCount} missing mass
-              </div>
+                </thead>
+                <tbody>
+                  {components
+                    .filter((v) => v.artifact.title.toLowerCase().includes(query.toLowerCase()))
+                    .map((v) => {
+                      const p = (v.revision?.payload ?? {}) as ComponentPayload;
+                      return (
+                        <tr key={v.artifact.id}>
+                          <td>
+                            <input
+                              aria-label={`Compare ${v.artifact.title}`}
+                              type="checkbox"
+                              checked={compareIds.has(v.artifact.id)}
+                              onChange={(e) => {
+                                const next = new Set(compareIds);
+                                if (e.target.checked) next.add(v.artifact.id);
+                                else next.delete(v.artifact.id);
+                                setCompareIds(next);
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <button
+                              className="table-title-button"
+                              onClick={() => inspect(v.artifact.id)}
+                            >
+                              {v.artifact.title}
+                            </button>
+                          </td>
+                          <td className="mono">{p.partNumber ?? 'Unknown'}</td>
+                          <td>{p.manufacturer ?? p.vendor ?? 'Unknown'}</td>
+                          <td>
+                            <StatusBadge state={p.status ?? 'candidate'} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+            {!components.length && (
+              <EmptyState
+                title="Find the right components"
+                body="Ask your agent to research parts and capture sources. Compare candidates here before making a selection."
+              />
             )}
           </>
         )}
@@ -339,24 +422,3 @@ export function ComponentsView() {
     </div>
   );
 }
-
-const Th = (props: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-  <th
-    {...props}
-    style={{
-      textAlign: 'left',
-      padding: '6px 8px',
-      borderBottom: '1px solid var(--border)',
-      fontSize: 11,
-      color: 'var(--text-secondary)',
-      fontWeight: 600,
-      ...props.style,
-    }}
-  />
-);
-const Td = (props: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td
-    {...props}
-    style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', ...props.style }}
-  />
-);

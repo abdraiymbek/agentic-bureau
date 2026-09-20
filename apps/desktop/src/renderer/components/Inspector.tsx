@@ -1,229 +1,256 @@
 import React, { useEffect, useState } from 'react';
-import { cmd } from '../api';
+import {
+  ArrowSquareOut,
+  ArrowRight,
+  GitBranch,
+  Link,
+  WarningCircle,
+  TerminalWindow,
+  SlidersHorizontal,
+} from '@phosphor-icons/react';
+import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
+import { ArtifactIcon, EmptyState, StatusBadge, typeLabels } from './ui';
 import type { Revision } from '@stark/contracts';
 
-/**
- * Inspector: selected artifact's revision, freshness with explanation path,
- * inputs, sources, and downstream affects.
- */
 export function Inspector() {
-  const { selectedArtifactId, artifacts, stale, selectArtifact, navigate } = useStore();
+  const { selectedArtifactId, artifacts, stale, selectArtifact, navigate, toast, set } = useStore();
   const view = artifacts.find((v) => v.artifact.id === selectedArtifactId);
   const [revision, setRevision] = useState<Revision | null>(null);
   const [neighbors, setNeighbors] = useState<{
     artifacts: { id: string; title: string; type: string }[];
   } | null>(null);
-
+  const [error, setError] = useState('');
   useEffect(() => {
-    if (!selectedArtifactId) {
-      setRevision(null);
-      setNeighbors(null);
-      return;
-    }
-    void cmd<{ revision: Revision | null }>('artifact.read', {
-      artifactId: selectedArtifactId,
-    }).then((r) => setRevision(r.revision));
-    void cmd<{ artifacts: { id: string; title: string; type: string }[] }>('graph.neighbors', {
-      artifactId: selectedArtifactId,
-      depth: 1,
-    }).then(setNeighbors);
+    let cancelled = false;
+    setRevision(null);
+    setNeighbors(null);
+    setError('');
+    if (selectedArtifactId)
+      void Promise.all([
+        cmd<{ revision: Revision | null }>('artifact.read', { artifactId: selectedArtifactId }),
+        cmd<{ artifacts: { id: string; title: string; type: string }[] }>('graph.neighbors', {
+          artifactId: selectedArtifactId,
+          depth: 1,
+        }),
+      ])
+        .then(([r, n]) => {
+          if (!cancelled) {
+            setRevision(r.revision);
+            setNeighbors(n);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) setError(errMsg(e));
+        });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedArtifactId, artifacts]);
-
-  if (!view) {
+  if (!view)
     return (
-      <div style={{ padding: 12, fontSize: 12 }} className="faint">
-        <div
-          style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)', marginBottom: 8 }}
-        >
-          Inspector
-        </div>
-        Select an artifact to inspect its revision, inputs, and impact.
-      </div>
+      <EmptyState
+        title="The detail behind the design"
+        body="Select an engineering object to inspect its revision, inputs, sources, and connected work."
+        icon={<SlidersHorizontal size={25} />}
+      />
     );
-  }
   const a = view.artifact;
+  const rev = revision ?? view.revision;
+  const payload = (rev?.payload ?? {}) as Record<string, unknown>;
   const staleReasons = stale[a.id] ?? [];
-  const payload = (revision?.payload ?? {}) as Record<string, unknown>;
-
+  const titleOf = (id: string) =>
+    artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
+  const showObject = (id: string) => {
+    selectArtifact(id);
+    navigate('artifacts');
+  };
   return (
-    <div
-      style={{
-        height: '100%',
-        overflowY: 'auto',
-        padding: 12,
-        fontSize: 12,
-        background: 'var(--bg-app)',
-        borderLeft: '1px solid var(--border)',
-      }}
-    >
-      <div
-        className="dim"
-        style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}
-      >
-        Inspector
+    <div className="inspector">
+      <div className="inspector-object">
+        <span className="inspector-type">
+          <ArtifactIcon type={a.type} size={15} />
+          {typeLabels[a.type]}
+        </span>
+        <h2>{a.title}</h2>
+        <span className="mono inspector-id" title={a.id}>
+          {a.id.slice(0, 12)}
+        </span>
       </div>
-      <div style={{ fontWeight: 600, fontSize: 14, margin: '6px 0 2px' }}>{a.title}</div>
-      <div className="faint mono" style={{ fontSize: 11 }}>
-        {a.id.slice(0, 8)}…
-      </div>
-
-      <Section title="Revision">
-        <Row k="Selected" v={revision ? `#${revision.seq}` : 'none'} />
-        <Row k="State" v={revision?.reviewState ?? '—'} />
-        <Row
-          k="Freshness"
-          v={view.freshness}
-          cls={view.freshness === 'current' ? 'ok' : view.freshness === 'stale' ? 'warn' : 'err'}
-        />
-        <Row k="Origin" v={revision?.origin ?? '—'} />
+      {error && (
+        <div className="inline-notice warning" role="alert">
+          {error}
+        </div>
+      )}
+      <Section title="Engineering state">
+        <Row label="Revision">
+          <span className="num">
+            {rev ? `r${String(rev.seq).padStart(2, '0')}` : 'No baseline'}
+          </span>
+        </Row>
+        <Row label="Review">
+          <StatusBadge state={rev?.reviewState ?? 'draft'} />
+        </Row>
+        <Row label="Freshness">
+          <StatusBadge state={view.freshness} />
+        </Row>
+        <Row label="Origin">
+          <span>{rev?.origin ?? 'Unknown'}</span>
+        </Row>
+        {typeof payload.evidenceKind === 'string' && (
+          <Row label="Evidence">
+            <span>{payload.evidenceKind}</span>
+          </Row>
+        )}
+        {view.draftCount > 0 && (
+          <Row label="Open drafts">
+            <span>{view.draftCount}</span>
+          </Row>
+        )}
       </Section>
-
       {staleReasons.length > 0 && (
-        <Section title="Why stale">
-          {staleReasons.map((s, i) => (
-            <div key={i} className="warn" style={{ marginBottom: 4 }}>
-              {s.reason === 'missing_input' ? 'Missing input' : 'Input changed'} — path:{' '}
-              {s.path.map((id) => titleOf(id)).join(' → ')}
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {revision && revision.inputs.length > 0 && (
-        <Section title="Inputs">
-          {revision.inputs.map((i, n) => (
-            <div
-              key={n}
-              role="button"
-              tabIndex={0}
-              style={{ cursor: 'pointer', padding: '2px 0' }}
-              onClick={() => selectArtifact(i.artifactId)}
-              onKeyDown={(e) => e.key === 'Enter' && selectArtifact(i.artifactId)}
-            >
-              <span className="dim">{i.relationship}</span> {titleOf(i.artifactId)}{' '}
-              <span className="faint mono">@{i.revisionId.slice(0, 8)}</span>
-            </div>
-          ))}
-        </Section>
-      )}
-
-      {neighbors && neighbors.artifacts.length > 1 && (
-        <Section title="Affects / graph neighborhood">
-          {neighbors.artifacts
-            .filter((x) => x.id !== a.id)
-            .map((x) => (
-              <div
-                key={x.id}
-                role="button"
-                tabIndex={0}
-                style={{ cursor: 'pointer', padding: '2px 0' }}
-                onClick={() => selectArtifact(x.id)}
-                onKeyDown={(e) => e.key === 'Enter' && selectArtifact(x.id)}
-              >
-                {x.title} <span className="faint">({x.type})</span>
+        <Section title="What changed">
+          {staleReasons.map((reason, i) => (
+            <div className="inspector-impact" key={i}>
+              <div className="row warn">
+                <WarningCircle size={15} />
+                <strong>
+                  {reason.reason === 'missing_input' ? 'Missing input' : 'An input changed'}
+                </strong>
               </div>
+              <div className="impact-path">
+                {reason.path.map((id, n) => (
+                  <React.Fragment key={id}>
+                    {n > 0 && <ArrowRight size={12} />}
+                    <button onClick={() => showObject(id)}>{titleOf(id)}</button>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Section>
+      )}
+      <Section title="Recorded inputs">
+        {rev?.inputs.length ? (
+          rev.inputs.map((input, i) => (
+            <button className="inspector-link" key={i} onClick={() => showObject(input.artifactId)}>
+              <Link size={14} />
+              <span>
+                {titleOf(input.artifactId)}
+                <small>
+                  {input.relationship.replaceAll('_', ' ')} · {input.revisionId.slice(0, 8)}
+                </small>
+              </span>
+              <ArrowRight size={12} />
+            </button>
+          ))
+        ) : (
+          <p className="inspector-empty">No recorded inputs.</p>
+        )}
+      </Section>
+      {neighbors && neighbors.artifacts.length > 1 && (
+        <Section title="Connected objects">
+          {neighbors.artifacts
+            .filter((n) => n.id !== a.id)
+            .map((n) => (
+              <button className="inspector-link" key={n.id} onClick={() => showObject(n.id)}>
+                <ArtifactIcon type={n.type} size={14} />
+                <span>
+                  {n.title}
+                  <small>{typeLabels[n.type] ?? n.type}</small>
+                </span>
+                <ArrowRight size={12} />
+              </button>
             ))}
-          <button
-            style={{ marginTop: 6, height: 24, fontSize: 12 }}
-            onClick={() => navigate('history')}
-          >
-            Open impact view
+          <button className="text-link" onClick={() => navigate('history')}>
+            <GitBranch size={13} />
+            Explore dependencies
+            <ArrowRight size={12} />
           </button>
         </Section>
       )}
-
-      {typeof payload.bounds === 'object' && payload.bounds && (
+      {payload.bounds && typeof payload.bounds === 'object' ? (
         <Section title="Dimensions">
           {(() => {
-            const b = payload.bounds as { min: number[]; max: number[] };
-            return ['x', 'y', 'z'].map((axis, i) => (
-              <Row
-                key={axis}
-                k={axis.toUpperCase()}
-                v={`${(b.max[i]! - b.min[i]!).toFixed(2)} ${(payload.modelUnit as string) ?? 'mm'}`}
-                mono
-              />
+            const bounds = payload.bounds as { min: number[]; max: number[] };
+            return ['X', 'Y', 'Z'].map((axis, i) => (
+              <Row key={axis} label={axis}>
+                <span className="mono num">
+                  {((bounds.max[i] ?? 0) - (bounds.min[i] ?? 0)).toFixed(2)}{' '}
+                  {String(payload.modelUnit ?? 'mm')}
+                </span>
+              </Row>
             ));
           })()}
         </Section>
-      )}
-
-      {Object.keys(payload).includes('properties') && (
+      ) : null}
+      {payload.properties && typeof payload.properties === 'object' ? (
         <Section title="Properties">
           {Object.entries(
-            (payload.properties as Record<
+            payload.properties as Record<
               string,
-              { quantity?: { value?: number; unit?: string; unknown?: boolean; reason?: string } }
-            >) ?? {},
-          ).map(([k, v]) => (
-            <Row
-              key={k}
-              k={k}
-              v={
-                v.quantity && 'value' in v.quantity
-                  ? `${v.quantity.value} ${v.quantity.unit}`
-                  : v.quantity?.reason
-                    ? `unknown (${v.quantity.reason})`
-                    : 'unknown'
-              }
-              mono
-            />
+              { quantity?: { value?: number; unit?: string; reason?: string } }
+            >,
+          ).map(([key, value]) => (
+            <Row key={key} label={key.replaceAll('_', ' ')}>
+              <span className="num">
+                {value.quantity?.value !== undefined
+                  ? `${value.quantity.value} ${value.quantity.unit ?? ''}`
+                  : `Unknown${value.quantity?.reason ? `: ${value.quantity.reason}` : ''}`}
+              </span>
+            </Row>
           ))}
         </Section>
+      ) : null}
+      {typeof payload.url === 'string' && (
+        <Section title="Source">
+          <button
+            className="inspector-link"
+            onClick={() => void window.stark.openExternal(payload.url as string)}
+          >
+            <ArrowSquareOut size={14} />
+            <span className="truncate">{payload.url}</span>
+          </button>
+        </Section>
       )}
-
-      <div className="col" style={{ marginTop: 12 }}>
+      <div className="inspector-actions">
         <button
-          style={{ height: 26, fontSize: 12 }}
           onClick={() => {
-            void cmd('ui.suggest_action', {
-              title: `Review ${a.title}`,
-              detail: `artifact ${a.id}`,
-            });
+            set({ sidecarTab: 'agent' });
             window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
           }}
         >
-          Ask agent
+          <TerminalWindow size={14} />
+          Open agent
         </button>
         <button
-          style={{ height: 26, fontSize: 12 }}
-          onClick={() => void cmd('artifact.reveal', { artifactId: a.id }).catch(() => {})}
+          className="ghost"
+          onClick={() =>
+            void cmd('artifact.reveal', { artifactId: a.id }).catch((e) =>
+              toast('error', errMsg(e)),
+            )
+          }
         >
-          Reveal file
+          <ArrowSquareOut size={14} />
+          Reveal files
         </button>
       </div>
     </div>
   );
-
-  function titleOf(id: string): string {
-    return artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
-  }
 }
-
-function Section(props: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginTop: 14 }}>
-      <div
-        className="dim"
-        style={{
-          fontSize: 11,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          marginBottom: 4,
-        }}
-      >
-        {props.title}
-      </div>
-      {props.children}
-    </div>
+    <section className="inspector-section">
+      <h3>{title}</h3>
+      {children}
+    </section>
   );
 }
-function Row(props: { k: string; v: string; cls?: string; mono?: boolean }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-      <span className="dim">{props.k}</span>
-      <span className={`${props.cls ?? ''} ${props.mono ? 'mono num' : ''}`}>{props.v}</span>
+    <div className="inspector-property">
+      <span>{label}</span>
+      <div>{children}</div>
     </div>
   );
 }

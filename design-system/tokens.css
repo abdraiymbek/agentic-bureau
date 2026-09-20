@@ -1,0 +1,88 @@
+/* Omen Flow · Canonical tokens. Read design.md before extending. */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-app: #161719;
+  --bg-main: #1c1d20;
+  --bg-raised: #25272b;
+  --bg-inset: #131416;
+  --bg-hover: #2b2d32;
+  --text-primary: #eff0f2;
+  --text-secondary: #b2b4bd;
+  --text-faint: #90949f;
+  --accent: #a8bcfa;
+  --accent-soft: #28334c;
+  --accent-ink: #182341;
+  --action-bg: #e9ecf3;
+  --action-ink: #202227;
+  --border: #303237;
+  --border-strong: #4d5059;
+  --ok: #9ac7ac;
+  --warn: #e0bb80;
+  --err: #eea3a6;
+  --shadow-overlay: 0 18px 70px #0006, 0 2px 8px #0003;
+  --canvas-bg: #191b1f;
+  --canvas-grid: #30343b;
+  --model-color: #b3bdce;
+  --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --fs-body: 13px;
+  --fs-secondary: 12px;
+  --fs-title: 20px;
+  --fs-section: 24px;
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --r-control: 6px;
+  --r-menu: 10px;
+  --r-panel: 12px;
+  --row-h: 40px;
+  --control-h: 32px;
+  --t-fast: 120ms;
+  --t-panel: 180ms;
+  --sidebar-w: 218px;
+  --inspector-w: 320px;
+  --titlebar-h: 46px;
+}
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-app: #eeeef0;
+  --bg-main: #fafafb;
+  --bg-raised: #ffffff;
+  --bg-inset: #f1f2f4;
+  --bg-hover: #e6e8ed;
+  --text-primary: #25272d;
+  --text-secondary: #575d69;
+  --text-faint: #666d7a;
+  --accent: #355cc7;
+  --accent-soft: #e4eaf9;
+  --accent-ink: #ffffff;
+  --action-bg: #2b2e36;
+  --action-ink: #ffffff;
+  --border: #dbdde3;
+  --border-strong: #aaafba;
+  --ok: #34694d;
+  --warn: #856019;
+  --err: #ad3946;
+  --shadow-overlay: 0 18px 70px #30374422, 0 2px 8px #30374412;
+  --canvas-bg: #e9ecf1;
+  --canvas-grid: #c5cbd5;
+  --model-color: #8497b3;
+}
+[data-density='compact'] {
+  --row-h: 32px;
+  --control-h: 28px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

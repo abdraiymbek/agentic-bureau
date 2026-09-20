@@ -3,8 +3,15 @@ import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { StlViewport } from '../components/StlViewport';
 import { MarkdownView } from '../components/MarkdownView';
+import { RequirementSurface } from './RequirementsView';
+import DOMPurify from 'dompurify';
 import type {
   ArtifactType,
+  SourcePayload,
+  AssemblyPayload,
+  ComponentPayload,
+  SoftwarePayload,
+  ConceptPayload,
   ArtifactView,
   CalculationPayload,
   MechanicalPayload,
@@ -12,9 +19,19 @@ import type {
   TestPayload,
   WiringPayload,
   MaybeQuantity,
+  EvidenceKind,
 } from '@stark/contracts';
 import { formatQty, isUnknown } from '@stark/contracts';
-import { EmptyBlock } from './OverviewView';
+import {
+  ArtifactIcon,
+  FormField,
+  EmptyState,
+  ObjectRow,
+  PageHeader,
+  SearchField,
+  StatusBadge,
+  typeLabels,
+} from '../components/ui';
 
 const TYPE_ORDER: ArtifactType[] = [
   'mechanical',
@@ -34,94 +51,78 @@ const TYPE_ORDER: ArtifactType[] = [
 ];
 
 export function ArtifactsView() {
-  const { artifacts, selectedArtifactId, selectArtifact } = useStore();
-  const grouped = useMemo(() => {
-    const m = new Map<ArtifactType, ArtifactView[]>();
-    for (const v of artifacts) {
-      const l = m.get(v.artifact.type) ?? [];
-      l.push(v);
-      m.set(v.artifact.type, l);
-    }
-    return TYPE_ORDER.filter((t) => m.has(t)).map((t) => [t, m.get(t)!] as const);
-  }, [artifacts]);
-  const selected = artifacts.find((v) => v.artifact.id === selectedArtifactId);
-
+  const { artifacts, selectedArtifactId, selectArtifact, set } = useStore();
+  const [query, setQuery] = useState('');
+  const grouped = useMemo(
+    () =>
+      TYPE_ORDER.map(
+        (type) =>
+          [
+            type,
+            artifacts.filter(
+              (v) =>
+                v.artifact.type === type &&
+                v.artifact.title.toLowerCase().includes(query.toLowerCase()),
+            ),
+          ] as const,
+      ).filter(([, views]) => views.length),
+    [artifacts, query],
+  );
+  const selected =
+    artifacts.find((v) => v.artifact.id === selectedArtifactId) ?? grouped[0]?.[1][0];
+  useEffect(() => {
+    if (selected && selected.artifact.id !== selectedArtifactId)
+      selectArtifact(selected.artifact.id);
+  }, [selected, selectedArtifactId, selectArtifact]);
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div
-        style={{
-          width: 260,
-          borderRight: '1px solid var(--border)',
-          overflowY: 'auto',
-          padding: 8,
-        }}
+    <div className="page">
+      <PageHeader
+        title="Design files"
+        count={artifacts.length}
+        description="Models, calculations, and the evidence that connects them."
       >
-        {grouped.length === 0 && (
-          <div className="faint" style={{ padding: 8, fontSize: 12 }}>
-            No artifacts yet.
-          </div>
-        )}
-        {grouped.map(([type, views]) => (
-          <div key={type} style={{ marginBottom: 8 }}>
-            <div
-              className="faint"
-              style={{
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                padding: '2px 8px',
-              }}
-            >
-              {type} ({views.length})
-            </div>
-            {views.map((v) => (
-              <div
-                key={v.artifact.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => selectArtifact(v.artifact.id)}
-                onKeyDown={(e) => e.key === 'Enter' && selectArtifact(v.artifact.id)}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  background:
-                    selectedArtifactId === v.artifact.id ? 'var(--bg-raised)' : 'transparent',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: 13,
-                }}
-              >
-                <span
-                  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                >
-                  {v.artifact.title}
-                </span>
-                {v.freshness !== 'current' && (
-                  <span
-                    className={`pill ${v.freshness === 'stale' ? 'stale' : 'missing'}`}
-                    style={{ height: 16, fontSize: 10 }}
-                  >
-                    {v.freshness}
-                  </span>
-                )}
-                {v.draftCount > 0 && (
-                  <span className="pill" style={{ height: 16, fontSize: 10 }}>
-                    draft
-                  </span>
-                )}
+        <button
+          className="ghost"
+          onClick={() => set({ sidecarOpen: true, sidecarTab: 'inspector' })}
+        >
+          Inspect object
+        </button>
+      </PageHeader>
+      <div className="object-layout">
+        <aside className="object-browser" aria-label="Project objects">
+          <SearchField value={query} onChange={setQuery} placeholder="Find a design file" />
+          {grouped.map(([type, views]) => (
+            <div key={type}>
+              <div className="object-group-label">
+                {typeLabels[type]}
+                <span>{views.length}</span>
               </div>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {selected ? (
-          <ArtifactDetail view={selected} />
-        ) : (
-          <EmptyBlock title="Artifacts" body="Select an artifact on the left." />
-        )}
+              {views.map((v) => (
+                <ObjectRow
+                  key={v.artifact.id}
+                  view={v}
+                  selected={selected?.artifact.id === v.artifact.id}
+                  onClick={() => selectArtifact(v.artifact.id)}
+                />
+              ))}
+            </div>
+          ))}
+          {!grouped.length && (
+            <p className="browser-empty">
+              {query ? 'No matching design files.' : 'No engineering objects yet.'}
+            </p>
+          )}
+        </aside>
+        <div className="object-detail flush">
+          {selected ? (
+            <ArtifactDetail key={selected.artifact.id} view={selected} />
+          ) : (
+            <EmptyState
+              title="A home for every part of the design"
+              body="Create models, wiring, calculations, and test procedures with your agent. Their revisions and evidence stay connected here."
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -129,6 +130,13 @@ export function ArtifactsView() {
 
 function ArtifactDetail({ view }: { view: ArtifactView }) {
   switch (view.artifact.type) {
+    case 'requirement':
+    case 'assumption':
+      return (
+        <div className="document-detail">
+          <RequirementSurface view={view} />
+        </div>
+      );
     case 'mechanical':
       return <MechanicalDetail view={view} />;
     case 'wiring':
@@ -137,6 +145,16 @@ function ArtifactDetail({ view }: { view: ArtifactView }) {
       return <CalcDetail view={view} />;
     case 'test':
       return <TestDetail view={view} />;
+    case 'source':
+      return <SourceDetail view={view} />;
+    case 'assembly':
+      return <AssemblyDetail view={view} />;
+    case 'component':
+      return <ComponentDetail view={view} />;
+    case 'software':
+      return <SoftwareDetail view={view} />;
+    case 'concept':
+      return <ConceptDetail view={view} />;
     default:
       return <GenericDetail view={view} />;
   }
@@ -231,7 +249,7 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 16, gap: 12 }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 24, gap: 12 }}>
       <Header
         view={view}
         actions={
@@ -268,10 +286,13 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
           <StlViewport stlData={stl} compareData={compareStl} modelUnit={p.modelUnit ?? 'mm'} />
         ) : (
           <div className="faint" style={{ padding: 24 }}>
-            No STL on the selected revision — render to produce geometry.
+            No geometry on this revision. Render the model to inspect it in 3D.
           </div>
         )}
       </div>
+      {p.manufacturing?.includes('Illustrative') && (
+        <div className="inline-notice warning">{p.manufacturing}</div>
+      )}
       {p.bounds && (
         <div className="mono dim" style={{ fontSize: 12 }}>
           Bounds: {p.bounds.min.map((n) => n.toFixed(1)).join(', ')} →{' '}
@@ -349,6 +370,7 @@ function ParamsTable(props: {
                 <td>
                   {n !== undefined ? (
                     <input
+                      aria-label={`${k} (${unitOf(v)})`}
                       className="num"
                       style={{ width: 90, height: 24, fontSize: 12 }}
                       defaultValue={n}
@@ -423,6 +445,7 @@ function ScadEditor({ view }: { view: ArtifactView }) {
       {open && (
         <div style={{ marginTop: 8 }}>
           <textarea
+            aria-label="OpenSCAD source"
             className="mono"
             rows={14}
             style={{ width: '100%', fontSize: 12 }}
@@ -456,18 +479,23 @@ function WiringDetail({ view }: { view: ArtifactView }) {
   const [findings, setFindings] = useState<
     { severity: string; code: string; message: string }[] | null
   >(null);
+  const [coverage, setCoverage] = useState('');
+  const [busy, setBusy] = useState(false);
   const [diagram, setDiagram] = useState<{ svg: string } | null>(null);
 
   const validate = async () => {
+    setBusy(true);
     try {
       const r = await cmd<{
         findings: { severity: string; code: string; message: string }[];
         coverage: string;
       }>('wiring.validate', { artifactId: view.artifact.id });
       setFindings(r.findings);
-      toast('ok', r.coverage);
+      setCoverage(r.coverage);
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
   const render = async () => {
@@ -481,13 +509,13 @@ function WiringDetail({ view }: { view: ArtifactView }) {
     artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8);
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 24 }}>
       <Header
         view={view}
         actions={
           <>
-            <button style={{ height: 26, fontSize: 12 }} onClick={validate}>
-              Validate
+            <button style={{ height: 26, fontSize: 12 }} disabled={busy} onClick={validate}>
+              {busy ? 'Checking…' : 'Validate'}
             </button>
             <button style={{ height: 26, fontSize: 12 }} onClick={render}>
               Render diagram
@@ -498,43 +526,49 @@ function WiringDetail({ view }: { view: ArtifactView }) {
       <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>
         Connections ({p.connections?.length ?? 0})
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left' }}>From</th>
-            <th style={{ textAlign: 'left' }}>To</th>
-            <th style={{ textAlign: 'left' }}>Signal</th>
-            <th style={{ textAlign: 'left' }}>Voltage</th>
-            <th style={{ textAlign: 'left' }}>Wire</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(p.connections ?? []).map((c, i) => (
-            <tr key={i}>
-              <td
-                className="mono"
-                style={{ padding: '3px 8px 3px 0', cursor: 'pointer' }}
-                onClick={() => selectArtifact(c.from.componentArtifactId)}
-              >
-                {title(c.from.componentArtifactId)}.{c.from.pin}
-              </td>
-              <td
-                className="mono"
-                style={{ padding: '3px 8px 3px 0', cursor: 'pointer' }}
-                onClick={() => selectArtifact(c.to.componentArtifactId)}
-              >
-                {title(c.to.componentArtifactId)}.{c.to.pin}
-              </td>
-              <td>{c.signalRole}</td>
-              <td className="num">{c.voltage ? formatQty(c.voltage) : '—'}</td>
-              <td className="dim">
-                {c.wire?.gauge ?? '—'}
-                {c.wire?.currentRating ? ` (${formatQty(c.wire.currentRating)})` : ''}
-              </td>
+      <div className="data-table-wrap">
+        <table className="data-table wiring-table">
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left' }}>From</th>
+              <th style={{ textAlign: 'left' }}>To</th>
+              <th style={{ textAlign: 'left' }}>Signal</th>
+              <th style={{ textAlign: 'left' }}>Voltage</th>
+              <th style={{ textAlign: 'left' }}>Wire</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {(p.connections ?? []).map((c, i) => (
+              <tr key={i}>
+                <td>
+                  <button
+                    className="table-title-button"
+                    onClick={() => selectArtifact(c.from.componentArtifactId)}
+                  >
+                    {title(c.from.componentArtifactId)}
+                  </button>
+                  <small className="mono">{c.from.pin}</small>
+                </td>
+                <td>
+                  <button
+                    className="table-title-button"
+                    onClick={() => selectArtifact(c.to.componentArtifactId)}
+                  >
+                    {title(c.to.componentArtifactId)}
+                  </button>
+                  <small className="mono">{c.to.pin}</small>
+                </td>
+                <td>{c.signalRole}</td>
+                <td className="num">{c.voltage ? formatQty(c.voltage) : '—'}</td>
+                <td className="dim">
+                  {c.wire?.gauge ?? '—'}
+                  {c.wire?.currentRating ? ` (${formatQty(c.wire.currentRating)})` : ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {findings && (
         <div style={{ marginTop: 12 }}>
           {findings.length === 0 && (
@@ -546,12 +580,23 @@ function WiringDetail({ view }: { view: ArtifactView }) {
             <div
               key={i}
               className={f.severity === 'error' ? 'err' : f.severity === 'warning' ? 'warn' : 'dim'}
-              style={{ fontSize: 12, padding: '2px 0' }}
+              style={{ fontSize: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}
             >
-              [{f.severity}] {f.message}
+              {f.severity === 'error' ? 'Error' : 'Warning'}:{' '}
+              {f.message.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, (id) => {
+                const component = artifacts.find((v) => v.artifact.id === id);
+                if (component) return component.artifact.title;
+                const connection = p.connections.findIndex((c) => c.id === id);
+                return connection >= 0 ? `connection ${connection + 1}` : id;
+              })}
             </div>
           ))}
         </div>
+      )}
+      {coverage && (
+        <p className="dim" style={{ fontSize: 12, marginTop: 16 }}>
+          {coverage}
+        </p>
       )}
       {diagram && (
         <div
@@ -561,7 +606,9 @@ function WiringDetail({ view }: { view: ArtifactView }) {
             borderRadius: 6,
             overflow: 'auto',
           }}
-          dangerouslySetInnerHTML={{ __html: diagram.svg }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(diagram.svg, { USE_PROFILES: { svg: true } }),
+          }}
         />
       )}
     </div>
@@ -573,7 +620,8 @@ function WiringDetail({ view }: { view: ArtifactView }) {
 /* ------------------------------------------------------------------ */
 
 function CalcDetail({ view }: { view: ArtifactView }) {
-  const { refreshArtifacts, toast } = useStore();
+  const { refreshArtifacts, refreshProposals, toast, set } = useStore();
+  const [running, setRunning] = useState(false);
   const p = (view.revision?.payload ?? {}) as CalculationPayload;
   const [inputs, setInputs] = useState<
     { name: string; quantity: string; source: string; moved: boolean }[]
@@ -608,36 +656,62 @@ function CalcDetail({ view }: { view: ArtifactView }) {
   }, [view.revision?.id, view.artifact.id]);
 
   const rerun = async () => {
+    setRunning(true);
     try {
+      const templates = p.templateId
+        ? await cmd<{ templates: { id: string; assumptions?: string[] }[] }>(
+            'calculation.templates',
+            {},
+          )
+        : { templates: [] };
+      const inheritedAssumptions =
+        templates.templates.find((t) => t.id === p.templateId)?.assumptions ?? [];
       await cmd('calculation.run', {
+        artifactId: view.artifact.id,
         templateId: p.templateId,
+        expression: p.expression,
         inputs: (p.inputs ?? []).map((i) => ({
           name: i.name,
           quantity: i.quantity,
           sourceRef: i.sourceRef,
+          literal: i.literal,
         })),
-        assumptions: p.assumptions ?? [],
+        assumptions: (p.assumptions ?? []).filter((a) => !inheritedAssumptions.includes(a)),
         title: view.artifact.title,
-        submitForReview: false,
+        submitForReview: true,
       });
-      await refreshArtifacts();
-      toast('ok', 'Recalculated');
+      await Promise.all([refreshArtifacts(), refreshProposals()]);
+      toast('ok', 'Recorded inputs recalculated. New result is ready for review.');
+      set({ nav: 'reviews' });
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setRunning(false);
     }
   };
 
   const result = p.result?.quantity;
   return (
-    <div style={{ padding: 16, maxWidth: 700 }}>
+    <div style={{ padding: 24, maxWidth: 700 }}>
       <Header
         view={view}
         actions={
-          <button className="primary" style={{ height: 26, fontSize: 12 }} onClick={rerun}>
-            Re-run
+          <button
+            className="primary"
+            disabled={running || !view.revision}
+            style={{ fontSize: 12 }}
+            onClick={rerun}
+          >
+            {running ? 'Calculating…' : 'Re-run recorded inputs'}
           </button>
         }
       />
+      {inputs.some((i) => i.moved) && (
+        <div className="inline-notice warning" style={{ marginBottom: 20 }}>
+          An input source has changed. This result uses the recorded values below. Ask your agent to
+          update the input bindings before recalculating for the new design.
+        </div>
+      )}
       <div className="mono dim" style={{ fontSize: 12, marginBottom: 8 }}>
         {p.templateId ?? 'expression'} — {p.expression ?? ''}
       </div>
@@ -715,88 +789,118 @@ function CalcDetail({ view }: { view: ArtifactView }) {
 /* ------------------------------------------------------------------ */
 
 function TestDetail({ view }: { view: ArtifactView }) {
-  const { refreshArtifacts, toast } = useStore();
+  const { refreshArtifacts, toast, readOnly } = useStore();
   const p = (view.revision?.payload ?? {}) as TestPayload;
   const [obs, setObs] = useState('');
-  const [result, setResult] = useState<'passed' | 'failed' | 'inconclusive' | 'not_run'>('passed');
+  const [result, setResult] = useState<'passed' | 'failed' | 'inconclusive' | 'not_run' | ''>('');
+  const [evidence, setEvidence] = useState<EvidenceKind | ''>('');
+  const [busy, setBusy] = useState(false);
   const record = async () => {
+    if (!result || !evidence || !obs.trim()) return;
+    setBusy(true);
     try {
       await cmd('test.record_result', {
         artifactId: view.artifact.id,
         result,
-        observation: obs,
-        evidenceKind: 'measured',
+        observation: obs.trim(),
+        evidenceKind: evidence,
+        conditions: p.conditions,
         attachments: [],
       });
       await refreshArtifacts();
       toast('ok', 'Result recorded');
       setObs('');
+      setResult('');
+      setEvidence('');
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
   return (
-    <div style={{ padding: 16, maxWidth: 700 }}>
+    <div className="document-detail">
       <Header view={view} />
-      <div className="dim" style={{ fontSize: 12 }}>
-        Procedure
-      </div>
-      <ol style={{ margin: '4px 0 12px', paddingLeft: 18, fontSize: 13 }}>
-        {(p.procedure ?? []).map((s) => (
-          <li key={s.step}>
-            {s.instruction}
-            {s.expected ? <span className="dim"> — expected: {s.expected}</span> : null}
-          </li>
+      <h4>Test procedure</h4>
+      <div className="assembly-steps">
+        {(p.procedure ?? []).map((step) => (
+          <section key={step.step}>
+            <span className="assembly-number">{step.step}</span>
+            <div className="grow">
+              <p>{step.instruction}</p>
+              {step.expected && <small>Expected: {step.expected}</small>}
+            </div>
+          </section>
         ))}
-      </ol>
+      </div>
       {p.conditions && (
-        <div className="dim" style={{ fontSize: 12, marginBottom: 8 }}>
-          Conditions: {p.conditions}
+        <div className="inline-notice" style={{ marginBlock: 24 }}>
+          <strong>Test conditions</strong>
+          <p style={{ margin: '6px 0 0' }}>{p.conditions}</p>
         </div>
       )}
-      <div className="dim" style={{ fontSize: 12 }}>
-        Record result
-      </div>
-      <div className="row" style={{ marginTop: 4 }}>
-        <select
-          value={result}
-          onChange={(e) => setResult(e.target.value as never)}
-          style={{ height: 30 }}
+      <h4>Record a result</h4>
+      <fieldset disabled={readOnly || busy} className="plain-fieldset">
+        <div className="field-row">
+          <FormField label="Test result">
+            <select value={result} onChange={(e) => setResult(e.target.value as typeof result)}>
+              <option value="" disabled>
+                Select result
+              </option>
+              <option value="passed">Passed</option>
+              <option value="failed">Failed</option>
+              <option value="inconclusive">Inconclusive</option>
+              <option value="not_run">Not run</option>
+            </select>
+          </FormField>
+          <FormField label="Evidence kind">
+            <select value={evidence} onChange={(e) => setEvidence(e.target.value as EvidenceKind)}>
+              <option value="" disabled>
+                Select evidence
+              </option>
+              {['measured', 'simulated', 'calculated', 'sourced', 'assumed'].map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind[0]!.toUpperCase() + kind.slice(1)}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        </div>
+        <FormField
+          label="Test observation"
+          hint="Describe what happened, including measurements, units, and relevant conditions."
         >
-          <option value="passed">passed</option>
-          <option value="failed">failed</option>
-          <option value="inconclusive">inconclusive</option>
-          <option value="not_run">not_run</option>
-        </select>
-        <input
-          placeholder="Observation"
-          value={obs}
-          onChange={(e) => setObs(e.target.value)}
-          style={{ flex: 1 }}
-        />
-        <button className="primary" style={{ height: 30 }} onClick={record}>
-          Record
+          <textarea
+            value={obs}
+            onChange={(e) => setObs(e.target.value)}
+            rows={3}
+            placeholder="Record the evidence behind this result…"
+          />
+        </FormField>
+        <button
+          className="primary"
+          onClick={() => void record()}
+          disabled={!result || !evidence || !obs.trim() || busy}
+        >
+          {busy ? 'Recording…' : 'Record result'}
         </button>
-      </div>
+      </fieldset>
       {(p.results ?? []).length > 0 && (
-        <>
-          <div className="dim" style={{ fontSize: 12, marginTop: 12 }}>
-            Results
-          </div>
-          {p.results!.map((r) => (
-            <div key={r.id} style={{ fontSize: 12, padding: '3px 0' }}>
-              <span
-                className={r.result === 'passed' ? 'ok' : r.result === 'failed' ? 'err' : 'dim'}
-              >
-                {r.result}
-              </span>{' '}
-              — {r.observation}{' '}
-              <span className="faint">
-                {r.recordedAt.slice(0, 16).replace('T', ' ')} · {r.recordedBy} · {r.evidenceKind}
-              </span>
+        <section style={{ marginTop: 28 }}>
+          <h4>Recorded results</h4>
+          {p.results.map((r) => (
+            <div className="recorded-test" key={r.id}>
+              <div className="row">
+                <StatusBadge state={r.result} />
+                <span className="faint">{r.evidenceKind}</span>
+              </div>
+              <p>{r.observation}</p>
+              <small className="faint">
+                {new Date(r.recordedAt).toLocaleString()} · {r.recordedBy}
+              </small>
             </div>
           ))}
-        </>
+        </section>
       )}
     </div>
   );
@@ -808,33 +912,214 @@ function TestDetail({ view }: { view: ArtifactView }) {
 
 function GenericDetail({ view }: { view: ArtifactView }) {
   return (
-    <div style={{ padding: 16, maxWidth: 760 }}>
+    <div style={{ padding: 24, maxWidth: 760 }}>
       <Header view={view} />
       <MarkdownView view={view} />
     </div>
   );
 }
 
-function Header(props: { view: ArtifactView; actions?: React.ReactNode }) {
-  const v = props.view;
+function SourceDetail({ view }: { view: ArtifactView }) {
+  const p = (view.revision?.payload ?? {}) as SourcePayload;
   return (
-    <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-      <div className="row">
-        <h3 style={{ margin: 0 }}>{v.artifact.title}</h3>
-        <span
-          className={`pill ${v.freshness === 'stale' ? 'stale' : v.freshness === 'missing_input' ? 'missing' : 'current'}`}
-        >
-          {v.freshness}
-        </span>
-        {v.revision && (
-          <span className="faint" style={{ fontSize: 12 }}>
-            rev {v.revision.seq} · {v.revision.reviewState}
-          </span>
+    <div className="document-detail">
+      <Header view={view} />
+      <dl className="detail-properties">
+        <dt>Publisher</dt>
+        <dd>{p.publisher ?? 'Unknown'}</dd>
+        <dt>Source type</dt>
+        <dd>{p.sourceKind ?? 'Unknown'}</dd>
+        <dt>Captured</dt>
+        <dd>{p.retrievedAt ? new Date(p.retrievedAt).toLocaleString() : 'Unknown'}</dd>
+        {p.locator && (
+          <>
+            <dt>Location</dt>
+            <dd>{p.locator}</dd>
+          </>
         )}
-        {v.draftCount > 0 && <span className="pill stale">draft</span>}
-        {v.pendingProposal && <span className="pill stale">in review</span>}
+      </dl>
+      {p.url && (
+        <button className="source-url" onClick={() => void window.stark.openExternal(p.url!)}>
+          {p.url}
+        </button>
+      )}
+      <h4>Recorded excerpt</h4>
+      {p.excerpt ? (
+        <blockquote className="source-excerpt">{p.excerpt}</blockquote>
+      ) : (
+        <p className="dim">No excerpt was captured for this source.</p>
+      )}
+    </div>
+  );
+}
+function AssemblyDetail({ view }: { view: ArtifactView }) {
+  const p = (view.revision?.payload ?? {}) as AssemblyPayload;
+  const { artifacts, selectArtifact } = useStore();
+  return (
+    <div className="document-detail">
+      <Header view={view} />
+      <div className="assembly-steps">
+        {(p.steps ?? []).map((step) => (
+          <section key={step.order}>
+            <span className="assembly-number">{step.order}</span>
+            <div className="grow">
+              <p>{step.instruction}</p>
+              {step.tools.length > 0 && <small>Tools: {step.tools.join(', ')}</small>}
+              {step.calibration && (
+                <div className="inline-notice">Calibration: {step.calibration}</div>
+              )}
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                {step.componentRefs.map((id) => (
+                  <button className="text-link" key={id} onClick={() => selectArtifact(id)}>
+                    <ArtifactIcon type="component" size={13} />
+                    {artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        ))}
       </div>
-      <div className="row">{props.actions}</div>
+      {!p.steps?.length && (
+        <EmptyState
+          title="Assembly steps are not recorded"
+          body="Ask your agent to draft the build sequence, tools, and calibration requirements."
+        />
+      )}
+    </div>
+  );
+}
+function ComponentDetail({ view }: { view: ArtifactView }) {
+  const p = (view.revision?.payload ?? {}) as ComponentPayload;
+  const { artifacts, selectArtifact } = useStore();
+  return (
+    <div className="document-detail">
+      <Header view={view} />
+      <p className="dim">{p.description}</p>
+      <dl className="detail-properties">
+        <dt>Part number</dt>
+        <dd className="mono">{p.partNumber}</dd>
+        <dt>Manufacturer</dt>
+        <dd>{p.manufacturer ?? p.vendor ?? 'Unknown'}</dd>
+        <dt>Selection</dt>
+        <dd>
+          <StatusBadge state={p.status ?? 'candidate'} />
+        </dd>
+      </dl>
+      <h4>Engineering properties</h4>
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Value</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(p.properties ?? {}).map(([key, value]) => (
+              <tr key={key}>
+                <td>{key.replaceAll('_', ' ')}</td>
+                <td className="numeric">
+                  {value.quantity ? formatQty(value.quantity) : 'Unknown'}
+                </td>
+                <td>
+                  {value.sourceId ? (
+                    <button
+                      className="table-title-button"
+                      onClick={() => selectArtifact(value.sourceId!)}
+                    >
+                      {artifacts.find((v) => v.artifact.id === value.sourceId)?.artifact.title ??
+                        'Recorded source'}
+                    </button>
+                  ) : (
+                    'No source recorded'
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {p.missingFields?.length > 0 && (
+        <div className="inline-notice warning" style={{ marginTop: 20 }}>
+          Missing: {p.missingFields.join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
+function SoftwareDetail({ view }: { view: ArtifactView }) {
+  const p = (view.revision?.payload ?? {}) as SoftwarePayload;
+  return (
+    <div className="document-detail">
+      <Header view={view} />
+      <dl className="detail-properties">
+        <dt>Language</dt>
+        <dd>{p.language ?? 'Not specified'}</dd>
+        <dt>Entry point</dt>
+        <dd className="mono">{p.entryPoint ?? 'Not specified'}</dd>
+      </dl>
+      <MarkdownView view={view} />
+    </div>
+  );
+}
+function ConceptDetail({ view }: { view: ArtifactView }) {
+  const p = (view.revision?.payload ?? {}) as ConceptPayload;
+  return (
+    <div className="document-detail">
+      <Header view={view} />
+      <MarkdownView view={view} />
+      {[
+        { title: 'Systems', items: p.systems },
+        { title: 'Alternatives', items: p.alternatives },
+        { title: 'Uncertainties', items: p.uncertainties },
+      ].map(
+        (section) =>
+          section.items?.length > 0 && (
+            <section key={section.title}>
+              <h4>{section.title}</h4>
+              <ul>
+                {section.items.map((item, i) => (
+                  <li className="dim" key={i}>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+      )}
+    </div>
+  );
+}
+
+function Header({ view: v, actions }: { view: ArtifactView; actions?: React.ReactNode }) {
+  const readOnly = useStore((s) => s.readOnly);
+  return (
+    <div className="detail-heading">
+      <div className="row">
+        <ArtifactIcon type={v.artifact.type} />
+        <span className="dim">{typeLabels[v.artifact.type]}</span>
+        <span className="grow" />
+        <StatusBadge state={v.freshness} />
+      </div>
+      <h3>{v.artifact.title}</h3>
+      <div className="row">
+        <StatusBadge state={v.revision?.reviewState ?? 'draft'} />
+        <span className="faint">Revision {v.revision?.seq ?? 0}</span>
+        {v.draftCount > 0 && (
+          <StatusBadge
+            state="draft"
+            label={`${v.draftCount} draft${v.draftCount > 1 ? 's' : ''}`}
+          />
+        )}
+        {v.pendingProposal && <StatusBadge state="pending" />}
+      </div>
+      {actions && (
+        <fieldset disabled={readOnly} className="plain-fieldset row detail-actions">
+          {actions}
+        </fieldset>
+      )}
     </div>
   );
 }

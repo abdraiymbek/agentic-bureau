@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore, type Nav } from '../store';
+import * as Dialog from '@radix-ui/react-dialog';
+import { MagnifyingGlass, ArrowRight } from '@phosphor-icons/react';
+import { useStore } from '../store';
+import { NAV_ITEMS } from './Sidebar';
 
 interface PaletteItem {
   id: string;
@@ -7,165 +10,171 @@ interface PaletteItem {
   hint?: string;
   run: () => void;
 }
-
-/** Cmd+K palette: surfaces, artifacts, actions. Cmd+P = artifact quick open. */
 export function CommandPalette() {
-  const { paletteOpen, quickOpen, set, artifacts, navigate, selectArtifact } = useStore();
+  const { paletteOpen, quickOpen, set, artifacts, navigate, selectArtifact, projectId } =
+    useStore();
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
-  const input = useRef<HTMLInputElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const open = paletteOpen || quickOpen;
-
   useEffect(() => {
     if (open) {
       setQ('');
       setIdx(0);
-      setTimeout(() => input.current?.focus(), 30);
     }
   }, [open]);
-
-  const actions: PaletteItem[] = useMemo(() => {
-    const base: PaletteItem[] = [
-      { id: 'nav:overview', label: 'Go to Overview', run: () => navigate('overview') },
-      { id: 'nav:requirements', label: 'Go to Requirements', run: () => navigate('requirements') },
-      { id: 'nav:components', label: 'Go to Components / BOM', run: () => navigate('components') },
-      { id: 'nav:reviews', label: 'Go to Reviews', run: () => navigate('reviews') },
-      { id: 'nav:history', label: 'Go to History / Graph', run: () => navigate('history') },
-      { id: 'nav:files', label: 'Go to Files & export', run: () => navigate('files') },
-      { id: 'nav:connections', label: 'Go to Connections', run: () => navigate('connections') },
-      {
-        id: 'term:focus',
-        label: 'Focus terminal',
-        hint: '⌘J',
-        run: () => window.dispatchEvent(new CustomEvent('stark:focus-terminal')),
-      },
-      {
-        id: 'term:toggle',
-        label: 'Toggle terminal',
-        hint: '⌘J',
-        run: () => set({ terminalExpanded: false }),
-      },
-      {
-        id: 'research:toggle',
-        label: 'Toggle research browser',
-        run: () => void window.stark.toggleResearch(),
-      },
-    ];
-    if (quickOpen) return [];
-    return base;
-  }, [navigate, set, quickOpen]);
-
-  const artifactItems: PaletteItem[] = useMemo(
-    () =>
-      artifacts.map((v) => ({
-        id: `a:${v.artifact.id}`,
-        label: v.artifact.title,
-        hint: v.artifact.type,
-        run: () => {
-          selectArtifact(v.artifact.id);
-          navigate('artifacts');
-        },
-      })),
-    [artifacts, selectArtifact, navigate],
-  );
-
   const items = useMemo(() => {
-    const all = quickOpen ? artifactItems : [...actions, ...artifactItems];
-    if (!q.trim()) return all.slice(0, 20);
-    const needle = q.toLowerCase();
-    return all
-      .filter(
-        (i) => i.label.toLowerCase().includes(needle) || i.hint?.toLowerCase().includes(needle),
-      )
-      .slice(0, 20);
-  }, [q, actions, artifactItems, quickOpen]);
-
-  if (!open) return null;
-
+    const actions: PaletteItem[] = quickOpen
+      ? []
+      : [
+          ...NAV_ITEMS.filter((n) => projectId || n.id === 'design-system').map((n) => ({
+            id: n.id,
+            label: `Open ${n.label.toLowerCase()}`,
+            run: () => navigate(n.id),
+            hint: 'Workspace',
+          })),
+          ...(projectId
+            ? [
+                {
+                  id: 'agent',
+                  label: 'Focus agent',
+                  hint: '⌘ J',
+                  run: () => {
+                    set({ sidecarOpen: true, sidecarTab: 'agent' });
+                    window.dispatchEvent(new CustomEvent('stark:focus-terminal'));
+                  },
+                },
+                {
+                  id: 'inspector',
+                  label: 'Open inspector',
+                  hint: '⌘ ⇧ I',
+                  run: () => set({ sidecarOpen: true, sidecarTab: 'inspector' }),
+                },
+              ]
+            : []),
+          {
+            id: 'theme',
+            label: 'Switch appearance',
+            hint: 'Light / dark',
+            run: () => set({ theme: useStore.getState().theme === 'dark' ? 'light' : 'dark' }),
+          },
+        ];
+    const objects: PaletteItem[] = projectId
+      ? artifacts.map((v) => ({
+          id: v.artifact.id,
+          label: v.artifact.title,
+          hint: v.artifact.type,
+          run: () => {
+            selectArtifact(v.artifact.id);
+            navigate(
+              ['requirement', 'assumption'].includes(v.artifact.type)
+                ? 'requirements'
+                : 'artifacts',
+            );
+          },
+        }))
+      : [];
+    return [...actions, ...objects]
+      .filter((i) => `${i.label} ${i.hint ?? ''}`.toLowerCase().includes(q.toLowerCase()))
+      .slice(0, 50);
+  }, [q, quickOpen, projectId, artifacts, set, navigate, selectArtifact]);
+  useEffect(() => {
+    list.current?.querySelector(`[data-index="${idx}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [idx]);
   const close = () => set({ paletteOpen: false, quickOpen: false });
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.45)',
-        zIndex: 50,
-        display: 'flex',
-        justifyContent: 'center',
-        paddingTop: '12vh',
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) close();
       }}
-      onClick={close}
     >
-      <div
-        style={{
-          width: 520,
-          height: 'fit-content',
-          maxHeight: '60vh',
-          background: 'var(--bg-raised)',
-          border: '1px solid var(--border-strong)',
-          borderRadius: 6,
-          overflow: 'hidden',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          ref={input}
-          placeholder={quickOpen ? 'Open artifact…' : 'Search projects, artifacts, commands…'}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setIdx(0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') close();
-            if (e.key === 'ArrowDown') setIdx((i) => Math.min(i + 1, items.length - 1));
-            if (e.key === 'ArrowUp') setIdx((i) => Math.max(i - 1, 0));
-            if (e.key === 'Enter' && items[idx]) {
-              items[idx]!.run();
-              close();
-            }
-          }}
-          style={{
-            width: '100%',
-            height: 40,
-            fontSize: 14,
-            border: 'none',
-            borderBottom: '1px solid var(--border)',
-            borderRadius: 0,
-            background: 'var(--bg-raised)',
-          }}
-        />
-        <div style={{ overflowY: 'auto', maxHeight: 'calc(60vh - 40px)' }}>
-          {items.map((it, i) => (
-            <div
-              key={it.id}
-              role="button"
-              tabIndex={-1}
-              onClick={() => {
-                it.run();
-                close();
+      <Dialog.Portal>
+        <Dialog.Overlay className="dlg-overlay" />
+        <Dialog.Content className="dlg command-dialog">
+          <Dialog.Title className="sr-only">
+            {quickOpen ? 'Open an object' : 'Search workspace commands'}
+          </Dialog.Title>
+          <Dialog.Description className="sr-only">
+            Use the arrow keys to select a result and Enter to open it.
+          </Dialog.Description>
+          <div className="command-input">
+            <MagnifyingGlass size={20} />
+            <input
+              autoFocus
+              role="combobox"
+              aria-label={quickOpen ? 'Find an object' : 'Search commands and objects'}
+              aria-expanded="true"
+              aria-controls="command-results"
+              aria-activedescendant={items[idx] ? `command-${idx}` : undefined}
+              placeholder={quickOpen ? 'Find an object…' : 'Where would you like to go?'}
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setIdx(0);
               }}
-              style={{
-                padding: '8px 12px',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                background: i === idx ? 'var(--bg-main)' : 'transparent',
-                fontSize: 13,
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setIdx((i) => Math.min(i + 1, Math.max(items.length - 1, 0)));
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setIdx((i) => Math.max(i - 1, 0));
+                }
+                if (e.key === 'Enter' && items[idx]) {
+                  e.preventDefault();
+                  items[idx]?.run();
+                  close();
+                }
               }}
-            >
-              <span>{it.label}</span>
-              {it.hint && <span className="faint">{it.hint}</span>}
-            </div>
-          ))}
-          {items.length === 0 && (
-            <div className="faint" style={{ padding: 16, fontSize: 13 }}>
-              No matches
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+            />
+            <kbd>esc</kbd>
+          </div>
+          <div
+            ref={list}
+            className="command-list"
+            id="command-results"
+            role="listbox"
+            aria-label="Search results"
+          >
+            {items.map((item, i) => (
+              <div role="option" aria-selected={i === idx} id={`command-${i}`} key={item.id}>
+                <button
+                  tabIndex={-1}
+                  data-index={i}
+                  className={`command-item ${i === idx ? 'active' : ''}`}
+                  onMouseMove={() => setIdx(i)}
+                  onClick={() => {
+                    item.run();
+                    close();
+                  }}
+                >
+                  <ArrowRight size={14} className="faint" />
+                  <span className="grow">{item.label}</span>
+                  <span className="faint">{item.hint}</span>
+                </button>
+              </div>
+            ))}
+            {!items.length && (
+              <div className="empty-state">
+                <h3>No matches</h3>
+                <p>Try an object name or a workspace command.</p>
+              </div>
+            )}
+          </div>
+          <div className="command-footer">
+            <span>
+              <kbd>↑</kbd> <kbd>↓</kbd> to navigate
+            </span>
+            <span>
+              <kbd>↵</kbd> to open
+            </span>
+            <span className="grow" />
+            <span>Omen Flow</span>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

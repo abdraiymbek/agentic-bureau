@@ -3,7 +3,8 @@ import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import type { Proposal, Revision, Artifact, ProposedChange } from '@stark/contracts';
 import { formatQty, isUnknown } from '@stark/contracts';
-import { EmptyBlock } from './OverviewView';
+import { EmptyState, PageHeader, StatusBadge, SearchField } from '../components/ui';
+import { GitBranch, CheckCircle } from '@phosphor-icons/react';
 
 interface ProposalDetail {
   proposal: Proposal;
@@ -15,34 +16,57 @@ interface ProposalDetail {
   }[];
 }
 
-/** Review surface: approve / request changes / reject with before-after + impact. */
 export function ReviewsView() {
-  const { proposals, refreshProposals, refreshArtifacts, toast, selectArtifact } = useStore();
+  const { proposals, refreshProposals, refreshArtifacts, toast, selectArtifact, readOnly } =
+    useStore();
   const [detail, setDetail] = useState<ProposalDetail | null>(null);
   const [rationale, setRationale] = useState('');
   const [busy, setBusy] = useState(false);
-
-  const open = async (id: string) => {
-    const r = await cmd<ProposalDetail>('proposal.read', { proposalId: id });
-    setDetail(r);
-  };
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'pending' | 'all'>('pending');
+  const [query, setQuery] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const visible = proposals.filter(
+    (p) =>
+      (filter === 'all' || ['pending', 'changes_requested'].includes(p.state)) &&
+      p.reason.toLowerCase().includes(query.toLowerCase()),
+  );
+  const activeId = visible.some((p) => p.id === selectedId) ? selectedId : visible[0]?.id;
   useEffect(() => {
-    const pending = proposals.find((p) => p.state === 'pending');
-    if (pending && !detail) void open(pending.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proposals.length]);
-
+    let cancelled = false;
+    setDetail(null);
+    setLoadError('');
+    setRationale('');
+    if (activeId)
+      void cmd<ProposalDetail>('proposal.read', { proposalId: activeId })
+        .then((r) => {
+          if (!cancelled) setDetail(r);
+        })
+        .catch((e) => {
+          if (!cancelled) setLoadError(errMsg(e));
+        });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, proposals]);
   const act = async (
     op: 'proposal.approve' | 'proposal.reject' | 'proposal.request_changes',
     id: string,
   ) => {
+    if (readOnly) return;
     setBusy(true);
     try {
       await cmd(op, { proposalId: id, rationale });
-      toast('ok', op.split('.')[1] ?? op);
-      await refreshProposals();
-      await refreshArtifacts();
-      setDetail(null);
+      toast(
+        'ok',
+        op === 'proposal.approve'
+          ? 'Proposal approved. Baseline updated.'
+          : op === 'proposal.reject'
+            ? 'Proposal rejected.'
+            : 'Changes requested.',
+      );
+      await Promise.all([refreshProposals(), refreshArtifacts()]);
+      setSelectedId(null);
       setRationale('');
     } catch (e) {
       toast('error', errMsg(e));
@@ -50,73 +74,78 @@ export function ReviewsView() {
       setBusy(false);
     }
   };
-
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div
-        style={{
-          width: 300,
-          borderRight: '1px solid var(--border)',
-          overflowY: 'auto',
-          padding: 8,
-        }}
-      >
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>
-          Proposals
+    <div className="page">
+      <PageHeader
+        title="Review queue"
+        count={proposals.filter((p) => p.state === 'pending').length}
+        description="Inspect the changes. Understand the impact. You decide what lands."
+      />
+      <div className="toolbar">
+        <div className="segmented">
+          <button aria-pressed={filter === 'pending'} onClick={() => setFilter('pending')}>
+            Needs review
+          </button>
+          <button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+            All proposals
+          </button>
         </div>
-        {proposals.length === 0 && (
-          <div className="faint" style={{ padding: 8, fontSize: 12 }}>
-            No proposals yet.
-          </div>
-        )}
-        {proposals.map((p) => (
-          <div
-            key={p.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => open(p.id)}
-            onKeyDown={(e) => e.key === 'Enter' && open(p.id)}
-            style={{
-              padding: '6px 8px',
-              borderRadius: 4,
-              cursor: 'pointer',
-              background: detail?.proposal.id === p.id ? 'var(--bg-raised)' : 'transparent',
-            }}
-          >
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {p.reason}
-              </span>
-              <span
-                className={`pill ${p.state === 'pending' ? 'stale' : p.state === 'accepted' ? 'current' : 'missing'}`}
-                style={{ height: 18, fontSize: 11 }}
-              >
-                {p.state}
-              </span>
-            </div>
-            <div className="faint" style={{ fontSize: 11 }}>
-              {p.createdBy} · {p.changes.length} change{p.changes.length > 1 ? 's' : ''} ·{' '}
-              {p.createdAt.slice(0, 16).replace('T', ' ')}
-            </div>
-          </div>
-        ))}
+        <span className="grow" />
+        <SearchField value={query} onChange={setQuery} placeholder="Find a proposal" />
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {!detail ? (
-          <EmptyBlock
-            title="Select a proposal"
-            body="Reviewable engineering changes appear here with before/after and downstream impact."
-          />
-        ) : (
-          <ReviewDetail
-            detail={detail}
-            rationale={rationale}
-            setRationale={setRationale}
-            act={act}
-            busy={busy}
-            selectArtifact={selectArtifact}
-          />
-        )}
+      <div className="object-layout">
+        <aside className="object-browser review-browser" aria-label="Proposals">
+          {visible.map((p) => (
+            <button
+              className={`proposal-row ${activeId === p.id ? 'selected' : ''}`}
+              key={p.id}
+              onClick={() => setSelectedId(p.id)}
+            >
+              <div className="row">
+                <GitBranch size={15} />
+                <StatusBadge state={p.state} />
+              </div>
+              <strong>{p.reason}</strong>
+              <small>
+                {p.changes.length} {p.changes.length === 1 ? 'change' : 'changes'} · {p.createdBy}
+              </small>
+            </button>
+          ))}
+          {!visible.length && <p className="browser-empty">No matching proposals.</p>}
+        </aside>
+        <div className="object-detail">
+          {loadError ? (
+            <div role="alert" className="inline-notice warning">
+              {loadError}
+            </div>
+          ) : !activeId ? (
+            <EmptyState
+              title={query ? 'No matching proposals' : 'You’re all caught up'}
+              body={
+                query
+                  ? 'Try another search or switch to all proposals.'
+                  : 'New proposals will appear here with before-and-after changes and their downstream impact.'
+              }
+              icon={<CheckCircle size={25} />}
+            />
+          ) : !detail ? (
+            <p className="dim" role="status">
+              Loading proposal…
+            </p>
+          ) : (
+            <ReviewDetail
+              detail={detail}
+              rationale={rationale}
+              setRationale={setRationale}
+              act={act}
+              busy={busy || readOnly}
+              selectArtifact={(id) => {
+                selectArtifact(id);
+                useStore.getState().set({ sidecarOpen: true, sidecarTab: 'inspector' });
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -134,9 +163,15 @@ function ReviewDetail(props: {
   selectArtifact: (id: string) => void;
 }) {
   const { detail } = props;
+  const artifacts = useStore((state) => state.artifacts);
   const p = detail.proposal;
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div className="review-detail">
+      <div className="review-author">
+        <GitBranch size={16} />
+        <span>Engineering proposal</span>
+        <StatusBadge state={p.state} />
+      </div>
       <h3 style={{ margin: '0 0 4px' }}>{p.reason}</h3>
       <div className="faint" style={{ fontSize: 12, marginBottom: 12 }}>
         proposed by {p.createdBy} · {p.createdAt.replace('T', ' ').slice(0, 16)}
@@ -159,7 +194,7 @@ function ReviewDetail(props: {
             >
               {artifact?.title ?? change.artifactId.slice(0, 8)}
             </span>
-            <span className="pill">{change.kind}</span>
+            <span className="pill">{change.kind.replaceAll('_', ' ')}</span>
           </div>
           <div className="faint" style={{ fontSize: 11, margin: '4px 0' }}>
             base {base ? `rev ${base.seq}` : 'none'} → proposed rev {next?.seq ?? '?'}
@@ -195,16 +230,28 @@ function ReviewDetail(props: {
           <div className="dim" style={{ fontSize: 12, marginBottom: 4 }}>
             Downstream impact
           </div>
-          <div style={{ fontSize: 12 }}>{p.impact.summary}</div>
-          <div className="faint" style={{ fontSize: 11 }}>
-            {p.impact.affectedArtifactIds.length} artifact(s)
+          <p className="dim" style={{ fontSize: 12 }}>
+            {p.impact.affectedArtifactIds.length} connected{' '}
+            {p.impact.affectedArtifactIds.length === 1 ? 'object may' : 'objects may'} need to be
+            revisited.
+          </p>
+          <div className="impact-objects">
+            {p.impact.affectedArtifactIds.map((id) => (
+              <button key={id} onClick={() => props.selectArtifact(id)}>
+                <GitBranch size={13} />
+                {artifacts.find((v) => v.artifact.id === id)?.artifact.title ?? id.slice(0, 8)}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
       {(p.state === 'pending' || p.state === 'changes_requested') && (
-        <>
+        <div className="review-decision">
+          <label htmlFor="review-rationale">Decision rationale</label>
           <textarea
+            id="review-rationale"
+            disabled={props.busy}
             rows={2}
             placeholder="Rationale (optional)"
             value={props.rationale}
@@ -217,7 +264,7 @@ function ReviewDetail(props: {
               disabled={props.busy}
               onClick={() => props.act('proposal.approve', p.id)}
             >
-              Approve
+              Approve changes
             </button>
             <button
               disabled={props.busy}
@@ -233,7 +280,7 @@ function ReviewDetail(props: {
               Reject
             </button>
           </div>
-        </>
+        </div>
       )}
       {p.state !== 'pending' && p.state !== 'changes_requested' && (
         <div className="dim" style={{ marginTop: 8 }}>
@@ -258,6 +305,28 @@ function PayloadDiff({ from, to }: { from: unknown; to: unknown }) {
   const diffs: { path: string; from: unknown; to: unknown }[] = [];
   const walk = (a: unknown, b: unknown, path: string) => {
     if (a === b) return;
+    if (Array.isArray(a) && Array.isArray(b)) {
+      for (let i = 0; i < Math.max(a.length, b.length); i++) {
+        const item = b[i] ?? a[i];
+        const label =
+          item && typeof item === 'object' && 'name' in item ? String(item.name) : String(i + 1);
+        walk(a[i], b[i], `${path}[${label}]`);
+      }
+      return;
+    }
+    if (
+      a &&
+      b &&
+      typeof a === 'object' &&
+      typeof b === 'object' &&
+      'value' in a &&
+      'unit' in a &&
+      'value' in b &&
+      'unit' in b
+    ) {
+      if (a.value !== b.value || a.unit !== b.unit) diffs.push({ path, from: a, to: b });
+      return;
+    }
     if (
       a &&
       b &&
@@ -289,17 +358,25 @@ function PayloadDiff({ from, to }: { from: unknown; to: unknown }) {
       return formatQty(v as never);
     }
     if (v && typeof v === 'object' && isUnknown(v as never)) return 'unknown';
-    const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
-    return s.length > 80 ? s.slice(0, 80) + '…' : s;
+    if (v === undefined) return 'Not set';
+    if (v === null) return 'None';
+    return typeof v === 'object' ? JSON.stringify(v) : String(v);
   };
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 6 }}>
+    <table className="diff-table">
+      <thead>
+        <tr>
+          <th>Changed field</th>
+          <th>Baseline</th>
+          <th>Proposed</th>
+        </tr>
+      </thead>
       <tbody>
-        {diffs.slice(0, 30).map((d, i) => (
+        {diffs.map((d, i) => (
           <tr key={i}>
             <td
               className="mono faint"
-              style={{ padding: '3px 8px 3px 0', verticalAlign: 'top', whiteSpace: 'nowrap' }}
+              style={{ padding: '3px 8px 3px 0', verticalAlign: 'top', overflowWrap: 'anywhere' }}
             >
               {d.path}
             </td>

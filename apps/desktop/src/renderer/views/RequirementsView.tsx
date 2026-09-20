@@ -5,102 +5,158 @@ import type {
   ArtifactView,
   RequirementPayload,
   AssumptionPayload,
-  MaybeQuantity,
+  Revision,
 } from '@stark/contracts';
-import { isUnknown, formatQty } from '@stark/contracts';
-import { EmptyBlock } from './OverviewView';
+import {
+  ArtifactIcon,
+  EmptyState,
+  FormField,
+  ObjectRow,
+  PageHeader,
+  SearchField,
+  StatusBadge,
+} from '../components/ui';
 
-/** Requirements + assumptions surfaces — edit individually with units + acceptance. */
 export function RequirementsView() {
-  const { artifacts, selectedArtifactId, selectArtifact, refreshArtifacts, toast } = useStore();
+  const { artifacts, selectedArtifactId, selectArtifact } = useStore();
+  const [query, setQuery] = useState('');
   const reqs = artifacts.filter((v) => v.artifact.type === 'requirement');
   const asms = artifacts.filter((v) => v.artifact.type === 'assumption');
-  const selected = [...reqs, ...asms].find((v) => v.artifact.id === selectedArtifactId);
-
+  const selected =
+    [...reqs, ...asms].find((v) => v.artifact.id === selectedArtifactId) ?? reqs[0] ?? asms[0];
+  useEffect(() => {
+    if (selected && selected.artifact.id !== selectedArtifactId)
+      selectArtifact(selected.artifact.id);
+  }, [selected, selectedArtifactId, selectArtifact]);
+  const matches = (v: ArtifactView) => v.artifact.title.toLowerCase().includes(query.toLowerCase());
   return (
-    <div style={{ display: 'flex', height: '100%' }}>
-      <div
-        style={{
-          width: 260,
-          borderRight: '1px solid var(--border)',
-          overflowY: 'auto',
-          padding: 8,
-        }}
-      >
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>
-          Requirements
-        </div>
-        {reqs.length === 0 && (
-          <div className="faint" style={{ padding: '4px 8px', fontSize: 12 }}>
-            None yet
-          </div>
-        )}
-        {reqs.map((v) => (
-          <ListRow
-            key={v.artifact.id}
-            v={v}
-            active={selectedArtifactId === v.artifact.id}
-            onClick={() => selectArtifact(v.artifact.id)}
-          />
-        ))}
-        <div className="dim" style={{ fontSize: 12, fontWeight: 600, padding: '12px 8px 4px' }}>
-          Assumptions
-        </div>
-        {asms.map((v) => (
-          <ListRow
-            key={v.artifact.id}
-            v={v}
-            active={selectedArtifactId === v.artifact.id}
-            onClick={() => selectArtifact(v.artifact.id)}
-          />
-        ))}
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {selected ? (
-          selected.artifact.type === 'requirement' ? (
-            <RequirementEditor view={selected} onSaved={refreshArtifacts} toast={toast} />
+    <div className="page">
+      <PageHeader
+        title="Requirements"
+        count={reqs.length}
+        description="Define the constraints. Make every decision traceable."
+      />
+      <div className="object-layout">
+        <aside className="object-browser" aria-label="Requirements and assumptions">
+          <SearchField value={query} onChange={setQuery} placeholder="Find a requirement" />
+          {[
+            { label: 'Requirements', items: reqs },
+            { label: 'Assumptions', items: asms },
+          ].map((group) => (
+            <div key={group.label}>
+              <div className="object-group-label">
+                {group.label}
+                <span>{group.items.length}</span>
+              </div>
+              {group.items.filter(matches).map((v) => (
+                <ObjectRow
+                  key={v.artifact.id}
+                  view={v}
+                  selected={selected?.artifact.id === v.artifact.id}
+                  onClick={() => selectArtifact(v.artifact.id)}
+                  meta={
+                    v.artifact.type === 'assumption'
+                      ? 'To validate'
+                      : `Revision ${v.revision?.seq ?? 0}`
+                  }
+                />
+              ))}
+            </div>
+          ))}
+          {![...reqs, ...asms].some(matches) && (
+            <p className="browser-empty">
+              {query ? 'No matching requirements.' : 'Requirements will appear here.'}
+            </p>
+          )}
+        </aside>
+        <div className="object-detail">
+          {selected ? (
+            <RequirementSurface key={selected.artifact.id} view={selected} />
           ) : (
-            <AssumptionEditor view={selected} onSaved={refreshArtifacts} toast={toast} />
-          )
-        ) : (
-          <EmptyBlock
-            title="No selection"
-            body="Pick a requirement or assumption on the left to inspect and edit it."
-          />
-        )}
+            <EmptyState
+              title="Begin with a clear requirement"
+              body="Ask your agent to define what the system must do, its constraints, and how you will verify them."
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function ListRow(props: { v: ArtifactView; active: boolean; onClick: () => void }) {
-  const { v } = props;
+/** Reused by the requirements workspace and the general object browser. */
+export function RequirementSurface({ view }: { view: ArtifactView }) {
+  const { refreshArtifacts, toast, readOnly } = useStore();
+  const [draft, setDraft] = useState<Revision | null>(null);
+  const [loading, setLoading] = useState(!view.revision);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (view.revision) return;
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void cmd<{ revision: Revision | null }>('artifact.read', { artifactId: view.artifact.id })
+      .then((result) => {
+        if (!cancelled) setDraft(result.revision);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(errMsg(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view.artifact.id, view.revision, view.draftCount, attempt]);
+  if (!view.revision && loading)
+    return (
+      <div role="status" className="dim">
+        Loading the latest draft…
+      </div>
+    );
+  if (error)
+    return (
+      <EmptyState
+        title="Couldn’t load this draft"
+        body={error}
+        action={<button onClick={() => setAttempt((a) => a + 1)}>Try again</button>}
+      />
+    );
+  const display = view.revision ? view : { ...view, revision: draft };
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={props.onClick}
-      onKeyDown={(e) => e.key === 'Enter' && props.onClick()}
-      style={{
-        padding: '5px 8px',
-        borderRadius: 4,
-        cursor: 'pointer',
-        background: props.active ? 'var(--bg-raised)' : 'transparent',
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: 13,
-      }}
-    >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {v.artifact.title}
-      </span>
-      <span
-        className={`pill ${v.freshness === 'stale' ? 'stale' : v.freshness === 'missing_input' ? 'missing' : 'current'}`}
-        style={{ height: 18, fontSize: 11 }}
-      >
-        {v.freshness}
-      </span>
-    </div>
+    <>
+      <div className="detail-heading">
+        <div className="row">
+          <ArtifactIcon type={view.artifact.type} />
+          <span className="dim">
+            {view.artifact.type === 'assumption' ? 'Assumption' : 'Requirement'}
+          </span>
+          <span className="grow" />
+          <StatusBadge state={view.freshness} />
+        </div>
+        <div className="row">
+          <StatusBadge state={display.revision?.reviewState ?? 'draft'} />
+          <span className="faint">
+            {display.revision ? `Revision ${display.revision.seq}` : 'No revision'}
+          </span>
+        </div>
+      </div>
+      {!view.revision && (
+        <div className="inline-notice" style={{ marginBottom: 20 }}>
+          This object has no approved baseline. The latest draft is shown for reference; ask your
+          agent to submit it for review.
+        </div>
+      )}
+      <fieldset disabled={readOnly || !view.revision} className="plain-fieldset">
+        {view.artifact.type === 'requirement' ? (
+          <RequirementEditor view={display} onSaved={refreshArtifacts} toast={toast} />
+        ) : (
+          <AssumptionEditor view={display} onSaved={refreshArtifacts} toast={toast} />
+        )}
+      </fieldset>
+    </>
   );
 }
 
@@ -132,7 +188,7 @@ function RequirementEditor(props: {
     setPriority(pp.priority ?? 'should');
     setDirty(false);
     setImpact(null);
-  }, [view.revision?.id]);
+  }, [view.revision?.id, view.revision?.payload]);
 
   const save = async () => {
     if (!view.revision) return;
@@ -190,7 +246,7 @@ function RequirementEditor(props: {
           style={{ width: '100%' }}
         />
       </Field>
-      <div className="row" style={{ gap: 8 }}>
+      <div className="field-row">
         <Field label="Target value">
           <input
             value={targetValue}
@@ -199,7 +255,7 @@ function RequirementEditor(props: {
               setDirty(true);
             }}
             className="num"
-            style={{ width: 120 }}
+            style={{ width: '100%' }}
           />
         </Field>
         <Field label="Unit">
@@ -263,9 +319,9 @@ function RequirementEditor(props: {
           style={{ width: '100%' }}
         />
       </Field>
-      <div className="row" style={{ marginTop: 8 }}>
+      <div className="form-actions">
         <button className="primary" onClick={save} disabled={!dirty}>
-          Save
+          Save requirement
         </button>
         <button onClick={previewImpact}>Preview impact</button>
       </div>
@@ -308,7 +364,7 @@ function AssumptionEditor(props: {
     setOwner(pp.owner ?? '');
     setNeedsValidation(pp.needsValidation ?? true);
     setDirty(false);
-  }, [view.revision?.id]);
+  }, [view.revision?.id, view.revision?.payload]);
 
   const save = async () => {
     if (!view.revision) return;
@@ -381,19 +437,12 @@ function AssumptionEditor(props: {
         </Field>
       </div>
       <button className="primary" onClick={save} disabled={!dirty} style={{ marginTop: 8 }}>
-        Save
+        Save assumption
       </button>
     </div>
   );
 }
 
 export function Field(props: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="col" style={{ gap: 4, marginBottom: 10, flex: 1 }}>
-      <label className="dim" style={{ fontSize: 12 }}>
-        {props.label}
-      </label>
-      {props.children}
-    </div>
-  );
+  return <FormField label={props.label}>{props.children as React.ReactElement}</FormField>;
 }

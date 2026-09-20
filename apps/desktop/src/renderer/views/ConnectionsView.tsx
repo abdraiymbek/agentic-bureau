@@ -1,11 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
+import { PageHeader, FormField, StatusBadge } from '../components/ui';
+import {
+  TerminalWindow,
+  Cube,
+  ArrowClockwise,
+  Sun,
+  Moon,
+  PlugsConnected,
+} from '@phosphor-icons/react';
 import type { AdapterStatus } from '@stark/contracts';
 
 /** Connections + diagnostics: adapters, their status, custom CLI config, tool paths. */
 export function ConnectionsView() {
-  const { adapters, refreshAdapters, toast, session } = useStore();
+  const { adapters, refreshAdapters, toast, session, theme, density, set } = useStore();
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<
     Record<string, { ok: boolean; error?: string; detail?: string }>
@@ -64,95 +73,183 @@ export function ConnectionsView() {
   const saveScadPath = async () => {
     try {
       await cmd('settings.set', { key: 'toolPaths.openscad', value: scadPath });
-      toast('ok', 'OpenSCAD path saved — doctor on next render');
+      toast('ok', 'OpenSCAD path saved. It will be checked on the next render.');
     } catch (e) {
       toast('error', errMsg(e));
     }
   };
 
   return (
-    <div style={{ padding: 16, overflowY: 'auto', height: '100%', maxWidth: 800 }}>
-      <h3 style={{ margin: '0 0 12px' }}>Connections</h3>
-
-      {adapters.map((a) => (
-        <AdapterCard
-          key={a.adapterId}
-          a={a}
-          test={test}
-          testing={testing === a.adapterId}
-          result={testResult[a.adapterId]}
-        />
-      ))}
-
-      <Section title="Custom CLI">
-        <Field2 label="Executable path">
-          <input
-            value={custom.path}
-            onChange={(e) => setCustom((s) => ({ ...s, path: e.target.value }))}
-            placeholder="/usr/local/bin/mytool"
-            style={{ width: '100%' }}
-          />
-        </Field2>
-        <Field2 label="Arguments">
-          <input
-            value={custom.args}
-            onChange={(e) => setCustom((s) => ({ ...s, args: e.target.value }))}
-            placeholder="--flag value"
-            style={{ width: '100%' }}
-          />
-        </Field2>
-        <Field2 label="Env (KEY=VALUE per line)">
-          <textarea
-            rows={2}
-            value={custom.env}
-            onChange={(e) => setCustom((s) => ({ ...s, env: e.target.value }))}
-            style={{ width: '100%' }}
-          />
-        </Field2>
-        <button onClick={configureCustom} style={{ height: 26, fontSize: 12 }}>
-          Save custom adapter
+    <div className="page">
+      <PageHeader
+        title="Connections"
+        description="Choose your intelligence. Connect your engineering tools."
+      >
+        <button onClick={() => void refreshAdapters().catch((e) => toast('error', errMsg(e)))}>
+          <ArrowClockwise size={14} />
+          Refresh
         </button>
-      </Section>
-
-      <Section title="OpenSCAD">
-        <div className="faint" style={{ fontSize: 12, marginBottom: 6 }}>
-          OpenSCAD is a user-supplied prerequisite for CAD. Point STARK at a nonstandard install if
-          needed.
-        </div>
-        <div className="row">
-          <input
-            value={scadPath}
-            onChange={(e) => setScadPath(e.target.value)}
-            placeholder="/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD"
-            style={{ flex: 1 }}
-          />
-          <button style={{ height: 30 }} onClick={saveScadPath}>
-            Save path
-          </button>
-          <button
-            style={{ height: 30 }}
-            onClick={async () => {
-              const p = await window.stark.pickFile({ title: 'Locate OpenSCAD' });
-              if (p) setScadPath(p);
-            }}
-          >
-            Browse…
-          </button>
-        </div>
-        {doctor && (
-          <pre className="mono dim" style={{ fontSize: 11, marginTop: 8, whiteSpace: 'pre-wrap' }}>
-            {JSON.stringify(doctor, null, 2)}
-          </pre>
-        )}
-      </Section>
-
-      <Section title="Current session">
-        <div className="dim" style={{ fontSize: 12 }}>
-          {session
-            ? `${session.adapterId} — ${session.state}${session.startedAt ? ` (started ${session.startedAt.slice(11, 19)})` : ''}`
-            : 'No agent session running.'}
-        </div>
-      </Section>
+      </PageHeader>
+      <div className="page-scroll settings-page">
+        <section className="settings-section">
+          <div className="section-heading">
+            <h2>
+              <TerminalWindow size={16} />
+              AI agents
+            </h2>
+            <span className="faint">Bring your own tools</span>
+          </div>
+          <p>
+            Run a local agent in your project. Structured proposals stay reviewable in Omen Flow.
+          </p>
+          <div className="adapter-list">
+            {adapters.map((a) => (
+              <AdapterCard
+                key={a.adapterId}
+                a={a}
+                test={test}
+                testing={testing === a.adapterId}
+                result={testResult[a.adapterId]}
+              />
+            ))}
+            {!adapters.length && (
+              <p className="dim">No adapters detected. Refresh to check your installed tools.</p>
+            )}
+          </div>
+          <details className="settings-disclosure">
+            <summary>Configure a custom agent</summary>
+            <div className="settings-form">
+              <Field2 label="Executable path">
+                <input
+                  value={custom.path}
+                  onChange={(e) => setCustom((s) => ({ ...s, path: e.target.value }))}
+                  placeholder="/usr/local/bin/my-agent"
+                />
+              </Field2>
+              <Field2 label="Arguments">
+                <input
+                  value={custom.args}
+                  onChange={(e) => setCustom((s) => ({ ...s, args: e.target.value }))}
+                  placeholder="--flag value"
+                />
+              </Field2>
+              <Field2 label="Environment variables">
+                <textarea
+                  rows={3}
+                  value={custom.env}
+                  onChange={(e) => setCustom((s) => ({ ...s, env: e.target.value }))}
+                  placeholder="KEY=VALUE, one per line"
+                />
+              </Field2>
+              <button onClick={() => void configureCustom()} disabled={!custom.path.trim()}>
+                Save custom agent
+              </button>
+            </div>
+          </details>
+        </section>
+        <section className="settings-section">
+          <div className="section-heading">
+            <h2>
+              <Cube size={16} />
+              Engineering tools
+            </h2>
+          </div>
+          <div className="engineering-tool">
+            <span className="connection-symbol">
+              <Cube size={23} weight="light" />
+            </span>
+            <div>
+              <strong>OpenSCAD</strong>
+              <p>Parametric modeling and STL rendering</p>
+            </div>
+          </div>
+          <p>
+            Use an installed copy of OpenSCAD to render your models. Set a custom path if it isn’t
+            detected.
+          </p>
+          <div className="row">
+            <FormField label="OpenSCAD executable">
+              <input
+                value={scadPath}
+                onChange={(e) => setScadPath(e.target.value)}
+                placeholder="/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD"
+              />
+            </FormField>
+          </div>
+          <div className="row">
+            <button onClick={() => void saveScadPath()} disabled={!scadPath.trim()}>
+              Save path
+            </button>
+            <button
+              className="ghost"
+              onClick={async () => {
+                const path = await window.stark.pickFile({ title: 'Locate OpenSCAD' });
+                if (path) setScadPath(path);
+              }}
+            >
+              Browse files
+            </button>
+          </div>
+          {doctor && (
+            <details className="settings-disclosure">
+              <summary>Tool diagnostics</summary>
+              <pre className="diagnostic-output">{JSON.stringify(doctor, null, 2)}</pre>
+            </details>
+          )}
+        </section>
+        <section className="settings-section">
+          <div className="section-heading">
+            <h2>Appearance</h2>
+          </div>
+          <div className="settings-row">
+            <div>
+              <strong>Color theme</strong>
+              <p>A consistent theme across every workspace surface.</p>
+            </div>
+            <div className="segmented">
+              <button aria-pressed={theme === 'dark'} onClick={() => set({ theme: 'dark' })}>
+                <Moon size={14} />
+                Dark
+              </button>
+              <button aria-pressed={theme === 'light'} onClick={() => set({ theme: 'light' })}>
+                <Sun size={14} />
+                Light
+              </button>
+            </div>
+          </div>
+          <div className="settings-row">
+            <div>
+              <strong>Information density</strong>
+              <p>Adjust spacing in engineering tables.</p>
+            </div>
+            <div className="segmented">
+              <button
+                aria-pressed={density === 'comfortable'}
+                onClick={() => set({ density: 'comfortable' })}
+              >
+                Comfortable
+              </button>
+              <button
+                aria-pressed={density === 'compact'}
+                onClick={() => set({ density: 'compact' })}
+              >
+                Compact
+              </button>
+            </div>
+          </div>
+        </section>
+        <section className="settings-section">
+          <div className="section-heading">
+            <h2>Current session</h2>
+          </div>
+          <div className="row">
+            <PlugsConnected size={15} className="faint" />
+            <span className="dim">
+              {session ? `${session.adapterId}: ${session.state}` : 'No agent session running'}
+            </span>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -165,61 +262,42 @@ function AdapterCard(props: {
 }) {
   const a = props.a;
   return (
-    <div
-      style={{ border: '1px solid var(--border)', borderRadius: 6, padding: 12, marginBottom: 10 }}
-    >
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div className="row">
-          <span style={{ fontWeight: 600 }}>{a.label}</span>
-          <span className={`pill ${a.available ? 'current' : 'missing'}`}>
-            {a.available ? `v${a.version ?? '?'}` : 'not found'}
-          </span>
-          {a.recognizedVersion === false && <span className="pill stale">untested version</span>}
+    <div className="adapter-row">
+      <div className="adapter-main">
+        <span className="connection-symbol">
+          <TerminalWindow size={21} weight="light" />
+        </span>
+        <div className="grow">
+          <strong>{a.label}</strong>
+          <small>
+            {a.available
+              ? a.version
+                ? `Version ${a.version}`
+                : 'Detected on this device'
+              : (a.installHint ?? 'Not installed on this device')}
+          </small>
         </div>
-        <button
-          style={{ height: 24, fontSize: 12 }}
-          disabled={!a.available || props.testing}
-          onClick={() => props.test(a.adapterId)}
-        >
+        <StatusBadge
+          state={a.available ? 'current' : 'draft'}
+          label={a.available ? 'Available' : 'Not detected'}
+        />
+        <button disabled={!a.available || props.testing} onClick={() => props.test(a.adapterId)}>
           {props.testing ? 'Testing…' : 'Test connection'}
         </button>
       </div>
-      {a.executablePath && (
-        <div className="faint mono" style={{ fontSize: 11, marginTop: 4 }}>
-          {a.executablePath}
-        </div>
+      {a.recognizedVersion === false && a.available && (
+        <p className="warn">This installed version hasn’t been tested.</p>
       )}
-      {a.lastError && (
-        <div className="err" style={{ fontSize: 12, marginTop: 4 }}>
-          {a.lastError}
-        </div>
-      )}
+      {a.executablePath && <div className="adapter-path mono">{a.executablePath}</div>}
+      {a.lastError && <p className="err">{a.lastError}</p>}
       {props.result && (
-        <div className={props.result.ok ? 'ok' : 'err'} style={{ fontSize: 12, marginTop: 4 }}>
-          {props.result.ok ? 'OK' : props.result.error} {props.result.detail ?? ''}
-        </div>
+        <p className={props.result.ok ? 'ok' : 'err'}>
+          {props.result.ok ? 'Connection test passed.' : props.result.error} {props.result.detail}
+        </p>
       )}
-    </div>
-  );
-}
-
-function Section(props: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginTop: 16, border: '1px solid var(--border)', borderRadius: 6, padding: 12 }}>
-      <div className="dim" style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
-        {props.title}
-      </div>
-      {props.children}
     </div>
   );
 }
 function Field2(props: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="col" style={{ gap: 4, marginBottom: 8 }}>
-      <label className="dim" style={{ fontSize: 12 }}>
-        {props.label}
-      </label>
-      {props.children}
-    </div>
-  );
+  return <FormField label={props.label}>{props.children as React.ReactElement}</FormField>;
 }

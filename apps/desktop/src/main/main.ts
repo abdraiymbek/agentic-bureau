@@ -50,7 +50,9 @@ function sendToCore(msg: Record<string, unknown>): void {
 function callCore<T>(op: string, payload: unknown, idempotencyKey?: string): Promise<T> {
   if (!coreProc) {
     return Promise.reject(
-      new Error('STARK’s workspace service is unavailable. Quit and reopen STARK to reconnect.'),
+      new Error(
+        'Omen Flow’s workspace service is unavailable. Quit and reopen Omen Flow to reconnect.',
+      ),
     );
   }
   const requestId = `req-${++reqSeq}`;
@@ -207,8 +209,8 @@ function createWindow(): void {
     y: state.y,
     minWidth: 1024,
     minHeight: 700,
-    backgroundColor: '#17191C',
-    title: 'STARK',
+    backgroundColor: '#161719',
+    title: 'Omen Flow',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 12, y: 12 },
     webPreferences: {

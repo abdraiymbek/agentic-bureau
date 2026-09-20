@@ -19,7 +19,8 @@ export type Nav =
   | 'reviews'
   | 'history'
   | 'files'
-  | 'connections';
+  | 'connections'
+  | 'design-system';
 
 export interface Toast {
   id: number;
@@ -44,6 +45,11 @@ interface State {
   jobs: Job[];
   suggestions: { title: string; detail?: string }[];
   terminalExpanded: boolean;
+  sidecarOpen: boolean;
+  sidecarTab: 'agent' | 'inspector';
+  sidebarOpen: boolean;
+  theme: 'dark' | 'light';
+  density: 'comfortable' | 'compact';
   paletteOpen: boolean;
   quickOpen: boolean;
   toasts: Toast[];
@@ -60,6 +66,14 @@ interface State {
   navigate: (n: Nav) => void;
   toast: (kind: Toast['kind'], text: string) => void;
   pushEvent: (e: ProjectEvent) => void;
+}
+
+function readPreference(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 let toastSeq = 0;
@@ -81,6 +95,11 @@ export const useStore = create<State>((set, get) => ({
   jobs: [],
   suggestions: [],
   terminalExpanded: false,
+  sidecarOpen: true,
+  sidecarTab: 'agent',
+  sidebarOpen: true,
+  theme: readPreference('omen.theme') === 'light' ? 'light' : 'dark',
+  density: readPreference('omen.density') === 'compact' ? 'compact' : 'comfortable',
   paletteOpen: false,
   quickOpen: false,
   toasts: [],

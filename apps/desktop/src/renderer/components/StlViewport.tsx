@@ -2,6 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { useStore } from '../store';
+import {
+  ArrowsOut,
+  Cube,
+  GridFour,
+  ArrowCounterClockwise,
+  BoundingBox,
+} from '@phosphor-icons/react';
 
 /**
  * Real STL viewport: parses the actual mesh bytes, orbit/pan/zoom,
@@ -12,6 +20,7 @@ export function StlViewport(props: {
   compareData?: ArrayBuffer | null;
   modelUnit: string;
 }) {
+  const theme = useStore((s) => s.theme);
   const mount = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -27,8 +36,11 @@ export function StlViewport(props: {
   // Init scene once.
   useEffect(() => {
     if (!mount.current) return;
+    const element = mount.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#1d2024');
+    scene.background = new THREE.Color(
+      getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim(),
+    );
     sceneRef.current = scene;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -36,8 +48,8 @@ export function StlViewport(props: {
     mount.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    const hemi = new THREE.HemisphereLight('#8a94a0', '#17191c', 1.1);
-    const dir = new THREE.DirectionalLight('#ffffff', 1.4);
+    const hemi = new THREE.HemisphereLight('#e1e8f7', '#596171', 2.2);
+    const dir = new THREE.DirectionalLight('#ffffff', 2.5);
     dir.position.set(4, 8, 5);
     scene.add(hemi, dir);
     const axes = new THREE.AxesHelper(25);
@@ -102,10 +114,20 @@ export function StlViewport(props: {
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
-      mount.current?.removeChild(renderer.domElement);
+      element.removeChild(renderer.domElement);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const css = getComputedStyle(document.documentElement);
+    if (sceneRef.current)
+      sceneRef.current.background = new THREE.Color(css.getPropertyValue('--canvas-bg').trim());
+    if (meshRef.current)
+      (meshRef.current.material as THREE.MeshStandardMaterial).color.set(
+        css.getPropertyValue('--model-color').trim(),
+      );
+  }, [theme]);
 
   // Swap camera on ortho toggle.
   useEffect(() => {
@@ -142,11 +164,13 @@ export function StlViewport(props: {
     if (meshRef.current) {
       scene.remove(meshRef.current);
       meshRef.current.geometry.dispose();
+      (meshRef.current.material as THREE.Material).dispose();
       meshRef.current = null;
     }
     if (compareRef.current) {
       scene.remove(compareRef.current);
       compareRef.current.geometry.dispose();
+      (compareRef.current.material as THREE.Material).dispose();
       compareRef.current = null;
     }
     if (!props.stlData) {
@@ -157,9 +181,9 @@ export function StlViewport(props: {
     const geo = loader.parse(props.stlData);
     geo.computeBoundingBox();
     const mat = new THREE.MeshStandardMaterial({
-      color: '#8b93a0',
-      roughness: 0.75,
-      metalness: 0.05,
+      color: getComputedStyle(document.documentElement).getPropertyValue('--model-color').trim(),
+      roughness: 0.45,
+      metalness: 0.2,
       wireframe,
     });
     const mesh = new THREE.Mesh(geo, mat);
@@ -180,7 +204,6 @@ export function StlViewport(props: {
       scene.add(cmesh);
     }
     fit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.stlData, props.compareData, wireframe]);
 
   const fit = () => {
@@ -191,8 +214,18 @@ export function StlViewport(props: {
     const bb = mesh.geometry.boundingBox ?? new THREE.Box3().setFromObject(mesh);
     const center = bb.getCenter(new THREE.Vector3());
     const size = bb.getSize(new THREE.Vector3()).length();
-    const d = Math.max(size, 1) * 0.9;
+    const aspect = rendererRef.current
+      ? rendererRef.current.domElement.clientWidth /
+        Math.max(rendererRef.current.domElement.clientHeight, 1)
+      : 1;
+    const d = Math.max(size, 1) * (aspect < 1.2 ? 1.3 : 1.05);
     cam.position.set(center.x + d * 0.7, center.y + d * 0.55, center.z + d * 0.7);
+    if (cam instanceof THREE.OrthographicCamera) {
+      cam.left = -size * aspect * 0.6;
+      cam.right = size * aspect * 0.6;
+      cam.top = size * 0.6;
+      cam.bottom = -size * 0.6;
+    }
     cam.near = d / 100;
     cam.far = d * 100;
     cam.updateProjectionMatrix();
@@ -206,6 +239,8 @@ export function StlViewport(props: {
         ref={mount}
         style={{ position: 'absolute', inset: 0 }}
         tabIndex={0}
+        role="img"
+        aria-label="Interactive 3D model. Arrow keys move the view, F fits the model, and 0 resets it."
         onKeyDown={(e) => {
           // Keyboard 3D nav alternative.
           const cam = cameraRef.current;
@@ -222,19 +257,38 @@ export function StlViewport(props: {
           }
         }}
       />
-      <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6 }}>
-        <Btn onClick={fit}>Fit</Btn>
-        <Btn onClick={() => setOrtho((o) => !o)}>{ortho ? 'Ortho' : 'Persp'}</Btn>
-        <Btn onClick={() => setWireframe((w) => !w)}>{wireframe ? 'Solid' : 'Wire'}</Btn>
-        <Btn onClick={() => setGridOn((g) => !g)}>Grid</Btn>
+      <div className="viewport-tools">
+        <Btn onClick={fit} title="Fit model (F)">
+          <ArrowsOut size={14} />
+          Fit
+        </Btn>
         <Btn
+          onClick={() => setOrtho((o) => !o)}
+          aria-pressed={ortho}
+          title="Toggle orthographic projection"
+        >
+          <Cube size={14} />
+          {ortho ? 'Ortho' : 'Persp'}
+        </Btn>
+        <Btn
+          onClick={() => setWireframe((w) => !w)}
+          aria-pressed={wireframe}
+          title="Toggle wireframe"
+        >
+          <BoundingBox size={14} />
+        </Btn>
+        <Btn onClick={() => setGridOn((g) => !g)} aria-pressed={gridOn} title="Toggle grid">
+          <GridFour size={14} />
+        </Btn>
+        <Btn
+          title="Reset view"
           onClick={() => {
             cameraRef.current?.position.set(80, 60, 80);
             controlsRef.current?.target.set(0, 0, 0);
             controlsRef.current?.update();
           }}
         >
-          Reset
+          <ArrowCounterClockwise size={14} />
         </Btn>
       </div>
       {dims && (
@@ -245,7 +299,7 @@ export function StlViewport(props: {
             bottom: 8,
             left: 8,
             fontSize: 12,
-            background: 'rgba(20,22,26,0.8)',
+            background: 'var(--bg-main)',
             padding: '2px 8px',
             borderRadius: 4,
           }}
