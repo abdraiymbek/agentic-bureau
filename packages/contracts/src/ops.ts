@@ -441,6 +441,19 @@ const cadPatchSource = z.object({
   timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
   ...idem,
 });
+const cadSetParam = z.object({
+  artifactId: idSchema.describe('Existing mechanical part to edit.'),
+  name: z
+    .string()
+    .min(1)
+    .describe('File-scope parameter name from cad.read_source (e.g. hole_d).'),
+  value: z
+    .union([z.number(), z.string(), z.boolean()])
+    .describe('New literal value written into the source assignment.'),
+  rationale: z.string().default('').describe('One line on why this dimension changed.'),
+  timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
+  ...idem,
+});
 const cadCompose = z.object({
   title: z.string().min(1).describe('Name of the assembled part.'),
   instances: z
@@ -849,6 +862,13 @@ export const OPS: OpDef[] = [
     'both',
     true,
     'Replace one unique snippet in an existing part\'s OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.',
+  ),
+  def(
+    'cad.set_param',
+    cadSetParam,
+    'both',
+    true,
+    'Change one file-scope OpenSCAD assignment (name = value;) and re-render. Prefer this over rewriting the whole file when only a dimension changes.',
   ),
   def(
     'cad.compose',

@@ -306,6 +306,7 @@ const H: Record<string, Handler> = {
   'cad.inspect': (c, i: never, o) => cad.cadInspect(c, i as never, o),
   'cad.check': (c, i: never, o) => cad.cadCheck(c, i as never, o),
   'cad.patch_source': (c, i: never, o) => cad.cadPatchSource(c, i as never, o),
+  'cad.set_param': (c, i: never, o) => cad.cadSetParam(c, i as never, o),
   'cad.compose': (c, i: never, o) => cad.cadCompose(c, i as never, o),
   'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }) => {
     const a = c.requireArtifact(i.artifactId);

@@ -50,8 +50,9 @@ through the tools so it is recorded as a revision.
    cite passing checks.
 - \`cad_inspect\` measures arbitrary planes/points (use it to debug). Axis-aligned: \`axis\`+\`at\`.
   Inclined holes: \`origin\`+\`normal\` (true normal-to-face cut) plus \`probes\` through the bore.
-- \`cad_read_source\` returns an existing part's source. \`cad_patch_source\` replaces one unique
-  snippet (prefer this for a local edit). \`cad_write_source\` still accepts a full rewrite.
+- \`cad_read_source\` returns an existing part's source. \`cad_set_param\` changes one file-scope
+  \`name = value;\` (prefer this for a single dimension). \`cad_patch_source\` replaces one unique
+  snippet. \`cad_write_source\` still accepts a full rewrite.
 - \`cad_compose\` places existing parts with translate/rotate only — no mates, no STEP. Each
   source is wrapped in a module so file-scope names do not collide.
 - Modify a part on the **same** \`artifactId\` — never create a second artifact for a change.

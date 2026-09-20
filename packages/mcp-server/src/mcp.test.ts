@@ -144,6 +144,7 @@ describe('OmenflowMcpServer over bridge frames', () => {
       'cad_inspect',
       'cad_check',
       'cad_patch_source',
+      'cad_set_param',
       'cad_compose',
       'tool_describe',
     ]) {

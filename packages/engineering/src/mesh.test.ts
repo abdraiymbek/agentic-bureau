@@ -7,6 +7,7 @@ import { OpenScadAdapter } from './openscad.js';
 import {
   analyzeMesh,
   containsPoint,
+  countIntersectingPairs,
   crossSection,
   parseStlTriangles,
   type TriangleBuffer,
@@ -84,6 +85,8 @@ describe.skipIf(
     expect(hole.circle!.center[1]).toBeCloseTo(20, 3);
     expect(hole.circle!.roundness).toBeGreaterThan(0.99);
     expect(s.materialArea).toBeCloseTo(4000 - holeArea, 2);
+    // Gate for defaulting soup checks: a clean CSG plate must not look intersecting.
+    expect(countIntersectingPairs(tris)).toBe(0);
   });
 
   it('section along y axis finds holes drilled through y', () => {

@@ -305,4 +305,49 @@ describe.skipIf(
     expect(loose.pass).toBe(true);
     expect(loose.loosenedAssertions).toContain('bounding box');
   });
+
+  it('set_param rewrites one file-scope value without a full source rewrite', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const w = await call<CadReport>('cad.write_source', { title: 'Plate', source: PLATE });
+    const p = await call<CadReport>('cad.set_param', {
+      artifactId: w.artifactId,
+      name: 'hole_d',
+      value: 10,
+      rationale: 'enlarge hole',
+    });
+    expect(p.artifactId).toBe(w.artifactId);
+    expect(p.revisionId).not.toBe(w.revisionId);
+    const src = await call('cad.read_source', { artifactId: w.artifactId });
+    expect(src.source).toMatch(/hole_d\s*=\s*10\s*;/);
+    expect(src.source).toContain('w = 100;');
+    const chk = await call('cad.check', {
+      artifactId: w.artifactId,
+      expect: { sections: [{ axis: 'z', at: 3, holes: [{ center: [50, 20], d: 10 }] }] },
+    });
+    expect(chk.pass).toBe(true);
+  });
+
+  it('compose warns when placed parts overlap so OpenSCAD will union them', async () => {
+    if (!available) return;
+    const { call } = await project();
+    const a = await call<CadReport>('cad.write_source', {
+      title: 'Block A',
+      source: 'cube([10,10,10]);',
+    });
+    const b = await call<CadReport>('cad.write_source', {
+      title: 'Block B',
+      source: 'cube([10,10,10]);',
+    });
+    const overlap = await call<CadReport>('cad.compose', {
+      title: 'Overlapped',
+      instances: [
+        { artifactId: a.artifactId, translate: [0, 0, 0] },
+        { artifactId: b.artifactId, translate: [5, 0, 0] },
+      ],
+      rationale: 'should warn',
+    });
+    expect(overlap.notes.some((n) => /overlap|union/i.test(n))).toBe(true);
+    expect(overlap.geometry?.shells).toBe(1);
+  });
 });

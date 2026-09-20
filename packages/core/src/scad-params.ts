@@ -214,3 +214,43 @@ export function ensureDefaultFaceting(source: string): { source: string; injecte
   if (!CURVED.test(stripped)) return { source, injected: false };
   return { source: `$fn = 64;\n${source}`, injected: true };
 }
+
+function formatScadValue(value: number | string | boolean): string {
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'string') return JSON.stringify(value);
+  if (Number.isInteger(value)) return String(value);
+  return String(value);
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Replace the right-hand side of a file-scope assignment. Module-internal
+ * names are not touched. Used by `cad.set_param` so a small model can change
+ * one dimension without rewriting the file.
+ */
+export function setScadParameter(
+  source: string,
+  name: string,
+  value: number | string | boolean,
+): { source: string; previous: number | string | boolean } {
+  const declared = parseScadParameters(source);
+  const param = declared.find((p) => p.name === name);
+  if (!param) {
+    const available = declared.map((p) => p.name);
+    throw new Error(
+      `No file-scope parameter "${name}".` +
+        (available.length ? ` Available: ${available.join(', ')}.` : ' The source declares none.'),
+    );
+  }
+  const lines = source.split('\n');
+  const idx = param.line - 1;
+  const line = lines[idx];
+  if (line === undefined) throw new Error(`No file-scope parameter "${name}".`);
+  const re = new RegExp(`(${escapeRegExp(name)}\\s*=\\s*)([^;]+)`);
+  if (!re.test(line)) throw new Error(`No file-scope parameter "${name}".`);
+  lines[idx] = line.replace(re, `$1${formatScadValue(value)}`);
+  return { source: lines.join('\n'), previous: param.value };
+}

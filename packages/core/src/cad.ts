@@ -34,7 +34,12 @@ import {
   type TriangleBuffer,
   type Vec3,
 } from './mesh.js';
-import { ensureDefaultFaceting, parseScadParameters, type ScadParameter } from './scad-params.js';
+import {
+  ensureDefaultFaceting,
+  parseScadParameters,
+  setScadParameter,
+  type ScadParameter,
+} from './scad-params.js';
 import {
   describeLoop,
   findLoosenedAssertions,
@@ -1089,6 +1094,96 @@ export async function cadPatchSource(
   );
 }
 
+export async function cadSetParam(
+  ctx: ProjectContext,
+  input: {
+    artifactId: string;
+    name: string;
+    value: ScadValue;
+    rationale: string;
+    timeoutMs: number;
+  },
+  origin: Origin,
+): Promise<CadReport> {
+  ctx.assertWritable();
+  const artifact = requireMechanical(ctx, input.artifactId);
+  const rev = pickRevision(ctx, artifact);
+  const { source } = readScad(ctx, rev);
+  let next: { source: string };
+  try {
+    next = setScadParameter(source, input.name, input.value);
+  } catch (e) {
+    throw new OmenflowError(ErrorCodes.VALIDATION, (e as Error).message, {
+      repair: 'Call cad.read_source and use a name from parameters.',
+    });
+  }
+  return cadWriteSource(
+    ctx,
+    {
+      artifactId: input.artifactId,
+      source: next.source,
+      rationale: input.rationale || `set ${input.name}`,
+      timeoutMs: input.timeoutMs,
+    },
+    origin,
+  );
+}
+
+function scadRotateXyz(p: Vec3, deg: Vec3): Vec3 {
+  const [ax, ay, az] = deg.map((d) => (d * Math.PI) / 180) as Vec3;
+  let [x, y, z] = p;
+  let y1 = y * Math.cos(ax) - z * Math.sin(ax);
+  let z1 = y * Math.sin(ax) + z * Math.cos(ax);
+  y = y1;
+  z = z1;
+  const x1 = x * Math.cos(ay) + z * Math.sin(ay);
+  z1 = -x * Math.sin(ay) + z * Math.cos(ay);
+  x = x1;
+  z = z1;
+  const x2 = x * Math.cos(az) - y * Math.sin(az);
+  y1 = x * Math.sin(az) + y * Math.cos(az);
+  return [x2, y1, z];
+}
+
+function instanceBounds(
+  min: Vec3,
+  max: Vec3,
+  translate: Vec3,
+  rotate: Vec3,
+): { min: Vec3; max: Vec3 } {
+  const corners: Vec3[] = [];
+  for (const x of [min[0], max[0]])
+    for (const y of [min[1], max[1]])
+      for (const z of [min[2], max[2]]) {
+        const r = scadRotateXyz([x, y, z], rotate);
+        corners.push([r[0] + translate[0], r[1] + translate[1], r[2] + translate[2]]);
+      }
+  const outMin: Vec3 = [Infinity, Infinity, Infinity];
+  const outMax: Vec3 = [-Infinity, -Infinity, -Infinity];
+  for (const c of corners) {
+    for (let i = 0; i < 3; i++) {
+      if (c[i]! < outMin[i]!) outMin[i] = c[i]!;
+      if (c[i]! > outMax[i]!) outMax[i] = c[i]!;
+    }
+  }
+  return { min: outMin, max: outMax };
+}
+
+function aabbInteriorOverlap(
+  a: { min: Vec3; max: Vec3 },
+  b: { min: Vec3; max: Vec3 },
+  eps = 1e-3,
+): boolean {
+  return (
+    a.min[0]! < b.max[0]! - eps &&
+    a.max[0]! > b.min[0]! + eps &&
+    a.min[1]! < b.max[1]! - eps &&
+    a.max[1]! > b.min[1]! + eps &&
+    a.min[2]! < b.max[2]! - eps &&
+    a.max[2]! > b.min[2]! + eps
+  );
+}
+
 export async function cadCompose(
   ctx: ProjectContext,
   input: {
@@ -1103,6 +1198,7 @@ export async function cadCompose(
   const blocks: string[] = [
     '// composed assembly — module-wrapped instances, transform only (no mates / STEP)',
   ];
+  const placed: { i: number; box: { min: Vec3; max: Vec3 } }[] = [];
   input.instances.forEach((inst, i) => {
     const artifact = requireMechanical(ctx, inst.artifactId);
     const rev = pickRevision(ctx, artifact);
@@ -1116,8 +1212,23 @@ export async function cadCompose(
         ? `translate([${t.join(', ')}]) ${name}();`
         : `translate([${t.join(', ')}]) rotate([${r.join(', ')}]) ${name}();`;
     blocks.push(`module ${name}() {\n${body}\n}\n${xform}`);
+    const payload = rev.payload as MechanicalPayload;
+    if (payload.bounds) {
+      placed.push({
+        i,
+        box: instanceBounds(payload.bounds.min, payload.bounds.max, t, r),
+      });
+    }
   });
-  return cadWriteSource(
+  const overlapPairs: string[] = [];
+  for (let a = 0; a < placed.length; a++) {
+    for (let b = a + 1; b < placed.length; b++) {
+      if (aabbInteriorOverlap(placed[a]!.box, placed[b]!.box)) {
+        overlapPairs.push(`#${placed[a]!.i} and #${placed[b]!.i}`);
+      }
+    }
+  }
+  const report = await cadWriteSource(
     ctx,
     {
       title: input.title,
@@ -1127,6 +1238,12 @@ export async function cadCompose(
     },
     origin,
   );
+  if (overlapPairs.length) {
+    report.notes.unshift(
+      `Instances ${overlapPairs.join(', ')} overlap after transform — OpenSCAD unions overlapping top-level objects into one body. Separate them or accept the unioned solid.`,
+    );
+  }
+  return report;
 }
 
 /* ------------------------------------------------------------------ */
