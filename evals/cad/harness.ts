@@ -46,6 +46,10 @@ export interface RunOptions {
   extraCodexArgs?: string[];
   /** Ignore the developer's ~/.codex/config.toml so only Omen Flow's MCP is present. */
   ignoreUserConfig?: boolean;
+  /** Continue from a closed, copied project in a multi-turn recovery evaluation. */
+  projectSnapshot?: string;
+  /** Fixture-only setup/fault injection before starting the provider. */
+  beforeAgent?: (app: CoreApp, projectId: string) => Promise<void>;
 }
 
 export interface TraceMetrics {
@@ -525,14 +529,25 @@ export async function runTask(task: Task, opts: RunOptions): Promise<TaskResult>
 
   const app = new CoreApp(appData, nullHost);
   app.engineTools = createEngineTools();
-  const created = (await app.dispatch(
-    'project.create',
-    { name: `Eval: ${task.id}`, path: projectDir, intent: 'CAD capability evaluation project.' },
-    USER,
-  )) as { projectId: string };
+  if (opts.projectSnapshot) fs.cpSync(opts.projectSnapshot, projectDir, { recursive: true });
+  const created = (await (opts.projectSnapshot
+    ? app.dispatch('project.open', { path: projectDir }, USER)
+    : app.dispatch(
+        'project.create',
+        {
+          name: `Eval: ${task.id}`,
+          path: projectDir,
+          intent: 'CAD capability evaluation project.',
+        },
+        USER,
+      ))) as { projectId: string };
   const projectId = created.projectId;
   const ctx = app.contextFor(projectId);
-  const seededId = await seedProject(app, projectId, task);
+  const seededId = opts.projectSnapshot
+    ? (ctx.repo.listArtifacts({ type: 'mechanical' }).find((a) => a.title === task.seed?.title)
+        ?.id ?? null)
+    : await seedProject(app, projectId, task);
+  if (opts.beforeAgent) await opts.beforeAgent(app, projectId);
 
   // Unix socket paths are capped (~104 bytes on macOS) — keep it short.
   const sockDir = fs.mkdtempSync('/tmp/ofe-');

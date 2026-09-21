@@ -10,7 +10,7 @@ import type { ProjectContext } from './context.js';
 import type { CheckResult } from './cad-checks.js';
 import { renderMatchesInput, type RenderIdentity } from './cad-input.js';
 
-export const CAD_CHECKER_VERSION = 'omenflow-mesh-checks-v2';
+export const CAD_CHECKER_VERSION = 'omenflow-mesh-checks-v3';
 export type CadVerificationStatus =
   'passed' | 'partial' | 'failed' | 'scope_changed' | 'unverified';
 export interface CadVerificationEvidence {

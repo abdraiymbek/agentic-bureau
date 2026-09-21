@@ -90,6 +90,28 @@ async function project(onRender?: () => void) {
 }
 
 describe('request-bound work identity', () => {
+  it('requires rechecking evidence from the retired geometry checker', async () => {
+    const { ctx, call } = await project();
+    const part = await call<CadReport>('cad.write_source', { title: 'Block', source: 'cube(10);' });
+    const spec = {
+      artifactId: part.artifactId,
+      expect: { shells: 1, bbox: { min: [0, 0, 0], max: [10, 10, 2] } },
+    };
+    await call('cad.check', spec);
+    const revision = ctx.requireRevision(part.revisionId);
+    const current = latestCadVerification(ctx, revision);
+    expect(current.status).toBe('passed');
+    const retired = ctx.storeContent(
+      JSON.stringify({ ...current.evidence, checkerVersion: 'omenflow-mesh-checks-v2' }),
+    );
+    const job = ctx.repo.listJobs().find((j) => j.kind === 'cad_check')!;
+    ctx.repo.updateJob(job.id, { outputHashes: { ...job.outputHashes, verification: retired } });
+    expect(latestCadVerification(ctx, revision).status).toBe('unverified');
+    await call('cad.check', spec);
+    expect(latestCadVerification(ctx, revision).status).toBe('passed');
+    expect(ctx.objects.has(retired)).toBe(true);
+  });
+
   it('cancels a running verification worker without publishing evidence or active work', async () => {
     const { ctx, call } = await project();
     const written = await call<CadReport>('cad.write_source', {

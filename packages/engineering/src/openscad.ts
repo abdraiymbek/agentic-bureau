@@ -309,7 +309,7 @@ export class OpenScadAdapter implements CadAdapter {
     const exe = this.discover();
     if (!exe) return { ok: false, error: 'OpenSCAD not found' };
 
-    const args = [...exe.argsPrefix, '-o', spec.outPath];
+    const args = [...exe.argsPrefix, '-o', spec.outPath, '--export-format', 'binstl'];
     for (const [k, v] of Object.entries(spec.params ?? {})) {
       const val = typeof v === 'string' ? JSON.stringify(v) : String(v);
       args.push('-D', `${k}=${val}`);

@@ -349,9 +349,23 @@ const RAY_DIRS: Vec3[] = [
 export function containsPoint(tris: TriangleBuffer, p: Vec3): boolean {
   let inside = 0;
   for (const d of RAY_DIRS) {
-    let hits = 0;
+    const distances: number[] = [];
     for (let i = 0; i < tris.length; i += 9) {
-      if (rayTri(p[0], p[1], p[2], d[0], d[1], d[2], tris, i) !== null) hits++;
+      const distance = rayTri(p[0], p[1], p[2], d[0], d[1], d[2], tris, i);
+      if (distance !== null) distances.push(distance);
+    }
+    // A face diagonal/vertex belongs to several triangles, but is one surface
+    // crossing. Counting triangles makes cavity classification depend on how
+    // the exporter triangulated coplanar faces. Keep distinct thin-wall sides.
+    distances.sort((a, b) => a - b);
+    let hits = 0;
+    let previous = -Infinity;
+    for (const distance of distances) {
+      const epsilon = Math.max(1e-8, 16 * Number.EPSILON * Math.abs(distance));
+      if (distance - previous > epsilon) {
+        hits++;
+        previous = distance;
+      }
     }
     if (hits % 2 === 1) inside++;
   }

@@ -101,3 +101,29 @@ record latency with that concurrency caveat. Their final results, false-completi
 review, tool budgets and outstanding multi-step/performance gates must be added
 before declaring release readiness. The evaluator now exits nonzero on any
 failed collected run; no oracle or tolerance was relaxed.
+
+## Remote CI findings and checker correction
+
+PR #7 runs the repository CI. Its first run passed the Ubuntu type/lint/test job,
+macOS packaged smoke and Rust checks. The pinned OpenSCAD 2021.01 job exposed a
+point-containment defect: duplicate ray hits on shared triangle edges could make
+an enclosed cavity appear solid. A triangulation-based regression reproduces
+that defect locally. Deduplicating coincident surface crossings fixes it while
+retaining distinct thin-wall surfaces. The checker identity is now v3, so v2
+evidence is retained as history but cannot certify current readiness without a
+fresh check. A regression verifies that transition explicitly.
+
+The analytic render tests now request binary STL, avoiding the older ASCII
+exporter's six-digit rounding without loosening geometric assertions. The actual
+adapter also requests binary STL consistently. Windows packaging exposed an
+unresolved hoisted `lodash` dependency; it is now an explicit locked build
+input. Its CI retry must pass before reporting that job green.
+
+The current local suite passes **284 tests in 37 files**, with real OpenSCAD and
+no skips. The new two-turn workflow evaluation reopens saved projects and covers
+existing-part understanding, ambiguous fit, reviewer correction, changed intent,
+inch conversion, invalid source, unavailable engine, cancelled render, reopened
+candidate and an unrelated approved record. Each has three runs, a 420-second
+combined provider budget and at most 20 CAD calls. Only explicit changed-request
+or reviewer-correction cases may count truthful scope-review escalation; a wrong
+geometry result never does. These runs are still in progress.

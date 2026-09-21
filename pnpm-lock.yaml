@@ -41,6 +41,9 @@ importers:
       eslint-plugin-react-hooks:
         specifier: 5.2.0
         version: 5.2.0(eslint@9.39.5(jiti@2.7.0))
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
       prettier:
         specifier: ^3.4.2
         version: 3.9.6
@@ -8013,8 +8016,7 @@ snapshots:
 
   lodash.merge@4.6.2: {}
 
-  lodash@4.18.1:
-    optional: true
+  lodash@4.18.1: {}
 
   log-symbols@4.1.0:
     dependencies:

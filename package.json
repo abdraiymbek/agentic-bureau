@@ -2,7 +2,7 @@
   "name": "omenflow",
   "version": "0.1.0",
   "private": true,
-  "description": "Omen Flow \u2014 local desktop engineering workspace for bring-your-own agent CLIs",
+  "description": "Omen Flow — local desktop engineering workspace for bring-your-own agent CLIs",
   "license": "Apache-2.0",
   "packageManager": "pnpm@9.15.9",
   "engines": {
@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @omenflow/desktop start",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -r run typecheck && tsc -p evals/tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -26,7 +26,8 @@
     "fixture:rover": "tsx fixtures/build.ts rover",
     "fixture:drone": "tsx fixtures/build.ts drone",
     "design:preview": "tsx scripts/design-preview.ts",
-    "eval:cad": "tsx evals/cad/run.ts"
+    "eval:cad": "tsx evals/cad/run.ts",
+    "eval:workflows": "tsx evals/workflows/run.ts"
   },
   "devDependencies": {
     "@omenflow/agent-host": "workspace:^",
@@ -40,6 +41,7 @@
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^9.17.0",
     "eslint-plugin-react-hooks": "5.2.0",
+    "lodash": "4.18.1",
     "prettier": "^3.4.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

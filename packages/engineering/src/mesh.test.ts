@@ -25,7 +25,7 @@ function render(scad: string): TriangleBuffer {
   const src = path.join(dir, `${Math.random().toString(36).slice(2)}.scad`);
   const out = src.replace(/\.scad$/, '.stl');
   fs.writeFileSync(src, scad);
-  execFileSync(exe!, ['-o', out, src], { stdio: 'ignore' });
+  execFileSync(exe!, ['-o', out, '--export-format', 'binstl', src], { stdio: 'ignore' });
   return parseStlTriangles(fs.readFileSync(out));
 }
 
