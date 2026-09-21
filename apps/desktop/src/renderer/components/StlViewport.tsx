@@ -135,6 +135,7 @@ export function StlViewport(props: {
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();
       element.removeChild(renderer.domElement);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

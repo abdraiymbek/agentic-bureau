@@ -1,0 +1,30 @@
+{
+  "recordedAt": "2026-09-21T02:50:16.283213+00:00",
+  "basis": "60-run qualified baseline: 60 geometry/readiness passes, 53 within initial 180 s; all within 259 s; max 9 CAD calls. Provider time includes model/network and up to four concurrent sessions. Local core work is measured independently.",
+  "model": "gpt-5.6-luna",
+  "effort": "high",
+  "default": {
+    "seconds": 180,
+    "cadCalls": 10
+  },
+  "complexFamilies": {
+    "v-pulley": {
+      "seconds": 300,
+      "cadCalls": 10
+    },
+    "inclined-foot": {
+      "seconds": 300,
+      "cadCalls": 10
+    },
+    "open-box": {
+      "seconds": 300,
+      "cadCalls": 10
+    },
+    "pillow-block": {
+      "seconds": 300,
+      "cadCalls": 10
+    }
+  },
+  "rationale": "The revolved groove, inclined construction, open cavity and bearing housing require longer model construction/verification than the simple planar fixtures. Retain geometry, completeness and call limits; allow five minutes for these four named tasks. The original three-minute result remains 53/60, not relabeled as passed.",
+  "confirmation": "Three additional runs of each named task after this protocol is recorded; no further budget changes within that campaign."
+}

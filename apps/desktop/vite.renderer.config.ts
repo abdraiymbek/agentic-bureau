@@ -21,6 +21,8 @@ export default defineConfig({
     },
   },
   build: {
+    // Keep vendored fonts on the app origin required by the production CSP.
+    assetsInlineLimit: 0,
     target: 'chrome120',
     sourcemap: true,
   },
