@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-21T03:31:51.151666+00:00",
+  "sha256": {
+    "packages/agent-host/src/adapters/guide.ts": "56b378bf8d83bd1cf4e7dfd9baf0417069f533bead14a2ba5f24932b345f7f92",
+    "packages/core/src/cad.ts": "3466b9d81cdca39143a664a9bd1d5f464e0c67e9319060ffed948a550e41badc",
+    "packages/core/src/cad-verification.ts": "949ea11e36ea6c8df0082704c07e52f41bfb3eda9bc1f48009cecda0d11ecd05",
+    "packages/core/src/mesh.ts": "608a6cc8bc7bbd42ddf930e3c1af54f0d973009896f6710a4ac8e993c030e5d6",
+    "packages/contracts/src/ops.ts": "92c40f6a0749f16cbe7227651620881f16317c6eaae2dad1bab27091d10ce246",
+    "evals/cad/harness.ts": "3bdc9bae4751a914246f4afae896227cb9e1d62ec553e5fa3606ca0d789e505e",
+    "evals/cad/tasks.ts": "a87a26288b74498cdd8f290bec79c7c95de4d5407dc2e8a31614a5b2a7940291",
+    "evals/cad/holdout.ts": "b7979cdb5166a0f00ae6545189571791da17e9b7942e3a43a908a2208d9ecbc5",
+    "evals/workflows/run.ts": "fd56cf1933fb7d5d74446db4071b65170eb106d3595731fc672c8bbd27fd0b99"
+  }
+}

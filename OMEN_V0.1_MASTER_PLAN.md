@@ -1,8 +1,9 @@
 # Omen Flow V0.1 Master Plan
 
-The next qualification run is recorded in [v0.1 release evidence](audit/release-v0.1/README.md).
-It supersedes completed-check counts and implementation findings from the historical
-execution record below, while preserving all unfulfilled release gates.
+The current 2026-09-21 qualification is recorded in [v0.1 release evidence](audit/release-v0.1/README.md).
+It supersedes the historical release decision, check counts and implementation findings
+below. Supported release scope, measured target misses and credential-dependent checks
+are explicit in that report; historical failures remain preserved here.
 
 ## Execution record — 2026-09-20
 

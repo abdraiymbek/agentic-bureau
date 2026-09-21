@@ -89,6 +89,13 @@ through the tools so it is recorded as a revision.
   face winding, rewrite the source, and repeat the same checks; do not ignore that report.
 - \`rotate([90,0,0])\` turns a Z-axis cylinder to point along **−Y**; \`rotate([-90,0,0])\` → +Y;
   \`rotate([0,90,0])\` → +X. Check the report's cross-section on the axis you drilled through.
+- For a plane \`z = a*x + b*y + c\`, a normal is \`[-a,-b,1]\`; the opposite
+  direction reverses **all three** components. Derive it from the requested plane, then
+  check its dot products with both tangents \`[1,0,a]\` and \`[0,1,b]\` are zero.
+  Compute bore test points from \`entry + t*normal\`, independently of the construction's
+  rotation formula. A tilted circular bore appears elliptical in an axis-aligned section:
+  more tessellation cannot make that ellipse circular. Use a normal-plane inspection and
+  analytically projected section dimensions/roundness, rather than repeatedly changing \`$fn\`.
 - Blind depths are measured from the face being drilled into, so compute the hole's end
   coordinate from that face, not from the origin.
 - For \`cylinder(..., $fn = N)\` polygons, \`d\` is the across-corners diameter; across-flats is

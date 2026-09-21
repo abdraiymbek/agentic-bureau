@@ -1,0 +1,11 @@
+
+> omenflow@0.1.0 smoke:packaged /Users/abraiymbek/Projects/Omen Flow
+> node scripts/packaged-smoke.mjs --cad
+
+packaged-smoke: standalone mesh worker → ok
+packaged-smoke: launching /Users/abraiymbek/Projects/Omen Flow/apps/desktop/out/Omen Flow-darwin-arm64/Omen Flow.app/Contents/MacOS/omenflow-desktop
+packaged-smoke: bridge at /var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-smoke-PqrlFA/run/bridge.sock
+packaged-smoke: bridge list + summary → ok
+packaged-smoke: calculation worker → ok
+packaged-smoke: real OpenSCAD + persisted verification → ok
+packaged-smoke: DONE

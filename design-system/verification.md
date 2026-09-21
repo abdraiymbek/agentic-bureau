@@ -2,6 +2,10 @@
 
 Native v0.1 launcher, review, terminal restoration, export/import and service
 recovery checks are recorded in [release evidence](../audit/release-v0.1/README.md).
+That native qualification also covers 500 artifacts, a 99,852-triangle viewport,
+100 viewport reloads, local font loading and measured redraw timing. Production
+fonts now remain on the app origin; retired viewports explicitly release their
+WebGL contexts. The dated redesign-only limits below are historical.
 
 19 September 2026. Checks apply to this working-tree redesign, not a packaged release certification.
 

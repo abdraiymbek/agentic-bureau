@@ -1,0 +1,14 @@
+[
+  {
+    "path": "apps/desktop/out/make/Omen Flow.dmg",
+    "bytes": 146860424,
+    "sha256": "95f37037a8245b9c972c7fb0bf9e098f673f78359e7987fc8228f79d0f936cb7",
+    "signedAndNotarized": false
+  },
+  {
+    "path": "apps/desktop/out/make/zip/darwin/arm64/Omen Flow-darwin-arm64-0.1.0.zip",
+    "bytes": 149452517,
+    "sha256": "999ca716b71d538170d01a046037cb30c8290d723f2064a1a7f66623157e6578",
+    "signedAndNotarized": false
+  }
+]

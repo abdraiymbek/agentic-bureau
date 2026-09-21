@@ -1,0 +1,279 @@
+{
+  "vulnerabilityCounts": {
+    "info": 0,
+    "low": 1,
+    "moderate": 8,
+    "high": 14,
+    "critical": 2
+  },
+  "productionAudit": "No known vulnerabilities",
+  "archiveInspection": "None of the eight affected package names has a package.json in the shipped app.asar (including its unpacked resources listing). Forge vendors only runtime roots and their dependencies; renderer dependencies are bundled. All reported paths are test/dev-server/packaging tools. This does not claim a repo-wide clean audit.",
+  "advisories": [
+    {
+      "module": "esbuild",
+      "severity": "moderate",
+      "title": "esbuild enables any website to send any requests to the development server and read the response",
+      "patchedVersions": ">=0.25.0",
+      "url": "https://github.com/advisories/GHSA-67mh-4wv8-2f99",
+      "examplePaths": [
+        ". > vitest@2.1.9 > @vitest/mocker@2.1.9 > vite@5.4.21 > esbuild@0.21.5",
+        ". > vitest@2.1.9 > vite@5.4.21 > esbuild@0.21.5"
+      ]
+    },
+    {
+      "module": "tmp",
+      "severity": "low",
+      "title": "tmp allows arbitrary temporary file / directory write via symbolic link `dir` parameter",
+      "patchedVersions": ">=0.2.4",
+      "url": "https://github.com/advisories/GHSA-52f5-9888-hmc6",
+      "examplePaths": [
+        ". > tmp@0.0.33",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @inquirer/prompts@6.0.1 > @inquirer/editor@3.0.1 > external-editor@3.1.0 > tmp@0.0.33"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "node-tar Vulnerable to Arbitrary File Creation/Overwrite via Hardlink Path Traversal",
+      "patchedVersions": ">=7.5.7",
+      "url": "https://github.com/advisories/GHSA-34x7-hfp2-rc4v",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "node-tar is Vulnerable to Arbitrary File Overwrite and Symlink Poisoning via Insufficient Path Sanitization",
+      "patchedVersions": ">=7.5.3",
+      "url": "https://github.com/advisories/GHSA-8qq5-rm4j-mr97",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "Arbitrary File Read/Write via Hardlink Target Escape Through Symlink Chain in node-tar Extraction",
+      "patchedVersions": ">=7.5.8",
+      "url": "https://github.com/advisories/GHSA-83g3-92jg-28cx",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "tar has Hardlink Path Traversal via Drive-Relative Linkpath",
+      "patchedVersions": ">=7.5.10",
+      "url": "https://github.com/advisories/GHSA-qffp-2rhf-9h96",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "node-tar Symlink Path Traversal via Drive-Relative Linkpath",
+      "patchedVersions": ">=7.5.11",
+      "url": "https://github.com/advisories/GHSA-9ppj-qmqm-q256",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "Race Condition in node-tar Path Reservations via Unicode Ligature Collisions on macOS APFS",
+      "patchedVersions": ">=7.5.4",
+      "url": "https://github.com/advisories/GHSA-r6q2-hw4h-h46w",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "vite",
+      "severity": "moderate",
+      "title": "Vite Vulnerable to Path Traversal in Optimized Deps `.map` Handling",
+      "patchedVersions": ">=6.4.2",
+      "url": "https://github.com/advisories/GHSA-4w7w-66w2-5vf9",
+      "examplePaths": [
+        ". > vitest@2.1.9 > @vitest/mocker@2.1.9 > vite@5.4.21",
+        ". > vitest@2.1.9 > vite@5.4.21"
+      ]
+    },
+    {
+      "module": "tmp",
+      "severity": "high",
+      "title": "tmp has Path Traversal via unsanitized prefix/postfix that enables directory escape",
+      "patchedVersions": ">=0.2.6",
+      "url": "https://github.com/advisories/GHSA-ph9p-34f9-6g65",
+      "examplePaths": [
+        ". > tmp@0.0.33",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @inquirer/prompts@6.0.1 > @inquirer/editor@3.0.1 > external-editor@3.1.0 > tmp@0.0.33"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "moderate",
+      "title": "node-tar applies PAX size override to intermediary GNU long-name/long-link headers, causing tar parser interpretation differential (file smuggling)",
+      "patchedVersions": ">=7.5.16",
+      "url": "https://github.com/advisories/GHSA-vmf3-w455-68vh",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "vite",
+      "severity": "moderate",
+      "title": "launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows",
+      "patchedVersions": ">=6.4.3",
+      "url": "https://github.com/advisories/GHSA-v6wh-96g9-6wx3",
+      "examplePaths": [
+        ". > vitest@2.1.9 > @vitest/mocker@2.1.9 > vite@5.4.21",
+        ". > vitest@2.1.9 > vite@5.4.21"
+      ]
+    },
+    {
+      "module": "vite",
+      "severity": "high",
+      "title": "vite: `server.fs.deny` bypass on Windows alternate paths",
+      "patchedVersions": ">=6.4.3",
+      "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
+      "examplePaths": [
+        ". > vitest@2.1.9 > @vitest/mocker@2.1.9 > vite@5.4.21",
+        ". > vitest@2.1.9 > vite@5.4.21"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "moderate",
+      "title": "node-tar: Process crash via PAX numeric path type confusion",
+      "patchedVersions": ">=7.5.18",
+      "url": "https://github.com/advisories/GHSA-w8wr-v893-vjvp",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "critical",
+      "title": "node-tar: Decompression/parse DoS via unlimited input",
+      "patchedVersions": ">=7.5.19",
+      "url": "https://github.com/advisories/GHSA-23hp-3jrh-7fpw",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "node-tar: Negative tar entry size causes infinite loop in archive replace",
+      "patchedVersions": ">=7.5.18",
+      "url": "https://github.com/advisories/GHSA-8x88-c5mf-7j5w",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "tar",
+      "severity": "moderate",
+      "title": "node-tar: Uncaught Exception DoS via NUL byte in PAX path/linkpath records",
+      "patchedVersions": ">=7.5.17",
+      "url": "https://github.com/advisories/GHSA-gvwx-54wh-qm9j",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "image-size",
+      "severity": "high",
+      "title": "image-size: ICNS parser allows denial of service through an infinite loop",
+      "patchedVersions": "<0.0.0",
+      "url": "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
+      "examplePaths": [
+        ". > image-size@0.7.5",
+        "apps/desktop > @electron-forge/maker-dmg@7.11.2 > electron-installer-dmg@5.0.1 > appdmg@0.6.6 > image-size@0.7.5"
+      ]
+    },
+    {
+      "module": "image-size",
+      "severity": "high",
+      "title": "image-size: JXL and HEIF parsers allow denial of service through infinite loops",
+      "patchedVersions": "<0.0.0",
+      "url": "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
+      "examplePaths": [
+        ". > image-size@0.7.5",
+        "apps/desktop > @electron-forge/maker-dmg@7.11.2 > electron-installer-dmg@5.0.1 > appdmg@0.6.6 > image-size@0.7.5"
+      ]
+    },
+    {
+      "module": "extract-zip",
+      "severity": "high",
+      "title": "extract-zip unvalidated symlink path traversal",
+      "patchedVersions": "<0.0.0",
+      "url": "https://github.com/advisories/GHSA-jmr9-qjv8-65gv",
+      "examplePaths": [
+        ". > extract-zip@2.0.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/packager@18.4.4 > extract-zip@2.0.1"
+      ]
+    },
+    {
+      "module": "vitest",
+      "severity": "critical",
+      "title": "When Vitest UI server is listening, arbitrary file can be read and executed",
+      "patchedVersions": ">=3.2.6",
+      "url": "https://github.com/advisories/GHSA-5xrq-8626-4rwp",
+      "examplePaths": [". > vitest@2.1.9"]
+    },
+    {
+      "module": "tar",
+      "severity": "high",
+      "title": "node-tar: Uncontrolled recursion in mapHas/filesFilter allows uncatchable stack-overflow DoS via crafted long-path tar with member selection",
+      "patchedVersions": ">=7.5.21",
+      "url": "https://github.com/advisories/GHSA-r292-9mhp-454m",
+      "examplePaths": [
+        ". > tar@6.2.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/rebuild@3.7.2 > @electron/node-gyp@10.2.0-electron.1 > make-fetch-happen@10.2.1 > cacache@16.1.3 > tar@6.2.1"
+      ]
+    },
+    {
+      "module": "vitest",
+      "severity": "moderate",
+      "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+      "patchedVersions": ">=4.1.11",
+      "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+      "examplePaths": [". > vitest@2.1.9"]
+    },
+    {
+      "module": "@vitest/mocker",
+      "severity": "moderate",
+      "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+      "patchedVersions": ">=4.1.11",
+      "url": "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+      "examplePaths": [". > vitest@2.1.9 > @vitest/mocker@2.1.9", ". > @vitest/mocker@2.1.9"]
+    },
+    {
+      "module": "extract-zip",
+      "severity": "high",
+      "title": "extract-zip allows arbitrary file writes through symlink archive entries",
+      "patchedVersions": "<0.0.0",
+      "url": "https://github.com/advisories/GHSA-7pqw-9j4j-h8q3",
+      "examplePaths": [
+        ". > extract-zip@2.0.1",
+        "apps/desktop > @electron-forge/cli@7.11.2 > @electron-forge/core@7.11.2 > @electron-forge/core-utils@7.11.2 > @electron-forge/shared-types@7.11.2 > @electron/packager@18.4.4 > extract-zip@2.0.1"
+      ]
+    }
+  ]
+}

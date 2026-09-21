@@ -1,0 +1,488 @@
+{
+  "project": "/tmp/omen-v01-readiness/heavy-fixture-async/project",
+  "artifacts": 500,
+  "triangles": 99852,
+  "method": "Source core commands, 30 sequential samples each, 5 ms timer; excludes provider/network time. Timer gap includes scheduler contention. This is not a packaged first-paint measurement.",
+  "measurements": [
+    {
+      "op": "artifact.read",
+      "samples": 30,
+      "p50Ms": 0.20716599999991558,
+      "p95Ms": 0.3329999999998563,
+      "maxMs": 0.3489590000000362,
+      "maximumTimerGapMs": 6.022334000000001,
+      "raw": [
+        {
+          "ms": 0.3185839999999871,
+          "maximumTimerGapMs": 5.730292000000077,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.2567500000000109,
+          "maximumTimerGapMs": 5.951583000000028,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.22195899999996982,
+          "maximumTimerGapMs": 5.9055419999999685,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.19095800000002328,
+          "maximumTimerGapMs": 4.759708000000046,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.18704200000001947,
+          "maximumTimerGapMs": 5.839042000000063,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.18108299999994415,
+          "maximumTimerGapMs": 4.760249999999928,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.3489590000000362,
+          "maximumTimerGapMs": 6.022334000000001,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.20716599999991558,
+          "maximumTimerGapMs": 5.6577499999999645,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.1784580000000915,
+          "maximumTimerGapMs": 5.832750000000033,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.20258300000000418,
+          "maximumTimerGapMs": 5.880542000000105,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.2347500000000764,
+          "maximumTimerGapMs": 5.898584000000028,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.24470799999994597,
+          "maximumTimerGapMs": 5.404457999999977,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.27108300000008967,
+          "maximumTimerGapMs": 5.982582999999977,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.234375,
+          "maximumTimerGapMs": 5.913332999999966,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.21041599999989558,
+          "maximumTimerGapMs": 4.765415999999959,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.25004100000001017,
+          "maximumTimerGapMs": 5.903290999999854,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.2271659999998974,
+          "maximumTimerGapMs": 5.6697079999999005,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.16325000000006185,
+          "maximumTimerGapMs": 5.829833000000008,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.15304200000014134,
+          "maximumTimerGapMs": 5.848334000000023,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.185416000000032,
+          "maximumTimerGapMs": 5.837083000000121,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.1806659999999738,
+          "maximumTimerGapMs": 5.846708000000035,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.18258300000002237,
+          "maximumTimerGapMs": 5.845665999999937,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.19624999999996362,
+          "maximumTimerGapMs": 5.84804199999985,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.18862500000000182,
+          "maximumTimerGapMs": 5.422375000000102,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.19712500000014188,
+          "maximumTimerGapMs": 5.858042000000069,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.2647500000000491,
+          "maximumTimerGapMs": 4.838083000000097,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.19991699999991397,
+          "maximumTimerGapMs": 5.867999999999938,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.3079169999998612,
+          "maximumTimerGapMs": 4.884791999999834,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.3324169999998503,
+          "maximumTimerGapMs": 6.017291999999998,
+          "bytes": 5329
+        },
+        {
+          "ms": 0.3329999999998563,
+          "maximumTimerGapMs": 5.6711669999999685,
+          "bytes": 5329
+        }
+      ]
+    },
+    {
+      "op": "project.search",
+      "samples": 30,
+      "p50Ms": 0.6066670000000158,
+      "p95Ms": 1.1040000000000418,
+      "maxMs": 1.2630420000000413,
+      "maximumTimerGapMs": 6.469749999999976,
+      "raw": [
+        {
+          "ms": 0.5598750000001473,
+          "maximumTimerGapMs": 5.665875000000142,
+          "bytes": 360
+        },
+        {
+          "ms": 0.24262500000008913,
+          "maximumTimerGapMs": 5.910333000000037,
+          "bytes": 360
+        },
+        {
+          "ms": 0.4890419999999267,
+          "maximumTimerGapMs": 5.106667000000016,
+          "bytes": 360
+        },
+        {
+          "ms": 0.544832999999926,
+          "maximumTimerGapMs": 5.7182500000001255,
+          "bytes": 360
+        },
+        {
+          "ms": 0.4363749999999982,
+          "maximumTimerGapMs": 5.654208000000153,
+          "bytes": 360
+        },
+        {
+          "ms": 0.5277920000000904,
+          "maximumTimerGapMs": 5.10266700000011,
+          "bytes": 360
+        },
+        {
+          "ms": 0.5288749999999709,
+          "maximumTimerGapMs": 5.8344999999999345,
+          "bytes": 360
+        },
+        {
+          "ms": 0.5133749999999964,
+          "maximumTimerGapMs": 5.685666999999967,
+          "bytes": 360
+        },
+        {
+          "ms": 0.44458300000019335,
+          "maximumTimerGapMs": 5.699249999999893,
+          "bytes": 360
+        },
+        {
+          "ms": 1.0591669999998885,
+          "maximumTimerGapMs": 5.641624999999976,
+          "bytes": 360
+        },
+        {
+          "ms": 0.7605829999999969,
+          "maximumTimerGapMs": 5.340124999999944,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6066670000000158,
+          "maximumTimerGapMs": 5.177541999999903,
+          "bytes": 360
+        },
+        {
+          "ms": 1.2630420000000413,
+          "maximumTimerGapMs": 5.682292000000189,
+          "bytes": 360
+        },
+        {
+          "ms": 0.9790419999999358,
+          "maximumTimerGapMs": 5.58849999999984,
+          "bytes": 360
+        },
+        {
+          "ms": 0.629709000000048,
+          "maximumTimerGapMs": 5.189249999999902,
+          "bytes": 360
+        },
+        {
+          "ms": 0.7548750000000837,
+          "maximumTimerGapMs": 5.677500000000009,
+          "bytes": 360
+        },
+        {
+          "ms": 0.5965839999998934,
+          "maximumTimerGapMs": 5.224124999999958,
+          "bytes": 360
+        },
+        {
+          "ms": 0.4883749999999054,
+          "maximumTimerGapMs": 5.679583000000093,
+          "bytes": 360
+        },
+        {
+          "ms": 0.8047080000001188,
+          "maximumTimerGapMs": 5.370791000000054,
+          "bytes": 360
+        },
+        {
+          "ms": 0.5598750000001473,
+          "maximumTimerGapMs": 5.703082999999879,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6342500000000655,
+          "maximumTimerGapMs": 5.684833000000026,
+          "bytes": 360
+        },
+        {
+          "ms": 1.1040000000000418,
+          "maximumTimerGapMs": 5.671207999999979,
+          "bytes": 360
+        },
+        {
+          "ms": 0.7527079999999842,
+          "maximumTimerGapMs": 6.469749999999976,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6106660000000375,
+          "maximumTimerGapMs": 6.311500000000024,
+          "bytes": 360
+        },
+        {
+          "ms": 0.8775840000000699,
+          "maximumTimerGapMs": 5.466916999999967,
+          "bytes": 360
+        },
+        {
+          "ms": 0.4942909999999756,
+          "maximumTimerGapMs": 6.2003330000000005,
+          "bytes": 360
+        },
+        {
+          "ms": 0.541915999999901,
+          "maximumTimerGapMs": 6.227915999999823,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6559590000001663,
+          "maximumTimerGapMs": 5.628416999999899,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6567499999998745,
+          "maximumTimerGapMs": 5.699041999999963,
+          "bytes": 360
+        },
+        {
+          "ms": 0.6534159999998792,
+          "maximumTimerGapMs": 5.25041699999997,
+          "bytes": 360
+        }
+      ]
+    },
+    {
+      "op": "cad.inspect",
+      "samples": 30,
+      "p50Ms": 552.0242500000004,
+      "p95Ms": 577.175333000001,
+      "maxMs": 580.8349580000001,
+      "maximumTimerGapMs": 9.288957999997365,
+      "raw": [
+        {
+          "ms": 580.8349580000001,
+          "maximumTimerGapMs": 7.88737500000002,
+          "bytes": 1625
+        },
+        {
+          "ms": 551.501667,
+          "maximumTimerGapMs": 5.694042000000081,
+          "bytes": 1625
+        },
+        {
+          "ms": 553.1531250000003,
+          "maximumTimerGapMs": 7.422500000000127,
+          "bytes": 1625
+        },
+        {
+          "ms": 543.1702500000001,
+          "maximumTimerGapMs": 5.7397079999996095,
+          "bytes": 1625
+        },
+        {
+          "ms": 557.5519170000002,
+          "maximumTimerGapMs": 5.6956249999993815,
+          "bytes": 1625
+        },
+        {
+          "ms": 573.5909579999998,
+          "maximumTimerGapMs": 6.881333000000268,
+          "bytes": 1625
+        },
+        {
+          "ms": 552.0933749999995,
+          "maximumTimerGapMs": 8.62487499999952,
+          "bytes": 1625
+        },
+        {
+          "ms": 569.3747089999997,
+          "maximumTimerGapMs": 5.943333999999595,
+          "bytes": 1625
+        },
+        {
+          "ms": 555.0202909999998,
+          "maximumTimerGapMs": 7.614249999999629,
+          "bytes": 1625
+        },
+        {
+          "ms": 541.6546669999998,
+          "maximumTimerGapMs": 6.339708999999857,
+          "bytes": 1625
+        },
+        {
+          "ms": 547.7782090000001,
+          "maximumTimerGapMs": 8.520207999999911,
+          "bytes": 1625
+        },
+        {
+          "ms": 552.0242500000004,
+          "maximumTimerGapMs": 6.003416999999899,
+          "bytes": 1625
+        },
+        {
+          "ms": 552.7856670000001,
+          "maximumTimerGapMs": 8.893541999999798,
+          "bytes": 1625
+        },
+        {
+          "ms": 545.2932079999991,
+          "maximumTimerGapMs": 8.826250000000073,
+          "bytes": 1625
+        },
+        {
+          "ms": 543.3012500000004,
+          "maximumTimerGapMs": 6.056000000000495,
+          "bytes": 1625
+        },
+        {
+          "ms": 546.7419580000005,
+          "maximumTimerGapMs": 5.979957999999897,
+          "bytes": 1625
+        },
+        {
+          "ms": 549.5695840000008,
+          "maximumTimerGapMs": 6.278500000000349,
+          "bytes": 1625
+        },
+        {
+          "ms": 544.9292920000007,
+          "maximumTimerGapMs": 8.804791999998997,
+          "bytes": 1625
+        },
+        {
+          "ms": 550.967666999999,
+          "maximumTimerGapMs": 5.685583999998926,
+          "bytes": 1625
+        },
+        {
+          "ms": 559.5587909999995,
+          "maximumTimerGapMs": 5.694500000001426,
+          "bytes": 1625
+        },
+        {
+          "ms": 547.9669579999991,
+          "maximumTimerGapMs": 7.211124999999811,
+          "bytes": 1625
+        },
+        {
+          "ms": 548.7380410000005,
+          "maximumTimerGapMs": 6.572415999999066,
+          "bytes": 1625
+        },
+        {
+          "ms": 549.9445830000004,
+          "maximumTimerGapMs": 5.917707999999038,
+          "bytes": 1625
+        },
+        {
+          "ms": 551.0557090000002,
+          "maximumTimerGapMs": 6.407459000000017,
+          "bytes": 1625
+        },
+        {
+          "ms": 552.9053750000003,
+          "maximumTimerGapMs": 7.416666000000987,
+          "bytes": 1625
+        },
+        {
+          "ms": 577.175333000001,
+          "maximumTimerGapMs": 5.8272089999991294,
+          "bytes": 1625
+        },
+        {
+          "ms": 559.4274580000001,
+          "maximumTimerGapMs": 6.102708000000348,
+          "bytes": 1625
+        },
+        {
+          "ms": 562.5799160000024,
+          "maximumTimerGapMs": 7.11987500000032,
+          "bytes": 1625
+        },
+        {
+          "ms": 554.8461669999997,
+          "maximumTimerGapMs": 9.288957999997365,
+          "bytes": 1625
+        },
+        {
+          "ms": 553.7210419999974,
+          "maximumTimerGapMs": 6.062207999999373,
+          "bytes": 1625
+        }
+      ]
+    }
+  ]
+}

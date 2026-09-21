@@ -1,0 +1,28 @@
+{
+  "at": "2026-09-21T02:34:22.884Z",
+  "method": "5 ms timer gaps in source core process during each complete command; includes scheduling contention, excludes prior fixture setup. Native desktop memory/frame-time is a separate measurement.",
+  "project": "/tmp/omen-v01-readiness/heavy-fixture-async/project",
+  "artifacts": 500,
+  "triangles": 99852,
+  "measurements": [
+    {
+      "name": "cad.write_source",
+      "wallMs": 838.601125,
+      "maxTimerGapMs": 34.06708400000002,
+      "timerTicks": 141
+    },
+    {
+      "name": "cad.check",
+      "wallMs": 750.530167,
+      "maxTimerGapMs": 16.647958000000017,
+      "timerTicks": 131
+    },
+    {
+      "name": "cad.inspect",
+      "wallMs": 556.673542,
+      "maxTimerGapMs": 8.498417000000245,
+      "timerTicks": 98
+    }
+  ],
+  "rssMiB": 271.75
+}

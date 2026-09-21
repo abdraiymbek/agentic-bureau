@@ -1,0 +1,29 @@
+{
+  "nativePackageSource": "a34bd79 (renderer unchanged in fa8c0f0)",
+  "artifacts": 500,
+  "triangles": 99852,
+  "viewportMountCycles": 100,
+  "consoleErrors": 0,
+  "consoleWarnings": 0,
+  "fonts": {
+    "Geist": true,
+    "IBM Plex Mono": true
+  },
+  "gestureTest": {
+    "orbitDrags": 20,
+    "keyboardNavigation": true,
+    "drawCallbacks": 27,
+    "renderCpuP95Ms": 0.30000001192092896
+  },
+  "redrawBenchmark": {
+    "method": "Temporary native DevTools instrumentation captured the active Three.js requestAnimationFrame draw callback. After 60 warmup frames, requested 300 draws at rAF cadence with WebGL2 finish() after each render. DevTools closed during measurement. This is sustained redraw throughput plus separate native gesture validation, not a distribution of real user drag events. Instrumentation ended on app quit.",
+    "frames": 300,
+    "gpuFinishedMsP50": 0.29999999701976776,
+    "gpuFinishedMsP95": 0.5,
+    "gpuFinishedMsMax": 0.7000000029802322,
+    "frameIntervalMsP50": 16.699999999953434,
+    "frameIntervalMsP95": 17.599999999976717,
+    "frameIntervalMsMax": 17.70000000006985
+  },
+  "retentionMethod": "100 native Overview/Design files route switches, each verified to remount and display the reference mesh. These are viewport loads, not 100 OpenSCAD renders or 100 full project closes."
+}

@@ -1,0 +1,302 @@
+[
+  {
+    "scenario": "ambiguous-fit",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "ccda59dd2bbd9679870aee2a515540248bfa51cdad2f6e1b2f1b654e5982ffca",
+    "pass": true
+  },
+  {
+    "scenario": "ambiguous-fit",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "067fc2a06a56959277d4dfbc132268cdfa32548fc185f035f3aa3cf23eb29761",
+    "pass": true
+  },
+  {
+    "scenario": "ambiguous-fit",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "c00213f225831dfa2671e33b8bd0177fb8fa2554772e65bdd6d4ecbd5c7673ca",
+    "pass": true
+  },
+  {
+    "scenario": "cancelled-render-recovery",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "b9e133cee97061a0cfe423c8bea11b5a86670bd3b838d5a8b78d191327a7aa5b",
+    "pass": true
+  },
+  {
+    "scenario": "cancelled-render-recovery",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "6643fc3b85937bd2921dbdd6bb3f5e8df2e995151ccac8a0c4f560e0f2ee622a",
+    "pass": true
+  },
+  {
+    "scenario": "cancelled-render-recovery",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "fd9c15474ac4cff0dfde5e64d83f8909820815ee017e032db102d91108ee029a",
+    "pass": true
+  },
+  {
+    "scenario": "changed-request",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "90db3d250dddc35e83aff06e8b31bfd4e0cf84791446197ba1b129b45df168c0",
+    "pass": true
+  },
+  {
+    "scenario": "changed-request",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "2c3568b851d905b6843d0f0a3ee4fae820832d547bd485e173a5cc4087563b17",
+    "pass": true
+  },
+  {
+    "scenario": "changed-request",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "b16f42daaf00fedb052af48b114ca5f9c178c2cf5b0848a938f0bb7ad5339f47",
+    "pass": true
+  },
+  {
+    "scenario": "existing-part",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "1db496c9b0cd30e9e722b186c6a7435f2224b8233111e73e229bbd34b86232cd",
+    "pass": true
+  },
+  {
+    "scenario": "existing-part",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "eb38de5731a574a0fe55c5f4939aaa2e180159d0117debe43f2389e4a44bfa7c",
+    "pass": true
+  },
+  {
+    "scenario": "existing-part",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "f714c5467037af77b221fc9515c500248ce043f8d8e2ab49a3d3801f9be62dc8",
+    "pass": true
+  },
+  {
+    "scenario": "inch-conversion",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "7f060fd133f497a8db05e414a4eefad5364be2a6a51b8b02fde0d7108754dc2d",
+    "pass": true
+  },
+  {
+    "scenario": "inch-conversion",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "22ffaff598088a5f8484deb7d6aebc7fe069c132f020eb9f511eb630c20cf756",
+    "pass": true
+  },
+  {
+    "scenario": "inch-conversion",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "755119244d0c27db43044a06362ea69f27b2fb698b7379022355735327425e5c",
+    "pass": true
+  },
+  {
+    "scenario": "invalid-source-recovery",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "7b5fbd10f011c6c0dcdf5a648112c6cd5b5270636b94a13d107fa2d63376ba08",
+    "pass": true
+  },
+  {
+    "scenario": "invalid-source-recovery",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "0ebd93d2c0afadc2fc5e58cac715a18c38c064cd12aca7a7db42c269126f733d",
+    "pass": true
+  },
+  {
+    "scenario": "invalid-source-recovery",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "bed5d3fcba0dc6abccc834d95b7894f90e935d9f349d043d3d989e156d336d95",
+    "pass": true
+  },
+  {
+    "scenario": "reopened-candidate",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "b183ccc1063ac553c03e709bed8ba7fad0e962edcce63f6e2af396d682453d75",
+    "pass": true
+  },
+  {
+    "scenario": "reopened-candidate",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "88bbb5445845ba0f75a7a7e606c894fd8fca4b231f662631339da661629340ea",
+    "pass": true
+  },
+  {
+    "scenario": "reopened-candidate",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "a945613ec861abd691dd7bc6d45d30ed9dabc36f732065572df186f033d5d7c8",
+    "pass": true
+  },
+  {
+    "scenario": "reviewer-correction",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "561e0697ef42e1173cdd9eb21a4593a14108a643b58be15df668e8ca82e1d032",
+    "pass": true
+  },
+  {
+    "scenario": "reviewer-correction",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "4fed6b2cf7c5471b1de8cb03999e16324d30bbd26ccc4057dc886c55fdd663e2",
+    "pass": true
+  },
+  {
+    "scenario": "reviewer-correction",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "scope_changed",
+    "verificationStatus": "scope_changed",
+    "evidenceHash": "e47faedf09e0a53100a5dc8316f22848d92c34663f9fa9e53bf6bd7c5a2a5ca0",
+    "pass": true
+  },
+  {
+    "scenario": "tool-outage-recovery",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "c0cd86bc377e4f956c7571e31a052d80b6ac05ee4761f33d6c7a6d654bcc8446",
+    "pass": true
+  },
+  {
+    "scenario": "tool-outage-recovery",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "febc8e8374a405ceee3c32b7e7019e3772a4ce08aa077163851f5044e1ded06b",
+    "pass": true
+  },
+  {
+    "scenario": "tool-outage-recovery",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "0ea13216fa227c70ea042e7f8482444cbcfd4544a262cab76f3ecf130fbe1518",
+    "pass": true
+  },
+  {
+    "scenario": "unrelated-record-preserved",
+    "run": "r1",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "5ebb8b688812bdb7e5e6254212f5703ed87d4c403eff80786dcf6eb5123ef148",
+    "pass": true
+  },
+  {
+    "scenario": "unrelated-record-preserved",
+    "run": "r2",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "b6646349b23780cd8040d686bbd096e972ea36b69b52a5e61edbcfed88ee8a17",
+    "pass": true
+  },
+  {
+    "scenario": "unrelated-record-preserved",
+    "run": "r3",
+    "sourceAndParametersUnchanged": true,
+    "baselinesUnchanged": true,
+    "expectedStatus": "passed",
+    "verificationStatus": "passed",
+    "evidenceHash": "7a829dc303732330a483a831ee2a20c99471d2a77f214815aa1ce03ff067d2d8",
+    "pass": true
+  }
+]

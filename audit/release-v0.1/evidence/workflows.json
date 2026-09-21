@@ -1,0 +1,676 @@
+{
+  "completed": 30,
+  "passed": 30,
+  "scopeEscalations": 6,
+  "secondsP50": 113.703,
+  "secondsP95": 214.324,
+  "secondsMax": 215.892,
+  "runs": [
+    {
+      "scenario": "ambiguous-fit",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 100.769,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "ambiguous-fit",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 146.125,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "ambiguous-fit",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 90.458,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "cancelled-render-recovery",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 71.90899999999999,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "cancelled-render-recovery",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 140.489,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "cancelled-render-recovery",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 130.858,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "changed-request",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 148.74,
+        "cadTools": 10
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "changed-request",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 215.892,
+        "cadTools": 10
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "changed-request",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 210.99699999999999,
+        "cadTools": 8
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "existing-part",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 93.498,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "existing-part",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 107.036,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "existing-part",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 71.04599999999999,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "inch-conversion",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 101.817,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "inch-conversion",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 77.437,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "inch-conversion",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 76.196,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "invalid-source-recovery",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 116.117,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "invalid-source-recovery",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 114.59100000000001,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "invalid-source-recovery",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 105.258,
+        "cadTools": 9
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "reopened-candidate",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 152.183,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "reopened-candidate",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 177.15699999999998,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "reopened-candidate",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 144.69,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "reviewer-correction",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 214.324,
+        "cadTools": 8
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "reviewer-correction",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 185.614,
+        "cadTools": 8
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "reviewer-correction",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": false,
+      "scopeEscalated": true,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 171.36599999999999,
+        "cadTools": 8
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": [
+        {
+          "name": "final revision verified",
+          "pass": false,
+          "detail": "matching persisted verification: scope_changed"
+        }
+      ]
+    },
+    {
+      "scenario": "tool-outage-recovery",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 137.33,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "tool-outage-recovery",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 68.295,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "tool-outage-recovery",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 81.756,
+        "cadTools": 8
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "unrelated-record-preserved",
+      "run": 1,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 84.267,
+        "cadTools": 5
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "unrelated-record-preserved",
+      "run": 2,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 97.827,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    },
+    {
+      "scenario": "unrelated-record-preserved",
+      "run": 3,
+      "pass": true,
+      "firstPass": true,
+      "secondPass": true,
+      "scopeEscalated": false,
+      "baselinePreserved": true,
+      "unrelatedPreserved": true,
+      "reviewPreserved": true,
+      "reopenedProposalPreserved": true,
+      "cost": {
+        "seconds": 113.703,
+        "cadTools": 6
+      },
+      "budget": {
+        "seconds": 420,
+        "cadTools": 20
+      },
+      "failedChecks": []
+    }
+  ]
+}

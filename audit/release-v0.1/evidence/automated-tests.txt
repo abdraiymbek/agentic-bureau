@@ -1,0 +1,107 @@
+
+> omenflow@0.1.0 test /Users/abraiymbek/Projects/Omen Flow
+> vitest run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/abraiymbek/Projects/Omen Flow
+
+ ✓ packages/core/src/durability.test.ts (7 tests) 499ms
+ ✓ packages/core/src/retry-lifecycle.test.ts (10 tests) 792ms
+ ✓ packages/mcp-server/src/mcp.test.ts (5 tests) 163ms
+ ✓ packages/agent-host/src/bridge/server.test.ts (10 tests) 604ms
+ ✓ packages/core/src/core.test.ts (10 tests) 1779ms
+   ✓ CAD job path (fake adapter, real pipeline) > render job produces a draft revision with STL + bounds 319ms
+   ✓ project summary budget > returns bounded structured context 717ms
+ ✓ packages/core/src/command-safety.test.ts (11 tests) 697ms
+ ✓ packages/engineering/src/wiring-analyzer.test.ts (12 tests) 5ms
+ ✓ tests/cad-evaluator.test.ts (10 tests) 1754ms
+   ✓ CAD evaluator release gates > evaluates a real rendered and checked final revision end to end 804ms
+   ✓ CAD evaluator release gates > captures successful subprocess stderr and rejects stale output on empty rerender 332ms
+ ✓ packages/storage/src/safety.test.ts (8 tests) 189ms
+ ✓ packages/core/src/archive-safety.test.ts (12 tests) 304ms
+ ✓ packages/engineering/src/mesh.test.ts (8 tests) 493ms
+ ✓ packages/core/src/graph.test.ts (12 tests) 2906ms
+   ✓ revision-derived dependency correctness > returns every affected node while disclosing bounded diagnostic paths on large chains 415ms
+   ✓ revision-derived dependency correctness > keeps a long-chain command page under 32 KiB and lets callers reach every node 1348ms
+ ✓ packages/agent-host/src/adapters/adapters.test.ts (11 tests) 849ms
+   ✓ codex adapter > discover() returns a well-formed status (available may be false) 782ms
+ ✓ packages/core/src/build-verification.test.ts (3 tests) 181ms
+ ✓ packages/agent-host/src/bridge/cli.test.ts (8 tests) 777ms
+   ✓ omenflow CLI shim (bin/omenflow.mjs) > mcp mode: pipes JSON-RPC lines through the bridge after handoff 314ms
+ ✓ packages/core/src/mesh-quality.test.ts (8 tests) 12ms
+ ✓ tests/terminal-restore.test.ts (4 tests) 3ms
+ ✓ packages/engineering/src/openscad.test.ts (8 tests) 497ms
+ ✓ tests/frontend/mechanical-revisions.test.ts (8 tests) 3ms
+ ✓ packages/agent-host/src/pty.test.ts (7 tests) 1331ms
+   ✓ PtySessionManager > spawns a real PTY: echo, interrupt, resize, stop 1073ms
+ ✓ packages/core/src/mesh-limits.test.ts (9 tests) 1151ms
+   ✓ bounded synchronous mesh work > keeps the main event loop responsive during supported maximum mesh analysis 823ms
+ ✓ packages/core/src/scad-params.test.ts (11 tests) 3ms
+ ✓ packages/core/src/work-identity.test.ts (7 tests) 4279ms
+   ✓ request-bound work identity > does not certify inverted source after display normalization, cache reuse or legacy reopen 1595ms
+   ✓ request-bound work identity > requires rechecking evidence from the retired geometry checker 780ms
+   ✓ request-bound work identity > binds committed assertions and ignores exploratory diagnostics 942ms
+   ✓ identical render sharing > runs OpenSCAD once for concurrent identical source 344ms
+ ✓ packages/core/src/cad-checks.test.ts (5 tests) 14ms
+ ✓ packages/core/src/materialization-revision.test.ts (2 tests) 143ms
+ ✓ packages/storage/src/project.test.ts (6 tests) 42ms
+ ✓ packages/core/src/context-budget.test.ts (2 tests) 137ms
+ ✓ packages/agent-host/src/bridge/framing.test.ts (6 tests) 4ms
+ ✓ packages/core/src/mesh-containment.test.ts (2 tests) 20ms
+ ✓ tests/frontend/mac-signing.test.ts (5 tests) 2ms
+ ✓ tests/frontend/command-error.test.ts (1 test) 2ms
+ ✓ packages/core/src/cad-verification.test.ts (3 tests) 3ms
+ ✓ packages/agent-host/src/connections.test.ts (5 tests) 962ms
+   ✓ ConnectionManager > list() reports all shipped adapters 863ms
+ ✓ packages/engineering/src/calc-engine.test.ts (11 tests) 2943ms
+   ✓ MathJsCalcEngine.evaluate > adds across units and converts to outputUnit 802ms
+   ✓ MathJsCalcEngine.evaluate > rejects incompatible units with INVALID_UNITS 372ms
+   ✓ MathJsCalcEngine.evaluate > rejects incompatible outputUnit with INVALID_UNITS 410ms
+   ✓ MathJsCalcEngine.templates > every template evaluates end-to-end 1092ms
+ ✓ tests/golden-path.test.ts (5 tests) 7762ms
+   ✓ rover fixture builds a coherent project > creates requirements, selected components, BOM, calcs, wiring, test 2545ms
+   ✓ 300 g → 500 g payload change > propagates stale through calcs, CAD and test without erasing results 2096ms
+   ✓ 300 g → 500 g payload change > agents cannot self-approve: proposal flow enforced on the changed requirement 1389ms
+   ✓ archive export > exports a portable project archive and reimports it 1225ms
+   ✓ drone dependency fixture > payload requirement propagates into propulsion + endurance chain 506ms
+ ✓ packages/engineering/src/cad-tools.test.ts (14 tests) 10616ms
+   ✓ cad.write_source / inspect / check / read_source > write_source renders and reports measured geometry in one call 479ms
+   ✓ cad.write_source / inspect / check / read_source > check passes correct expectations and fails wrong ones with measured values 957ms
+   ✓ cad.write_source / inspect / check / read_source > flags checks that drop assertions which failed on the same geometry 995ms
+   ✓ cad.write_source / inspect / check / read_source > revising writes a new draft on the same artifact; read_source returns plain text 1719ms
+   ✓ cad.write_source / inspect / check / read_source > inspect answers sections/probes and re-renders parameter variants without committing 1015ms
+   ✓ cad.write_source / inspect / check / read_source > reports render failure structurally instead of throwing away the source 404ms
+   ✓ cad.write_source / inspect / check / read_source > injects $fn for curved primitives and auto-orients an inside-out solid 744ms
+   ✓ cad.write_source / inspect / check / read_source > patches a unique snippet without rewriting the whole file by hand 491ms
+   ✓ cad.write_source / inspect / check / read_source > composes two existing parts at transforms into one assembly mesh 658ms
+   ✓ cad.write_source / inspect / check / read_source > cad.check can require unrelated geometry to be preserved vs the parent revision 1225ms
+   ✓ cad.write_source / inspect / check / read_source > inspects an oblique plane and flags a loosened tolerance as weakening 633ms
+   ✓ cad.write_source / inspect / check / read_source > set_param rewrites one file-scope value without a full source rewrite 600ms
+   ✓ cad.write_source / inspect / check / read_source > compose warns when placed parts overlap so OpenSCAD will union them 598ms
+ ✓ packages/engineering/src/cad-consistency.test.ts (21 tests) 13969ms
+   ✓ canonical CAD input and render lifecycle > invalidates an old mesh on a GUI source edit and reads/checks the new source 1226ms
+   ✓ canonical CAD input and render lifecycle > set_param replaces the controlling override and composition pins the same geometry 1105ms
+   ✓ canonical CAD input and render lifecycle > source edits through patch and GUI replace an inherited shadowing override 1290ms
+   ✓ canonical CAD input and render lifecycle > converts explicit length and angle quantities and rejects unsupported dimensions 983ms
+   ✓ canonical CAD input and render lifecycle > does not implicitly select rejected work 574ms
+   ✓ canonical CAD input and render lifecycle > cancel before probe completes cannot spawn or commit a render 351ms
+   ✓ canonical CAD input and render lifecycle > external edits during a render are never overwritten 544ms
+   ✓ canonical CAD input and render lifecycle > a cancellation after the engine produced output still prevents commit 359ms
+   ✓ canonical CAD input and render lifecycle > ignores a corrupt completed cache entry 452ms
+   ✓ canonical CAD input and render lifecycle > records engine-version cache identity and refuses an older expected parent 453ms
+   ✓ canonical CAD input and render lifecycle > binds check evidence to exact geometry and cannot erase failures by empty checks or a rewrite 1266ms
+   ✓ canonical CAD input and render lifecycle > requires explicit exact-evidence acceptance of a changed scope and then uses the accepted scope 816ms
+   ✓ canonical CAD input and render lifecycle > concurrent and subsequent cad.check retries replay the actual result exactly once 367ms
+   ✓ canonical CAD input and render lifecycle > a successful parameter variant cannot verify the stored revision 473ms
+   ✓ canonical CAD input and render lifecycle > cannot certify an open zero-volume mesh by disabling the optional watertight assertion 336ms
+   ✓ canonical CAD input and render lifecycle > a final commit failure terminates its job and preserves the prior revision 408ms
+   ✓ canonical CAD input and render lifecycle > historical evidence cannot certify a reverted part against newly accepted requirements 695ms
+   ✓ canonical CAD input and render lifecycle > diagnosing an old revision after a candidate exists does not redefine the candidate requirements 697ms
+   ✓ canonical CAD input and render lifecycle > preserves against the source-only baseline, even after a bad draft is rewritten 1236ms
+
+ Test Files  37 passed (37)
+      Tests  287 passed (287)
+   Start at  22:30:20
+   Duration  14.41s (transform 681ms, setup 0ms, collect 5.05s, tests 55.89s, environment 3ms, prepare 1.42s)
+

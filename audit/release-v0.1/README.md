@@ -1,6 +1,6 @@
 # v0.1 release qualification — 2026-09-20/21
 
-Status: **qualification in progress; not yet a release approval**.
+Status: **software candidate ready for the Apple signing handoff on macOS Apple Silicon**. This is an unsigned candidate, not a signed public-release approval. Actual notarization and signed clean-Mac acceptance remain credential-dependent.
 
 The owner clarified that no Apple developer account is available yet. The app
 must be ready for signing/notarization when credentials arrive. Actual Apple
@@ -27,6 +27,9 @@ through the repository toolchain configuration.
 - Add explicit `ready` and lead with unresolved verification in CAD responses.
   Preserve legacy raw `pass` semantics and the committed-scope guard. The guide
   now trials complete request-derived assertions before committing them.
+- Reject source winding defects even when the display mesh was normalized. Carry the original winding flag through stored renders and caches; re-render older entries that lack it. Checker v4 retires earlier evidence and requires the exact stored output hash as well as input identity.
+- Keep source preparation, geometry inspection, sections and probe work off the core event loop. Make OpenSCAD discovery asynchronous and preserve cancellation before process spawn.
+- Release WebGL contexts when leaving a viewport, and package every vendored font on the app origin so the production CSP can load it.
 - Preserve saved project names in the launcher without opening/migrating each
   project database. Replay current service availability when a renderer reloads.
 - Bound graph-impact command pages to 32 KiB, retain total count and pagination,
@@ -70,19 +73,46 @@ instruction boundary or fresh-machine upgrade qualification.
 
 ## Measurements
 
-- Sixty seconds settled overview: 0.0033% mean CPU, maximum summed RSS 557.4 MiB.
-- Sixty seconds stationary plate viewport: 0.0033% mean CPU, maximum summed RSS
-  575.1 MiB. No live CLI/render inside the sampled desktop tree. External model
-  evaluation processes are excluded. This is a small native project, not the
-  required 500-artifact / 100k-triangle memory or frame-time qualification.
-- Thirty 2,000-node graph command samples: p50 3.931 ms / p95 5.922 ms, 32,248-byte
-  default JSON page. Paging regression reaches all 1,999 dependents exactly once.
-  A single root edit takes 354 ms and correctly marks all dependents stale.
-  Full-path stale persistence and other synchronous work still need their own
-  latency qualification; this does not establish a general 100 ms stall bound.
+The final native reference contains 500 artifacts and 99,852 triangles. Two
+60-second samples around 100 native Overview/Design files switches measured
+666.6 MiB before and 688.5 MiB after: **21.9 MiB retained**, below the 100 MiB
+allowance. Mean desktop CPU was 0.00% before and 0.13% after. Each switch verified
+the mesh remounted and displayed. This measures viewport loads, not 100 OpenSCAD
+renders or 100 full project closes. Summed RSS includes shared pages; external
+provider processes are excluded.
 
-See the JSON in `evidence/`; summed process RSS includes shared pages. The graph
-measurement script and complete output remain under `audit/execution`.
+The first repetition exposed blocked small font assets and retained WebGL
+contexts. After fixing them, 100 repeated loads produced **zero console errors
+or warnings**, and both Geist and IBM Plex Mono loaded. Native orbit gestures and
+keyboard navigation worked. A separate sustained redraw benchmark ran the live
+renderer for 60 warmup + 300 measured frames, with WebGL2 `finish()` after each
+draw: frame interval p50 16.7 / p95 17.6 / max 17.7 ms; GPU-completed draw p95
+0.5 ms. This is measured redraw throughput, plus separate native interaction
+validation; it is not a p95 distribution of human gestures.
+
+Ten fresh-user-data packaged launches all passed bridge/calculation smoke. Spawn-to-bridge readiness was p50 203.9 / p95 316.5 ms with the OS file cache warm. This is not first-paint or cold-disk startup timing.
+
+Thirty samples each on the same 500-artifact fixture, using the source core:
+
+| Operation                  | p50      | p95      | Maximum 5 ms timer gap |
+| -------------------------- | -------- | -------- | ---------------------- |
+| Artifact read              | 0.207 ms | 0.333 ms | 6.02 ms                |
+| Search                     | 0.607 ms | 1.104 ms | 6.47 ms                |
+| 99,852-triangle inspection | 552.0 ms | 577.2 ms | 9.29 ms                |
+
+The real large-model write/check/inspect fixture also measured maximum timer
+gaps of 34.1 / 16.7 / 8.5 ms. Before asynchronous discovery, the first write had
+a 385.6 ms stall; that failed measurement drove the fix. These measurements
+include scheduling contention and do not claim a universal hard latency bound.
+
+Thirty 2,000-node graph samples: p50 3.931 / p95 5.922 ms, 32,248-byte default
+JSON page. Paging tests reach all 1,999 dependents exactly once. A root edit takes
+354 ms and marks every dependent stale. This full write is distinct from the
+impact query and still persists complete path explanations.
+
+The earlier small-project samples (557.4 MiB overview / 575.1 MiB viewport,
+0.0033% mean CPU) and export equivalence remain in `evidence/`. Reproduction:
+`measure-heavy.ts`, `measure-commands.ts`, and `../execution/measure-idle.py`.
 
 ## Evaluation integrity
 
@@ -95,35 +125,94 @@ not rescue their failed readiness. All five targeted regressions then passed
 with the trial-before-commit guide. The original holdout has now informed fixes
 and must be described as regression coverage, not a newly unseen holdout.
 
-The `qualified-main` and `qualified-holdout` campaigns rerun every task three
-times. Three disjoint main-suite shards and one holdout process share the machine;
-record latency with that concurrency caveat. Their final results, false-completion
-review, tool budgets and outstanding multi-step/performance gates must be added
-before declaring release readiness. The evaluator now exits nonzero on any
-failed collected run; no oracle or tolerance was relaxed.
+The qualified campaign completed **45/45 main + 15/15 former-holdout runs**.
+All 60 provider-delivered sources and parameter sets were then copied and
+re-rendered as new candidate revisions under the final binary-STL adapter and
+checker v4: **60/60 independent geometry and matching-evidence checks pass**.
+The original sources, revisions and selected baselines remain intact. This is
+60 original provider deliveries plus final deterministic revalidation, not a
+claim of 60 fresh provider turns after every implementation change.
 
-## Remote CI findings and checker correction
+The repeated workflow campaign completed **30/30** across ten scenarios with
+two provider turns and a closed/reopened project between turns. Six results are
+correct, explicit human scope-review escalations after changed requirements or
+reviewer corrections; 24 deliver verified geometry. Every case preserves the
+selected baseline and unrelated work. Copies of all 30 final deliveries also pass fresh checker-v4 revalidation: the same 24 passes and six scope-review escalations, with sources, parameters and selected baselines unchanged. All provider workflows stay inside the predeclared 420-second,
+20-CAD-call combined budget (p50 113.7 / p95 214.3 / max 215.9 seconds).
 
-PR #7 runs the repository CI. Its first run passed the Ubuntu type/lint/test job,
-macOS packaged smoke and Rust checks. The pinned OpenSCAD 2021.01 job exposed a
-point-containment defect: duplicate ray hits on shared triangle edges could make
-an enclosed cavity appear solid. A triangulation-based regression reproduces
-that defect locally. Deduplicating coincident surface crossings fixes it while
-retaining distinct thin-wall surfaces. The checker identity is now v3, so v2
-evidence is retained as history but cannot certify current readiness without a
-fresh check. A regression verifies that transition explicitly.
+Additional complex-task confirmation deliberately remained separate and exposed
+two further failures: one source with inverted winding that had been normalized
+for display (11/12 campaign), then one bore with an incorrectly signed normal
+(2/3 winding regression). Neither failed campaign is relabeled as passed. The
+first required a mandatory source-integrity guard and checker v4; the second
+required general plane-normal, tangent-dot-product and oblique-section guidance.
+The final normal regression passes **3/3**, with independent source re-renders,
+correct bore direction and matching persisted verification. It is recorded
+separately in `evidence/agent-campaigns.json`. These are new provider runs with
+the final guide; they do not erase either earlier failing campaign.
 
-The analytic render tests now request binary STL, avoiding the older ASCII
-exporter's six-digit rounding without loosening geometric assertions. The actual
-adapter also requests binary STL consistently. Windows packaging exposed an
-unresolved hoisted `lodash` dependency; it is now an explicit locked build
-input. Its CI retry must pass before reporting that job green.
+The initial 180-second target held for 53/60 qualified runs; CAD calls were at
+most nine. Times were p50 90.1 / p95 207.1 / max 258.8 seconds, with up to four
+concurrent providers. A documented five-minute target for four complex families
+was subsequently tested; it did **not** hold universally (the later inclined
+regression includes a 318-second correct delivery and a 364-second incorrect
+one). The final three correct normal regressions took 225.8, 273.1 and 447.6 seconds; one used 11 CAD calls. The last run spent time investigating an optional triangle-intersection diagnostic on the inclined boolean boundary. Such mesh diagnostics have limited coverage and are not exact-solid certification. Do not advertise a three- or five-minute completion guarantee or a ten-call guarantee. For v0.1,
+these remain reported model/network latency and call-count targets; correctness, explicit
+failure, preserved work and bounded execution are the release gates. A slow or
+incorrect model run cannot be relabeled as a correct run to satisfy a target.
 
-The current local suite passes **284 tests in 37 files**, with real OpenSCAD and
-no skips. The new two-turn workflow evaluation reopens saved projects and covers
-existing-part understanding, ambiguous fit, reviewer correction, changed intent,
-inch conversion, invalid source, unavailable engine, cancelled render, reopened
-candidate and an unrelated approved record. Each has three runs, a 420-second
-combined provider budget and at most 20 CAD calls. Only explicit changed-request
-or reviewer-correction cases may count truthful scope-review escalation; a wrong
-geometry result never does. These runs are still in progress.
+## Automated and remote checks
+
+- Full local suite: **287/287 tests in 37 files**, real OpenSCAD enabled, no skips.
+- Workspace and evaluator typecheck pass; formatting passes; lint has zero errors
+  and 53 pre-existing warnings.
+- Rust format, clippy with warnings denied, and three bridge integration tests pass.
+- Bridge smoke passes; local final packaged smoke exercises the standalone mesh
+  worker, bridge, calculation worker, real OpenSCAD and persisted CAD verification.
+- Production dependency audit reports no known vulnerabilities. The full development-toolchain audit reports 25 advisories in eight test/dev-server/packaging packages; none is present as a package in the shipped archive. These remain toolchain maintenance findings, not a claim of a clean repository-wide audit. See `evidence/toolchain-audit.json`; v0.1 does not expose a Vite/Vitest server or process user archives with those build tools.
+- CI tests Ubuntu TypeScript/lint/tests, pinned OpenSCAD 2021.01 geometry,
+  Rust, macOS packaging/smoke, and experimental Windows packaging/smoke.
+
+The pinned Linux engine exposed a cavity-containment bug: duplicate ray hits on
+shared triangle edges could count one surface crossing multiple times. Distinct
+crossings are now counted once; 64 triangulation patterns and a thin-wall test
+cover the correction. Analytic tests and the adapter use binary STL to avoid the
+older ASCII exporter's six-digit rounding. No geometric tolerance was loosened.
+
+Windows packaging required an explicit locked `lodash` build input and direct
+Node invocation of the Vite CLI. Its smoke then exposed a named-pipe path used as
+a filesystem directory. The credential file now uses the app-data run directory.
+The Windows smoke's per-step error suppression was removed so a failed smoke
+shows a failed experimental job. A packaged CI pass still does not qualify the
+Windows native product for public v0.1.
+
+## Release scope and remaining credential checks
+
+v0.1 qualification targets **macOS Apple Silicon**, self-contained deterministic
+OpenSCAD parts with millimetre model coordinates, the existing human-review
+workflow, and the recorded Codex CLI/Luna High configuration. Other providers
+and Intel/Windows/Linux desktop installations are not covered by this native
+acceptance. Calculations remain explicitly experimental; research/browser agent
+operations remain excluded from the stable capability profile. No engineering
+safety certification, request-completeness guarantee, exact-solid CAD guarantee,
+or hostile-agent isolation is implied by a declared-check pass.
+
+The planning document's broader optimization targets remain visible: there is no
+instrumented ten-launch cold-start/first-paint p95 claim, no exhaustive power-loss
+injection at every instruction, and no universal 32 KiB response guarantee.
+Summaries honor their advertised budget and graph-impact pages are byte-bounded;
+explicit artifact/file reads retain the compatible 8 MiB transport ceiling.
+The native scale reference is 500 artifacts / approximately 100k triangles, not
+a promise of unrestricted project or assembly size. These limits are not silently
+counted as passed benchmarks.
+
+There is only schema version 1 at this first release, so an older publicly
+supported schema migration matrix is not applicable. Newer-version read-only
+protection, WAL snapshots, interrupted journal recovery, archive containment,
+privacy and review rollback have automated coverage. Installation/upgrade with
+actual Apple signatures, notarization tickets and Gatekeeper remain the account
+handoff: see [release commands](../../docs/release.md). The signing configuration
+and fail-fast pipeline are implemented; actual Apple acceptance cannot be
+claimed before the credentials and final clean-Mac check exist.
+
+Current application CI: [all platform jobs](https://github.com/abdraiymbek/stark_harness/actions/runs/35556271421) passed, including the Windows smoke without per-step suppression. The final guide/evidence commit is checked on [PR #7](https://github.com/abdraiymbek/stark_harness/pull/7). Package sizes and SHA-256 hashes are in `evidence/packages.json`; both distributables remain unsigned. The credential-free release command correctly refuses to proceed without both signing inputs.
