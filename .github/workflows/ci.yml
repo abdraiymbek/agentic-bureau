@@ -117,10 +117,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm package
-      # The packaged smoke uses POSIX paths in a few places — run it as a
-      # signal check but don't gate the build on it until verified on win32.
+      # Keep this platform experimental, but expose a failed smoke as a failed job.
       - run: pnpm smoke:packaged
-        continue-on-error: true
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:

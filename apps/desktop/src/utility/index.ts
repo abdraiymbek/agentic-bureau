@@ -163,7 +163,8 @@ if (process.env.OMENFLOW_SMOKE === '1') {
       }
       const token = bridge.issueToken({ projectId, sessionId: 'packaged-smoke', ops: AGENT_OPS });
       const smoke = { socketPath: bridge.socketPath, token, projectId };
-      fs.mkdirSync(path.dirname(smoke.socketPath), { recursive: true });
+      // Windows uses a named pipe, not a filesystem socket directory.
+      fs.mkdirSync(path.join(appDataDir, 'run'), { recursive: true });
       fs.writeFileSync(path.join(appDataDir, 'run', 'smoke.json'), JSON.stringify(smoke));
       port.postMessage({ type: 'smokeReady', ...smoke });
     } catch (e) {
