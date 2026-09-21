@@ -1,4 +1,4 @@
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -43,10 +43,10 @@ export class OpenScadAdapter implements CadAdapter {
 
   private readonly opts: OpenScadOptions;
   /** Lazily cached login-shell PATH lookup (Finder-launched apps lack PATH). */
-  private loginShellPath: string | null | undefined;
+  private loginShellPath: Promise<string | null> | undefined;
   private readonly jobs = new Map<
     string,
-    { child: ChildProcess; state: 'running' | 'cancelling' }
+    { child: ChildProcess | null; state: 'running' | 'cancelling' }
   >();
 
   constructor(opts?: OpenScadOptions) {
@@ -70,107 +70,92 @@ export class OpenScadAdapter implements CadAdapter {
     }
   }
 
-  /** Login-shell `command -v openscad` — macOS Finder PATH differs. Cached once. */
-  private viaLoginShell(): string | null {
-    if (this.loginShellPath !== undefined) return this.loginShellPath;
-    this.loginShellPath = null;
-    try {
-      const out = execFileSync('/bin/zsh', ['-lic', 'command -v openscad'], {
-        timeout: LOGIN_SHELL_TIMEOUT_MS,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-      const p = out.trim().split('\n').at(-1)?.trim();
-      if (p && OpenScadAdapter.isExecutable(p)) this.loginShellPath = p;
-    } catch {
-      /* no login-shell openscad */
-    }
-    return this.loginShellPath;
+  /** Finder PATH lookup is lazy, asynchronous and shared by concurrent probes. */
+  private viaLoginShell(): Promise<string | null> {
+    return (this.loginShellPath ??= this.runCapture(
+      { command: '/bin/zsh', argsPrefix: [], display: '/bin/zsh' },
+      ['-lic', 'command -v openscad'],
+      LOGIN_SHELL_TIMEOUT_MS,
+    ).then((result) => {
+      const p = result.stdout.trim().split('\n').at(-1)?.trim();
+      return result.code === 0 && p && OpenScadAdapter.isExecutable(p) ? p : null;
+    }));
   }
 
-  private viaWhich(cmd: 'which' | 'where', name: string): string | null {
-    try {
-      const out = execFileSync(cmd, [name], {
-        timeout: LOGIN_SHELL_TIMEOUT_MS,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-      for (const line of out.split(/\r?\n/)) {
-        const p = line.trim();
-        if (p && OpenScadAdapter.isExecutable(p)) return p;
-      }
-    } catch {
-      /* not on PATH */
+  private async viaWhich(cmd: 'which' | 'where', name: string): Promise<string | null> {
+    const result = await this.runCapture(
+      { command: cmd, argsPrefix: [], display: cmd },
+      [name],
+      LOGIN_SHELL_TIMEOUT_MS,
+    );
+    if (result.code !== 0) return null;
+    for (const line of result.stdout.split(/\r?\n/)) {
+      const p = line.trim();
+      if (p && OpenScadAdapter.isExecutable(p)) return p;
     }
     return null;
   }
 
-  /** Flatpak install: needs `flatpak run` prefix instead of a bare binary. */
-  private viaFlatpak(): ResolvedExe | null {
-    const flatpak = this.viaWhich('which', 'flatpak') ?? '/usr/bin/flatpak';
+  private async viaFlatpak(): Promise<ResolvedExe | null> {
+    const flatpak = (await this.viaWhich('which', 'flatpak')) ?? '/usr/bin/flatpak';
     if (!OpenScadAdapter.isExecutable(flatpak)) return null;
-    try {
-      execFileSync(flatpak, ['info', 'org.openscad.OpenSCAD'], {
-        timeout: LOGIN_SHELL_TIMEOUT_MS,
-        stdio: ['ignore', 'ignore', 'ignore'],
-      });
-      return {
-        command: flatpak,
-        argsPrefix: ['run', 'org.openscad.OpenSCAD'],
-        display: 'flatpak run org.openscad.OpenSCAD',
-      };
-    } catch {
-      return null;
-    }
+    const result = await this.runCapture(
+      { command: flatpak, argsPrefix: [], display: flatpak },
+      ['info', 'org.openscad.OpenSCAD'],
+      LOGIN_SHELL_TIMEOUT_MS,
+    );
+    return result.code === 0
+      ? {
+          command: flatpak,
+          argsPrefix: ['run', 'org.openscad.OpenSCAD'],
+          display: 'flatpak run org.openscad.OpenSCAD',
+        }
+      : null;
   }
 
-  /** Resolve the executable. Re-scans each call; only the login-shell lookup is cached. */
-  private discover(): ResolvedExe | null {
+  /** Prefer configured/standard installations; never block the core on shell startup. */
+  private async discover(): Promise<ResolvedExe | null> {
     const configured = this.configuredPath();
-    if (configured && OpenScadAdapter.isExecutable(configured)) {
+    if (configured && OpenScadAdapter.isExecutable(configured))
       return { command: configured, argsPrefix: [], display: configured };
-    }
-
-    const candidates: (ResolvedExe | null)[] = [];
+    const found = (p: string | null): ResolvedExe | null => {
+      if (!p || !OpenScadAdapter.isExecutable(p)) return null;
+      if (!configured) this.opts.onDiscovered?.(p);
+      return { command: p, argsPrefix: [], display: p };
+    };
     if (process.platform === 'darwin') {
       for (const p of [
         '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD',
         '/opt/homebrew/bin/openscad',
         '/usr/local/bin/openscad',
-        this.viaLoginShell() ?? '',
       ]) {
-        candidates.push(p ? { command: p, argsPrefix: [], display: p } : null);
+        const result = found(p);
+        if (result) return result;
       }
-    } else if (process.platform === 'win32') {
-      candidates.push(
-        this.pathResult(this.viaWhich('where', 'openscad')),
-        this.pathResult('C:\\Program Files\\OpenSCAD\\openscad.exe'),
-        this.pathResult(
-          path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'OpenSCAD', 'openscad.exe'),
-        ),
-        this.pathResult('C:\\Program Files (x86)\\OpenSCAD\\openscad.exe'),
-      );
-    } else {
-      candidates.push(
-        this.pathResult(this.viaWhich('which', 'openscad')),
-        this.pathResult('/usr/bin/openscad'),
-        this.pathResult('/usr/local/bin/openscad'),
-        this.pathResult('/snap/bin/openscad'),
-        this.viaFlatpak(),
-      );
+      return found(await this.viaLoginShell());
     }
-
-    for (const c of candidates) {
-      if (c && OpenScadAdapter.isExecutable(c.command)) {
-        if (!configured) this.opts.onDiscovered?.(c.display);
-        return c;
-      }
+    const onPath = found(
+      await this.viaWhich(process.platform === 'win32' ? 'where' : 'which', 'openscad'),
+    );
+    if (onPath) return onPath;
+    const candidates =
+      process.platform === 'win32'
+        ? [
+            'C:\\Program Files\\OpenSCAD\\openscad.exe',
+            path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'OpenSCAD', 'openscad.exe'),
+            'C:\\Program Files (x86)\\OpenSCAD\\openscad.exe',
+          ]
+        : ['/usr/bin/openscad', '/usr/local/bin/openscad', '/snap/bin/openscad'];
+    for (const p of candidates) {
+      const result = found(p);
+      if (result) return result;
+    }
+    if (process.platform !== 'win32') {
+      const flatpak = await this.viaFlatpak();
+      if (flatpak && !configured) this.opts.onDiscovered?.(flatpak.display);
+      return flatpak;
     }
     return null;
-  }
-
-  private pathResult(p: string | null): ResolvedExe | null {
-    return p ? { command: p, argsPrefix: [], display: p } : null;
   }
 
   /* --------------------------- process helpers ------------------------- */
@@ -239,7 +224,7 @@ export class OpenScadAdapter implements CadAdapter {
   /* --------------------------- CadAdapter ------------------------------ */
 
   async probe(): Promise<ToolProbeResult> {
-    const exe = this.discover();
+    const exe = await this.discover();
     if (!exe) {
       return {
         available: false,
@@ -288,7 +273,7 @@ export class OpenScadAdapter implements CadAdapter {
 
   /** `openscad -o <tmp>.csg <src>` — CSG export validates parsing quickly. */
   async validateSource(scadPath: string): Promise<{ ok: boolean; errors: string[] }> {
-    const exe = this.discover();
+    const exe = await this.discover();
     if (!exe) return { ok: false, errors: ['OpenSCAD not found'] };
     const csg = path.join(
       fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-scad-check-')),
@@ -306,8 +291,26 @@ export class OpenScadAdapter implements CadAdapter {
   }
 
   async render(spec: CadRenderSpec, onLog: (chunk: string) => void): Promise<CadRenderResult> {
-    const exe = this.discover();
-    if (!exe) return { ok: false, error: 'OpenSCAD not found' };
+    // Register before discovery yields so cancellation cannot miss a pending spawn.
+    const pending = {
+      child: null as ChildProcess | null,
+      state: 'running' as 'running' | 'cancelling',
+    };
+    this.jobs.set(spec.jobId, pending);
+    let exe: ResolvedExe | null;
+    try {
+      exe = await this.discover();
+    } catch (error) {
+      this.jobs.delete(spec.jobId);
+      return { ok: false, error: (error as Error).message };
+    }
+    if (pending.state === 'cancelling' || !exe) {
+      this.jobs.delete(spec.jobId);
+      return {
+        ok: false,
+        error: pending.state === 'cancelling' ? 'cancelled' : 'OpenSCAD not found',
+      };
+    }
 
     const args = [...exe.argsPrefix, '-o', spec.outPath, '--export-format', 'binstl'];
     for (const [k, v] of Object.entries(spec.params ?? {})) {
@@ -325,6 +328,7 @@ export class OpenScadAdapter implements CadAdapter {
           windowsHide: true,
         });
       } catch (e) {
+        this.jobs.delete(spec.jobId);
         resolve({ ok: false, error: (e as Error).message });
         return;
       }
@@ -365,7 +369,7 @@ export class OpenScadAdapter implements CadAdapter {
     const j = this.jobs.get(jobId);
     if (!j) return;
     j.state = 'cancelling';
-    OpenScadAdapter.killChild(j.child);
+    if (j.child) OpenScadAdapter.killChild(j.child);
   }
 
   /* --------------------------- STL inspection --------------------------- */

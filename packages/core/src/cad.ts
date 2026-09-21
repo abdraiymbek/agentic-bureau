@@ -21,22 +21,12 @@ import type { ProjectContext } from './context.js';
 import { commitRevision, materializeReadableView } from './artifacts.js';
 import { slugify } from './hash.js';
 import type { CadAdapter } from './tools.js';
+import type { ExtraSection, GeometryDetails } from './cad-geometry.js';
 import {
-  analyzeMesh,
   analyzeMeshCancellable,
   runMeshTask,
   assertMeshByteLimit,
-  assertCadInspectionBudget,
-  containsPoint,
-  countIntersectingPairs,
-  crossSection,
-  crossSectionPlane,
-  minWallThickness,
-  orientTriangles,
-  parseStlTriangles,
   writeBinaryStl,
-  type Axis,
-  type MeshReport,
   type TriangleBuffer,
   type Vec3,
 } from './mesh.js';
@@ -46,7 +36,7 @@ import {
   setScadParameter,
   type ScadParameter,
 } from './scad-params.js';
-import { describeLoop, findLoosenedAssertions, fmtNum, type CheckResult } from './cad-checks.js';
+import { findLoosenedAssertions, type CheckResult } from './cad-checks.js';
 
 import { createCadVerificationEvidence, type CadVerificationStatus } from './cad-verification.js';
 import { readActiveWork, recordCommittedCheck } from './work.js';
@@ -187,15 +177,19 @@ interface RenderOutcome {
   identity?: RenderIdentity;
 }
 
-function applyOrientation(
+async function applyOrientation(
   stl: Buffer,
-  tris: TriangleBuffer,
-): {
+  signal?: AbortSignal,
+): Promise<{
   stl: Buffer;
   tris: TriangleBuffer;
   oriented: boolean;
-} {
-  const r = orientTriangles(tris);
+}> {
+  const r = await runMeshTask<{ tris: TriangleBuffer; flipped: boolean }>(
+    { operation: 'prepare', stl },
+    signal,
+  );
+  const tris = r.tris;
   if (!r.flipped) return { stl, tris, oriented: false };
   return { stl: writeBinaryStl(r.tris), tris: r.tris, oriented: true };
 }
@@ -250,7 +244,11 @@ async function renderSource(
       },
       sessionId: args.origin.kind === 'agent' ? args.origin.sessionId : null,
     });
-  ctx.jobCancels.set(job.id, () => cad.cancel(job.id));
+  const controller = new AbortController();
+  ctx.jobCancels.set(job.id, () => {
+    controller.abort();
+    cad.cancel(job.id);
+  });
   let workDir: string | undefined;
   let log = '';
   let tool = cad.toolId;
@@ -282,17 +280,15 @@ async function renderSource(
     const cacheDir = ctx.resolvePath(`.omenflow/cache/render-v1/${fingerprint}`);
     const cachedStl = path.join(cacheDir, 'output.stl');
     const manifest = path.join(cacheDir, 'complete.json');
-    const finishMesh = (stl: Buffer, cached: boolean): RenderOutcome => {
+    const finishMesh = async (stl: Buffer, cached: boolean): Promise<RenderOutcome> => {
       assertMeshByteLimit(stl.byteLength);
       if (!cad.inspectStl(stl).plausible)
         throw new OmenflowError(
           ErrorCodes.VALIDATION,
           'OpenSCAD output is not a complete STL mesh',
         );
-      const tris = parseStlTriangles(stl);
-      if (!tris.length || !tris.every(Number.isFinite))
-        throw new OmenflowError(ErrorCodes.VALIDATION, 'OpenSCAD output has no finite geometry');
-      const oriented = applyOrientation(stl, tris);
+      const oriented = await applyOrientation(stl, controller.signal);
+      ctx.assertJobActive(job.id);
       const outputHash = ctx.objects.put(oriented.stl);
       return {
         ok: true,
@@ -320,7 +316,7 @@ async function renderSource(
         ) {
           log = stored.log;
           ctx.assertJobActive(job.id);
-          const outcome = finishMesh(stl, true);
+          const outcome = await finishMesh(stl, true);
           return { outcome, job };
         }
       } catch {
@@ -334,7 +330,7 @@ async function renderSource(
         const shared = await existingShare;
         ctx.assertJobActive(job.id);
         log = shared.log;
-        return { outcome: finishMesh(shared.rawStl, true), job };
+        return { outcome: await finishMesh(shared.rawStl, true), job };
       } catch {
         /* Leader failed or was cancelled; this job still owes a render. */
       }
@@ -352,7 +348,7 @@ async function renderSource(
         const shared = await ctx.inFlightRenders.get(fingerprint)!;
         ctx.assertJobActive(job.id);
         log = shared.log;
-        return { outcome: finishMesh(shared.rawStl, true), job };
+        return { outcome: await finishMesh(shared.rawStl, true), job };
       } catch {
         pendingShare = new Promise<{ rawStl: Buffer; log: string }>((resolve, reject) => {
           notifyShared = resolve;
@@ -411,7 +407,7 @@ async function renderSource(
     }
     assertMeshByteLimit(fs.statSync(outPath).size);
     const rawStl = fs.readFileSync(outPath);
-    const outcome = finishMesh(rawStl, false);
+    const outcome = await finishMesh(rawStl, false);
     notifyShared?.({ rawStl, log });
     ctx.assertJobActive(job.id);
     fs.writeFileSync(outPath, outcome.stl!);
@@ -496,163 +492,8 @@ export interface CadReport {
 
 const r3 = (v: number) => Math.round(v * 1000) / 1000;
 
-function geometrySummary(report: MeshReport, unit: string): GeometrySummary {
-  return {
-    unit,
-    bounds: {
-      min: report.bounds.min.map(r3) as Vec3,
-      max: report.bounds.max.map(r3) as Vec3,
-      size: report.bounds.size.map(r3) as Vec3,
-    },
-    volume: r3(report.volume),
-    surfaceArea: r3(report.surfaceArea),
-    triangles: report.triangles,
-    watertight: report.topology.watertight && !report.invertedNormals,
-    shells: report.topology.shells,
-  };
-}
-
-const MAX_LOOPS_PER_SECTION = 16;
-
-function sectionReport(
-  tris: TriangleBuffer,
-  axis: Axis,
-  at: number,
-  label?: string,
-): SectionReport {
-  const s = crossSection(tris, axis, at);
-  const [a, b] = s.planeAxes;
-  const loops = s.loops.slice(0, MAX_LOOPS_PER_SECTION).map((l) => describeLoop(l, a, b));
-  if (s.loops.length > MAX_LOOPS_PER_SECTION)
-    loops.push(`…and ${s.loops.length - MAX_LOOPS_PER_SECTION} more loops`);
-  if (s.loops.length === 0) loops.push('no material in this plane');
-  if (s.openChains > 0)
-    loops.push(`warning: ${s.openChains} open chain(s) — mesh is not closed at this plane`);
-  return { plane: `${axis}=${fmtNum(r3(at))}${label ? ` (${label})` : ''}`, loops };
-}
-
-function autoSections(tris: TriangleBuffer, report: MeshReport): SectionReport[] {
-  const { min, max } = report.bounds;
-  const out: SectionReport[] = [];
-  for (const axis of ['z', 'y', 'x'] as Axis[]) {
-    const i = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
-    const span = max[i]! - min[i]!;
-    if (span <= 0) continue;
-    // Slightly off the exact middle so a mid-height face never becomes the plane.
-    out.push(sectionReport(tris, axis, min[i]! + span * 0.5 + 1e-3, 'mid'));
-  }
-  // Parts are usually built up along Z: features that stop short of a face
-  // (blind bores, cutters that end early) show up near the ends, not the middle.
-  const zSpan = max[2]! - min[2]!;
-  if (zSpan > 0) {
-    out.push(sectionReport(tris, 'z', min[2]! + zSpan * 0.1 + 1e-3, 'near bottom'));
-    out.push(sectionReport(tris, 'z', min[2]! + zSpan * 0.9 + 1e-3, 'near top'));
-  }
-  return out;
-}
-
-function geometryNotes(
-  report: MeshReport,
-  tris: TriangleBuffer,
-  params: ScadParameter[],
-): string[] {
-  const notes: string[] = [];
-  if (report.topology.shells > 1) {
-    notes.push(
-      `${report.topology.shells} disconnected bodies — if this should be one part, make the features overlap or touch (a shared face is not enough; overlap by a small amount).`,
-    );
-  }
-  if (!report.topology.watertight) {
-    notes.push(
-      `Mesh is not closed (${report.topology.boundaryEdges} boundary edges, ${report.topology.nonManifoldEdges} non-manifold edges).`,
-    );
-  }
-  if (report.invertedNormals) {
-    notes.push(
-      "Mesh is inside-out (negative signed volume). With polyhedron(), list each face's vertices clockwise when viewed from outside the solid; booleans on an inside-out body cut the wrong side. Open meshes are diagnosed, not auto-flipped.",
-    );
-  }
-  let crossings = 0;
-  try {
-    crossings = countIntersectingPairs(tris);
-  } catch (error) {
-    if (
-      error instanceof OmenflowError &&
-      (error.details as { reason?: string } | undefined)?.reason === 'CAD_WORK_LIMIT'
-    ) {
-      notes.push(
-        `Self-intersections not evaluated: ${error.message}. This report does not establish intersection-free geometry.`,
-      );
-    } else throw error;
-  }
-  if (crossings > 0) {
-    notes.push(
-      `${crossings} self-intersecting triangle pair(s) — overlapping bodies or piercing faces can still satisfy bbox/volume. Separate the solids or boolean them; cad.check maxSelfIntersections: 0 to fail on this.`,
-    );
-  }
-  const wall = minWallThickness(tris, 80);
-  if (wall !== null && wall < 0.4) {
-    notes.push(
-      `Minimum sampled wall thickness is ${fmtNum(wall)} mm — thin skins often mean a cutter ended on a face instead of through it.`,
-    );
-  }
-  // Faceting check on any circular loop in the mid sections.
-  let coarse: string | null = null;
-  const { min, max } = report.bounds;
-  for (const axis of ['z', 'y', 'x'] as Axis[]) {
-    const i = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
-    if (max[i]! - min[i]! <= 0) continue;
-    const s = crossSection(tris, axis, min[i]! + (max[i]! - min[i]!) * 0.5 + 1e-3);
-    for (const l of s.loops) {
-      if (
-        l.circle &&
-        l.circle.roundness >= 0.75 &&
-        l.circle.roundness < 0.97 &&
-        l.points.length <= 24
-      ) {
-        coarse = `${l.points.length}-sided`;
-        break;
-      }
-    }
-    if (coarse) break;
-  }
-  if (coarse) {
-    notes.push(
-      `A circular feature renders as a ${coarse} polygon (coarse faceting). Unless a polygon was intended, set $fn (e.g. $fn = 64;) so holes and cylinders are round.`,
-    );
-  }
-  if (params.length === 0)
-    notes.push(
-      'No top-level parameters found. Exposing key dimensions as `name = value;` at file scope makes the part re-sizable via params.',
-    );
-  return notes;
-}
-
 const NEXT_STEP =
   'Compare these measurements with the request. Then call cad.check with explicit expectations (envelope, hole positions and diameters in cross-sections, solid/empty points) and fix any failure. Report done only when all checks pass.';
-
-type ExtraSection = { axis?: Axis; at?: number; origin?: Vec3; normal?: Vec3 };
-
-function extraSectionReport(tris: TriangleBuffer, spec: ExtraSection): SectionReport {
-  if (spec.origin && spec.normal) {
-    const s = crossSectionPlane(tris, spec.origin, spec.normal);
-    const [a, b] = s.planeAxes;
-    const loops = s.loops.slice(0, MAX_LOOPS_PER_SECTION).map((l) => describeLoop(l, a, b));
-    if (s.loops.length > MAX_LOOPS_PER_SECTION)
-      loops.push(`…and ${s.loops.length - MAX_LOOPS_PER_SECTION} more loops`);
-    if (s.loops.length === 0) loops.push('no material in this plane');
-    if (s.openChains > 0)
-      loops.push(`warning: ${s.openChains} open chain(s) — mesh is not closed at this plane`);
-    return {
-      plane: `origin=(${spec.origin.map(fmtNum).join(', ')}) n=(${spec.normal.map(fmtNum).join(', ')})`,
-      loops,
-    };
-  }
-  if (spec.axis === undefined || spec.at === undefined) {
-    return { plane: 'invalid section (need axis+at or origin+normal)', loops: [] };
-  }
-  return sectionReport(tris, spec.axis, spec.at);
-}
 
 function buildReport(args: {
   artifact: Artifact;
@@ -665,6 +506,7 @@ function buildReport(args: {
   probes?: Vec3[];
   injectedFn?: boolean;
   effectiveParams?: Record<string, ScadValue>;
+  details?: GeometryDetails;
 }): CadReport {
   const effective =
     args.effectiveParams ??
@@ -706,21 +548,12 @@ function buildReport(args: {
       );
     return base;
   }
-  const tris = args.outcome.tris;
-  assertCadInspectionBudget(tris, args.probes?.length ?? 0, args.extraSections?.length ?? 0);
-  const report = analyzeMesh(tris);
-  base.geometry = geometrySummary(report, args.unit);
-  base.sections = [
-    ...autoSections(tris, report),
-    ...(args.extraSections ?? []).map((s) => extraSectionReport(tris, s)),
-  ];
-  if (args.probes?.length) {
-    base.probes = args.probes.map((p) => ({
-      point: p,
-      result: containsPoint(tris, p) ? 'solid' : 'empty',
-    }));
-  }
-  base.notes = geometryNotes(report, tris, params);
+  if (!args.details)
+    throw new OmenflowError(ErrorCodes.INTERNAL, 'Geometry report was not prepared');
+  base.geometry = args.details.geometry;
+  base.sections = args.details.sections;
+  base.probes = args.details.probes;
+  base.notes = args.details.notes;
   if (args.outcome.oriented) {
     base.notes.unshift(
       'Mesh was inside-out; oriented so signed volume is positive (watertight only — open meshes are not flipped).',
@@ -841,7 +674,21 @@ export async function cadWriteSource(
     existingJob: input.existingJob,
   });
 
+  const controller = new AbortController();
+  ctx.jobCancels.set(job.id, () => controller.abort());
   try {
+    const details =
+      outcome.ok && outcome.tris
+        ? await runMeshTask<GeometryDetails>(
+            {
+              operation: 'details',
+              tris: outcome.tris,
+              unit: prevPayload.modelUnit ?? 'mm',
+              params: declared,
+            },
+            controller.signal,
+          )
+        : undefined;
     const files = [scadRef];
     const payload: MechanicalPayload = {
       ...prevPayload,
@@ -880,7 +727,7 @@ export async function cadWriteSource(
         role: 'output',
       };
       files.push(stlRef as never);
-      const report = analyzeMesh(outcome.tris);
+      const report = details!.geometry;
       payload.stl = stlRef;
       payload.bounds = {
         min: report.bounds.min.map(r3) as Vec3,
@@ -958,6 +805,7 @@ export async function cadWriteSource(
       outcome,
       unit: payload.modelUnit,
       injectedFn: faceted.injected,
+      details,
     });
     completeRenderJob(ctx, job, outcome);
     return report;
@@ -968,6 +816,8 @@ export async function cadWriteSource(
       outputHashes: outcome.identity ? { stl: outcome.identity.outputHash } : undefined,
     });
     throw e;
+  } finally {
+    ctx.jobCancels.delete(job.id);
   }
 }
 
@@ -1043,9 +893,8 @@ async function resolveMesh(
     ctx.objects.has(stl.sha256)
   ) {
     const buf = readMeshObject(ctx, stl.sha256);
-    const tris = parseStlTriangles(buf);
-    if (tris.length > 0) {
-      const oriented = applyOrientation(buf, tris);
+    const oriented = await applyOrientation(buf);
+    if (oriented.tris.length > 0) {
       return {
         artifact,
         rev,
@@ -1096,7 +945,19 @@ export async function cadInspect(
   origin: Origin,
 ): Promise<CadReport & { legacy?: unknown }> {
   const m = await resolveMesh(ctx, input, origin);
+  const details =
+    m.outcome.ok && m.outcome.tris
+      ? await runMeshTask<GeometryDetails>({
+          operation: 'details',
+          tris: m.outcome.tris,
+          unit: m.unit,
+          params: parseScadParameters(m.source),
+          extraSections: input.sections,
+          probes: input.probes,
+        })
+      : undefined;
   const report = buildReport({
+    details,
     artifact: m.artifact,
     revision: m.rev,
     sourcePath: m.sourcePath,

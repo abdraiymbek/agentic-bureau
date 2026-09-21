@@ -79,6 +79,25 @@ describe('OpenScadAdapter.inspectStl', () => {
 });
 
 describe('OpenScadAdapter discovery/probe', () => {
+  it('cancels a pending render before asynchronous discovery can spawn it', async () => {
+    const a = new OpenScadAdapter({ preferredPath: process.execPath });
+    const logs: string[] = [];
+    const result = a.render(
+      {
+        jobId: 'cancel-discovery',
+        scadPath: 'unused.scad',
+        outPath: 'unused.stl',
+        params: {},
+        workDir: os.tmpdir(),
+        timeoutMs: 1000,
+      },
+      (line) => logs.push(line),
+    );
+    a.cancel('cancel-discovery');
+    expect(await result).toEqual({ ok: false, error: 'cancelled' });
+    expect(logs).toEqual([]);
+  });
+
   it('probe() returns a well-formed ToolProbeResult without throwing', async () => {
     const r = await adapter().probe();
     expect(typeof r.available).toBe('boolean');

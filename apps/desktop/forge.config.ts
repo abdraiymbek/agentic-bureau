@@ -6,6 +6,7 @@ import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { macSigningConfig } from './signing';
 
@@ -70,7 +71,13 @@ const config: ForgeConfig = {
     // Utility bundle via our own vite build; Electron-ABI natives vendored
     // into resources/node_modules (pnpm symlinks don't survive pruning).
     async prePackage() {
-      execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'build:utility'], {
+      const resolve = createRequire(path.join(__dirname, 'package.json'));
+      const viteCli = path.join(
+        path.dirname(resolve.resolve('vite/package.json')),
+        'bin',
+        'vite.js',
+      );
+      execFileSync(process.execPath, [viteCli, 'build', '--config', 'vite.utility.config.ts'], {
         cwd: __dirname,
         stdio: 'inherit',
       });

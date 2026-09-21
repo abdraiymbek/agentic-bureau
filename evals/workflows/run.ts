@@ -189,14 +189,12 @@ function metrics(rs: TaskResult[]) {
   };
 }
 async function main() {
-  const outcomes: unknown[] = [];
   for (let run = 1; run <= runs; run++)
     for (const scenario of scenarios.filter((s) => !only || only.includes(s.id))) {
       const dir = path.join(out, scenario.id, 'r' + run);
       fs.mkdirSync(dir, { recursive: true });
       const completed = path.join(dir, 'result.json');
       if (fs.existsSync(completed)) {
-        outcomes.push(JSON.parse(fs.readFileSync(completed, 'utf8')));
         continue;
       }
       console.log(`Starting ${scenario.id} r${run}`);
@@ -384,11 +382,18 @@ async function main() {
         failedChecks: failed,
       };
       fs.writeFileSync(completed, JSON.stringify(result, null, 2) + '\n');
-      outcomes.push(result);
       console.log(JSON.stringify(result));
     }
-  fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify(outcomes, null, 2) + '\n');
-  if (outcomes.some((o) => !(o as { pass: boolean }).pass)) process.exitCode = 1;
+  // Collect all completed shards, including runs skipped above on resume.
+  const collected = scenarios.flatMap((scenario) =>
+    Array.from({ length: runs }, (_, i) => path.join(out, scenario.id, `r${i + 1}`, 'result.json'))
+      .filter((file) => fs.existsSync(file))
+      .map((file) => JSON.parse(fs.readFileSync(file, 'utf8')) as { pass: boolean }),
+  );
+  const temporary = path.join(out, `results-${process.pid}.tmp`);
+  fs.writeFileSync(temporary, JSON.stringify(collected, null, 2) + '\n');
+  fs.renameSync(temporary, path.join(out, 'results.json'));
+  if (collected.some((o) => !o.pass)) process.exitCode = 1;
 }
 main().catch((error) => {
   console.error(error);
