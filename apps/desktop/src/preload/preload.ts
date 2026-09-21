@@ -21,7 +21,9 @@ const api = {
     ipcRenderer.on(IPC.event, l);
     return () => ipcRenderer.removeListener(IPC.event, l);
   },
-  onTerminalData: (cb: (data: { projectId: string; sessionId: string; chunk: string; seq?: number }) => void) => {
+  onTerminalData: (
+    cb: (data: { projectId: string; sessionId: string; chunk: string; seq?: number }) => void,
+  ) => {
     const l = (_: unknown, data: unknown) =>
       cb(data as { projectId: string; sessionId: string; chunk: string; seq?: number });
     ipcRenderer.on(IPC.terminalData, l);
@@ -41,6 +43,9 @@ const api = {
   onServiceState: (cb: (data: { available: boolean; message?: string }) => void) => {
     const listener = (_: unknown, data: { available: boolean; message?: string }) => cb(data);
     ipcRenderer.on('omenflow:service-state', listener);
+    // Events alone lose the offline state when the renderer is reloaded.
+    // Request a snapshot on the same ordered channel after subscribing.
+    ipcRenderer.send('omenflow:get-service-state');
     return () => ipcRenderer.removeListener('omenflow:service-state', listener);
   },
 

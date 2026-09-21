@@ -105,8 +105,11 @@ still shares mesh/checker code with the product. The closed-form geometry tests
 and adversarial evaluator regressions must both pass; broader independent
 oracles and multi-step/cross-provider evaluation remain separate release work.
 
-Holdout tasks (`holdout.ts`) were written only after the harness changes were
-frozen and never used while modifying the system.
+Holdout tasks (`holdout.ts`) were originally written after the initial harness
+changes were frozen. The September 20/21 release qualification used their failures
+to improve assertion-trial guidance. They now provide regression coverage and
+must not be described as unseen evidence for those changes. Original failures
+and corrected runs are recorded in `audit/release-v0.1/README.md`.
 
 ## CI and supported platform scope
 

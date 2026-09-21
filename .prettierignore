@@ -4,6 +4,7 @@
 **/dist/
 **/resources/core/utility.js
 **/resources/core/calc-worker.mjs
+**/resources/core/mesh-worker.mjs
 **/resources/package.json
 **/resources/node_modules/
 pnpm-lock.yaml

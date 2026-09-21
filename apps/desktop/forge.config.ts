@@ -7,6 +7,7 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { macSigningConfig } from './signing';
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -25,8 +26,7 @@ const config: ForgeConfig = {
       if (path === '/package.json') return false;
       return true;
     },
-    osxSign: {},
-    // osxNotarize: filled in CI via env when credentials exist.
+    ...macSigningConfig(process.env, __dirname),
   },
   rebuildConfig: {
     onlyModules: ['better-sqlite3', 'node-pty'],

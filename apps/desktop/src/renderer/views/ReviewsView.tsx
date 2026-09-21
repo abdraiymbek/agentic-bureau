@@ -251,7 +251,8 @@ function ReviewDetail(props: {
       </div>
       {p.impact?.supersedesProposalIds?.length ? (
         <div className="inline-notice">
-          This replacement supersedes {p.impact.supersedesProposalIds.length === 1
+          This replacement supersedes{' '}
+          {p.impact.supersedesProposalIds.length === 1
             ? 'an earlier changes-requested review'
             : `${p.impact.supersedesProposalIds.length} earlier changes-requested reviews`}
           . The earlier review stays in the record and is no longer actionable.

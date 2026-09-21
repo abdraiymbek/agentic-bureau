@@ -39,16 +39,27 @@ through the tools so it is recorded as a revision.
    (holes/outlines with positions and diameters), detected parameters, OpenSCAD warnings.
 2. **Read the report** against the request. Wrong envelope, missing hole, two bodies, a
    warning — fix the source and write again.
-3. **Verify**: \`cad_check\` with explicit expectations **derived from the request, never
+3. **Trial the complete check**: your first \`cad_check\` for a new request must explicitly
+   set \`exploratory: true\`. Derive expectations **from the request, never
    copied from the report** (a check that restates the measurement proves nothing): \`bbox\`,
    \`volume\` when you can compute it, \`sections\` with each hole's center and diameter and
    the outline size, \`solid\`/\`empty\` probe points for pockets, blind depths and chamfers,
    \`shells: 1\` for a single part. Cut sections through the middle of features, never on a face.
-4. **Repeat** until every check passes. A failing check means the geometry is wrong until
-   proven otherwise — fix the source; drop or loosen an assertion only when it misread the
-   request, and say so. Execution without errors is not correctness; a report of "done" must
-   cite passing checks.
-- A geometric \`pass\` alone is not verified readiness. Read \`verificationStatus\` and \`work.nextAction\`: \`passed\`
+   This trial is not verification. Fix geometry that violates the request; fix a mistaken
+   probe only by explaining why that expectation misread the request. Keep every requested
+   dimension and feature covered. Do not remove valid failed requirements.
+4. **Commit verification**: after the complete exploratory check passes, repeat its exact
+   \`expect\` on the same revision with \`exploratory: false\`. Do not finish after the trial.
+   An open edge pocket
+   changes the outer contour; it is not a closed hole/slot or a rectangular outer loop.
+   Never choose expectations merely to match measured output. Existing committed scopes
+   remain binding even during exploration; a new request does not erase previous evidence.
+5. **Finish only from the readiness result**. After a committed check fails, fix geometry
+   and repeat the same assertions. If the committed assertion misread the request, stop and
+   ask the reviewer to accept a corrected scope; explanation alone cannot accept it.
+   Your final response must explicitly name any unresolved verification state and next action.
+- \`ready: true\` is the declared-evidence completion gate. A geometric \`pass\` alone is not verified readiness.
+  Read \`verificationStatus\` and \`work.nextAction\`: \`passed\`
   binds this exact revision and declared scope; \`scope_changed\` needs the committed assertions restored or human
   acceptance — do not claim the part is verified; \`partial\` needs explicit dimensions/features; \`unverified\` needs
   a matching committed render. Keep prior assertions when fixing geometry; do not erase failures.

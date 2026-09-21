@@ -75,6 +75,9 @@ async function main() {
   }
   writeSummary(out, suite, meta);
   console.log(`\nsummary: ${path.join(out, 'summary.md')}`);
+  if (collect(out, suite).some((task) => task.results.some((result) => !result.pass))) {
+    process.exitCode = 1;
+  }
 }
 
 interface TaskAgg {

@@ -7,6 +7,7 @@
 //!   omenflow mcp
 //!
 //! Wire protocol (see packages/contracts/src/protocol.ts):
+//! ```text
 //!   transport: unix socket / windows named pipe (env OMENFLOW_BRIDGE_SOCK)
 //!   frames:    4-byte little-endian length + JSON body, max 8 MiB
 //!   1. client → {type:"hello", token, protocolVersion:1, mode:"call"|"mcp"}
@@ -14,9 +15,11 @@
 //!   3a. call: → {requestId, op, payload, idempotencyKey?}
 //!             ← {requestId, ok, result|error}
 //!   3b. mcp:  one JSON-RPC message per frame, both directions.
+//! ```
 //!
 //! Exit codes: 0 ok · 2 bridge/app error (JSON on stderr) · 3 usage.
 
+use interprocess::TryClone;
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
@@ -61,8 +64,11 @@ fn connect(path: &str) -> io::Result<LocalStream> {
 
 fn write_frame(w: &mut impl Write, v: &Value) -> io::Result<()> {
     let body = serde_json::to_vec(v)?;
-    if body.len() as u32 > MAX_FRAME_BYTES {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
+    if body.len() > MAX_FRAME_BYTES as usize {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "frame too large",
+        ));
     }
     w.write_all(&(body.len() as u32).to_le_bytes())?;
     w.write_all(&body)?;
@@ -78,24 +84,34 @@ fn read_frame(r: &mut impl Read) -> io::Result<Option<Value>> {
     }
     let len = u32::from_le_bytes(header);
     if len > MAX_FRAME_BYTES {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "frame too large",
+        ));
     }
     let mut body = vec![0u8; len as usize];
     r.read_exact(&mut body)?;
-    serde_json::from_slice(&body).map(Some).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    serde_json::from_slice(&body)
+        .map(Some)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 /* ------------------------------ args/env ------------------------------- */
 
 struct Args {
-    mode: String,      // "call" | "mcp"
+    mode: String, // "call" | "mcp"
     op: Option<String>,
     input: Option<String>,
     idempotency_key: Option<String>,
 }
 
 fn parse_args(argv: &[String]) -> Result<Args, String> {
-    let mut out = Args { mode: String::new(), op: None, input: None, idempotency_key: None };
+    let mut out = Args {
+        mode: String::new(),
+        op: None,
+        input: None,
+        idempotency_key: None,
+    };
     let mut it = argv.iter();
     match it.next().map(|s| s.as_str()) {
         Some("mcp") => {
@@ -103,7 +119,12 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
             return Ok(out);
         }
         Some("call") => out.mode = "call".into(),
-        _ => return Err("usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp".into()),
+        _ => {
+            return Err(
+                "usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp"
+                    .into(),
+            )
+        }
     }
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -155,7 +176,12 @@ fn run() -> ExitCode {
 
     let mut stream = match connect(&socket_path) {
         Ok(s) => s,
-        Err(e) => return fail("APP_NOT_RUNNING", &format!("Cannot connect to Omen Flow bridge at {socket_path}: {e}")),
+        Err(e) => {
+            return fail(
+                "APP_NOT_RUNNING",
+                &format!("Cannot connect to Omen Flow bridge at {socket_path}: {e}"),
+            )
+        }
     };
 
     // --- handshake ---
@@ -173,8 +199,14 @@ fn run() -> ExitCode {
         _ => return fail("APP_NOT_RUNNING", "Bridge closed during handshake"),
     };
     if welcome.get("type").and_then(Value::as_str) != Some("welcome") {
-        let code = welcome.pointer("/error/code").and_then(Value::as_str).unwrap_or("CONNECTION_DENIED");
-        let msg = welcome.pointer("/error/message").and_then(Value::as_str).unwrap_or("Handshake rejected");
+        let code = welcome
+            .pointer("/error/code")
+            .and_then(Value::as_str)
+            .unwrap_or("CONNECTION_DENIED");
+        let msg = welcome
+            .pointer("/error/message")
+            .and_then(Value::as_str)
+            .unwrap_or("Handshake rejected");
         return fail(code, msg);
     }
 
@@ -221,10 +253,15 @@ fn run() -> ExitCode {
         Ok(Some(resp)) => {
             if resp.get("ok").and_then(Value::as_bool) == Some(true) {
                 let result = resp.get("result").cloned().unwrap_or(Value::Null);
-                println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&result).unwrap_or_default()
+                );
                 ExitCode::SUCCESS
             } else {
-                eprint_json(&json!({"ok": false, "error": resp.get("error").cloned().unwrap_or(Value::Null)}));
+                eprint_json(
+                    &json!({"ok": false, "error": resp.get("error").cloned().unwrap_or(Value::Null)}),
+                );
                 ExitCode::from(2)
             }
         }
@@ -242,13 +279,19 @@ fn mcp_pump(stream: LocalStream) -> ExitCode {
     };
     let mut writer = stream;
 
-    let code = AtomicU64::new(0);
-    let writer_thread = thread::spawn(move || {
+    // Either EOF ends the process. Joining a blocked stdin reader after the
+    // bridge revokes a grant would leave this helper alive indefinitely.
+    let (completed, outcome) = std::sync::mpsc::channel::<u8>();
+    let input_completed = completed.clone();
+    thread::spawn(move || {
         let stdin = io::stdin();
         for line in stdin.lock().lines() {
             let line = match line {
                 Ok(l) => l,
-                Err(_) => break,
+                Err(_) => {
+                    let _ = input_completed.send(2);
+                    return;
+                }
             };
             let trimmed = line.trim();
             if trimmed.is_empty() {
@@ -257,7 +300,8 @@ fn mcp_pump(stream: LocalStream) -> ExitCode {
             match serde_json::from_str::<Value>(trimmed) {
                 Ok(v) => {
                     if write_frame(&mut writer, &v).is_err() {
-                        break;
+                        let _ = input_completed.send(2);
+                        return;
                     }
                 }
                 Err(e) => {
@@ -266,27 +310,33 @@ fn mcp_pump(stream: LocalStream) -> ExitCode {
                 }
             }
         }
-        // stdin closed → half-close the socket so the server sees EOF.
-        let _ = writer.shutdown(std::net::Shutdown::Write);
+        let _ = input_completed.send(0);
     });
-
-    loop {
-        match read_frame(&mut reader) {
-            Ok(Some(v)) => {
-                let mut out = io::stdout().lock();
-                let _ = out.write_all(serde_json::to_string(&v).unwrap_or_default().as_bytes());
-                let _ = out.write_all(b"\n");
-                let _ = out.flush();
-            }
-            Ok(None) => break,              // socket closed
-            Err(_) => {
-                code.store(2, Ordering::Relaxed);
-                break;
+    thread::spawn(move || {
+        loop {
+            match read_frame(&mut reader) {
+                Ok(Some(v)) => {
+                    let mut out = io::stdout().lock();
+                    if out
+                        .write_all(serde_json::to_string(&v).unwrap_or_default().as_bytes())
+                        .and_then(|_| out.write_all(b"\n"))
+                        .and_then(|_| out.flush())
+                        .is_err()
+                    {
+                        let _ = completed.send(2);
+                        return;
+                    }
+                }
+                Ok(None) => break,
+                Err(_) => {
+                    let _ = completed.send(2);
+                    return;
+                }
             }
         }
-    }
-    let _ = writer_thread.join();
-    ExitCode::from(code.load(Ordering::Relaxed) as u8)
+        let _ = completed.send(0);
+    });
+    ExitCode::from(outcome.recv().unwrap_or(2))
 }
 
 fn main() -> ExitCode {

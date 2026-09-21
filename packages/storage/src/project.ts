@@ -156,7 +156,7 @@ export function applyRenameJournal(handle: ProjectHandle): boolean {
   return true;
 }
 
-function readProjectFile(root: string): ProjectFile {
+export function readProjectFile(root: string): ProjectFile {
   const p = resolveProjectPath(root, PROJECT_FILE);
   if (!fs.existsSync(p)) {
     throw new OmenflowError(

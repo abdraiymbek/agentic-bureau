@@ -12,7 +12,7 @@
  */
 
 import { Worker } from 'node:worker_threads';
-import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, OmenflowError, type OmenflowErrorBody } from '@omenflow/contracts';
 
 /** Supported synchronous V0.1 mesh budget; 6 MB remains below 8 MiB after base64. */
 export const MAX_CAD_MESH_BYTES = 6_000_000;
@@ -780,21 +780,22 @@ export async function analyzeMeshCancellable(
 ): Promise<MeshReport> {
   if (signal?.aborted) throw new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled');
   if (!signal && triangleCount(tris) < MESH_WORKER_MIN_TRIANGLES) return analyzeMesh(tris);
-  return runMeshWorker(tris, signal);
+  return runMeshTask<MeshReport>({ operation: 'analyze', tris }, signal);
 }
 
-function runMeshWorker(tris: TriangleBuffer, signal?: AbortSignal): Promise<MeshReport> {
+/** Pure geometry jobs share the packaged worker; no synchronous failure fallback. */
+export function runMeshTask<T>(data: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let worker: Worker;
     try {
       worker = new Worker(new URL('./mesh-worker.mjs', import.meta.url), {
-        workerData: { tris, moduleHref: import.meta.url },
+        workerData: data,
       });
-    } catch {
+    } catch (error) {
       if (signal?.aborted)
         return reject(new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled'));
-      return resolve(analyzeMesh(tris));
+      return reject(OmenflowError.from(error));
     }
     const done = (fn: () => void) => {
       if (settled) return;
@@ -809,15 +810,32 @@ function runMeshWorker(tris: TriangleBuffer, signal?: AbortSignal): Promise<Mesh
       if (signal.aborted) return onAbort();
       signal.addEventListener('abort', onAbort, { once: true });
     }
-    worker.once('message', (message: { ok?: boolean; report?: MeshReport }) => {
+    worker.once('message', (message: { ok?: boolean; report?: T; error?: OmenflowErrorBody }) => {
       if (message?.ok && message.report) done(() => resolve(message.report!));
       else if (signal?.aborted) onAbort();
-      else done(() => resolve(analyzeMesh(tris)));
+      else
+        done(() =>
+          reject(
+            message.error
+              ? OmenflowError.fromBody(message.error)
+              : new OmenflowError(ErrorCodes.INTERNAL, 'Mesh worker returned no analysis'),
+          ),
+        );
     });
-    worker.once('error', () => {
+    worker.once('error', (error) => {
       if (signal?.aborted) return onAbort();
-      done(() => resolve(analyzeMesh(tris)));
+      done(() => reject(OmenflowError.from(error)));
     });
+    worker.once('exit', (code) =>
+      done(() =>
+        reject(
+          new OmenflowError(
+            ErrorCodes.JOB_INTERRUPTED,
+            `Mesh worker exited before returning analysis (code ${code})`,
+          ),
+        ),
+      ),
+    );
   });
 }
 

@@ -59,6 +59,43 @@ describe.skipIf(
     expect(r.volume).toBeCloseTo(250, 6);
   });
 
+  it('translation, nonuniform scale and a 45-degree rotation match analytic quantities', () => {
+    if (!exe) return;
+    const tris = render(
+      'translate([30,-15,7]) rotate([0,0,45]) scale([2,3,4]) cube([2,3,4],center=true);',
+    );
+    const r = analyzeMesh(tris);
+    // Independent closed-form box dimensions are 4 x 9 x 16 before rotation.
+    const halfXY = 13 / (2 * Math.sqrt(2));
+    for (const axis of [0, 1] as const) {
+      const center = axis === 0 ? 30 : -15;
+      expect(r.bounds.min[axis]).toBeCloseTo(center - halfXY, 3);
+      expect(r.bounds.max[axis]).toBeCloseTo(center + halfXY, 3);
+    }
+    expect(r.bounds.min[2]).toBe(-1);
+    expect(r.bounds.max[2]).toBe(15);
+    expect(r.volume).toBeCloseTo(4 * 9 * 16, 1);
+    expect(r.surfaceArea).toBeCloseTo(2 * (4 * 9 + 9 * 16 + 16 * 4), 1);
+    expect(r.topology.watertight).toBe(true);
+    expect(containsPoint(tris, [30, -15, 7])).toBe(true);
+    expect(containsPoint(tris, [30 + halfXY - 0.1, -15 + halfXY - 0.1, 7])).toBe(false);
+  });
+
+  it('a closed internal cavity is empty and reduces volume despite the unchanged envelope', () => {
+    if (!exe) return;
+    const tris = render('difference(){cube(20);translate([2,2,2])cube(16);}');
+    const r = analyzeMesh(tris);
+    expect(r.bounds.min).toEqual([0, 0, 0]);
+    expect(r.bounds.max).toEqual([20, 20, 20]);
+    expect(r.volume).toBeCloseTo(20 ** 3 - 16 ** 3, 6);
+    expect(r.surfaceArea).toBeCloseTo(6 * (20 ** 2 + 16 ** 2), 6);
+    expect(r.topology.watertight).toBe(true);
+    expect(r.topology.shells).toBe(2);
+    expect(containsPoint(tris, [10, 10, 10])).toBe(false);
+    expect(containsPoint(tris, [1, 10, 10])).toBe(true);
+    expect(crossSection(tris, 'z', 10).materialArea).toBeCloseTo(20 ** 2 - 16 ** 2, 6);
+  });
+
   it('plate with a hole: containment + section circle', () => {
     if (!exe) return;
     const tris = render(

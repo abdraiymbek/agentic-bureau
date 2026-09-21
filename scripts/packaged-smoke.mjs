@@ -13,13 +13,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
+import assert from 'node:assert/strict';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const arg = process.argv[2];
+const arg = process.argv.slice(2).find((value) => !value.startsWith('--'));
+const testCad = process.argv.includes('--cad');
 
 function fail(msg) {
-  console.error(`packaged-smoke: FAIL — ${msg}`);
-  process.exit(1);
+  throw new Error(`packaged-smoke: FAIL — ${msg}`);
 }
 
 /* Locate the packaged binary. */
@@ -30,7 +32,13 @@ function findApp() {
       ? path.join(arg, 'Contents', 'MacOS', 'omenflow-desktop')
       : arg;
     if (fs.existsSync(bin))
-      return { bin, resources: path.join(path.dirname(bin), '..', 'Resources') };
+      return {
+        bin,
+        resources:
+          arg.endsWith('.app') || process.platform === 'darwin'
+            ? path.join(path.dirname(bin), '..', 'Resources')
+            : path.join(path.dirname(bin), 'resources'),
+      };
     fail(`no executable at ${bin}`);
   }
   const dirName = `Omen Flow-${process.platform}-${process.arch}`;
@@ -57,62 +65,113 @@ const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-smoke-'));
 const env = { ...process.env, OMENFLOW_APP_DATA: appData, OMENFLOW_SMOKE: '1' };
 delete env.ELECTRON_RUN_AS_NODE;
 
+// Exercise the actual standalone worker shipped in the application, not source
+// loaders or a synchronous fallback that could hide a missing build artifact.
+const meshWorker = path.join(path.dirname(shim), 'mesh-worker.mjs');
+await new Promise((resolve, reject) => {
+  const worker = new Worker(meshWorker, {
+    workerData: {
+      tris: new Float64Array([
+        0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0,
+        1, 0, 0, 0, 1,
+      ]),
+    },
+  });
+  const timer = setTimeout(() => {
+    void worker.terminate();
+    reject(new Error('packaged mesh worker timed out'));
+  }, 10_000);
+  worker.once('message', (message) => {
+    clearTimeout(timer);
+    void worker.terminate();
+    try {
+      assert.equal(message.ok, true, JSON.stringify(message.error));
+      assert.equal(message.report.topology.watertight, true);
+      assert.ok(Math.abs(message.report.volume - 1 / 6) < 1e-9);
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+  worker.once('error', (error) => {
+    clearTimeout(timer);
+    reject(error);
+  });
+});
+console.log('packaged-smoke: standalone mesh worker → ok');
+
 console.log(`packaged-smoke: launching ${bin}`);
-let done = false;
 const child = spawn(bin, [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
 let logBuf = '';
-child.stdout.on('data', (d) => (logBuf += d));
-child.stderr.on('data', (d) => (logBuf += d));
-child.on('exit', (code) => {
-  if (!done) fail(`app exited early (code ${code})\n${logBuf.slice(-2000)}`);
+let launchError;
+let exited = false;
+child.stdout.on('data', (d) => (logBuf = (logBuf + d).slice(-16_000)));
+child.stderr.on('data', (d) => (logBuf = (logBuf + d).slice(-16_000)));
+child.on('error', (error) => {
+  launchError = error;
 });
-
-const smokeFile = path.join(appData, 'run', 'smoke.json');
-const deadline = Date.now() + 45_000;
-while (!fs.existsSync(smokeFile)) {
-  if (Date.now() > deadline) {
-    child.kill('SIGKILL');
-    fail(`timed out waiting for smoke grant\n${logBuf.slice(-3000)}`);
+const closed = new Promise((resolve) =>
+  child.once('close', () => {
+    exited = true;
+    resolve();
+  }),
+);
+try {
+  const smokeFile = path.join(appData, 'run', 'smoke.json');
+  const deadline = Date.now() + 45_000;
+  while (!fs.existsSync(smokeFile)) {
+    if (launchError) throw launchError;
+    if (exited) fail(`app exited early\n${logBuf}`);
+    if (Date.now() > deadline) fail(`timed out waiting for smoke grant\n${logBuf}`);
+    await new Promise((r) => setTimeout(r, 100));
   }
-  await new Promise((r) => setTimeout(r, 250));
+  const smoke = JSON.parse(fs.readFileSync(smokeFile, 'utf8'));
+  console.log(`packaged-smoke: bridge at ${smoke.socketPath}`);
+  const call = (op, payload) =>
+    JSON.parse(
+      execFileSync(process.execPath, [shim, 'call', op, '--input', '-'], {
+        env: {
+          ...process.env,
+          OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
+          OMENFLOW_BRIDGE_TOKEN: smoke.token,
+          OMENFLOW_PROJECT_ID: smoke.projectId,
+        },
+        input: JSON.stringify(payload),
+        encoding: 'utf8',
+        timeout: 90_000,
+      }),
+    );
+  assert.ok(Array.isArray(call('artifact.list', {}).artifacts));
+  assert.equal(call('project.summary', {}).project.name, 'Omen Flow smoke');
+  console.log('packaged-smoke: bridge list + summary → ok');
+  const calc = call('calculation.run', {
+    expression: 'mass + mass',
+    inputs: [{ name: 'mass', quantity: { value: 2, unit: 'kg' }, literal: true }],
+    submitForReview: false,
+  });
+  assert.deepEqual(calc.result, { value: 4, unit: 'kg' });
+  assert.equal(calc.experimental, true);
+  console.log('packaged-smoke: calculation worker → ok');
+  if (testCad) {
+    const part = call('cad.write_source', {
+      title: 'Packaged sphere',
+      source: '$fn=64; sphere(r=10);',
+    });
+    assert.equal(part.render.ok, true);
+    const check = call('cad.check', {
+      artifactId: part.artifactId,
+      expect: { bbox: { min: [-10, -10, -10], max: [10, 10, 10], tol: 0.1 }, shells: 1 },
+    });
+    assert.equal(check.verificationStatus, 'passed');
+    assert.equal(check.pass, true);
+    console.log('packaged-smoke: real OpenSCAD + persisted verification → ok');
+  }
+  console.log('packaged-smoke: DONE');
+} finally {
+  if (!exited) {
+    child.kill('SIGTERM');
+    const forced = setTimeout(() => child.kill('SIGKILL'), 7000);
+    await closed;
+    clearTimeout(forced);
+  }
 }
-const smoke = JSON.parse(fs.readFileSync(smokeFile, 'utf8'));
-console.log(`packaged-smoke: bridge at ${smoke.socketPath}`);
-
-/* Real bridge roundtrip through the packaged `omenflow` shim. */
-const out = execFileSync(process.execPath, [shim, 'call', 'artifact.list', '--input', '-'], {
-  env: {
-    ...process.env,
-    OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
-    OMENFLOW_BRIDGE_TOKEN: smoke.token,
-    OMENFLOW_PROJECT_ID: smoke.projectId,
-  },
-  input: '{}',
-  encoding: 'utf8',
-  timeout: 20_000,
-});
-const res = JSON.parse(out.trim());
-if (!res || !Array.isArray(res.artifacts))
-  fail(`omenflow call returned unexpected result: ${out.trim().slice(0, 300)}`);
-console.log(`packaged-smoke: omenflow call artifact.list → ok (${res.artifacts.length} artifacts)`);
-
-/* Second call: project summary for the smoke project. */
-const out2 = execFileSync(process.execPath, [shim, 'call', 'project.summary', '--input', '-'], {
-  env: {
-    ...process.env,
-    OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
-    OMENFLOW_BRIDGE_TOKEN: smoke.token,
-  },
-  input: '{}',
-  encoding: 'utf8',
-  timeout: 20_000,
-});
-const res2 = JSON.parse(out2.trim());
-if (!res2 || typeof res2 !== 'object') fail(`project.summary returned unexpected result`);
-
-done = true;
-child.kill('SIGTERM');
-await new Promise((r) => setTimeout(r, 500));
-child.kill('SIGKILL');
-console.log('packaged-smoke: DONE');
-process.exit(0);

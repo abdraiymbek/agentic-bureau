@@ -1,5 +1,8 @@
 # Redesign verification
 
+Native v0.1 launcher, review, terminal restoration, export/import and service
+recovery checks are recorded in [release evidence](../audit/release-v0.1/README.md).
+
 19 September 2026. Checks apply to this working-tree redesign, not a packaged release certification.
 
 ## UX refinement pass (same day, later)

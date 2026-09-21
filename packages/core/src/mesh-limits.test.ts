@@ -116,5 +116,27 @@ describe('bounded synchronous mesh work', () => {
     const live = new AbortController();
     const report = await analyzeMeshCancellable(triangles(12), live.signal);
     expect(report).toEqual(analyzeMesh(triangles(12)));
+    const running = new AbortController();
+    const pending = analyzeMeshCancellable(triangles(MAX_CAD_TRIANGLES), running.signal);
+    setTimeout(() => running.abort(), 10);
+    await expect(pending).rejects.toMatchObject({ code: ErrorCodes.CANCELLED });
+  });
+
+  it('keeps the main event loop responsive during supported maximum mesh analysis', async () => {
+    let ticks = 0;
+    const timer = setInterval(() => ticks++, 5);
+    try {
+      const report = await analyzeMeshCancellable(triangles(MAX_CAD_TRIANGLES));
+      expect(report.triangles).toBe(MAX_CAD_TRIANGLES);
+      expect(ticks).toBeGreaterThan(2);
+    } finally {
+      clearInterval(timer);
+    }
+  });
+
+  it('preserves structured worker errors without retrying in the main process', async () => {
+    await expect(analyzeMeshCancellable(triangles(MAX_CAD_TRIANGLES + 1))).rejects.toMatchObject(
+      workLimit,
+    );
   });
 });

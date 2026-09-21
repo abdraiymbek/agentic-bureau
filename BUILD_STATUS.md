@@ -1,5 +1,9 @@
 # Omen Flow build ledger
 
+The current v0.1 qualification and its remaining gates are recorded in
+[release evidence](audit/release-v0.1/README.md). The dated results below are
+historical; they do not override the current qualification decision.
+
 Updated continuously during implementation. This file reflects the actual
 state of the repository, not the plan.
 

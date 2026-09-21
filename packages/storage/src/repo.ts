@@ -609,6 +609,7 @@ export class Repo {
         | 'finishedAt'
         | 'toolVersion'
         | 'command'
+        | 'inputs'
       >
     >,
   ): void {
@@ -616,7 +617,7 @@ export class Repo {
     if (!cur) return;
     this.db
       .prepare(
-        `UPDATE job SET status=?, log=?, output_hashes=?, error=?, started_at=?, finished_at=?, tool_version=?, command=? WHERE id=?`,
+        `UPDATE job SET status=?, log=?, output_hashes=?, error=?, started_at=?, finished_at=?, tool_version=?, command=?, inputs=? WHERE id=?`,
       )
       .run(
         fields.status ?? cur.status,
@@ -627,6 +628,7 @@ export class Repo {
         fields.finishedAt ?? cur.finishedAt,
         fields.toolVersion ?? cur.toolVersion,
         fields.command ?? cur.command,
+        J(fields.inputs ?? cur.inputs),
         id,
       );
   }

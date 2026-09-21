@@ -349,6 +349,31 @@ describe('revision-derived dependency correctness', () => {
     expect(rest.hasMore).toBe(false);
   });
 
+  it('keeps a long-chain command page under 32 KiB and lets callers reach every node', async () => {
+    const ctx = await setup();
+    const parts = chain(ctx, 2000);
+    const ids = new Set<string>();
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const page = (await call(ctx, 'graph.impact', { refs: [input(parts[0]!)], offset })) as {
+        affected: { artifactId: string }[];
+        totalAffected: number;
+        hasMore: boolean;
+      };
+      expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(32 * 1024);
+      expect(page.totalAffected).toBe(1999);
+      expect(page.affected.length).toBeGreaterThan(0);
+      for (const row of page.affected) {
+        expect(ids.has(row.artifactId)).toBe(false);
+        ids.add(row.artifactId);
+      }
+      offset += page.affected.length;
+      hasMore = page.hasMore;
+    }
+    expect(ids.size).toBe(1999);
+  });
+
   it('does not propagate informational connects_to, belongs_to or alternative_to links', async () => {
     const ctx = await setup();
     const a = await note(ctx, 'A');

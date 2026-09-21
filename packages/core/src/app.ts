@@ -18,6 +18,7 @@ import {
   updateProjectFile,
   writeRenameJournal,
   clearRenameJournal,
+  readProjectFile,
 } from '@omenflow/storage';
 import { ProjectContext, HostServices, EngineTools, nullHost } from './context.js';
 import { ProjectWatcher } from './watcher.js';
@@ -526,8 +527,22 @@ export class CoreApp {
           throw error;
         }
       }
-      case 'app.recent_projects':
-        return { projects: this.settings.recentProjects.filter((p) => fs.existsSync(p)) };
+      case 'app.recent_projects': {
+        const projects = this.settings.recentProjects.filter((p) => fs.existsSync(p));
+        const projectNames: Record<string, string> = {};
+        for (const root of projects) {
+          try {
+            // Read the marker only: listing recents must not open, migrate or
+            // acquire a write handle on any project database.
+            const marker = readProjectFile(root);
+            if (typeof marker.name === 'string' && marker.name.trim())
+              projectNames[root] = marker.name;
+          } catch {
+            /* A moved/damaged project stays visible with its folder name. */
+          }
+        }
+        return { projects, projectNames };
+      }
       case 'app.diagnostics':
         return {
           appDataDir: this.appDataDir,

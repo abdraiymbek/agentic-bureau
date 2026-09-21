@@ -32,6 +32,14 @@ protocol.registerSchemesAsPrivileged([
 
 if (started) app.quit();
 
+// Disposable acceptance runs must isolate Chromium state and the instance lock
+// as well as the core database, before Electron opens either location.
+if (process.env.OMENFLOW_APP_DATA) {
+  const isolatedData = path.resolve(process.env.OMENFLOW_APP_DATA);
+  fs.mkdirSync(isolatedData, { recursive: true });
+  app.setPath('userData', isolatedData);
+}
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.quit();
 
@@ -289,6 +297,14 @@ function buildMenu(): void {
 /* ------------------------------------------------------------------ */
 
 function wireIpc(): void {
+  ipcMain.on('omenflow:get-service-state', (event) => {
+    event.sender.send('omenflow:service-state', {
+      available: Boolean(coreProc),
+      ...(!coreProc
+        ? { message: 'Workspace service stopped. Reopen Omen Flow to recover saved work.' }
+        : {}),
+    });
+  });
   ipcMain.handle(
     IPC.command,
     async (

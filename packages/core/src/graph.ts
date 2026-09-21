@@ -479,42 +479,61 @@ export function impactReport(
   const visited = new Set(startIds);
   const parent = new Map<string, string | null>(startIds.map((id) => [id, null]));
   const queue = [...startIds];
-  const affected: ImpactReport['affected'] = [];
+  const edges: Edge[] = [];
   for (let i = 0; i < queue.length; i++) {
-    const id = queue[i]!;
-    for (const edge of evaluating(graph.outgoing.get(id))) {
+    for (const edge of evaluating(graph.outgoing.get(queue[i]!))) {
       const next = edge.downstreamArtifactId;
       if (visited.has(next)) continue;
       visited.add(next);
-      parent.set(next, id);
-      const artifact = graph.artifacts.get(next);
-      const pathInfo =
-        opts?.includePaths === false
-          ? { path: [next] }
-          : diagnosticPath(reconstructPath(parent, next));
-      affected.push({
-        artifactId: next,
-        title: artifact?.title ?? next,
-        type: artifact?.type ?? 'note',
-        reason: edge.requiredUpstreamRevisionId
-          ? 'recorded input revision changed'
-          : 'upstream input changed',
-        ...pathInfo,
-      });
+      parent.set(next, queue[i]!);
+      edges.push(edge);
       queue.push(next);
     }
   }
   const offset = opts?.offset ?? 0;
-  const limit = opts?.limit;
-  const page = limit === undefined ? affected : affected.slice(offset, offset + limit);
-  return {
+  const end =
+    opts?.limit === undefined ? edges.length : Math.min(edges.length, offset + opts.limit);
+  const result: ImpactReport = {
     changedRefs: refs,
-    affected: page,
+    affected: [],
     unaffectedSelectedComponentIds: [],
-    totalAffected: affected.length,
-    hasMore: limit === undefined ? false : offset + page.length < affected.length,
+    totalAffected: edges.length,
+    hasMore: false,
     offset,
   };
+  // Commands supply a limit; internal proposal impact retains the complete list.
+  // Traverse every node but build expensive path explanations only for the page.
+  const budget = opts?.limit === undefined ? Infinity : 32 * 1024;
+  let bytes = Buffer.byteLength(JSON.stringify(result));
+  for (let i = offset; i < end; i++) {
+    const edge = edges[i]!;
+    const next = edge.downstreamArtifactId;
+    const artifact = graph.artifacts.get(next);
+    const row: ImpactReport['affected'][number] = {
+      artifactId: next,
+      title: artifact?.title ?? next,
+      type: artifact?.type ?? 'note',
+      reason: edge.requiredUpstreamRevisionId
+        ? 'recorded input revision changed'
+        : 'upstream input changed',
+      ...(opts?.includePaths === false
+        ? { path: [next] }
+        : diagnosticPath(reconstructPath(parent, next))),
+    };
+    const rowBytes = Buffer.byteLength(JSON.stringify(row)) + 1;
+    if (bytes + rowBytes > budget) {
+      if (result.affected.length === 0)
+        throw new OmenflowError(
+          ErrorCodes.VALIDATION,
+          'Impact page exceeds the response budget; use fewer changed refs or includePaths: false',
+        );
+      break;
+    }
+    result.affected.push(row);
+    bytes += rowBytes;
+  }
+  result.hasMore = offset + result.affected.length < edges.length;
+  return result;
 }
 
 export function staleToRecord(findings: StaleFinding[], sinceEventSeq: number): StaleRecord[] {

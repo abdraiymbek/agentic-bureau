@@ -24,6 +24,7 @@ import './welcome.css';
 export function WelcomeView() {
   const { set, setActive, toast, sidebarOpen } = useStore();
   const [recents, setRecents] = useState<string[]>([]);
+  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
   const [recentState, setRecentState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [showAllRecents, setShowAllRecents] = useState(false);
   const [recentAttempt, setRecentAttempt] = useState(0);
@@ -40,11 +41,12 @@ export function WelcomeView() {
     const timeout = window.setTimeout(() => {
       if (!cancelled) setRecentState('error');
     }, 8000);
-    void cmd<{ projects: string[] }>('app.recent_projects')
+    void cmd<{ projects: string[]; projectNames?: Record<string, string> }>('app.recent_projects')
       .then((r) => {
         window.clearTimeout(timeout);
         if (!cancelled) {
           setRecents(r.projects);
+          setProjectNames(r.projectNames ?? {});
           setRecentState('ready');
         }
       })
@@ -145,10 +147,12 @@ export function WelcomeView() {
     });
 
   const base = (path: string) =>
+    projectNames[path] ||
     path
       .replace(/[\\/]+$/, '')
       .split(/[\\/]/)
-      .pop() || path;
+      .pop() ||
+    path;
 
   const visibleRecents = recents.filter((r) => base(r).toLowerCase().includes(query.toLowerCase()));
   return (

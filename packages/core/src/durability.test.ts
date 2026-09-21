@@ -50,6 +50,34 @@ describe('utility quit barrier', () => {
 });
 
 describe('app-level create/rename reservations and crash hooks', () => {
+  it('shows the persisted project name in recents after rename and restart without opening it', async () => {
+    const root = tmp();
+    const data = path.join(root, 'appdata');
+    const projectPath = path.join(fs.realpathSync(root), 'folder-name');
+    const app = new CoreApp(data);
+    apps.push(app);
+    const created = (await app.dispatch(
+      'project.create',
+      { name: 'Original', path: projectPath },
+      user,
+    )) as { projectId: string };
+    await app.dispatch('project.rename', { name: 'Renamed plate' }, user, created.projectId);
+    app.closeAll();
+    const restarted = new CoreApp(data);
+    apps.push(restarted);
+    const recent = await restarted.dispatch('app.recent_projects', {}, user);
+    expect(recent).toEqual({
+      projects: [projectPath],
+      projectNames: { [projectPath]: 'Renamed plate' },
+    });
+    expect(restarted.contexts.size).toBe(0);
+    fs.writeFileSync(path.join(projectPath, PROJECT_FILE), '{damaged');
+    expect(await restarted.dispatch('app.recent_projects', {}, user)).toEqual({
+      projects: [projectPath],
+      projectNames: {},
+    });
+  });
+
   it('replays a completed create and recovers after death between domain and register', async () => {
     const root = tmp();
     const app = new CoreApp(path.join(root, 'appdata'));

@@ -24,6 +24,7 @@ import type { CadAdapter } from './tools.js';
 import {
   analyzeMesh,
   analyzeMeshCancellable,
+  runMeshTask,
   assertMeshByteLimit,
   assertCadInspectionBudget,
   containsPoint,
@@ -45,14 +46,7 @@ import {
   setScadParameter,
   type ScadParameter,
 } from './scad-params.js';
-import {
-  describeLoop,
-  findLoosenedAssertions,
-  fmtNum,
-  preservationCheck,
-  runChecks,
-  type CheckResult,
-} from './cad-checks.js';
+import { describeLoop, findLoosenedAssertions, fmtNum, type CheckResult } from './cad-checks.js';
 
 import { createCadVerificationEvidence, type CadVerificationStatus } from './cad-verification.js';
 import { readActiveWork, recordCommittedCheck } from './work.js';
@@ -1161,6 +1155,7 @@ export async function cadCheck(
   pass: boolean;
   passed: number;
   total: number;
+  ready: boolean;
   verificationStatus: CadVerificationStatus;
   evidenceHash: string;
   specHash: string;
@@ -1178,218 +1173,241 @@ export async function cadCheck(
   next: string;
 }> {
   const exploratory = input.exploratory === true;
-  const m = await resolveMesh(ctx, input, origin);
-  if (!m.outcome.ok || !m.outcome.tris) {
-    throw new OmenflowError(
-      ErrorCodes.VALIDATION,
-      `Cannot check: ${m.outcome.error ?? 'render failed'}`,
-      {
-        details: { warnings: m.outcome.warnings, errors: m.outcome.errors },
-        repair: 'Fix the source with cad.write_source, then check again.',
-      },
-    );
-  }
-  const checks = runChecks(m.outcome.tris, input.expect);
-  const changeRegions = input.expect.preserve?.changeRegions;
-  let preservation:
-    { revisionId: string; inputFingerprint: string; outputHash: string } | undefined;
-  if (changeRegions?.length) {
-    // Preserve the baseline from which this draft lineage started, not the most
-    // recent rewritten draft (which would let a repeated bad edit certify itself).
-    let parent = m.rev.parentId ? ctx.requireRevision(m.rev.parentId) : null;
-    const seen = new Set<string>();
-    while (
-      parent &&
-      parent.id !== m.artifact.selectedRevisionId &&
-      !['approved', 'superseded'].includes(parent.reviewState) &&
-      parent.parentId
-    ) {
-      if (seen.has(parent.id))
-        throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision ancestry contains a cycle');
-      seen.add(parent.id);
-      parent = ctx.requireRevision(parent.parentId);
-    }
-    if (parent) {
-      const reference = await resolveMesh(
-        ctx,
-        { artifactId: m.artifact.id, revisionId: parent.id },
-        origin,
+  const job = ctx.createJob({
+    kind: 'cad_check',
+    tool: 'omenflow-geometry',
+    inputs: input,
+    sessionId: origin.kind === 'agent' ? origin.sessionId : null,
+  });
+  const controller = new AbortController();
+  ctx.jobCancels.set(job.id, () => controller.abort());
+  ctx.jobStatus(job.id, 'running');
+  try {
+    const m = await resolveMesh(ctx, input, origin);
+    ctx.assertJobActive(job.id);
+    if (!m.outcome.ok || !m.outcome.tris) {
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        `Cannot check: ${m.outcome.error ?? 'render failed'}`,
+        {
+          details: { warnings: m.outcome.warnings, errors: m.outcome.errors },
+          repair: 'Fix the source with cad.write_source, then check again.',
+        },
       );
-      if (reference.outcome.ok && reference.outcome.tris && reference.outcome.identity) {
-        preservation = {
-          revisionId: parent.id,
-          inputFingerprint: reference.outcome.identity.inputFingerprint,
-          outputHash: reference.outcome.identity.outputHash,
-        };
-        const result = preservationCheck(
-          reference.outcome.tris,
-          m.outcome.tris,
-          changeRegions.map((r) => ({ center: r.center as Vec3, radius: r.radius })),
+    }
+    const checks = await runMeshTask<CheckResult[]>(
+      { operation: 'check', tris: m.outcome.tris, expect: input.expect },
+      controller.signal,
+    );
+    ctx.assertJobActive(job.id);
+    const changeRegions = input.expect.preserve?.changeRegions;
+    let preservation:
+      { revisionId: string; inputFingerprint: string; outputHash: string } | undefined;
+    if (changeRegions?.length) {
+      // Preserve the baseline from which this draft lineage started, not the most
+      // recent rewritten draft (which would let a repeated bad edit certify itself).
+      let parent = m.rev.parentId ? ctx.requireRevision(m.rev.parentId) : null;
+      const seen = new Set<string>();
+      while (
+        parent &&
+        parent.id !== m.artifact.selectedRevisionId &&
+        !['approved', 'superseded'].includes(parent.reviewState) &&
+        parent.parentId
+      ) {
+        if (seen.has(parent.id))
+          throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision ancestry contains a cycle');
+        seen.add(parent.id);
+        parent = ctx.requireRevision(parent.parentId);
+      }
+      if (parent) {
+        const reference = await resolveMesh(
+          ctx,
+          { artifactId: m.artifact.id, revisionId: parent.id },
+          origin,
         );
-        checks.push({
-          ...result,
-          detail: `Compared with baseline/reference revision ${parent.id}: ${result.detail}`,
-        });
+        if (reference.outcome.ok && reference.outcome.tris && reference.outcome.identity) {
+          preservation = {
+            revisionId: parent.id,
+            inputFingerprint: reference.outcome.identity.inputFingerprint,
+            outputHash: reference.outcome.identity.outputHash,
+          };
+          const result = await runMeshTask<CheckResult>(
+            {
+              operation: 'preserve',
+              reference: reference.outcome.tris,
+              tris: m.outcome.tris,
+              regions: changeRegions.map((r) => ({ center: r.center as Vec3, radius: r.radius })),
+            },
+            controller.signal,
+          );
+          ctx.assertJobActive(job.id);
+          checks.push({
+            ...result,
+            detail: `Compared with baseline/reference revision ${parent.id}: ${result.detail}`,
+          });
+        } else
+          checks.push({
+            name: 'unrelated geometry preserved',
+            pass: false,
+            detail: `Reference revision ${parent.id} cannot render: ${reference.outcome.error ?? 'invalid geometry'}. Repair the reference explicitly; repeating the modified source does not create a preservation reference.`,
+          });
       } else
         checks.push({
           name: 'unrelated geometry preserved',
           pass: false,
-          detail: `Reference revision ${parent.id} cannot render: ${reference.outcome.error ?? 'invalid geometry'}. Repair the reference explicitly; repeating the modified source does not create a preservation reference.`,
+          detail:
+            'No prior baseline/reference revision exists; preservation cannot be established for a newly created part.',
         });
-    } else
-      checks.push({
-        name: 'unrelated geometry preserved',
-        pass: false,
-        detail:
-          'No prior baseline/reference revision exists; preservation cannot be established for a newly created part.',
-      });
-  }
-  const passed = checks.filter((c) => c.pass).length;
-  const pass = checks.length > 0 && passed === checks.length;
-
-  // Verification-weakening guard: assertions that failed on this very same
-  // geometry earlier and are now simply absent. Dropping a check is not a fix.
-  const paramsKey = JSON.stringify(input.params ?? {});
-  const priorFailures = new Set<string>();
-  let lastPriorResults: CheckResult[] | null = null;
-  for (const j of ctx.repo.listJobs(200)) {
-    if (j.kind !== 'cad_check') continue;
-    const inp = j.inputs as {
-      revisionId?: string;
-      params?: unknown;
-      results?: CheckResult[];
-      exploratory?: boolean;
-    } | null;
-    if (
-      !inp ||
-      inp.exploratory ||
-      inp.revisionId !== m.rev.id ||
-      JSON.stringify(inp.params ?? {}) !== paramsKey
-    ) {
-      continue;
     }
-    for (const line of j.log.split('\n')) {
-      const mm = /^FAIL (.+?) — /.exec(line);
-      if (mm) priorFailures.add(mm[1]!);
-    }
-    if (inp.results && !lastPriorResults) lastPriorResults = inp.results;
-  }
-  const currentNames = new Set(checks.map((c) => c.name));
-  const dropped = [...priorFailures].filter((n) => !currentNames.has(n));
-  const loosened = lastPriorResults ? findLoosenedAssertions(lastPriorResults, checks) : [];
+    const passed = checks.filter((c) => c.pass).length;
+    const pass = checks.length > 0 && passed === checks.length;
 
-  const integrityReport = await analyzeMeshCancellable(m.outcome.tris);
-  const integrity = {
-    pass:
-      m.outcome.tris.length > 0 &&
-      m.outcome.tris.every(Number.isFinite) &&
-      integrityReport.topology.watertight &&
-      !integrityReport.invertedNormals &&
-      integrityReport.volume > 0,
-    detail:
-      'Mandatory finite, nonempty, closed, positive-volume mesh; self-intersections and physical safety are only assessed where explicitly declared.',
-  };
-  const bound = readActiveWork(ctx);
-  const evidence = createCadVerificationEvidence(
-    ctx,
-    m.rev,
-    m.outcome.identity!,
-    input.expect,
-    checks,
-    integrity,
-    {
-      exploratory,
-      boundExpect:
-        bound?.artifactId === m.artifact.id && bound.candidateRevisionId === m.rev.id
-          ? bound.expect
-          : null,
-    },
-  );
-  evidence.preservation = preservation;
-  const evidenceHash = ctx.storeContent(JSON.stringify(evidence));
-  const work = recordCommittedCheck(ctx, m.rev, input.expect, evidence.status, exploratory);
-  const job = ctx.createJob({
-    kind: 'cad_check',
-    tool: 'omenflow-geometry',
-    inputs: {
+    // Verification-weakening guard: assertions that failed on this very same
+    // geometry earlier and are now simply absent. Dropping a check is not a fix.
+    const paramsKey = JSON.stringify(input.params ?? {});
+    const priorFailures = new Set<string>();
+    let lastPriorResults: CheckResult[] | null = null;
+    for (const j of ctx.repo.listJobs(200)) {
+      if (j.kind !== 'cad_check' || j.id === job.id) continue;
+      const inp = j.inputs as {
+        revisionId?: string;
+        params?: unknown;
+        results?: CheckResult[];
+        exploratory?: boolean;
+      } | null;
+      if (
+        !inp ||
+        inp.exploratory ||
+        inp.revisionId !== m.rev.id ||
+        JSON.stringify(inp.params ?? {}) !== paramsKey
+      ) {
+        continue;
+      }
+      for (const line of j.log.split('\n')) {
+        const mm = /^FAIL (.+?) — /.exec(line);
+        if (mm) priorFailures.add(mm[1]!);
+      }
+      if (inp.results && !lastPriorResults) lastPriorResults = inp.results;
+    }
+    const currentNames = new Set(checks.map((c) => c.name));
+    const dropped = [...priorFailures].filter((n) => !currentNames.has(n));
+    const loosened = lastPriorResults ? findLoosenedAssertions(lastPriorResults, checks) : [];
+
+    const integrityReport = await analyzeMeshCancellable(m.outcome.tris, controller.signal);
+    ctx.assertJobActive(job.id);
+    const integrity = {
+      pass:
+        m.outcome.tris.length > 0 &&
+        m.outcome.tris.every(Number.isFinite) &&
+        integrityReport.topology.watertight &&
+        !integrityReport.invertedNormals &&
+        integrityReport.volume > 0,
+      detail:
+        'Mandatory finite, nonempty, closed, positive-volume mesh; self-intersections and physical safety are only assessed where explicitly declared.',
+    };
+    const bound = readActiveWork(ctx);
+    const evidence = createCadVerificationEvidence(
+      ctx,
+      m.rev,
+      m.outcome.identity!,
+      input.expect,
+      checks,
+      integrity,
+      {
+        exploratory,
+        boundExpect:
+          bound?.artifactId === m.artifact.id && bound.candidateRevisionId === m.rev.id
+            ? bound.expect
+            : null,
+      },
+    );
+    evidence.preservation = preservation;
+    const evidenceHash = ctx.storeContent(JSON.stringify(evidence));
+    const work = recordCommittedCheck(ctx, m.rev, input.expect, evidence.status, exploratory);
+    ctx.repo.updateJob(job.id, {
+      inputs: {
+        artifactId: m.artifact.id,
+        revisionId: m.rev.id,
+        params: input.params ?? {},
+        expect: input.expect,
+        preservation,
+        exploratory,
+        results: checks.map((c) => ({ name: c.name, pass: c.pass, tightness: c.tightness })),
+      },
+    });
+    ctx.jobLog(
+      job.id,
+      [
+        ...checks.map((c) => `${c.pass ? 'PASS' : 'FAIL'} ${c.name} — ${c.detail}`),
+        ...(dropped.length
+          ? [
+              `WEAKENED: dropped previously failing assertions on unchanged geometry: ${dropped.join('; ')}`,
+            ]
+          : []),
+        ...(loosened.length
+          ? [
+              `WEAKENED: loosened tolerance on assertions that previously failed: ${loosened.join('; ')}`,
+            ]
+          : []),
+      ].join('\n'),
+    );
+    ctx.jobStatus(job.id, pass ? 'succeeded' : 'failed', {
+      outputHashes: { verification: evidenceHash },
+      error: pass
+        ? undefined
+        : {
+            code: ErrorCodes.VALIDATION,
+            message: `${checks.length - passed} of ${checks.length} checks failed`,
+          },
+    });
+    const weakenedNote =
+      (dropped.length
+        ? ` WARNING — this run dropped ${dropped.length} assertion(s) that FAILED on this same geometry earlier (${dropped.join('; ')}). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source.`
+        : '') +
+      (loosened.length
+        ? ` WARNING — this run passed ${loosened.length} assertion(s) only after loosening the tolerance (${loosened.join('; ')}). Tightening the geometry or stating why the looser bound is the real requirement is required before calling this verified.`
+        : '');
+    const next =
+      (exploratory
+        ? 'Exploratory diagnostic only. Commit the complete request assertions with exploratory:false after diagnosing them; this result cannot establish verified completion.'
+        : evidence.status === 'scope_changed'
+          ? `NOT VERIFIED: assertion scope changed (${evidence.scopeChanges.join(', ')}). Restore the committed assertions or request explicit human scope acceptance. State this unresolved status in your final response; passing individual checks does not resolve it.`
+          : evidence.status !== 'passed'
+            ? `NOT VERIFIED: ${evidence.status}. Required next action: ${work.nextAction}. Do not claim verified completion.`
+            : 'Declared assertions and mandatory integrity pass for this exact revision. Summarize coverage and limitations; human approval remains separate.') +
+      weakenedNote;
+    return {
+      ready: !exploratory && evidence.status === 'passed',
+      verificationStatus: evidence.status,
+      next,
       artifactId: m.artifact.id,
       revisionId: m.rev.id,
-      params: input.params ?? {},
-      expect: input.expect,
-      preservation,
-      exploratory,
-      results: checks.map((c) => ({ name: c.name, pass: c.pass, tightness: c.tightness })),
-    },
-    sessionId: origin.kind === 'agent' ? origin.sessionId : null,
-  });
-  ctx.jobLog(
-    job.id,
-    [
-      ...checks.map((c) => `${c.pass ? 'PASS' : 'FAIL'} ${c.name} — ${c.detail}`),
-      ...(dropped.length
-        ? [
-            `WEAKENED: dropped previously failing assertions on unchanged geometry: ${dropped.join('; ')}`,
-          ]
-        : []),
-      ...(loosened.length
-        ? [
-            `WEAKENED: loosened tolerance on assertions that previously failed: ${loosened.join('; ')}`,
-          ]
-        : []),
-    ].join('\n'),
-  );
-  ctx.jobStatus(job.id, pass ? 'succeeded' : 'failed', {
-    outputHashes: { verification: evidenceHash },
-    error: pass
-      ? undefined
-      : {
-          code: ErrorCodes.VALIDATION,
-          message: `${checks.length - passed} of ${checks.length} checks failed`,
-        },
-  });
-  const weakenedNote =
-    (dropped.length
-      ? ` WARNING — this run dropped ${dropped.length} assertion(s) that FAILED on this same geometry earlier (${dropped.join('; ')}). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source.`
-      : '') +
-    (loosened.length
-      ? ` WARNING — this run passed ${loosened.length} assertion(s) only after loosening the tolerance (${loosened.join('; ')}). Tightening the geometry or stating why the looser bound is the real requirement is required before calling this verified.`
-      : '');
-  return {
-    artifactId: m.artifact.id,
-    revisionId: m.rev.id,
-    pass,
-    passed,
-    total: checks.length,
-    verificationStatus: evidence.status,
-    evidenceHash,
-    specHash: evidence.specHash,
-    scopeChanges: evidence.scopeChanges,
-    checks,
-    ...(dropped.length ? { droppedFailingAssertions: dropped } : {}),
-    ...(loosened.length ? { loosenedAssertions: loosened } : {}),
-    ...(exploratory ? { exploratory: true } : {}),
-    work: {
-      artifactId: work.artifactId,
-      candidateRevisionId: work.candidateRevisionId,
-      specHash: work.specHash,
-      nextAction: work.nextAction,
-    },
-    next:
-      (exploratory
-        ? 'Exploratory check: this did not bind or replace the committed request assertion spec. Do not report verified completion from it. Use cad.check without exploratory to commit the request-bound assertions.'
-        : evidence.status === 'failed'
-          ? pass
-            ? 'Mandatory geometry integrity failed. Dimensional assertions alone cannot establish verification.'
-            : 'A failed check means the geometry or reference is wrong: fix the source and repeat the same expectations. Do not change assertions merely to obtain a pass.'
-          : evidence.status === 'unverified'
-            ? 'This check used an uncommitted or temporary render variant; commit the intended input and check that exact revision. Do not report verified completion.'
-            : evidence.status === 'scope_changed'
-              ? `Verification scope changed (${evidence.scopeChanges.join(', ')}). Restore the committed request assertions or request explicit human acceptance of changed requirements. This result is not verified-ready. Do not claim the part is verified.`
-              : evidence.status === 'partial'
-                ? 'Only generic integrity was checked. Add the requested dimensions/features; this result is not verified-ready.'
-                : 'All declared checks pass for this exact revision. Summarize the covered assertions and unassessed requirements; human approval remains a separate step.') +
-      weakenedNote,
-  };
+      pass,
+      passed,
+      total: checks.length,
+      evidenceHash,
+      specHash: evidence.specHash,
+      scopeChanges: evidence.scopeChanges,
+      checks,
+      ...(dropped.length ? { droppedFailingAssertions: dropped } : {}),
+      ...(loosened.length ? { loosenedAssertions: loosened } : {}),
+      ...(exploratory ? { exploratory: true } : {}),
+      work: {
+        artifactId: work.artifactId,
+        candidateRevisionId: work.candidateRevisionId,
+        specHash: work.specHash,
+        nextAction: work.nextAction,
+      },
+    };
+  } catch (error) {
+    const failure = OmenflowError.from(error);
+    ctx.jobStatus(job.id, failure.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+      error: failure.toBody(),
+    });
+    throw failure;
+  } finally {
+    ctx.jobCancels.delete(job.id);
+  }
 }
 
 function countOccurrences(haystack: string, needle: string): number {

@@ -172,7 +172,10 @@ export class MathJsCalcEngine implements CalcEngine {
       out = def.dim === 'dimensionless' ? '1' : def.name;
     }
 
-    const reply = await this.runWorker({ expression, inputs: marshalled, outputUnit: out }, opts?.signal);
+    const reply = await this.runWorker(
+      { expression, inputs: marshalled, outputUnit: out },
+      opts?.signal,
+    );
     if (!reply.ok) {
       const code =
         reply.code === 'INVALID_UNITS' ? ErrorCodes.INVALID_UNITS : ErrorCodes.VALIDATION;

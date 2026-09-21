@@ -448,7 +448,7 @@ const cadCheck = z.object({
     .boolean()
     .optional()
     .describe(
-      'If true, measure without binding or replacing the committed request assertion spec. Use cad.inspect for most diagnostics. Default false: this check is request-bound.',
+      'Use true on the first check for a new request to trial the complete request-derived expectations without binding them. Fix source that violates the request; correct mistaken assertions only against the request, never to fit measured output. After the trial passes, repeat the same complete expect with false to commit verification. Existing committed scope remains binding. Default false: request-bound.',
     ),
 });
 const cadExport = z.object({

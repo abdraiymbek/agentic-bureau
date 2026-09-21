@@ -106,7 +106,10 @@ describe('terminal lifecycle invariants', () => {
 });
 
 describe('replacement proposal supersession', () => {
-  async function noteDraft(call: (op: string, payload: unknown) => Promise<unknown>, title: string) {
+  async function noteDraft(
+    call: (op: string, payload: unknown) => Promise<unknown>,
+    title: string,
+  ) {
     return (await call('artifact.create_draft', {
       type: 'note',
       title,
@@ -197,7 +200,9 @@ describe('replacement proposal supersession', () => {
     expect(ctx.repo.getProposal(first.id)?.impact?.supersededByProposalId).toBe(replacement.id);
     expect(ctx.repo.getRevision(holes.revision.id)?.reviewState).toBe('superseded');
     expect(ctx.repo.getProposal(otherProposal.id)?.state).toBe('changes_requested');
-    expect(ctx.repo.listProposals('changes_requested').map((p) => p.id)).toEqual([otherProposal.id]);
+    expect(ctx.repo.listProposals('changes_requested').map((p) => p.id)).toEqual([
+      otherProposal.id,
+    ]);
 
     await call('proposal.approve', {
       proposalId: replacement.id,

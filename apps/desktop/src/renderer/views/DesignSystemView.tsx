@@ -136,11 +136,17 @@ export function DesignSystemView() {
           the existing labeled notices.
         </p>
         <div className="ds-example-row">
-          {['approved', 'pending', 'draft', 'stale', 'missing_input', 'rejected', 'experimental'].map(
-            (state) => (
+          {[
+            'approved',
+            'pending',
+            'draft',
+            'stale',
+            'missing_input',
+            'rejected',
+            'experimental',
+          ].map((state) => (
             <StatusBadge key={state} state={state} />
-            ),
-          )}
+          ))}
         </div>
         <div className="inline-notice warning">
           <div className="row">
@@ -151,8 +157,8 @@ export function DesignSystemView() {
           this result.
         </div>
         <div className="inline-notice warning" role="alert">
-          artifact.apply_edit: Working file diverged — review the conflict candidate. The source
-          was left unchanged.
+          artifact.apply_edit: Working file diverged — review the conflict candidate. The source was
+          left unchanged.
           <span className="mono dim"> REVISION_CONFLICT</span>
         </div>
         <p className="ds-note">

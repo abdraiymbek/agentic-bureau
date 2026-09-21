@@ -101,10 +101,7 @@ function submitProposalImpl(
   return proposal;
 }
 
-function changesRequestedReplacedBy(
-  ctx: ProjectContext,
-  changes: ProposedChange[],
-): Proposal[] {
+function changesRequestedReplacedBy(ctx: ProjectContext, changes: ProposedChange[]): Proposal[] {
   const artifactIds = new Set(changes.map((c) => c.artifactId));
   return ctx.repo
     .listProposals('changes_requested')
@@ -122,18 +119,13 @@ function retireReplacedChangeRequests(
 ): void {
   for (const previous of replaced) {
     const rationale = `Superseded by replacement proposal ${replacement.id}`;
-    ctx.repo.updateProposalState(
-      previous.id,
-      'superseded',
-      rationale,
-      {
-        ...(previous.impact ?? {
-          affectedArtifactIds: [],
-          summary: previous.reason,
-        }),
-        supersededByProposalId: replacement.id,
-      },
-    );
+    ctx.repo.updateProposalState(previous.id, 'superseded', rationale, {
+      ...(previous.impact ?? {
+        affectedArtifactIds: [],
+        summary: previous.reason,
+      }),
+      supersededByProposalId: replacement.id,
+    });
     for (const change of previous.changes) {
       const rev = ctx.repo.getRevision(change.newRevisionId);
       if (rev?.reviewState === 'proposed') ctx.repo.setRevisionState(rev.id, 'superseded');

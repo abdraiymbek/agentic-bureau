@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { cmd, errMsg, CommandError } from '../api';
 import { useStore } from '../store';
 import type {
@@ -6,6 +6,7 @@ import type {
   RequirementPayload,
   AssumptionPayload,
   Revision,
+  ImpactReport,
 } from '@omenflow/contracts';
 import {
   ArtifactIcon,
@@ -172,9 +173,9 @@ function RequirementEditor(props: {
   const [targetUnit, setTargetUnit] = useState(t0 && !('unknown' in t0) ? t0.unit : 'g');
   const [acceptance, setAcceptance] = useState(p.acceptanceCriterion ?? '');
   const [priority, setPriority] = useState(p.priority ?? 'should');
-  const [impact, setImpact] = useState<{ affected: { title: string; reason: string }[] } | null>(
-    null,
-  );
+  const [impact, setImpact] = useState<ImpactReport | null>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
+  const impactGeneration = useRef(0);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -187,6 +188,12 @@ function RequirementEditor(props: {
     setPriority(pp.priority ?? 'should');
     setDirty(false);
     setImpact(null);
+    setImpactLoading(false);
+    const pending = impactGeneration;
+    pending.current++;
+    return () => {
+      pending.current++;
+    };
   }, [view.revision?.id, view.revision?.payload]);
 
   const save = async () => {
@@ -223,12 +230,27 @@ function RequirementEditor(props: {
     }
   };
 
-  const previewImpact = async () => {
+  const previewImpact = async (append = false) => {
     if (!view.revision) return;
-    const r = await cmd<{ affected: { title: string; reason: string }[] }>('graph.impact', {
-      refs: [{ artifactId: view.artifact.id, revisionId: view.revision.id }],
-    });
-    setImpact(r);
+    const generation = ++impactGeneration.current;
+    setImpactLoading(true);
+    try {
+      const r = await cmd<ImpactReport>(
+        'graph.impact',
+        {
+          refs: [{ artifactId: view.artifact.id, revisionId: view.revision.id }],
+          offset: append ? (impact?.affected.length ?? 0) : 0,
+          includePaths: false,
+        },
+        { projectId: useStore.getState().projectId ?? undefined },
+      );
+      if (generation === impactGeneration.current)
+        setImpact(append && impact ? { ...r, affected: [...impact.affected, ...r.affected] } : r);
+    } catch (error) {
+      if (generation === impactGeneration.current) props.toast('error', errMsg(error));
+    } finally {
+      if (generation === impactGeneration.current) setImpactLoading(false);
+    }
   };
 
   return (
@@ -321,7 +343,9 @@ function RequirementEditor(props: {
         <button className="primary" onClick={save} disabled={!dirty}>
           Save requirement
         </button>
-        <button onClick={previewImpact}>Preview impact</button>
+        <button onClick={() => void previewImpact()} disabled={impactLoading}>
+          Preview impact
+        </button>
       </div>
       {impact && (
         <div
@@ -336,6 +360,16 @@ function RequirementEditor(props: {
               {a.title} <span className="warn">— {a.reason}</span>
             </div>
           ))}
+          {impact.hasMore && (
+            <div className="form-actions">
+              <span className="dim">
+                Showing {impact.affected.length} of {impact.totalAffected} affected objects
+              </span>
+              <button disabled={impactLoading} onClick={() => void previewImpact(true)}>
+                Load more
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

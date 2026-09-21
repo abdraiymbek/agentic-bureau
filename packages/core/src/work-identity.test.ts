@@ -90,6 +90,30 @@ async function project(onRender?: () => void) {
 }
 
 describe('request-bound work identity', () => {
+  it('cancels a running verification worker without publishing evidence or active work', async () => {
+    const { ctx, call } = await project();
+    const written = await call<CadReport>('cad.write_source', {
+      title: 'Block',
+      source: 'cube(10);',
+    });
+    const pending = call('cad.check', {
+      artifactId: written.artifactId,
+      expect: { shells: 1, bbox: { min: [0, 0, 0], max: [10, 10, 2] } },
+    });
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const job = ctx.repo.listJobs().find((j) => j.kind === 'cad_check');
+    expect(job?.status).toBe('running');
+    ctx.cancelJob(job!.id);
+    await rejected;
+    expect(ctx.repo.getJob(job!.id)?.status).toBe('cancelled');
+    expect(ctx.repo.getJob(job!.id)?.outputHashes).toEqual({});
+    expect(readActiveWork(ctx)).toBeNull();
+    expect(latestCadVerification(ctx, ctx.requireRevision(written.revisionId)).status).toBe(
+      'unverified',
+    );
+  });
+
   it('binds committed assertions and ignores exploratory diagnostics', async () => {
     const { ctx, call } = await project();
     const written = await call<CadReport>('cad.write_source', {
@@ -97,6 +121,7 @@ describe('request-bound work identity', () => {
       source: 'cube(10);',
     });
     const committed = await call<{
+      ready: boolean;
       verificationStatus: string;
       work: { nextAction: string; specHash: string };
     }>('cad.check', {
@@ -104,9 +129,11 @@ describe('request-bound work identity', () => {
       expect: { shells: 1, bbox: { min: [0, 0, 0], max: [10, 10, 2], tol: 0.5 } },
     });
     expect(committed.verificationStatus).toBe('passed');
+    expect(committed.ready).toBe(true);
     expect(committed.work.nextAction).toBe('request_review');
     expect(committed.work.specHash).toBeTruthy();
     const exploratory = await call<{
+      ready: boolean;
       verificationStatus: string;
       exploratory?: boolean;
       work: { nextAction: string; specHash: string };
@@ -116,12 +143,16 @@ describe('request-bound work identity', () => {
       expect: { shells: 1 },
     });
     expect(exploratory.exploratory).toBe(true);
+    expect(exploratory.ready).toBe(false);
     expect(exploratory.work.specHash).toBe(committed.work.specHash);
     expect(exploratory.work.nextAction).toBe('commit_assertions');
     expect(latestCadVerification(ctx, ctx.requireRevision(written.revisionId)).status).toBe(
       'passed',
     );
     const dropped = await call<{
+      ready: boolean;
+      pass: boolean;
+      next: string;
       verificationStatus: string;
       work: { nextAction: string };
     }>('cad.check', {
@@ -129,6 +160,9 @@ describe('request-bound work identity', () => {
       expect: { shells: 1 },
     });
     expect(dropped.verificationStatus).toBe('scope_changed');
+    expect(dropped.ready).toBe(false);
+    expect(dropped.pass).toBe(true); // legacy per-assertion result is still available
+    expect(dropped.next).toContain('NOT VERIFIED');
     expect(dropped.work.nextAction).toBe('restore_assertions');
     expect(readActiveWork(ctx)?.specHash).toBe(committed.work.specHash);
   });

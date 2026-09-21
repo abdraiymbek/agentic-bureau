@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { build, defineConfig, type Plugin } from 'vite';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ const pkg = (name: string) => path.join(root, '..', '..', 'packages', name, 'src
 function copyHelpers(): Plugin {
   return {
     name: 'copy-utility-helpers',
-    writeBundle() {
+    async writeBundle() {
       const out = path.join(root, 'resources', 'core');
       const pairs: [string, string][] = [
         [
@@ -30,6 +30,23 @@ function copyHelpers(): Plugin {
           fs.chmodSync(dest, 0o755);
         }
       }
+      // A separate entry prevents the worker from importing utility.js (which
+      // would start another bridge/core) and preserves isolation in the package.
+      await build({
+        configFile: false,
+        resolve: { alias: { '@omenflow/contracts': pkg('contracts') } },
+        ssr: { noExternal: true },
+        build: {
+          ssr: path.join(root, '..', '..', 'packages', 'core', 'src', 'mesh-worker.ts'),
+          outDir: out,
+          emptyOutDir: false,
+          target: 'node20',
+          sourcemap: true,
+          rollupOptions: {
+            output: { format: 'es', entryFileNames: 'mesh-worker.mjs', inlineDynamicImports: true },
+          },
+        },
+      });
     },
   };
 }
