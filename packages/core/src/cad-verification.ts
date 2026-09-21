@@ -10,7 +10,7 @@ import type { ProjectContext } from './context.js';
 import type { CheckResult } from './cad-checks.js';
 import { renderMatchesInput, type RenderIdentity } from './cad-input.js';
 
-export const CAD_CHECKER_VERSION = 'omenflow-mesh-checks-v3';
+export const CAD_CHECKER_VERSION = 'omenflow-mesh-checks-v4';
 export type CadVerificationStatus =
   'passed' | 'partial' | 'failed' | 'scope_changed' | 'unverified';
 export interface CadVerificationEvidence {
@@ -194,7 +194,8 @@ export function createCadVerificationEvidence(
       ? 'failed'
       : !renderMatchesInput(revision.payload as MechanicalPayload, revision.files) ||
           (revision.payload as MechanicalPayload).renderIdentity?.inputFingerprint !==
-            identity.inputFingerprint
+            identity.inputFingerprint ||
+          (revision.payload as MechanicalPayload).renderIdentity?.outputHash !== identity.outputHash
         ? 'unverified'
         : scopeChanges.size
           ? 'scope_changed'

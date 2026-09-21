@@ -6,6 +6,7 @@ import path from 'node:path';
 import { CoreApp, nullHost } from '@omenflow/core';
 import { createEngineTools } from '@omenflow/engineering';
 import type { Expectation } from '@omenflow/contracts';
+import { canonicalScadRef } from '../../packages/core/src/cad-input.js';
 import { CAD_CHECKER_VERSION } from '../../packages/core/src/cad-verification.js';
 import { evaluateProject, type TaskResult } from './harness.js';
 import { TASKS } from './tasks.js';
@@ -49,11 +50,27 @@ async function main() {
           const oldEvidence = JSON.parse(
             ctx.objects.read(original.metrics.verificationEvidenceHash!).toString('utf8'),
           ) as { expect: Expectation; checkerVersion: string };
+          // Preserve the provider's source and parameters, but commit a new render
+          // using the current engine format/metadata. Historical render bytes may
+          // predate binary STL and cannot be relabeled as the new output hash.
+          const originalSource = canonicalScadRef(revision)!;
+          if (!originalSource.sha256) throw new Error('Original source hash missing');
+          const source = ctx.objects.read(originalSource.sha256).toString('utf8');
+          const rendered = (await app.dispatch(
+            'cad.write_source',
+            {
+              artifactId: revision.artifactId,
+              source,
+            },
+            user,
+            projectId,
+          )) as { revisionId: string };
+          const renderingRevision = ctx.requireRevision(rendered.revisionId);
           const fresh = (await app.dispatch(
             'cad.check',
             {
               artifactId: revision.artifactId,
-              revisionId: revision.id,
+              revisionId: renderingRevision.id,
               expect: oldEvidence.expect,
             },
             user,
@@ -66,7 +83,11 @@ async function main() {
             task.seed ? revision.artifactId : null,
             dir,
           );
-          const unchanged = ctx.repo.getRevision(revision.id)?.contentHash === revision.contentHash;
+          const unchanged =
+            ctx.repo.getRevision(revision.id)?.contentHash === revision.contentHash &&
+            canonicalScadRef(renderingRevision)?.sha256 === originalSource.sha256 &&
+            JSON.stringify((renderingRevision.payload as { params: unknown }).params) ===
+              JSON.stringify((revision.payload as { params: unknown }).params);
           const result = {
             taskId: task.id,
             run,
@@ -74,6 +95,8 @@ async function main() {
             originalChecker: oldEvidence.checkerVersion,
             checker: CAD_CHECKER_VERSION,
             sourceAndRevisionUnchanged: unchanged,
+            originalRevisionId: revision.id,
+            renderingRevisionId: renderingRevision.id,
             ready: fresh.ready,
             verificationStatus: fresh.verificationStatus,
             evidenceHash: fresh.evidenceHash,

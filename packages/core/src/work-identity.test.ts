@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Origin } from '@omenflow/contracts';
+import type { Origin, MechanicalPayload } from '@omenflow/contracts';
 import { CoreApp, nullHost, writeBinaryStl, parseStlTriangles, analyzeMesh } from './index.js';
-import { latestCadVerification } from './cad-verification.js';
+import { latestCadVerification, createCadVerificationEvidence } from './cad-verification.js';
 import { readActiveWork } from './work.js';
 import type { CadAdapter } from './tools.js';
 import type { CadReport } from './cad.js';
@@ -90,6 +90,84 @@ async function project(onRender?: () => void) {
 }
 
 describe('request-bound work identity', () => {
+  it('requires the checked output hash to match the stored revision, even for identical inputs', async () => {
+    const { ctx, call } = await project();
+    const part = await call<CadReport>('cad.write_source', { title: 'Block', source: 'cube(10);' });
+    const revision = ctx.requireRevision(part.revisionId);
+    const identity = (revision.payload as MechanicalPayload).renderIdentity!;
+    const evidence = createCadVerificationEvidence(
+      ctx,
+      revision,
+      { ...identity, outputHash: 'a'.repeat(64) },
+      { shells: 1 },
+      [{ name: 'single body', pass: true, detail: '1 shell' }],
+      { pass: true, detail: 'valid mesh' },
+    );
+    expect(evidence.pass).toBe(true);
+    expect(evidence.status).toBe('unverified');
+  });
+
+  it('does not certify inverted source after display normalization, cache reuse or legacy reopen', async () => {
+    const { ctx, call } = await project();
+    const original = ctx.tools.cad!;
+    let renders = 0;
+    ctx.tools.cad = {
+      ...original,
+      async render(spec, onLog) {
+        renders++;
+        const result = await original.render(spec, onLog);
+        if (fs.readFileSync(spec.scadPath, 'utf8').includes('INVERTED')) {
+          const tris = parseStlTriangles(fs.readFileSync(spec.outPath));
+          for (let i = 0; i < tris.length; i += 9)
+            for (let axis = 0; axis < 3; axis++) {
+              const at = i + 3 + axis;
+              [tris[at], tris[at + 3]] = [tris[at + 3]!, tris[at]!];
+            }
+          fs.writeFileSync(spec.outPath, writeBinaryStl(tris));
+        }
+        return result;
+      },
+    };
+    const source = '// INVERTED\ncube(10);';
+    let part = await call<CadReport>('cad.write_source', { title: 'Inverted', source });
+    expect(part.notes.join(' ')).toContain('NOT VERIFIED');
+    const expectBox = { shells: 1, bbox: { min: [0, 0, 0], max: [10, 10, 2] } };
+    const check = () =>
+      call<{ ready: boolean; verificationStatus: string }>('cad.check', {
+        artifactId: part.artifactId,
+        expect: expectBox,
+      });
+    expect(await check()).toMatchObject({ ready: false, verificationStatus: 'failed' });
+    part = await call<CadReport>('cad.write_source', { artifactId: part.artifactId, source });
+    expect(renders).toBe(1);
+    expect(part.notes.join(' ')).toContain('NOT VERIFIED');
+    expect(await check()).toMatchObject({ ready: false, verificationStatus: 'failed' });
+
+    // Older stored renders/cache manifests lack the original winding flag. They
+    // must be rendered again, not assumed valid because their display STL is outward.
+    const rev = ctx.requireRevision(part.revisionId);
+    const legacy = JSON.parse(JSON.stringify(rev.payload));
+    delete legacy.renderIdentity.sourceOrientationCorrected;
+    ctx.repo.db
+      .prepare('UPDATE revision SET payload=? WHERE id=?')
+      .run(JSON.stringify(legacy), rev.id);
+    const manifest = ctx.resolvePath(
+      `.omenflow/cache/render-v1/${legacy.renderIdentity.inputFingerprint}/complete.json`,
+    );
+    const cache = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+    delete cache.sourceOrientationCorrected;
+    fs.writeFileSync(manifest, JSON.stringify(cache));
+    expect(await check()).toMatchObject({ ready: false, verificationStatus: 'failed' });
+    expect(renders).toBe(2);
+    expect(latestCadVerification(ctx, ctx.requireRevision(part.revisionId)).status).toBe('failed');
+
+    part = await call<CadReport>('cad.write_source', {
+      artifactId: part.artifactId,
+      source: 'cube(10);',
+    });
+    expect(await check()).toMatchObject({ ready: true, verificationStatus: 'passed' });
+  });
+
   it('requires rechecking evidence from the retired geometry checker', async () => {
     const { ctx, call } = await project();
     const part = await call<CadReport>('cad.write_source', { title: 'Block', source: 'cube(10);' });

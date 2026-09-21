@@ -280,7 +280,11 @@ async function renderSource(
     const cacheDir = ctx.resolvePath(`.omenflow/cache/render-v1/${fingerprint}`);
     const cachedStl = path.join(cacheDir, 'output.stl');
     const manifest = path.join(cacheDir, 'complete.json');
-    const finishMesh = async (stl: Buffer, cached: boolean): Promise<RenderOutcome> => {
+    const finishMesh = async (
+      stl: Buffer,
+      cached: boolean,
+      originalOrientationCorrected?: boolean,
+    ): Promise<RenderOutcome> => {
       assertMeshByteLimit(stl.byteLength);
       if (!cad.inspectStl(stl).plausible)
         throw new OmenflowError(
@@ -297,7 +301,13 @@ async function renderSource(
         ...classifyLog(log),
         log,
         ...oriented,
-        identity: { ...identityBase, inputFingerprint: fingerprint, outputHash },
+        oriented: originalOrientationCorrected ?? oriented.oriented,
+        identity: {
+          ...identityBase,
+          inputFingerprint: fingerprint,
+          outputHash,
+          sourceOrientationCorrected: originalOrientationCorrected ?? oriented.oriented,
+        },
       };
     };
     // A cache entry is visible only after output + manifest have been atomically published.
@@ -307,16 +317,18 @@ async function renderSource(
           fingerprint: string;
           outputHash: string;
           log: string;
+          sourceOrientationCorrected?: boolean;
         };
         assertMeshByteLimit(fs.statSync(cachedStl).size);
         const stl = fs.readFileSync(cachedStl);
         if (
           stored.fingerprint === fingerprint &&
+          typeof stored.sourceOrientationCorrected === 'boolean' &&
           createHash('sha256').update(stl).digest('hex') === stored.outputHash
         ) {
           log = stored.log;
           ctx.assertJobActive(job.id);
-          const outcome = await finishMesh(stl, true);
+          const outcome = await finishMesh(stl, true, stored.sourceOrientationCorrected);
           return { outcome, job };
         }
       } catch {
@@ -413,7 +425,12 @@ async function renderSource(
     fs.writeFileSync(outPath, outcome.stl!);
     fs.writeFileSync(
       path.join(workDir, 'complete.json'),
-      JSON.stringify({ fingerprint, outputHash: outcome.identity!.outputHash, log }),
+      JSON.stringify({
+        fingerprint,
+        outputHash: outcome.identity!.outputHash,
+        log,
+        sourceOrientationCorrected: outcome.identity!.sourceOrientationCorrected,
+      }),
     );
     fs.mkdirSync(path.dirname(cacheDir), { recursive: true });
     // Concurrent renders use separate directories. A complete winner may be reused.
@@ -556,7 +573,7 @@ function buildReport(args: {
   base.notes = args.details.notes;
   if (args.outcome.oriented) {
     base.notes.unshift(
-      'Mesh was inside-out; oriented so signed volume is positive (watertight only — open meshes are not flipped).',
+      'NOT VERIFIED: the source produces inside-out geometry. The display mesh was normalized, but source winding must be fixed before verification. For OpenSCAD polyhedron(), list each face clockwise when viewed from outside; reverse every face if the whole body is inverted. Rewrite the source, then repeat the requested checks.',
     );
   }
   if (args.injectedFn) {
@@ -889,6 +906,7 @@ async function resolveMesh(
   if (
     Object.keys(overrides).length === 0 &&
     renderMatchesInput(payload, rev.files) &&
+    typeof payload.renderIdentity?.sourceOrientationCorrected === 'boolean' &&
     stl?.sha256 &&
     ctx.objects.has(stl.sha256)
   ) {
@@ -910,7 +928,7 @@ async function resolveMesh(
           log: '',
           stl: oriented.stl,
           tris: oriented.tris,
-          oriented: oriented.oriented,
+          oriented: payload.renderIdentity.sourceOrientationCorrected || oriented.oriented,
           identity: payload.renderIdentity,
         },
       };
@@ -1061,6 +1079,14 @@ export async function cadCheck(
       controller.signal,
     );
     ctx.assertJobActive(job.id);
+    if (m.outcome.identity?.sourceOrientationCorrected) {
+      checks.push({
+        name: 'source winding',
+        pass: false,
+        detail:
+          'OpenSCAD source produces an inside-out mesh. Display normalization is not a source repair. Reverse the polyhedron face order (clockwise from outside), rewrite, and repeat the same requested assertions.',
+      });
+    }
     const changeRegions = input.expect.preserve?.changeRegions;
     let preservation:
       { revisionId: string; inputFingerprint: string; outputHash: string } | undefined;
@@ -1162,9 +1188,10 @@ export async function cadCheck(
         m.outcome.tris.every(Number.isFinite) &&
         integrityReport.topology.watertight &&
         !integrityReport.invertedNormals &&
+        m.outcome.identity?.sourceOrientationCorrected === false &&
         integrityReport.volume > 0,
       detail:
-        'Mandatory finite, nonempty, closed, positive-volume mesh; self-intersections and physical safety are only assessed where explicitly declared.',
+        'Mandatory finite, nonempty, closed, positive-volume mesh with outward source winding; display normalization cannot repair source validity. Self-intersections and physical safety are only assessed where explicitly declared.',
     };
     const bound = readActiveWork(ctx);
     const evidence = createCadVerificationEvidence(

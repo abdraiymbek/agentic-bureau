@@ -194,6 +194,8 @@ export const mechanicalPayload = z.object({
       options: z.string(),
       inputFingerprint: z.string(),
       outputHash: z.string(),
+      /** Display normalization must not hide inverted geometry from the source. */
+      sourceOrientationCorrected: z.boolean().optional(),
     })
     .optional(),
 });

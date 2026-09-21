@@ -84,6 +84,9 @@ through the tools so it is recorded as a revision.
 - Cutters in \`difference()\` must extend past the faces they cut (start below, end above);
   a cutter that ends exactly on a face leaves a zero-thickness skin.
 - Parts that must be one body need overlapping volumes; touching faces are not joined.
+- For \`polyhedron()\`, list face vertices **clockwise when viewed from outside**. An
+  inside-out source is not verified even if the display mesh was normalized. Reverse the
+  face winding, rewrite the source, and repeat the same checks; do not ignore that report.
 - \`rotate([90,0,0])\` turns a Z-axis cylinder to point along **−Y**; \`rotate([-90,0,0])\` → +Y;
   \`rotate([0,90,0])\` → +X. Check the report's cross-section on the axis you drilled through.
 - Blind depths are measured from the face being drilled into, so compute the hole's end
