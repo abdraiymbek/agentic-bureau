@@ -11,6 +11,69 @@
  * convention). No unit conversion happens here.
  */
 
+import { Worker } from 'node:worker_threads';
+import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
+
+/** Supported synchronous V0.1 mesh budget; 6 MB remains below 8 MiB after base64. */
+export const MAX_CAD_MESH_BYTES = 6_000_000;
+export const MAX_CAD_TRIANGLES = 100_000;
+export const MAX_INTERSECTION_PAIRS = 8_000_000;
+export const MAX_INTERSECTION_OVERLAP_PAIRS = 100_000;
+export const MAX_CAD_CHECK_TRIANGLE_VISITS = 10_000_000;
+export const MAX_CAD_CHECK_ASSERTIONS = 512;
+
+export function meshWorkLimit(operation: string, actual: number, limit: number): never {
+  throw new OmenflowError(
+    ErrorCodes.VALIDATION,
+    `${operation} exceeds the supported V0.1 work limit (${actual} > ${limit})`,
+    {
+      details: { reason: 'CAD_WORK_LIMIT', operation, actual, limit, status: 'not_evaluated' },
+      repair:
+        'Reduce tessellation, split the part/check into smaller supported operations, or omit this check while keeping its coverage explicitly unverified.',
+    },
+  );
+}
+
+export function assertMeshByteLimit(bytes: number): void {
+  if (bytes > MAX_CAD_MESH_BYTES) meshWorkLimit('STL byte size', bytes, MAX_CAD_MESH_BYTES);
+}
+
+export function assertTriangleLimit(tris: Float64Array): void {
+  if (tris.length % 9)
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Triangle buffer has incomplete vertices');
+  if (tris.length / 9 > MAX_CAD_TRIANGLES)
+    meshWorkLimit('Mesh triangles', tris.length / 9, MAX_CAD_TRIANGLES);
+}
+
+export function assertFiniteMesh(tris: Float64Array): void {
+  assertTriangleLimit(tris);
+  if (tris.some((value) => !Number.isFinite(value)))
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+}
+
+/** Requested inspection work plus at most five automatic section planes. */
+export function assertCadInspectionBudget(
+  tris: Float64Array,
+  probes: number,
+  sections: number,
+): void {
+  assertTriangleLimit(tris);
+  const count = probes + sections;
+  if (count > MAX_CAD_CHECK_ASSERTIONS)
+    meshWorkLimit('CAD inspection probes/sections', count, MAX_CAD_CHECK_ASSERTIONS);
+  const visits = (tris.length / 9) * (probes + (sections + 5) * 2);
+  if (visits > MAX_CAD_CHECK_TRIANGLE_VISITS)
+    meshWorkLimit('CAD inspection triangle visits', visits, MAX_CAD_CHECK_TRIANGLE_VISITS);
+}
+
+export function assertIntersectionBudget(tris: Float64Array): void {
+  assertTriangleLimit(tris);
+  const n = tris.length / 9;
+  const pairs = (n * (n - 1)) / 2;
+  if (pairs > MAX_INTERSECTION_PAIRS)
+    meshWorkLimit('Self-intersection candidate pairs', pairs, MAX_INTERSECTION_PAIRS);
+}
+
 export type Vec3 = [number, number, number];
 export type Axis = 'x' | 'y' | 'z';
 
@@ -24,24 +87,39 @@ const AXIS_INDEX: Record<Axis, number> = { x: 0, y: 1, z: 2 };
 /* ------------------------------------------------------------------ */
 
 export function parseStlTriangles(buf: Buffer): TriangleBuffer {
+  assertMeshByteLimit(buf.byteLength);
   if (buf.byteLength >= 84) {
     const count = buf.readUInt32LE(80);
     if (84 + count * 50 === buf.byteLength) {
+      if (count > MAX_CAD_TRIANGLES) meshWorkLimit('Mesh triangles', count, MAX_CAD_TRIANGLES);
       const out = new Float64Array(count * 9);
       for (let i = 0; i < count; i++) {
         const base = 84 + i * 50 + 12;
-        for (let k = 0; k < 9; k++) out[i * 9 + k] = buf.readFloatLE(base + k * 4);
+        for (let k = 0; k < 9; k++) {
+          const value = buf.readFloatLE(base + k * 4);
+          if (!Number.isFinite(value))
+            throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+          out[i * 9 + k] = value;
+        }
       }
       return out;
     }
   }
   const text = buf.toString('utf8');
   const vals: number[] = [];
-  const re = /vertex\s+([+-]?[\d.eE+-]+)\s+([+-]?[\d.eE+-]+)\s+([+-]?[\d.eE+-]+)/g;
+  const re = /vertex\s+(\S+)\s+(\S+)\s+(\S+)/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) vals.push(Number(m[1]), Number(m[2]), Number(m[3]));
-  const triCount = Math.floor(vals.length / 9);
-  return Float64Array.from(vals.slice(0, triCount * 9));
+  while ((m = re.exec(text)) !== null) {
+    if (vals.length + 3 > MAX_CAD_TRIANGLES * 9)
+      meshWorkLimit('Mesh triangles', (vals.length + 3) / 9, MAX_CAD_TRIANGLES);
+    const vertex = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (vertex.some((value) => !Number.isFinite(value)))
+      throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+    vals.push(...vertex);
+  }
+  if (vals.length % 9)
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'ASCII STL contains an incomplete triangle');
+  return Float64Array.from(vals);
 }
 
 export function triangleCount(tris: TriangleBuffer): number {
@@ -129,6 +207,7 @@ export interface TopologyReport {
 }
 
 export function topology(tris: TriangleBuffer): TopologyReport {
+  assertFiniteMesh(tris);
   const n = triangleCount(tris);
   const ids = new Map<string, number>();
   const idOf = (x: number, y: number, z: number): number => {
@@ -426,6 +505,7 @@ function dropCollinear(pts: [number, number][]): [number, number][] {
  * nesting, area, centroid, and circle/rectangle recognition.
  */
 export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): CrossSection {
+  assertFiniteMesh(tris);
   const k = AXIS_INDEX[axis];
   const [u, v] = [0, 1, 2].filter((i) => i !== k) as [number, number];
   const planeAxes: [Axis, Axis] = [
@@ -605,11 +685,8 @@ function planeBasis(n: Vec3): { u: Vec3; v: Vec3 } {
  * Slice the mesh with an arbitrary plane through `origin` with `normal`.
  * Axis-aligned normals reproduce `crossSection` loop geometry.
  */
-export function crossSectionPlane(
-  tris: TriangleBuffer,
-  origin: Vec3,
-  normal: Vec3,
-): CrossSection {
+export function crossSectionPlane(tris: TriangleBuffer, origin: Vec3, normal: Vec3): CrossSection {
+  assertFiniteMesh(tris);
   const n = norm3(normal);
   let ox = origin[0],
     oy = origin[1],
@@ -682,6 +759,7 @@ export interface MeshReport {
 }
 
 export function analyzeMesh(tris: TriangleBuffer): MeshReport {
+  assertFiniteMesh(tris);
   const sv = signedVolume(tris);
   return {
     triangles: triangleCount(tris),
@@ -691,6 +769,56 @@ export function analyzeMesh(tris: TriangleBuffer): MeshReport {
     invertedNormals: sv < 0,
     topology: topology(tris),
   };
+}
+
+/** Small fixtures stay in-process; larger or cancellable work uses a worker. */
+export const MESH_WORKER_MIN_TRIANGLES = 2_500;
+
+export async function analyzeMeshCancellable(
+  tris: TriangleBuffer,
+  signal?: AbortSignal,
+): Promise<MeshReport> {
+  if (signal?.aborted) throw new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled');
+  if (!signal && triangleCount(tris) < MESH_WORKER_MIN_TRIANGLES) return analyzeMesh(tris);
+  return runMeshWorker(tris, signal);
+}
+
+function runMeshWorker(tris: TriangleBuffer, signal?: AbortSignal): Promise<MeshReport> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let worker: Worker;
+    try {
+      worker = new Worker(new URL('./mesh-worker.mjs', import.meta.url), {
+        workerData: { tris, moduleHref: import.meta.url },
+      });
+    } catch {
+      if (signal?.aborted)
+        return reject(new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled'));
+      return resolve(analyzeMesh(tris));
+    }
+    const done = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', onAbort);
+      void worker.terminate();
+      fn();
+    };
+    const onAbort = () =>
+      done(() => reject(new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled')));
+    if (signal) {
+      if (signal.aborted) return onAbort();
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+    worker.once('message', (message: { ok?: boolean; report?: MeshReport }) => {
+      if (message?.ok && message.report) done(() => resolve(message.report!));
+      else if (signal?.aborted) onAbort();
+      else done(() => resolve(analyzeMesh(tris)));
+    });
+    worker.once('error', () => {
+      if (signal?.aborted) return onAbort();
+      done(() => resolve(analyzeMesh(tris)));
+    });
+  });
 }
 
 /**
@@ -718,6 +846,7 @@ export function orientTriangles(tris: TriangleBuffer): { tris: TriangleBuffer; f
 
 /** Binary STL for a triangle buffer (normals left zero; consumers recompute). */
 export function writeBinaryStl(tris: TriangleBuffer): Buffer {
+  assertFiniteMesh(tris);
   const n = triangleCount(tris);
   const buf = Buffer.alloc(84 + n * 50);
   buf.write('omenflow', 0, 'ascii');
@@ -790,13 +919,35 @@ function trianglesIntersect(tris: TriangleBuffer, i: number, j: number): boolean
   for (let e = 0; e < 3; e++) {
     const p = i + e * 3;
     const q = i + ((e + 1) % 3) * 3;
-    if (segmentHitsTriangle(tris[p]!, tris[p + 1]!, tris[p + 2]!, tris[q]!, tris[q + 1]!, tris[q + 2]!, tris, j))
+    if (
+      segmentHitsTriangle(
+        tris[p]!,
+        tris[p + 1]!,
+        tris[p + 2]!,
+        tris[q]!,
+        tris[q + 1]!,
+        tris[q + 2]!,
+        tris,
+        j,
+      )
+    )
       return true;
   }
   for (let e = 0; e < 3; e++) {
     const p = j + e * 3;
     const q = j + ((e + 1) % 3) * 3;
-    if (segmentHitsTriangle(tris[p]!, tris[p + 1]!, tris[p + 2]!, tris[q]!, tris[q + 1]!, tris[q + 2]!, tris, i))
+    if (
+      segmentHitsTriangle(
+        tris[p]!,
+        tris[p + 1]!,
+        tris[p + 2]!,
+        tris[q]!,
+        tris[q + 1]!,
+        tris[q + 2]!,
+        tris,
+        i,
+      )
+    )
       return true;
   }
   return false;
@@ -807,13 +958,22 @@ function trianglesIntersect(tris: TriangleBuffer, i: number, j: number): boolean
  * edge are ignored. Used to catch STL soup (overlapping bodies, self-piercing).
  */
 export function countIntersectingPairs(tris: TriangleBuffer): number {
+  assertIntersectionBudget(tris);
+  assertFiniteMesh(tris);
   const n = triangleCount(tris);
   const boxes = new Array<{ min: Vec3; max: Vec3 }>(n);
   for (let t = 0; t < n; t++) boxes[t] = triBBox(tris, t * 9);
   let count = 0;
+  let overlaps = 0;
   for (let a = 0; a < n; a++) {
     for (let b = a + 1; b < n; b++) {
       if (!boxesOverlap(boxes[a]!, boxes[b]!)) continue;
+      if (++overlaps > MAX_INTERSECTION_OVERLAP_PAIRS)
+        meshWorkLimit(
+          'Self-intersection overlapping pairs',
+          overlaps,
+          MAX_INTERSECTION_OVERLAP_PAIRS,
+        );
       const ia = a * 9,
         ib = b * 9;
       if (sharedVertices(tris, ia, ib) >= 2) continue;
@@ -828,10 +988,14 @@ export function countIntersectingPairs(tris: TriangleBuffer): number {
  * the inward normal to the next hit. Returns null when no opposite face is found.
  */
 export function minWallThickness(tris: TriangleBuffer, samples?: number): number | null {
+  assertFiniteMesh(tris);
   const n = triangleCount(tris);
   if (n === 0) return null;
   const inverted = signedVolume(tris) < 0;
   const step = samples && samples < n ? Math.max(1, Math.floor(n / samples)) : 1;
+  const visits = Math.ceil(n / step) * n;
+  if (visits > MAX_CAD_CHECK_TRIANGLE_VISITS)
+    meshWorkLimit('Wall-thickness triangle visits', visits, MAX_CAD_CHECK_TRIANGLE_VISITS);
   let minT = Infinity;
   for (let t = 0; t < n; t += step) {
     const i = t * 9;

@@ -94,11 +94,12 @@ const stateLabels: Record<string, string> = {
   selected: 'Selected',
   candidate: 'Candidate',
   superseded: 'Superseded',
+  experimental: 'Experimental',
 };
 export function StatusBadge({ state, label }: { state: string; label?: string }) {
   const tone = ['current', 'accepted', 'approved', 'selected', 'passed'].includes(state)
     ? 'ok'
-    : ['stale', 'pending', 'proposed', 'changes_requested'].includes(state)
+    : ['stale', 'pending', 'proposed', 'changes_requested', 'experimental'].includes(state)
       ? 'warn'
       : ['missing_input', 'rejected', 'failed'].includes(state)
         ? 'err'

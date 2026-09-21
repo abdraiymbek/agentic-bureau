@@ -1,0 +1,238 @@
+{
+  "node": "v24.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "toolSurface": {
+    "all": 100,
+    "offeredToAgent": 59,
+    "schemaChars": 6078
+  },
+  "source-mesh-divergence": {
+    "result": {
+      "fileSource": "cube([20,10,10]);",
+      "cadSource": "cube([10,10,10]);",
+      "geometry": {
+        "unit": "mm",
+        "bounds": {
+          "min": [0, 0, 0],
+          "max": [10, 10, 10],
+          "size": [10, 10, 10]
+        },
+        "volume": 1000,
+        "surfaceArea": 600,
+        "triangles": 12,
+        "watertight": true,
+        "shells": 1
+      },
+      "oldGeometryCheckPass": true,
+      "freshness": {
+        "freshness": "current",
+        "reasons": []
+      },
+      "build": {
+        "artifacts": 1,
+        "ready": 1,
+        "withIssues": 0,
+        "noBaseline": 0
+      },
+      "payloadScad": "8ad35bc9214490d99641f10a383779c69bd3f1c6b171f50469647e82cebac475",
+      "fileScad": "94f9f66d705af6fb3356a56ffdbb1c5b0adacf175de67dce4a495a30ffe4f030"
+    },
+    "ms": 572
+  },
+  "parameter-override-and-compose": {
+    "result": {
+      "initialSize": [20, 10, 10],
+      "setSize": [20, 10, 10],
+      "source": "width=30; cube([width,10,10]);",
+      "recordedParams": {
+        "width": 20
+      },
+      "composedSize": [30, 10, 10],
+      "composedInputs": [],
+      "edges": 0
+    },
+    "ms": 698
+  },
+  "weak-checks": {
+    "result": {
+      "failed": false,
+      "dropped": {
+        "pass": true,
+        "total": 1,
+        "warning": ["bounding box"]
+      },
+      "afterRevision": {
+        "pass": true
+      },
+      "build": {
+        "artifacts": 1,
+        "ready": 1,
+        "withIssues": 0,
+        "noBaseline": 0
+      }
+    },
+    "ms": 546
+  },
+  "graph-freshness-and-cycles": {
+    "result": {
+      "afterChange": {
+        "b": "stale",
+        "c": "current"
+      },
+      "afterRevert": "current",
+      "cycleAccepted": true,
+      "afterArchiveB": "current"
+    },
+    "ms": 6
+  },
+  "proposal-conflict-bypass": {
+    "result": {
+      "acceptedOverNewerBaseline": true,
+      "userRevision": "444011fc-bda2-4551-93f5-6562356cab61"
+    },
+    "ms": 3
+  },
+  "partial-mutation": {
+    "result": {
+      "error": "OmenflowError: Invalid requirement payload \u2014 statement: Required",
+      "orphanArtifacts": 1,
+      "firstRevisionState": "proposed",
+      "proposalCount": 0
+    },
+    "ms": 1
+  },
+  "retry-idempotency": {
+    "result": {
+      "artifacts": 2,
+      "ids": ["a22c7185-251c-43d3-839f-26fce0497b8b", "aece62c2-5a4d-408a-b248-2acba7dff256"],
+      "stored": true
+    },
+    "ms": 1
+  },
+  "filesystem-boundary": {
+    "result": {
+      "outsideRead": "AUDIT-NON-SECRET",
+      "internalWrite": true,
+      "initialTraversalError": "OmenflowError: Path escapes project: ../recovered-outside.txt",
+      "pendingTraversal": 1,
+      "outsideWrittenOnReopen": true
+    },
+    "ms": 4
+  },
+  "archive-overwrite-and-terminal": {
+    "result": {
+      "existingFileOverwritten": true,
+      "declaredExcludes": ["credentials", "machine settings", "cache", "work", "terminal logs"],
+      "terminalInSnapshot": true,
+      "terminalInDatabase": true
+    },
+    "ms": 14
+  },
+  "readonly-and-app-gate": {
+    "result": {
+      "readOnly": true,
+      "nameAfterAgentRename": "Changed by agent origin"
+    },
+    "ms": 1
+  },
+  "event-cursor": {
+    "result": {
+      "returned": 500,
+      "lastReturned": 500,
+      "advertisedLatest": 611,
+      "nextReturned": 0,
+      "skipped": 111
+    },
+    "ms": 21
+  },
+  "summary-budget": {
+    "result": {
+      "requestedBudget": 1000,
+      "actualChars": 20360
+    },
+    "ms": 0
+  },
+  "rejected-revision-target": {
+    "result": {
+      "selectedSource": "cube(20);",
+      "selectedReviewState": "rejected",
+      "isBaseline": false
+    },
+    "ms": 547
+  },
+  "calculation-binding": {
+    "result": {
+      "claimedInputMass": 1,
+      "computed": {
+        "value": 99,
+        "unit": "kg"
+      },
+      "dimensionalError": "OmenflowError: Units do not match ('m' != '6 m^2')"
+    },
+    "ms": 670
+  },
+  "revocation-existing-connection": {
+    "result": {
+      "tokenRemoved": true,
+      "requestAfterRevokeSucceeded": true,
+      "artifacts": 1
+    },
+    "ms": 3
+  },
+  "cancel-during-probe": {
+    "result": {
+      "initialCancelStatus": "cancelled",
+      "finalStatus": "succeeded",
+      "revisions": 2
+    },
+    "ms": 571
+  },
+  "duplicate-open-and-file-metadata": {
+    "result": {
+      "sameId": true,
+      "liveJobAfterDuplicateOpen": "interrupted",
+      "databaseName": "Renamed",
+      "markerName": "duplicate-open-and-file-metadata"
+    },
+    "ms": 1
+  },
+  "invalid-geometry-repair": {
+    "result": {
+      "syntax": {
+        "ok": false,
+        "tool": "openscad 2026.09.18",
+        "ms": 90,
+        "warnings": [],
+        "errors": [
+          "ERROR: Parser error: syntax error in file input.scad, line 1",
+          "Can't parse file '/private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omen-audit-probes-0SKLxA/invalid-geometry-repair/project/.omenflow/cache/render/50c94d185ab5a4b551818ba2/input.scad'!"
+        ],
+        "error": "ERROR: Parser error: syntax error in file input.scad, line 1"
+      },
+      "empty": {
+        "ok": false,
+        "tool": "openscad 2026.09.18",
+        "ms": 93,
+        "warnings": [],
+        "errors": ["Current top level object is empty."],
+        "error": "OpenSCAD produced no geometry: the top-level object is empty (a difference() removed everything, a size is zero/undef, or nothing is instantiated at file scope)."
+      },
+      "repaired": {
+        "min": [0, 0, 0],
+        "max": [12, 10, 10],
+        "size": [12, 10, 10]
+      },
+      "baselinePreserved": true,
+      "revisions": 4
+    },
+    "ms": 747
+  },
+  "research-loopback-policy": {
+    "result": {
+      "loopbackPassedToHost": "http://127.0.0.2:9999/",
+      "networkRequestMade": false
+    },
+    "ms": 0
+  }
+}

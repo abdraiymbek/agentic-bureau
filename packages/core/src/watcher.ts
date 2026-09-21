@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ProjectContext } from './context.js';
 import { commitRevision } from './artifacts.js';
-import { sha256Hex, toProjectRelative } from '@omenflow/storage';
+import { sha256Hex, resolveProjectSourcePath } from '@omenflow/storage';
 
 /**
  * Watches the project's artifacts/ tree. Completed external writes on files
@@ -18,6 +18,7 @@ export class ProjectWatcher {
   constructor(private ctx: ProjectContext) {}
 
   start(): void {
+    if (this.ctx.readOnly || this.ctx.closed) return;
     const dir = path.join(this.ctx.root, 'artifacts');
     if (!fs.existsSync(dir)) return;
     try {
@@ -28,7 +29,14 @@ export class ProjectWatcher {
         if (t) clearTimeout(t);
         this.debounce.set(
           rel,
-          setTimeout(() => this.onWrite(rel), 300),
+          setTimeout(() => {
+            try {
+              this.onWrite(rel);
+            } catch (error) {
+              if (!this.ctx.closed && !this.ctx.readOnly)
+                this.ctx.emit('file.import_failed', 'system', { path: rel, error: String(error) });
+            }
+          }, 300),
         );
       });
     } catch {
@@ -43,7 +51,8 @@ export class ProjectWatcher {
 
   private onWrite(relPath: string): void {
     this.debounce.delete(relPath);
-    const abs = path.join(this.ctx.root, relPath);
+    if (this.ctx.readOnly || this.ctx.closed) return;
+    const abs = resolveProjectSourcePath(this.ctx.root, relPath);
     if (!fs.existsSync(abs) || fs.statSync(abs).isDirectory()) return;
     const sha = sha256Hex(fs.readFileSync(abs));
     if (this.knownHashes.get(relPath) === sha) return; // our own write
@@ -55,7 +64,11 @@ export class ProjectWatcher {
     for (const a of this.ctx.repo.listArtifacts()) {
       const referencing = this.ctx.repo
         .listRevisions(a.id)
-        .filter((r) => r.files.some((f) => f.path === relPath));
+        .filter(
+          (r) =>
+            !['rejected', 'superseded'].includes(r.reviewState) &&
+            r.files.some((f) => f.path === relPath),
+        );
       if (referencing.length === 0) continue;
       // Content that any revision already carries is ours (a materialization), not an edit.
       if (referencing.some((r) => r.files.some((f) => f.path === relPath && f.sha256 === sha)))

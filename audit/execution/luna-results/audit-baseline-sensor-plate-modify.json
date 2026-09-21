@@ -1,0 +1,132 @@
+{
+  "taskId": "sensor-plate-modify",
+  "runName": "r1",
+  "category": "modification",
+  "pass": true,
+  "checks": [
+    {
+      "name": "new revision on the same artifact",
+      "pass": true,
+      "detail": "2 revision(s) on \"Sensor mount plate\""
+    },
+    {
+      "name": "rendered by agent",
+      "pass": true,
+      "detail": "STL present on latest revision"
+    },
+    {
+      "name": "source renders cleanly",
+      "pass": true,
+      "detail": "no OpenSCAD warnings"
+    },
+    {
+      "name": "bounding box",
+      "pass": true,
+      "detail": "min (0, 0, 0) max (60, 40, 10) — expected min (0, 0, 0) max (60, 40, 10) ±0.1",
+      "tightness": 10
+    },
+    {
+      "name": "volume",
+      "pass": true,
+      "detail": "9889.475 mm³ — expected 9889.655 ±1.5% (off by 0.00%)",
+      "tightness": 0.6666666666666666
+    },
+    {
+      "name": "watertight",
+      "pass": true,
+      "detail": "boundary edges 0, non-manifold 0, inverted false"
+    },
+    {
+      "name": "single body",
+      "pass": true,
+      "detail": "1 shell(s) — expected 1"
+    },
+    {
+      "name": "section z=2: hole count",
+      "pass": true,
+      "detail": "5 cut-out loop(s) — expected 5; found: cut-out circle d=3.4 at (x=30, y=20); cut-out circle d=3.4 at (x=5, y=5); cut-out circle d=3.4 at (x=5, y=35); cut-out circle d=3.4 at (x=55, y=5); cut-out circle d=3.4 at (x=55, y=35)"
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=5, y=5)",
+      "pass": true,
+      "detail": "found d=3.4 at (5, 5) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=55, y=5)",
+      "pass": true,
+      "detail": "found d=3.4 at (55, 5) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=5, y=35)",
+      "pass": true,
+      "detail": "found d=3.4 at (5, 35) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=55, y=35)",
+      "pass": true,
+      "detail": "found d=3.4 at (55, 35) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=30, y=20)",
+      "pass": true,
+      "detail": "found d=3.4 at (30, 20) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: outer rectangle 60×40",
+      "pass": true,
+      "detail": "found 60×40 centered (30, 20)"
+    },
+    {
+      "name": "section z=7: hole count",
+      "pass": true,
+      "detail": "0 cut-out loop(s) — expected 0"
+    },
+    {
+      "name": "section z=7: body count",
+      "pass": true,
+      "detail": "1 material region(s) — expected 1"
+    },
+    {
+      "name": "section z=7: outer circle d10",
+      "pass": true,
+      "detail": "found d=10 at (45, 20) roundness 0.998"
+    },
+    {
+      "name": "unrelated geometry preserved",
+      "pass": true,
+      "detail": "392 sample points outside change regions, 0 differ"
+    }
+  ],
+  "metrics": {
+    "durationMs": 65957,
+    "turns": 1,
+    "agentMessages": 5,
+    "reasoningItems": 0,
+    "toolCalls": 5,
+    "toolErrors": 0,
+    "toolCallsByName": {
+      "project_search": 1,
+      "cad_read_source": 1,
+      "cad_write_source": 1,
+      "cad_check": 2
+    },
+    "shellCommands": 0,
+    "inputTokens": 172876,
+    "cachedInputTokens": 133376,
+    "outputTokens": 2971,
+    "reasoningTokens": 1378,
+    "exitCode": 0,
+    "timedOut": false,
+    "finalMessage": "Updated the existing “Sensor mount plate” artifact in place.\n\n- New draft revision: `d0ba1ddd-442c-4c55-8074-5a8cb4f1bcef`\n- Four corner holes changed to Ø3.4 mm\n- Center Ø3.4 mm through-hole added at (30,20)\n- Plate and connector boss preserved\n- Render succeeded with no warnings\n- CAD verification passed 21/21 checks: envelope, five holes, boss, watertightness, and single body\n\nThe revision remains a draft pending human approval.",
+    "checkCalls": 2,
+    "lastCheckPassed": true
+  },
+  "scadPath": "/tmp/omen-cto-audit/eval/sensor-plate-modify/r1/delivered.scad",
+  "notes": [],
+  "sourceResultPath": "/tmp/omen-cto-audit/eval/sensor-plate-modify/r1/result.json"
+}

@@ -8,6 +8,7 @@ import {
   Offer,
   Project,
   ProjectEvent,
+  RecordedInput,
   Proposal,
   Revision,
   SessionInfo,
@@ -182,11 +183,34 @@ function toSession(r: Row): SessionInfo {
 }
 
 export class Repo {
+  private commitEffects: (() => void)[] = [];
+  private transactionDepth = 0;
   constructor(public readonly db: Database.Database) {}
 
   /** Run fn inside an immediate transaction. */
   tx<T>(fn: () => T): T {
-    return this.db.transaction(fn)();
+    const mark = this.commitEffects.length;
+    this.transactionDepth++;
+    let result: T;
+    try {
+      result = this.db.transaction(fn)();
+    } catch (error) {
+      this.commitEffects.length = mark;
+      throw error;
+    } finally {
+      this.transactionDepth--;
+    }
+    if (!this.transactionDepth) {
+      const effects = this.commitEffects.splice(0);
+      for (const effect of effects) effect();
+    }
+    return result;
+  }
+
+  /** Publish observers and materialized views only after the outer transaction commits. */
+  afterCommit(effect: () => void): void {
+    if (this.transactionDepth) this.commitEffects.push(effect);
+    else effect();
   }
 
   /* ------------------------------ project ------------------------------ */
@@ -304,6 +328,21 @@ export class Repo {
     const r = this.db.prepare(`SELECT * FROM revision WHERE id=?`).get(id) as Row | undefined;
     return r ? toRevision(r) : null;
   }
+  /** Compact baseline graph snapshot; avoids parsing payloads/files for graph traversal. */
+  selectedRevisionInputs(): { artifactId: string; revisionId: string; inputs: RecordedInput[] }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT r.artifact_id, r.id, r.inputs FROM artifact a
+           JOIN revision r ON r.id=a.selected_revision_id AND r.artifact_id=a.id`,
+        )
+        .all() as Row[]
+    ).map((r) => ({
+      artifactId: r.artifact_id as string,
+      revisionId: r.id as string,
+      inputs: P<RecordedInput[]>(r.inputs, []),
+    }));
+  }
   nextRevisionSeq(artifactId: string): number {
     const r = this.db
       .prepare(`SELECT COALESCE(MAX(seq),0)+1 AS s FROM revision WHERE artifact_id=?`)
@@ -387,7 +426,20 @@ export class Repo {
     const r = this.db.prepare(`SELECT * FROM proposal WHERE id=?`).get(id) as Row | undefined;
     return r ? toProposal(r) : null;
   }
-  updateProposalState(id: string, state: Proposal['state'], rationale?: string): void {
+  updateProposalState(
+    id: string,
+    state: Proposal['state'],
+    rationale?: string,
+    impact?: Proposal['impact'],
+  ): void {
+    if (impact) {
+      this.db
+        .prepare(
+          `UPDATE proposal SET state=?, resolved_at=?, resolution_rationale=?, impact=? WHERE id=?`,
+        )
+        .run(state, new Date().toISOString(), rationale ?? null, J(impact), id);
+      return;
+    }
     this.db
       .prepare(`UPDATE proposal SET state=?, resolved_at=?, resolution_rationale=? WHERE id=?`)
       .run(state, new Date().toISOString(), rationale ?? null, id);
@@ -596,6 +648,18 @@ export class Repo {
     return rows.map(toJob);
   }
 
+  /** Verification scope must not disappear when unrelated terminal/job history grows. */
+  listCadCheckJobs(artifactId: string): Job[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT * FROM job WHERE kind='cad_check'
+      AND json_extract(inputs, '$.artifactId')=? ORDER BY created_at DESC, rowid DESC`,
+        )
+        .all(artifactId) as Row[]
+    ).map(toJob);
+  }
+
   /* ------------------------------ events ------------------------------- */
 
   /** Append an event inside the current transaction; returns its seq. */
@@ -625,6 +689,18 @@ export class Repo {
     return (
       this.db.prepare(`SELECT * FROM event ORDER BY seq DESC LIMIT ?`).all(limit) as Row[]
     ).map(toEvent);
+  }
+  /** Drop oldest diagnostic PTY rows; never deletes engineering events. */
+  pruneSessionData(keepLast: number): number {
+    const keep = Math.max(0, Math.floor(keepLast));
+    const r = this.db
+      .prepare(
+        `DELETE FROM event WHERE type='session.data' AND seq NOT IN (
+           SELECT seq FROM event WHERE type='session.data' ORDER BY seq DESC LIMIT ?
+         )`,
+      )
+      .run(keep);
+    return r.changes;
   }
 
   /* ------------------------------ stale -------------------------------- */
@@ -697,7 +773,8 @@ export class Repo {
   putIdempotent(key: string, requestHash: string, response: unknown): void {
     this.db
       .prepare(
-        `INSERT OR IGNORE INTO idempotency(key,request_hash,response,created_at) VALUES(?,?,?,?)`,
+        `INSERT INTO idempotency(key,request_hash,response,created_at) VALUES(?,?,?,?)
+         ON CONFLICT(key) DO UPDATE SET response=excluded.response WHERE idempotency.request_hash=excluded.request_hash`,
       )
       .run(key, requestHash, J(response), new Date().toISOString());
   }

@@ -9,6 +9,7 @@ import {
   okResponse,
   errResponse,
   type ResponseEnvelope,
+  type OmenflowErrorBody,
 } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import * as artifacts from './artifacts.js';
@@ -24,7 +25,13 @@ import * as tests from './tests.js';
 import * as build from './build.js';
 import * as summary from './summary.js';
 import { newId } from '@omenflow/contracts';
-import { createHash } from 'node:crypto';
+import {
+  clearResultJournal,
+  hashRequest,
+  readResultJournal,
+  runDurabilityHooks,
+  writeResultJournal,
+} from './durability.js';
 
 export interface DispatchInput {
   op: string;
@@ -41,7 +48,14 @@ const H: Record<string, Handler> = {
   'project.summary': (c, i: { budget: number }) => summary.projectSummary(c, i.budget),
   'project.search': (c, i: { query: string; limit: number }) => summary.search(c, i.query, i.limit),
   'project.changes_since': (c, i: { seq: number }) => summary.changesSince(c, i.seq),
-  'project.export_archive': (c, i: { destPath: string }) => build.exportArchive(c, i.destPath),
+  'project.export_archive': (
+    c,
+    i: { destPath: string; includeTerminalHistory: boolean; grantTerminalExportConsent: boolean },
+  ) =>
+    build.exportArchive(c, i.destPath, {
+      includeTerminalHistory: i.includeTerminalHistory,
+      grantTerminalExportConsent: i.grantTerminalExportConsent,
+    }),
 
   /* artifacts */
   'artifact.list': (
@@ -67,6 +81,8 @@ const H: Record<string, Handler> = {
       : a.selectedRevisionId
         ? c.repo.getRevision(a.selectedRevisionId)
         : (c.repo.listRevisions(a.id).at(-1) ?? null);
+    if (rev && rev.artifactId !== a.id)
+      throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
     return { view: c.artifactView(a), revision: rev, drafts: c.repo.listDrafts(a.id) };
   },
   'artifact.history': (c, i: { artifactId: string }) => ({
@@ -117,11 +133,15 @@ const H: Record<string, Handler> = {
   'artifact.accept_draft': (c, i: never) => artifacts.acceptDraft(c, i as never),
   'artifact.revert': (c, i: { artifactId: string; toRevisionId: string; rationale: string }) =>
     artifacts.revertArtifact(c, i.artifactId, i.toRevisionId, i.rationale),
-  'artifact.archive': (c, i: { artifactId: string; archived: boolean }) => {
-    c.assertWritable();
-    c.repo.setArchived(i.artifactId, i.archived);
-    return { ok: true };
-  },
+  'artifact.archive': (c, i: { artifactId: string; archived: boolean }) =>
+    c.repo.tx(() => {
+      c.assertWritable();
+      c.requireArtifact(i.artifactId);
+      c.repo.setArchived(i.artifactId, i.archived);
+      const seq = c.emit('artifact.archived', 'user', i);
+      graph.propagateFrom(c, [i.artifactId], seq);
+      return { ok: true };
+    }),
   'artifact.reveal': async (c, i: { artifactId: string }) => {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
@@ -141,17 +161,22 @@ const H: Record<string, Handler> = {
       ? c.requireRevision(i.revisionId)
       : a.selectedRevisionId
         ? c.repo.getRevision(a.selectedRevisionId)
-        : c.repo.listRevisions(a.id).at(-1);
+        : c.repo
+            .listRevisions(a.id)
+            .slice()
+            .reverse()
+            .find((r) => !['rejected', 'superseded'].includes(r.reviewState));
+    if (rev && rev.artifactId !== a.id)
+      throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
     const f = rev?.files.find((x) => x.path === i.path);
     if (!f) throw new OmenflowError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
-    // Object store is authoritative; fall back to working file.
-    if (f.sha256 && c.objects.has(f.sha256)) {
-      return { contentBase64: c.objects.read(f.sha256).toString('base64'), sha256: f.sha256 };
-    }
-    const abs = c.resolvePath(i.path);
-    if (!fs.existsSync(abs))
-      throw new OmenflowError(ErrorCodes.NOT_FOUND, `File missing: ${i.path}`);
-    return { contentBase64: fs.readFileSync(abs).toString('base64') };
+    if (!f.sha256)
+      throw new OmenflowError(
+        ErrorCodes.NOT_FOUND,
+        `Revision has no immutable bytes for ${i.path}; import the source to repair it`,
+      );
+    // A revision promises immutable bytes; a mutable working file cannot substitute for them.
+    return { contentBase64: c.objects.read(f.sha256).toString('base64'), sha256: f.sha256 };
   },
 
   /* graph */
@@ -164,7 +189,15 @@ const H: Record<string, Handler> = {
       relationship?: never;
     },
   ) => graph.neighbors(c, i.artifactId, i.direction, i.depth, i.relationship),
-  'graph.impact': (c, i: { refs: never }) => graph.impactReport(c, i.refs),
+  'graph.impact': (
+    c,
+    i: { refs: never; limit?: number; offset?: number; includePaths?: boolean },
+  ) =>
+    graph.impactReport(c, i.refs, {
+      limit: i.limit,
+      offset: i.offset,
+      includePaths: i.includePaths,
+    }),
   'graph.propose_edges': (
     c,
     i: {
@@ -191,7 +224,7 @@ const H: Record<string, Handler> = {
       ),
     };
   },
-  'graph.list': (c) => ({ edges: c.repo.allEdges() }),
+  'graph.list': (c) => ({ edges: graph.listEdges(c) }),
 
   /* sources + research + browser */
   'source.capture': (c, i: never, o) => sources.captureSource(c, i as never, o),
@@ -338,8 +371,10 @@ const H: Record<string, Handler> = {
   'proposal.wait': (c, i: { proposalId: string; timeoutMs: number; cursor?: number }) =>
     proposals.waitProposal(c, i.proposalId, i.timeoutMs, i.cursor),
   'proposal.list': (c, i: { state?: string }) => ({ proposals: c.repo.listProposals(i.state) }),
-  'proposal.approve': (c, i: { proposalId: string; rationale: string }) =>
-    proposals.approveProposal(c, i.proposalId, i.rationale),
+  'proposal.approve': (
+    c,
+    i: { proposalId: string; rationale: string; verificationEvidence?: Record<string, string> },
+  ) => proposals.approveProposal(c, i.proposalId, i.rationale, i.verificationEvidence),
   'proposal.reject': (c, i: { proposalId: string; rationale: string }) =>
     proposals.rejectProposal(c, i.proposalId, i.rationale),
   'proposal.request_changes': (c, i: { proposalId: string; rationale: string }) =>
@@ -351,14 +386,15 @@ const H: Record<string, Handler> = {
     if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
     return { job: j };
   },
-  'job.cancel': (c, i: { jobId: string }) => {
+  'job.cancel': (c, i: { jobId: string }, origin) => {
     const j = c.repo.getJob(i.jobId);
     if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
-    const cancel = c.jobCancels.get(i.jobId);
-    if (cancel) cancel();
-    if (j.status === 'running' || j.status === 'queued') {
-      c.jobStatus(i.jobId, 'cancelled');
-    }
+    if (origin.kind === 'agent' && j.sessionId !== origin.sessionId)
+      throw new OmenflowError(
+        ErrorCodes.CAPABILITY_DENIED,
+        'An agent can only cancel its own jobs',
+      );
+    c.cancelJob(i.jobId);
     return { job: c.repo.getJob(i.jobId) };
   },
   'job.list': (c, i: { status?: string; limit: number }) => ({
@@ -416,7 +452,7 @@ const H: Record<string, Handler> = {
 };
 
 function requestHash(op: string, payload: unknown): string {
-  return createHash('sha256').update(JSON.stringify({ op, payload })).digest('hex');
+  return hashRequest(op, payload);
 }
 
 /**
@@ -426,7 +462,10 @@ function requestHash(op: string, payload: unknown): string {
 export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise<unknown> {
   const op = OPS_BY_NAME.get(req.op);
   if (!op) throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
-  if (req.origin.kind === 'agent' && op.capability === 'user') {
+  if (
+    req.origin.kind === 'agent' &&
+    (op.capability === 'user' || /^(browser|research)\./.test(req.op))
+  ) {
     const code =
       req.op === 'artifact.apply_edit'
         ? ErrorCodes.APPROVAL_REQUIRED
@@ -452,29 +491,105 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
   }
   if (op.mutating) ctx.assertWritable();
 
-  // Idempotency: same key + same request hash returns the stored response.
-  if (op.mutating && req.idempotencyKey) {
-    const prior = ctx.repo.getIdempotent(req.idempotencyKey);
-    if (prior) {
-      if (prior.requestHash !== requestHash(req.op, req.payload)) {
-        throw new OmenflowError(
-          ErrorCodes.VALIDATION,
-          `Idempotency key reused with different payload: ${req.idempotencyKey}`,
-        );
-      }
-      return { ...(prior.response as object), idempotent: true };
-    }
-  }
-
   const handler = H[req.op];
   if (!handler)
     throw new OmenflowError(ErrorCodes.VALIDATION, `Operation not implemented: ${req.op}`);
-  const result = await handler(ctx, input, req.origin);
-
-  if (op.mutating && req.idempotencyKey) {
-    ctx.repo.putIdempotent(req.idempotencyKey, requestHash(req.op, req.payload), result);
+  const key =
+    op.mutating && req.idempotencyKey
+      ? `${req.origin.kind === 'agent' ? req.origin.sessionId : 'user'}:${req.op}:${req.idempotencyKey}`
+      : null;
+  const hash = requestHash(req.op, req.payload);
+  if (key) {
+    const pending = ctx.inFlightRequests.get(key);
+    if (pending) {
+      if (pending.hash !== hash)
+        throw new OmenflowError(
+          ErrorCodes.VALIDATION,
+          'Idempotency key reused with different payload',
+        );
+      return pending.result;
+    }
+    const prior = ctx.repo.getIdempotent(key);
+    if (prior) {
+      if (prior.requestHash !== hash)
+        throw new OmenflowError(
+          ErrorCodes.VALIDATION,
+          'Idempotency key reused with different payload',
+        );
+      if ((prior.response as { operationPending?: boolean })?.operationPending) {
+        const journal = readResultJournal(ctx.root, key, hash);
+        if (journal) {
+          ctx.repo.putIdempotent(key, hash, journal.response);
+          clearResultJournal(ctx.root, key);
+          return { ...(journal.response as object), idempotent: true, recovered: true };
+        }
+        throw new OmenflowError(
+          ErrorCodes.REVISION_CONFLICT,
+          'Previous attempt was interrupted; inspect its jobs/revisions before retrying with a new key',
+        );
+      }
+      const failure = (prior.response as { operationFailure?: OmenflowErrorBody })
+        ?.operationFailure;
+      if (failure) throw OmenflowError.fromBody(failure);
+      return { ...(prior.response as object), idempotent: true };
+    }
   }
-  return result;
+  const syncMutation =
+    /^(artifact\.(create_draft|update_draft|import_file|apply_edit|accept_draft|revert|archive|set_subsystem)|proposal\.(submit|approve|reject|request_changes)|graph\.|test\.)/.test(
+      req.op,
+    );
+  const run = async () => {
+    if (syncMutation)
+      return ctx.repo.tx(() => {
+        const result = handler(ctx, input, req.origin);
+        if (result instanceof Promise)
+          throw new Error('Synchronous command unexpectedly returned a promise');
+        if (key) ctx.repo.putIdempotent(key, hash, result);
+        return result;
+      });
+    // Reserve asynchronous attempts durably. An interrupted result is explicit,
+    // never silently re-executed after restart.
+    if (key) ctx.repo.putIdempotent(key, hash, { operationPending: true });
+    try {
+      const result = await handler(ctx, input, req.origin);
+      runDurabilityHooks(ctx.durabilityHooks, 'dispatch.after-domain-before-result', {
+        op: req.op,
+      });
+      if (key) {
+        writeResultJournal(ctx.root, {
+          key,
+          requestHash: hash,
+          response: result,
+          writtenAt: new Date().toISOString(),
+        });
+        runDurabilityHooks(ctx.durabilityHooks, 'dispatch.after-result-journal', { op: req.op });
+        ctx.repo.putIdempotent(key, hash, result);
+        clearResultJournal(ctx.root, key);
+      }
+      return result;
+    } catch (error) {
+      // A completed failure is different from a process dying mid-command.
+      // Replay it faithfully; retrying the same key must never rerun partial
+      // side effects, or relabel a known cancellation as an unknown interruption.
+      if (key && !ctx.closed && ctx.handle.pdb.db.open && !readResultJournal(ctx.root, key, hash)) {
+        try {
+          ctx.repo.putIdempotent(key, hash, {
+            operationFailure: OmenflowError.from(error).toBody(),
+          });
+        } catch {
+          /* preserve the pending marker if durable completion itself failed */
+        }
+      }
+      throw error;
+    }
+  };
+  const result = Promise.resolve().then(run);
+  if (key) ctx.inFlightRequests.set(key, { hash, result });
+  try {
+    return await result;
+  } finally {
+    if (key) ctx.inFlightRequests.delete(key);
+  }
 }
 
 export function envelopeResult(requestId: string, result: unknown): ResponseEnvelope {

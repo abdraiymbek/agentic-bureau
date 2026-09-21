@@ -61,19 +61,18 @@ const bridge = new BridgeServer(app, appDataDir);
 const ptyHost = new PtySessionManager(app, bridge, path.dirname(fileURLToPath(import.meta.url)));
 app.terminalHost = ptyHost;
 app.connectionHost = new ConnectionManager(app, bridge);
-bridge.onMcpConnection = (sock, grant) => attachMcpToBridge(sock, app, grant);
+bridge.onMcpConnection = (sock, grant, buffered) => attachMcpToBridge(sock, app, grant, buffered);
 
 /* Forward project events + terminal streams to main. */
+const wiredContexts = new WeakSet<ProjectContext>();
 function wireContext(ctx: ProjectContext): void {
+  if (wiredContexts.has(ctx)) return;
+  wiredContexts.add(ctx);
+  ctx.terminalListeners.add((data) =>
+    port.postMessage({ type: 'terminalData', projectId: ctx.projectId, data }),
+  );
   ctx.listeners.add((e) => {
     port.postMessage({ type: 'event', projectId: ctx.projectId, event: e });
-    if (e.type === 'session.data') {
-      port.postMessage({
-        type: 'terminalData',
-        projectId: ctx.projectId,
-        data: (e.data as { chunk: string }).chunk,
-      });
-    }
     if (e.type === 'session.state') {
       port.postMessage({
         type: 'terminalState',
@@ -125,8 +124,8 @@ port.on('message', async (m) => {
     return;
   }
   if (msg.type === 'shutdown') {
-    bridge.close();
-    app.closeAll();
+    await app.shutdown();
+    await bridge.close();
     process.exit(0);
   }
 });

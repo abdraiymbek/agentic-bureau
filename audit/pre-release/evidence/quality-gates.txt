@@ -1,0 +1,9 @@
+Audited commit: 9305742
+Node: v24.19.0
+pnpm test: 18 files passed; 138 tests passed, 1 skipped; 10.82 seconds.
+pnpm typecheck: failed; see typecheck.txt.
+pnpm lint (before diagnostic scripts): 0 errors, 45 warnings.
+pnpm format:check: failed on six existing product files plus initially unformatted diagnostic script; audit files subsequently formatted.
+pnpm package: passed macOS arm64.
+pnpm smoke:packaged: passed; see packaged-smoke.txt.
+Production renderer build: passed; see renderer-build.txt.

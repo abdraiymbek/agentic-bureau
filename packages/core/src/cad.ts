@@ -8,12 +8,14 @@ import {
   Origin,
   OmenflowError,
   formatQty,
+  dimOf,
   isUnknown,
   newId,
   type Artifact,
   type Expectation,
   type Revision,
   type MaybeQuantity,
+  type RecordedInput,
 } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, materializeReadableView } from './artifacts.js';
@@ -21,6 +23,9 @@ import { slugify } from './hash.js';
 import type { CadAdapter } from './tools.js';
 import {
   analyzeMesh,
+  analyzeMeshCancellable,
+  assertMeshByteLimit,
+  assertCadInspectionBudget,
   containsPoint,
   countIntersectingPairs,
   crossSection,
@@ -49,7 +54,18 @@ import {
   type CheckResult,
 } from './cad-checks.js';
 
-type ScadValue = number | string | boolean;
+import { createCadVerificationEvidence, type CadVerificationStatus } from './cad-verification.js';
+import { readActiveWork, recordCommittedCheck } from './work.js';
+import {
+  assertSelfContainedScad,
+  canonicalScadRef,
+  effectiveCadParams,
+  renderFingerprint,
+  reconcileCadOverrides,
+  renderMatchesInput,
+  type RenderIdentity,
+  type ScadValue,
+} from './cad-input.js';
 
 function cadTool(ctx: ProjectContext): CadAdapter {
   const cad = ctx.tools.cad as CadAdapter | undefined;
@@ -100,30 +116,29 @@ function pickRevision(ctx: ProjectContext, artifact: Artifact, revisionId?: stri
     }
     return rev;
   }
-  const rev = ctx.repo.listRevisions(artifact.id).at(-1);
+  const rev = ctx.repo
+    .listRevisions(artifact.id)
+    .filter((r) => r.reviewState !== 'rejected' && r.reviewState !== 'superseded')
+    .at(-1);
   if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
   return rev;
 }
 
-/** Legacy resolution used by cad.render / cad.validate_source (baseline first). */
+/** Both UI and agent operations resolve the same explicit or active candidate. */
 function mechPayload(ctx: ProjectContext, artifactId: string, revisionId?: string) {
   const artifact = requireMechanical(ctx, artifactId);
-  const rev = revisionId
-    ? ctx.requireRevision(revisionId)
-    : artifact.selectedRevisionId
-      ? ctx.repo.getRevision(artifact.selectedRevisionId)
-      : ctx.repo.listRevisions(artifact.id).at(-1);
-  if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
+  const rev = pickRevision(ctx, artifact, revisionId);
   return { artifact, rev, payload: rev.payload as MechanicalPayload };
 }
 
-function scadRefOf(rev: Revision) {
-  const payload = rev.payload as MechanicalPayload;
-  return payload.scad ?? rev.files.find((f) => f.path.endsWith('.scad'));
-}
+const scadRefOf = canonicalScadRef;
 function stlRefOf(rev: Revision) {
   const payload = rev.payload as MechanicalPayload;
-  return payload.stl ?? rev.files.find((f) => f.path.endsWith('.stl'));
+  return (
+    rev.files.find((f) => f.path === payload.stl?.path) ??
+    rev.files.find((f) => f.path.endsWith('.stl')) ??
+    payload.stl
+  );
 }
 
 function readScad(ctx: ProjectContext, rev: Revision): { path: string; source: string } {
@@ -138,15 +153,12 @@ function readScad(ctx: ProjectContext, rev: Revision): { path: string; source: s
   return { path: ref.path, source: fs.readFileSync(abs, 'utf8') };
 }
 
-/** Unwrap {value,unit} quantities to plain -D values. */
-function plainParams(params: Record<string, unknown> | undefined): Record<string, ScadValue> {
-  const out: Record<string, ScadValue> = {};
-  for (const [k, v] of Object.entries(params ?? {})) {
-    if (v && typeof v === 'object' && 'value' in v) out[k] = (v as { value: number }).value;
-    else if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') out[k] = v;
-  }
-  return out;
+function readMeshObject(ctx: ProjectContext, hash: string): Buffer {
+  assertMeshByteLimit(fs.statSync(ctx.objects.absPath(hash)).size);
+  return ctx.objects.read(hash);
 }
+
+const plainParams = effectiveCadParams;
 
 function assertParamsExist(params: Record<string, ScadValue>, declared: ScadParameter[]): void {
   const names = new Set(declared.map((p) => p.name));
@@ -178,9 +190,13 @@ interface RenderOutcome {
   tris?: TriangleBuffer;
   error?: string;
   oriented?: boolean;
+  identity?: RenderIdentity;
 }
 
-function applyOrientation(stl: Buffer, tris: TriangleBuffer): {
+function applyOrientation(
+  stl: Buffer,
+  tris: TriangleBuffer,
+): {
   stl: Buffer;
   tris: TriangleBuffer;
   oriented: boolean;
@@ -220,134 +236,222 @@ async function renderSource(
     origin: Origin;
     artifactId: string;
     revisionId?: string;
+    existingJob?: Job;
   },
-): Promise<{ outcome: RenderOutcome; job: Job | null }> {
+): Promise<{ outcome: RenderOutcome; job: Job }> {
+  ctx.assertWritable();
+  assertSelfContainedScad(args.source);
   const cad = cadTool(ctx);
   const started = Date.now();
-  const key = createHash('sha256')
-    .update(args.source)
-    .update(JSON.stringify(Object.entries(args.params).sort()))
-    .digest('hex')
-    .slice(0, 24);
-  const cacheDir = ctx.resolvePath(`.omenflow/cache/render/${key}`);
-  const cachedStl = path.join(cacheDir, 'output.stl');
-  const cachedLog = path.join(cacheDir, 'log.txt');
-  if (fs.existsSync(cachedStl) && fs.statSync(cachedStl).size > 0) {
-    const rawStl = fs.readFileSync(cachedStl);
-    const log = fs.existsSync(cachedLog) ? fs.readFileSync(cachedLog, 'utf8') : '';
-    const { warnings, errors } = classifyLog(log);
-    const oriented = applyOrientation(rawStl, parseStlTriangles(rawStl));
-    if (oriented.oriented) fs.writeFileSync(cachedStl, oriented.stl);
-    return {
-      job: null,
-      outcome: {
-        ok: true,
-        ms: 0,
-        tool: 'openscad (cached)',
-        warnings,
-        errors,
-        log,
-        stl: oriented.stl,
-        tris: oriented.tris,
-        oriented: oriented.oriented,
+  const job =
+    args.existingJob ??
+    ctx.createJob({
+      kind: 'cad_render',
+      tool: cad.toolId,
+      inputHashes: { source: ctx.storeContent(args.source) },
+      inputs: {
+        artifactId: args.artifactId,
+        revisionId: args.revisionId ?? null,
+        params: args.params,
       },
-    };
-  }
-
-  const probe = await cad.probe();
-  if (!probe.available) {
-    throw new OmenflowError(ErrorCodes.TOOL_MISSING, probe.error ?? 'OpenSCAD not found', {
-      repair: 'Install OpenSCAD, then Connections → Locate OpenSCAD.',
+      sessionId: args.origin.kind === 'agent' ? args.origin.sessionId : null,
     });
-  }
-  const tool = `${cad.toolId} ${probe.version ?? ''}`.trim();
-  const job = ctx.createJob({
-    kind: 'cad_render',
-    tool: cad.toolId,
-    toolVersion: probe.version,
-    inputs: {
-      artifactId: args.artifactId,
-      revisionId: args.revisionId ?? null,
-      params: args.params,
-    },
-    sessionId: args.origin.kind === 'agent' ? args.origin.sessionId : null,
-  });
-  fs.mkdirSync(cacheDir, { recursive: true });
-  const scadPath = path.join(cacheDir, 'input.scad');
-  fs.writeFileSync(scadPath, args.source);
-  ctx.jobStatus(job.id, 'running');
   ctx.jobCancels.set(job.id, () => cad.cancel(job.id));
+  let workDir: string | undefined;
   let log = '';
-  const res = await cad.render(
-    {
-      jobId: job.id,
-      scadPath,
-      outPath: cachedStl,
+  let tool = cad.toolId;
+  let sharedFingerprint: string | undefined;
+  let pendingShare: Promise<{ rawStl: Buffer; log: string }> | undefined;
+  let failShared: ((error: unknown) => void) | undefined;
+  let notifyShared: ((value: { rawStl: Buffer; log: string }) => void) | undefined;
+  try {
+    ctx.assertJobActive(job.id);
+    ctx.jobStatus(job.id, 'running');
+    const probe = await cad.probe();
+    ctx.assertJobActive(job.id);
+    if (!probe.available)
+      throw new OmenflowError(ErrorCodes.TOOL_MISSING, probe.error ?? 'OpenSCAD not found', {
+        repair: 'Install OpenSCAD, then Connections → Locate OpenSCAD.',
+      });
+    tool = `${cad.toolId} ${probe.version ?? ''}`.trim();
+    const identityBase: Omit<RenderIdentity, 'inputFingerprint' | 'outputHash'> = {
+      version: 1,
+      sourceHash: createHash('sha256').update(args.source).digest('hex'),
       params: args.params,
-      timeoutMs: args.timeoutMs,
-      workDir: cacheDir,
-    },
-    (chunk) => {
-      log += chunk;
-      ctx.jobLog(job.id, chunk);
-    },
-  );
-  ctx.jobCancels.delete(job.id);
-  fs.writeFileSync(cachedLog, log);
-  const { warnings, errors } = classifyLog(log);
-  const ms = Date.now() - started;
-  const fail = (message: string): { outcome: RenderOutcome; job: Job } => {
-    ctx.jobStatus(job.id, res.error === 'cancelled' ? 'cancelled' : 'failed', {
-      error: {
-        code: res.error === 'timeout' ? ErrorCodes.TIMEOUT : ErrorCodes.VALIDATION,
-        message,
-      },
-    });
-    try {
-      fs.rmSync(cachedStl, { force: true });
-    } catch {
-      /* nothing to clean */
-    }
-    return {
-      job: ctx.repo.getJob(job.id) ?? job,
-      outcome: { ok: false, ms, tool, warnings, errors, log, error: message },
+      modelUnit: 'mm',
+      frame: 'right-handed-z-up',
+      engine: cad.toolId,
+      engineVersion: probe.version ?? 'unknown',
+      options: `stl;orientation-v1;exe=${probe.executablePath ?? 'unknown'}`,
     };
-  };
-  if (!res.ok) {
-    const empty = /top level object is empty/i.test(log);
-    const why =
-      res.error === 'timeout'
-        ? `Render exceeded ${args.timeoutMs} ms — simplify the model (lower $fn, fewer minkowski/hull ops) or raise timeoutMs.`
-        : empty
-          ? 'OpenSCAD produced no geometry: the top-level object is empty (a difference() removed everything, a size is zero/undef, or nothing is instantiated at file scope).'
-          : (errors[0] ?? warnings[0] ?? res.error ?? 'OpenSCAD failed');
-    return fail(why);
-  }
-  if (!fs.existsSync(cachedStl) || fs.statSync(cachedStl).size === 0) {
-    return fail(
-      'OpenSCAD produced no geometry — the top-level object is empty (check that difference() leaves material and that nothing is commented out).',
+    const fingerprint = renderFingerprint(identityBase);
+    const cacheDir = ctx.resolvePath(`.omenflow/cache/render-v1/${fingerprint}`);
+    const cachedStl = path.join(cacheDir, 'output.stl');
+    const manifest = path.join(cacheDir, 'complete.json');
+    const finishMesh = (stl: Buffer, cached: boolean): RenderOutcome => {
+      assertMeshByteLimit(stl.byteLength);
+      if (!cad.inspectStl(stl).plausible)
+        throw new OmenflowError(
+          ErrorCodes.VALIDATION,
+          'OpenSCAD output is not a complete STL mesh',
+        );
+      const tris = parseStlTriangles(stl);
+      if (!tris.length || !tris.every(Number.isFinite))
+        throw new OmenflowError(ErrorCodes.VALIDATION, 'OpenSCAD output has no finite geometry');
+      const oriented = applyOrientation(stl, tris);
+      const outputHash = ctx.objects.put(oriented.stl);
+      return {
+        ok: true,
+        ms: Date.now() - started,
+        tool: cached ? `${tool} (cached)` : tool,
+        ...classifyLog(log),
+        log,
+        ...oriented,
+        identity: { ...identityBase, inputFingerprint: fingerprint, outputHash },
+      };
+    };
+    // A cache entry is visible only after output + manifest have been atomically published.
+    if (fs.existsSync(manifest) && fs.existsSync(cachedStl)) {
+      try {
+        const stored = JSON.parse(fs.readFileSync(manifest, 'utf8')) as {
+          fingerprint: string;
+          outputHash: string;
+          log: string;
+        };
+        assertMeshByteLimit(fs.statSync(cachedStl).size);
+        const stl = fs.readFileSync(cachedStl);
+        if (
+          stored.fingerprint === fingerprint &&
+          createHash('sha256').update(stl).digest('hex') === stored.outputHash
+        ) {
+          log = stored.log;
+          ctx.assertJobActive(job.id);
+          const outcome = finishMesh(stl, true);
+          return { outcome, job };
+        }
+      } catch {
+        /* A corrupt/incomplete cache is disposable, never evidence. */
+      }
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+    const existingShare = ctx.inFlightRenders.get(fingerprint);
+    if (existingShare) {
+      try {
+        const shared = await existingShare;
+        ctx.assertJobActive(job.id);
+        log = shared.log;
+        return { outcome: finishMesh(shared.rawStl, true), job };
+      } catch {
+        /* Leader failed or was cancelled; this job still owes a render. */
+      }
+    }
+    if (!ctx.inFlightRenders.has(fingerprint)) {
+      pendingShare = new Promise<{ rawStl: Buffer; log: string }>((resolve, reject) => {
+        notifyShared = resolve;
+        failShared = reject;
+      });
+      void pendingShare.catch(() => {});
+      sharedFingerprint = fingerprint;
+      ctx.inFlightRenders.set(fingerprint, pendingShare);
+    } else {
+      try {
+        const shared = await ctx.inFlightRenders.get(fingerprint)!;
+        ctx.assertJobActive(job.id);
+        log = shared.log;
+        return { outcome: finishMesh(shared.rawStl, true), job };
+      } catch {
+        pendingShare = new Promise<{ rawStl: Buffer; log: string }>((resolve, reject) => {
+          notifyShared = resolve;
+          failShared = reject;
+        });
+        void pendingShare.catch(() => {});
+        sharedFingerprint = fingerprint;
+        ctx.inFlightRenders.set(fingerprint, pendingShare);
+      }
+    }
+    workDir = ctx.resolvePath(`.omenflow/cache/render-work/${job.id}`);
+    fs.mkdirSync(workDir, { recursive: true });
+    const scadPath = path.join(workDir, 'input.scad');
+    const outPath = path.join(workDir, 'output.stl');
+    fs.writeFileSync(scadPath, args.source);
+    ctx.repo.updateJob(job.id, {
+      toolVersion: probe.version,
+      command: `${probe.executablePath} -o output.stl input.scad`,
+    });
+    ctx.assertJobActive(job.id);
+    const res = await cad.render(
+      { jobId: job.id, scadPath, outPath, params: args.params, timeoutMs: args.timeoutMs, workDir },
+      (chunk) => {
+        log += chunk;
+        ctx.jobLog(job.id, chunk);
+      },
     );
+    ctx.assertJobActive(job.id);
+    const diagnostics = classifyLog(log);
+    if (
+      !res.ok ||
+      diagnostics.errors.length ||
+      !fs.existsSync(outPath) ||
+      fs.statSync(outPath).size === 0
+    ) {
+      const message =
+        res.error === 'timeout'
+          ? `Render exceeded ${args.timeoutMs} ms — simplify the model or raise timeoutMs.`
+          : /top level object is empty/i.test(log)
+            ? 'OpenSCAD produced no geometry: the top-level object is empty.'
+            : (diagnostics.errors[0] ??
+              diagnostics.warnings[0] ??
+              res.error ??
+              'OpenSCAD produced no geometry');
+      ctx.jobStatus(job.id, res.error === 'cancelled' ? 'cancelled' : 'failed', {
+        error: {
+          code: res.error === 'timeout' ? ErrorCodes.TIMEOUT : ErrorCodes.VALIDATION,
+          message,
+        },
+      });
+      failShared?.(new OmenflowError(ErrorCodes.VALIDATION, message));
+      return {
+        job,
+        outcome: { ok: false, ms: Date.now() - started, tool, ...diagnostics, log, error: message },
+      };
+    }
+    assertMeshByteLimit(fs.statSync(outPath).size);
+    const rawStl = fs.readFileSync(outPath);
+    const outcome = finishMesh(rawStl, false);
+    notifyShared?.({ rawStl, log });
+    ctx.assertJobActive(job.id);
+    fs.writeFileSync(outPath, outcome.stl!);
+    fs.writeFileSync(
+      path.join(workDir, 'complete.json'),
+      JSON.stringify({ fingerprint, outputHash: outcome.identity!.outputHash, log }),
+    );
+    fs.mkdirSync(path.dirname(cacheDir), { recursive: true });
+    // Concurrent renders use separate directories. A complete winner may be reused.
+    if (!fs.existsSync(cacheDir)) fs.renameSync(workDir, cacheDir);
+    return { outcome, job };
+  } catch (error) {
+    failShared?.(error);
+    const e = OmenflowError.from(error);
+    ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+      error: e.toBody(),
+    });
+    throw e;
+  } finally {
+    ctx.jobCancels.delete(job.id);
+    if (
+      sharedFingerprint &&
+      pendingShare &&
+      ctx.inFlightRenders.get(sharedFingerprint) === pendingShare
+    )
+      ctx.inFlightRenders.delete(sharedFingerprint);
+    if (workDir && fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true });
   }
-  const rawStl = fs.readFileSync(cachedStl);
-  const rawTris = parseStlTriangles(rawStl);
-  if (rawTris.length === 0) return fail('OpenSCAD output contains no triangles.');
-  const oriented = applyOrientation(rawStl, rawTris);
-  if (oriented.oriented) fs.writeFileSync(cachedStl, oriented.stl);
-  ctx.jobStatus(job.id, 'succeeded', { outputHashes: { stl: ctx.objects.put(oriented.stl) } });
-  return {
-    job: ctx.repo.getJob(job.id) ?? job,
-    outcome: {
-      ok: true,
-      ms,
-      tool,
-      warnings,
-      errors,
-      log,
-      stl: oriented.stl,
-      tris: oriented.tris,
-      oriented: oriented.oriented,
-    },
-  };
+}
+
+function completeRenderJob(ctx: ProjectContext, job: Job, outcome: RenderOutcome): void {
+  if (!outcome.ok) return;
+  ctx.assertJobActive(job.id);
+  ctx.jobStatus(job.id, 'succeeded', { outputHashes: { stl: outcome.identity!.outputHash } });
 }
 
 /* ------------------------------------------------------------------ */
@@ -385,7 +489,13 @@ export interface CadReport {
   geometry?: GeometrySummary;
   sections?: SectionReport[];
   probes?: { point: Vec3; result: 'solid' | 'empty' }[];
-  parameters: { name: string; value: ScadValue; comment?: string; derived?: boolean; expr?: string }[];
+  parameters: {
+    name: string;
+    value: ScadValue;
+    comment?: string;
+    derived?: boolean;
+    expr?: string;
+  }[];
   notes: string[];
   next: string;
 }
@@ -468,7 +578,19 @@ function geometryNotes(
       "Mesh is inside-out (negative signed volume). With polyhedron(), list each face's vertices clockwise when viewed from outside the solid; booleans on an inside-out body cut the wrong side. Open meshes are diagnosed, not auto-flipped.",
     );
   }
-  const crossings = report.triangles <= 4000 ? countIntersectingPairs(tris) : 0;
+  let crossings = 0;
+  try {
+    crossings = countIntersectingPairs(tris);
+  } catch (error) {
+    if (
+      error instanceof OmenflowError &&
+      (error.details as { reason?: string } | undefined)?.reason === 'CAD_WORK_LIMIT'
+    ) {
+      notes.push(
+        `Self-intersections not evaluated: ${error.message}. This report does not establish intersection-free geometry.`,
+      );
+    } else throw error;
+  }
   if (crossings > 0) {
     notes.push(
       `${crossings} self-intersecting triangle pair(s) — overlapping bodies or piercing faces can still satisfy bbox/volume. Separate the solids or boolean them; cad.check maxSelfIntersections: 0 to fail on this.`,
@@ -548,8 +670,17 @@ function buildReport(args: {
   extraSections?: ExtraSection[];
   probes?: Vec3[];
   injectedFn?: boolean;
+  effectiveParams?: Record<string, ScadValue>;
 }): CadReport {
-  const params = parseScadParameters(args.source);
+  const effective =
+    args.effectiveParams ??
+    args.outcome.identity?.params ??
+    plainParams((args.revision.payload as MechanicalPayload).params, args.unit);
+  let effectiveSource = args.source;
+  for (const [name, value] of Object.entries(effective)) {
+    effectiveSource = setScadParameter(effectiveSource, name, value).source;
+  }
+  const params = parseScadParameters(effectiveSource);
   const base: CadReport = {
     artifactId: args.artifact.id,
     revisionId: args.revision.id,
@@ -582,6 +713,7 @@ function buildReport(args: {
     return base;
   }
   const tris = args.outcome.tris;
+  assertCadInspectionBudget(tris, args.probes?.length ?? 0, args.extraSections?.length ?? 0);
   const report = analyzeMesh(tris);
   base.geometry = geometrySummary(report, args.unit);
   base.sections = [
@@ -632,6 +764,11 @@ export async function cadWriteSource(
   ctx: ProjectContext,
   input: {
     artifactId?: string;
+    expectedRevisionId?: string;
+    /** Internal composition snapshot provenance. */
+    inputs?: RecordedInput[];
+    existingJob?: Job;
+    paramManifest?: MechanicalPayload['paramManifest'];
     title?: string;
     source: string;
     params?: Record<string, ScadValue>;
@@ -645,7 +782,8 @@ export async function cadWriteSource(
   const faceted = ensureDefaultFaceting(input.source);
   const source = faceted.source;
   const declared = parseScadParameters(source);
-  const overrides = input.params ?? {};
+  assertSelfContainedScad(source);
+  const overrides = plainParams(input.params);
   assertParamsExist(overrides, declared);
 
   let artifact: Artifact;
@@ -654,6 +792,11 @@ export async function cadWriteSource(
   if (input.artifactId) {
     artifact = requireMechanical(ctx, input.artifactId);
     parent = pickRevision(ctx, artifact);
+    if (input.expectedRevisionId && parent.id !== input.expectedRevisionId)
+      throw new OmenflowError(
+        ErrorCodes.REVISION_CONFLICT,
+        'CAD input revision changed; read the current source before retrying.',
+      );
     prevPayload = parent.payload as MechanicalPayload;
   } else {
     if (!input.title) {
@@ -670,24 +813,28 @@ export async function cadWriteSource(
       archived: false,
       createdAt: new Date().toISOString(),
     };
-    ctx.repo.tx(() => ctx.repo.insertArtifact(artifact));
   }
-  if (input.title && input.artifactId && input.title !== artifact.title) {
-    ctx.repo.updateArtifactTitle(artifact.id, input.title);
-    artifact = { ...artifact, title: input.title };
-  }
-
   const sourcePath = parent
     ? (scadRefOf(parent)?.path ?? uniqueSourcePath(ctx, artifact.title, artifact.id))
     : uniqueSourcePath(ctx, artifact.title, artifact.id);
+  const absoluteSource = ctx.resolvePath(sourcePath);
+  const workingHash = fs.existsSync(absoluteSource)
+    ? createHash('sha256').update(fs.readFileSync(absoluteSource)).digest('hex')
+    : null;
   const scadSha = ctx.storeContent(source);
   const scadRef = { path: sourcePath, sha256: scadSha, role: 'source' as const };
 
   // Recorded params: previous values (dropping ones the source no longer declares) + overrides.
   const declaredNames = new Set(declared.map((p) => p.name));
+  const inherited = parent
+    ? reconcileCadOverrides(
+        source,
+        readScad(ctx, parent).source,
+        plainParams(prevPayload.params, prevPayload.modelUnit),
+      )
+    : {};
   const recorded: Record<string, ScadValue> = {};
-  for (const [k, v] of Object.entries(plainParams(prevPayload.params)))
-    if (declaredNames.has(k)) recorded[k] = v;
+  for (const [k, v] of Object.entries(inherited)) if (declaredNames.has(k)) recorded[k] = v;
   Object.assign(recorded, overrides);
 
   const { outcome, job } = await renderSource(ctx, {
@@ -696,59 +843,138 @@ export async function cadWriteSource(
     timeoutMs: input.timeoutMs,
     origin,
     artifactId: artifact.id,
+    revisionId: parent?.id,
+    existingJob: input.existingJob,
   });
 
-  const files = [scadRef];
-  const payload: MechanicalPayload = {
-    ...prevPayload,
-    scad: scadRef,
-    stl: undefined,
-    params: recorded,
-    paramManifest: declared.map((p) => ({
-      name: p.name,
-      ...(p.comment ? { description: p.comment } : {}),
-    })),
-    modelUnit: prevPayload.modelUnit ?? 'mm',
-    bounds: undefined,
-    renderJobId: job?.id,
-  };
-  let stlRef: { path: string; sha256: string; role: 'output' } | null = null;
-  if (outcome.ok && outcome.stl && outcome.tris) {
-    const stlSha = ctx.objects.put(outcome.stl);
-    stlRef = { path: sourcePath.replace(/\.scad$/, '.stl'), sha256: stlSha, role: 'output' };
-    files.push(stlRef as never);
-    const report = analyzeMesh(outcome.tris);
-    payload.stl = stlRef;
-    payload.bounds = {
-      min: report.bounds.min.map(r3) as Vec3,
-      max: report.bounds.max.map(r3) as Vec3,
+  try {
+    const files = [scadRef];
+    const payload: MechanicalPayload = {
+      ...prevPayload,
+      scad: scadRef,
+      stl: undefined,
+      params: recorded,
+      paramManifest:
+        input.paramManifest ??
+        declared.map((p) => ({
+          name: p.name,
+          dimension:
+            prevPayload.paramManifest.find((m) => m.name === p.name)?.dimension ??
+            (typeof p.value === 'boolean'
+              ? 'boolean'
+              : typeof p.value === 'string'
+                ? 'text'
+                : p.name === '$fn'
+                  ? 'count'
+                  : 'number'),
+          ...(prevPayload.paramManifest.find((m) => m.name === p.name)?.unit
+            ? { unit: prevPayload.paramManifest.find((m) => m.name === p.name)!.unit }
+            : {}),
+          ...(p.comment ? { description: p.comment } : {}),
+        })),
+      modelUnit: prevPayload.modelUnit ?? 'mm',
+      bounds: undefined,
+      renderJobId: job.id,
+      renderIdentity: outcome.identity,
     };
-  }
-  const rev = commitRevision(ctx, {
-    artifactId: artifact.id,
-    parentId: parent?.id ?? null,
-    origin,
-    payload,
-    files,
-    inputs: parent?.inputs ?? [],
-    rationale: input.rationale || (parent ? 'source revised' : 'initial source'),
-    reviewState: 'draft',
-  });
-  // Tool-written files are ours to overwrite; a divergent user edit would have
-  // been imported by the watcher as its own draft already.
-  ctx.materialize(sourcePath, scadSha, rev.id, { overwrite: true });
-  if (stlRef) ctx.materialize(stlRef.path, stlRef.sha256, rev.id, { overwrite: true });
-  materializeReadableView(ctx, artifact, rev);
+    let stlRef: { path: string; sha256: string; role: 'output' } | null = null;
+    if (outcome.ok && outcome.stl && outcome.tris) {
+      const stlSha = ctx.objects.put(outcome.stl);
+      stlRef = {
+        path: `${sourcePath.replace(/\.scad$/i, '')}.stl`,
+        sha256: stlSha,
+        role: 'output',
+      };
+      files.push(stlRef as never);
+      const report = analyzeMesh(outcome.tris);
+      payload.stl = stlRef;
+      payload.bounds = {
+        min: report.bounds.min.map(r3) as Vec3,
+        max: report.bounds.max.map(r3) as Vec3,
+      };
+    }
+    // All asynchronous work is complete. Do not overwrite a newer app or external edit.
+    ctx.assertJobActive(job.id, { allowFailed: !outcome.ok });
+    const nowHash = fs.existsSync(absoluteSource)
+      ? createHash('sha256').update(fs.readFileSync(absoluteSource)).digest('hex')
+      : null;
+    if (
+      (parent && pickRevision(ctx, ctx.requireArtifact(artifact.id)).id !== parent.id) ||
+      nowHash !== workingHash
+    ) {
+      let conflictRev: Revision | undefined;
+      ctx.repo.tx(() => {
+        if (!parent) ctx.repo.insertArtifact(artifact);
+        conflictRev = commitRevision(ctx, {
+          artifactId: artifact.id,
+          parentId: parent?.id ?? null,
+          origin,
+          payload,
+          files,
+          inputs: input.inputs ?? parent?.inputs ?? [],
+          rationale: 'conflict candidate: source changed during render',
+          reviewState: 'draft',
+          skipMaterialize: true,
+        });
+      });
+      ctx.jobStatus(job.id, 'failed', {
+        error: {
+          code: ErrorCodes.REVISION_CONFLICT,
+          message: 'Source changed during render; result was kept as a conflict candidate.',
+        },
+        outputHashes: {
+          scad: scadSha,
+          ...(stlRef ? { stl: stlRef.sha256 } : {}),
+          revision: conflictRev!.id,
+        },
+      });
+      throw new OmenflowError(
+        ErrorCodes.REVISION_CONFLICT,
+        'Source changed during render; reread/rebase before retrying. Your existing work was preserved.',
+        {
+          repair: 'Review the conflict candidate revision; the working file was left unchanged.',
+          details: { conflictRevisionId: conflictRev!.id, jobId: job.id, sourcePath },
+        },
+      );
+    }
+    let rev!: Revision;
+    ctx.repo.tx(() => {
+      if (!parent) ctx.repo.insertArtifact(artifact);
+      rev = commitRevision(ctx, {
+        artifactId: artifact.id,
+        parentId: parent?.id ?? null,
+        origin,
+        payload,
+        files,
+        inputs: input.inputs ?? parent?.inputs ?? [],
+        rationale: input.rationale || (parent ? 'source revised' : 'initial source'),
+        reviewState: 'draft',
+      });
+    });
+    // The revision and working-source CAS above passed with no intervening await.
+    ctx.materialize(sourcePath, scadSha, rev.id, { overwrite: true });
+    if (stlRef) ctx.materialize(stlRef.path, stlRef.sha256, rev.id, { overwrite: true });
+    materializeReadableView(ctx, artifact, rev);
 
-  return buildReport({
-    artifact,
-    revision: rev,
-    sourcePath,
-    source,
-    outcome,
-    unit: payload.modelUnit,
-    injectedFn: faceted.injected,
-  });
+    const report = buildReport({
+      artifact,
+      revision: rev,
+      sourcePath,
+      source,
+      outcome,
+      unit: payload.modelUnit,
+      injectedFn: faceted.injected,
+    });
+    completeRenderJob(ctx, job, outcome);
+    return report;
+  } catch (error) {
+    const e = OmenflowError.from(error);
+    ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+      error: e.toBody(),
+      outputHashes: outcome.identity ? { stl: outcome.identity.outputHash } : undefined,
+    });
+    throw e;
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -762,8 +988,12 @@ export function cadReadSource(
   const artifact = requireMechanical(ctx, input.artifactId);
   const rev = pickRevision(ctx, artifact, input.revisionId);
   const { path: sourcePath, source } = readScad(ctx, rev);
-  const params = parseScadParameters(source);
   const payload = rev.payload as MechanicalPayload;
+  const effective = plainParams(payload.params, payload.modelUnit);
+  let effectiveSource = source;
+  for (const [name, value] of Object.entries(effective))
+    effectiveSource = setScadParameter(effectiveSource, name, value).source;
+  const params = parseScadParameters(effectiveSource);
   return {
     artifactId: artifact.id,
     revisionId: rev.id,
@@ -775,14 +1005,14 @@ export function cadReadSource(
     source,
     parameters: params.map((p) => ({
       name: p.name,
-      value: p.value,
+      value: plainParams(payload.params, payload.modelUnit)[p.name] ?? p.value,
       derived: p.derived,
       ...(p.expr ? { expr: p.expr } : {}),
       ...(p.comment ? { comment: p.comment } : {}),
     })),
-    recordedParams: plainParams(payload.params),
+    recordedParams: plainParams(payload.params, payload.modelUnit),
     unit: payload.modelUnit ?? 'mm',
-    hasRender: !!stlRefOf(rev)?.sha256,
+    hasRender: renderMatchesInput(payload, rev.files),
     next: 'Edit the source as needed and save it with cad.write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.',
   };
 }
@@ -812,8 +1042,13 @@ async function resolveMesh(
   const overrides = input.params ?? {};
   assertParamsExist(overrides, declared);
   const stl = stlRefOf(rev);
-  if (Object.keys(overrides).length === 0 && stl?.sha256 && ctx.objects.has(stl.sha256)) {
-    const buf = ctx.objects.read(stl.sha256);
+  if (
+    Object.keys(overrides).length === 0 &&
+    renderMatchesInput(payload, rev.files) &&
+    stl?.sha256 &&
+    ctx.objects.has(stl.sha256)
+  ) {
+    const buf = readMeshObject(ctx, stl.sha256);
     const tris = parseStlTriangles(buf);
     if (tris.length > 0) {
       const oriented = applyOrientation(buf, tris);
@@ -833,12 +1068,13 @@ async function resolveMesh(
           stl: oriented.stl,
           tris: oriented.tris,
           oriented: oriented.oriented,
+          identity: payload.renderIdentity,
         },
       };
     }
   }
-  const params = { ...plainParams(payload.params), ...overrides };
-  const { outcome } = await renderSource(ctx, {
+  const params = { ...plainParams(payload.params, unit), ...plainParams(overrides) };
+  const { outcome, job } = await renderSource(ctx, {
     source,
     params,
     timeoutMs: 90_000,
@@ -846,6 +1082,7 @@ async function resolveMesh(
     artifactId: artifact.id,
     revisionId: rev.id,
   });
+  completeRenderJob(ctx, job, outcome);
   return { artifact, rev, sourcePath, source, outcome, unit };
 }
 
@@ -897,7 +1134,7 @@ export async function cadInspect(
     : undefined;
   return {
     ...report,
-    next: 'Use the sections/probes to confirm each requested feature; then cad.check with explicit expectations.',
+    next: 'Inspect is diagnostic only and does not bind request assertions. Use the sections/probes to confirm each requested feature; then cad.check (exploratory false) with explicit expectations from the request.',
     ...(legacyInspect
       ? { inspect: legacyInspect, modelUnit: m.unit, dimensions: dims, isUnknown }
       : {}),
@@ -915,6 +1152,7 @@ export async function cadCheck(
     revisionId?: string;
     params?: Record<string, ScadValue>;
     expect: Expectation;
+    exploratory?: boolean;
   },
   origin: Origin,
 ): Promise<{
@@ -923,11 +1161,23 @@ export async function cadCheck(
   pass: boolean;
   passed: number;
   total: number;
+  verificationStatus: CadVerificationStatus;
+  evidenceHash: string;
+  specHash: string;
+  scopeChanges: string[];
   checks: CheckResult[];
   droppedFailingAssertions?: string[];
   loosenedAssertions?: string[];
+  exploratory?: boolean;
+  work?: {
+    artifactId: string;
+    candidateRevisionId: string | null;
+    specHash: string | null;
+    nextAction: string;
+  };
   next: string;
 }> {
+  const exploratory = input.exploratory === true;
   const m = await resolveMesh(ctx, input, origin);
   if (!m.outcome.ok || !m.outcome.tris) {
     throw new OmenflowError(
@@ -941,22 +1191,58 @@ export async function cadCheck(
   }
   const checks = runChecks(m.outcome.tris, input.expect);
   const changeRegions = input.expect.preserve?.changeRegions;
+  let preservation:
+    { revisionId: string; inputFingerprint: string; outputHash: string } | undefined;
   if (changeRegions?.length) {
-    const parent = m.rev.parentId ? ctx.repo.getRevision(m.rev.parentId) : null;
-    const parentStl = parent ? stlRefOf(parent) : undefined;
-    if (parent && parentStl?.sha256 && ctx.objects.has(parentStl.sha256)) {
-      const orig = applyOrientation(
-        ctx.objects.read(parentStl.sha256),
-        parseStlTriangles(ctx.objects.read(parentStl.sha256)),
-      ).tris;
-      checks.push(preservationCheck(orig, m.outcome.tris, changeRegions));
-    } else {
+    // Preserve the baseline from which this draft lineage started, not the most
+    // recent rewritten draft (which would let a repeated bad edit certify itself).
+    let parent = m.rev.parentId ? ctx.requireRevision(m.rev.parentId) : null;
+    const seen = new Set<string>();
+    while (
+      parent &&
+      parent.id !== m.artifact.selectedRevisionId &&
+      !['approved', 'superseded'].includes(parent.reviewState) &&
+      parent.parentId
+    ) {
+      if (seen.has(parent.id))
+        throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision ancestry contains a cycle');
+      seen.add(parent.id);
+      parent = ctx.requireRevision(parent.parentId);
+    }
+    if (parent) {
+      const reference = await resolveMesh(
+        ctx,
+        { artifactId: m.artifact.id, revisionId: parent.id },
+        origin,
+      );
+      if (reference.outcome.ok && reference.outcome.tris && reference.outcome.identity) {
+        preservation = {
+          revisionId: parent.id,
+          inputFingerprint: reference.outcome.identity.inputFingerprint,
+          outputHash: reference.outcome.identity.outputHash,
+        };
+        const result = preservationCheck(
+          reference.outcome.tris,
+          m.outcome.tris,
+          changeRegions.map((r) => ({ center: r.center as Vec3, radius: r.radius })),
+        );
+        checks.push({
+          ...result,
+          detail: `Compared with baseline/reference revision ${parent.id}: ${result.detail}`,
+        });
+      } else
+        checks.push({
+          name: 'unrelated geometry preserved',
+          pass: false,
+          detail: `Reference revision ${parent.id} cannot render: ${reference.outcome.error ?? 'invalid geometry'}. Repair the reference explicitly; repeating the modified source does not create a preservation reference.`,
+        });
+    } else
       checks.push({
         name: 'unrelated geometry preserved',
         pass: false,
-        detail: 'no parent mesh to compare — preserve requires a prior revision of this part',
+        detail:
+          'No prior baseline/reference revision exists; preservation cannot be established for a newly created part.',
       });
-    }
   }
   const passed = checks.filter((c) => c.pass).length;
   const pass = checks.length > 0 && passed === checks.length;
@@ -972,8 +1258,14 @@ export async function cadCheck(
       revisionId?: string;
       params?: unknown;
       results?: CheckResult[];
+      exploratory?: boolean;
     } | null;
-    if (!inp || inp.revisionId !== m.rev.id || JSON.stringify(inp.params ?? {}) !== paramsKey) {
+    if (
+      !inp ||
+      inp.exploratory ||
+      inp.revisionId !== m.rev.id ||
+      JSON.stringify(inp.params ?? {}) !== paramsKey
+    ) {
       continue;
     }
     for (const line of j.log.split('\n')) {
@@ -986,6 +1278,36 @@ export async function cadCheck(
   const dropped = [...priorFailures].filter((n) => !currentNames.has(n));
   const loosened = lastPriorResults ? findLoosenedAssertions(lastPriorResults, checks) : [];
 
+  const integrityReport = await analyzeMeshCancellable(m.outcome.tris);
+  const integrity = {
+    pass:
+      m.outcome.tris.length > 0 &&
+      m.outcome.tris.every(Number.isFinite) &&
+      integrityReport.topology.watertight &&
+      !integrityReport.invertedNormals &&
+      integrityReport.volume > 0,
+    detail:
+      'Mandatory finite, nonempty, closed, positive-volume mesh; self-intersections and physical safety are only assessed where explicitly declared.',
+  };
+  const bound = readActiveWork(ctx);
+  const evidence = createCadVerificationEvidence(
+    ctx,
+    m.rev,
+    m.outcome.identity!,
+    input.expect,
+    checks,
+    integrity,
+    {
+      exploratory,
+      boundExpect:
+        bound?.artifactId === m.artifact.id && bound.candidateRevisionId === m.rev.id
+          ? bound.expect
+          : null,
+    },
+  );
+  evidence.preservation = preservation;
+  const evidenceHash = ctx.storeContent(JSON.stringify(evidence));
+  const work = recordCommittedCheck(ctx, m.rev, input.expect, evidence.status, exploratory);
   const job = ctx.createJob({
     kind: 'cad_check',
     tool: 'omenflow-geometry',
@@ -994,6 +1316,8 @@ export async function cadCheck(
       revisionId: m.rev.id,
       params: input.params ?? {},
       expect: input.expect,
+      preservation,
+      exploratory,
       results: checks.map((c) => ({ name: c.name, pass: c.pass, tightness: c.tightness })),
     },
     sessionId: origin.kind === 'agent' ? origin.sessionId : null,
@@ -1008,11 +1332,14 @@ export async function cadCheck(
           ]
         : []),
       ...(loosened.length
-        ? [`WEAKENED: loosened tolerance on assertions that previously failed: ${loosened.join('; ')}`]
+        ? [
+            `WEAKENED: loosened tolerance on assertions that previously failed: ${loosened.join('; ')}`,
+          ]
         : []),
     ].join('\n'),
   );
   ctx.jobStatus(job.id, pass ? 'succeeded' : 'failed', {
+    outputHashes: { verification: evidenceHash },
     error: pass
       ? undefined
       : {
@@ -1033,15 +1360,34 @@ export async function cadCheck(
     pass,
     passed,
     total: checks.length,
+    verificationStatus: evidence.status,
+    evidenceHash,
+    specHash: evidence.specHash,
+    scopeChanges: evidence.scopeChanges,
     checks,
     ...(dropped.length ? { droppedFailingAssertions: dropped } : {}),
     ...(loosened.length ? { loosenedAssertions: loosened } : {}),
+    ...(exploratory ? { exploratory: true } : {}),
+    work: {
+      artifactId: work.artifactId,
+      candidateRevisionId: work.candidateRevisionId,
+      specHash: work.specHash,
+      nextAction: work.nextAction,
+    },
     next:
-      (pass
-        ? checks.length < 3
-          ? 'All checks passed, but only a few assertions were made — add the remaining requested features (holes, outlines, points) before declaring done.'
-          : 'All checks passed. The part matches the stated expectations; report done with a short summary of what was verified.'
-        : 'A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request.') +
+      (exploratory
+        ? 'Exploratory check: this did not bind or replace the committed request assertion spec. Do not report verified completion from it. Use cad.check without exploratory to commit the request-bound assertions.'
+        : evidence.status === 'failed'
+          ? pass
+            ? 'Mandatory geometry integrity failed. Dimensional assertions alone cannot establish verification.'
+            : 'A failed check means the geometry or reference is wrong: fix the source and repeat the same expectations. Do not change assertions merely to obtain a pass.'
+          : evidence.status === 'unverified'
+            ? 'This check used an uncommitted or temporary render variant; commit the intended input and check that exact revision. Do not report verified completion.'
+            : evidence.status === 'scope_changed'
+              ? `Verification scope changed (${evidence.scopeChanges.join(', ')}). Restore the committed request assertions or request explicit human acceptance of changed requirements. This result is not verified-ready. Do not claim the part is verified.`
+              : evidence.status === 'partial'
+                ? 'Only generic integrity was checked. Add the requested dimensions/features; this result is not verified-ready.'
+                : 'All declared checks pass for this exact revision. Summarize the covered assertions and unassessed requirements; human approval remains a separate step.') +
       weakenedNote,
   };
 }
@@ -1061,6 +1407,7 @@ export async function cadPatchSource(
   ctx: ProjectContext,
   input: {
     artifactId: string;
+    expectedRevisionId?: string;
     oldString: string;
     newString: string;
     rationale: string;
@@ -1086,6 +1433,7 @@ export async function cadPatchSource(
     ctx,
     {
       artifactId: input.artifactId,
+      expectedRevisionId: input.expectedRevisionId ?? rev.id,
       source: source.replace(input.oldString, input.newString),
       rationale: input.rationale || 'source patched',
       timeoutMs: input.timeoutMs,
@@ -1098,6 +1446,7 @@ export async function cadSetParam(
   ctx: ProjectContext,
   input: {
     artifactId: string;
+    expectedRevisionId?: string;
     name: string;
     value: ScadValue;
     rationale: string;
@@ -1122,6 +1471,11 @@ export async function cadSetParam(
     {
       artifactId: input.artifactId,
       source: next.source,
+      expectedRevisionId: input.expectedRevisionId ?? rev.id,
+      params: {
+        ...plainParams((rev.payload as MechanicalPayload).params),
+        [input.name]: input.value,
+      },
       rationale: input.rationale || `set ${input.name}`,
       timeoutMs: input.timeoutMs,
     },
@@ -1188,7 +1542,7 @@ export async function cadCompose(
   ctx: ProjectContext,
   input: {
     title: string;
-    instances: { artifactId: string; translate?: Vec3; rotate?: Vec3 }[];
+    instances: { artifactId: string; revisionId?: string; translate?: Vec3; rotate?: Vec3 }[];
     rationale: string;
     timeoutMs: number;
   },
@@ -1198,15 +1552,32 @@ export async function cadCompose(
   const blocks: string[] = [
     '// composed assembly — module-wrapped instances, transform only (no mates / STEP)',
   ];
+  const inputs: RecordedInput[] = [];
   const placed: { i: number; box: { min: Vec3; max: Vec3 } }[] = [];
   input.instances.forEach((inst, i) => {
     const artifact = requireMechanical(ctx, inst.artifactId);
-    const rev = pickRevision(ctx, artifact);
+    const rev = pickRevision(ctx, artifact, inst.revisionId);
     const { source } = readScad(ctx, rev);
     const name = `_inst_${i}`;
     const t = inst.translate ?? [0, 0, 0];
     const r = inst.rotate ?? [0, 0, 0];
-    const body = source.replace(/\s+$/, '');
+    let effectiveSource = source;
+    for (const [key, value] of Object.entries(
+      plainParams(
+        (rev.payload as MechanicalPayload).params,
+        (rev.payload as MechanicalPayload).modelUnit,
+      ),
+    )) {
+      effectiveSource = setScadParameter(effectiveSource, key, value).source;
+    }
+    const body = effectiveSource.replace(/\s+$/, '');
+    if (!inputs.some((i) => i.artifactId === artifact.id && i.revisionId === rev.id))
+      inputs.push({
+        artifactId: artifact.id,
+        revisionId: rev.id,
+        relationship: 'depends_on',
+        label: 'composition snapshot',
+      });
     const xform =
       r[0] === 0 && r[1] === 0 && r[2] === 0
         ? `translate([${t.join(', ')}]) ${name}();`
@@ -1232,6 +1603,7 @@ export async function cadCompose(
     ctx,
     {
       title: input.title,
+      inputs,
       source: blocks.join('\n\n') + '\n',
       rationale: input.rationale || 'composed from existing parts',
       timeoutMs: input.timeoutMs,
@@ -1258,17 +1630,12 @@ export async function cadValidateSource(
   const { rev } = mechPayload(ctx, artifactId, revisionId);
   const scad = scadRefOf(rev);
   if (!scad) throw new OmenflowError(ErrorCodes.VALIDATION, 'No .scad source on revision');
-  const abs = ctx.resolvePath(scad.path);
-  if (!fs.existsSync(abs)) {
-    if (scad.sha256 && ctx.objects.has(scad.sha256)) {
-      const tmp = ctx.resolvePath(`.omenflow/cache/validate-${rev.id}.scad`);
-      fs.mkdirSync(path.dirname(tmp), { recursive: true });
-      fs.writeFileSync(tmp, ctx.objects.read(scad.sha256));
-      return cadTool(ctx).validateSource(tmp);
-    }
-    throw new OmenflowError(ErrorCodes.NOT_FOUND, `Missing source file: ${scad.path}`);
-  }
-  return cadTool(ctx).validateSource(abs);
+  const { source } = readScad(ctx, rev);
+  assertSelfContainedScad(source);
+  const tmp = ctx.resolvePath(`.omenflow/cache/validate-${rev.id}.scad`);
+  fs.mkdirSync(path.dirname(tmp), { recursive: true });
+  fs.writeFileSync(tmp, source);
+  return cadTool(ctx).validateSource(tmp);
 }
 
 /**
@@ -1287,137 +1654,73 @@ export async function cadRender(
   origin: Origin,
 ): Promise<{ job: Job }> {
   ctx.assertWritable();
-  const cad = cadTool(ctx);
   const { artifact, rev, payload } = mechPayload(ctx, input.artifactId, input.revisionId);
-  const scad = scadRefOf(rev);
-  if (!scad?.sha256) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'No .scad source with content on revision');
-  }
-
-  const params: Record<string, ScadValue> = {
-    ...plainParams(payload.params),
-    ...plainParams(input.params),
+  const { source } = readScad(ctx, rev);
+  assertSelfContainedScad(source);
+  const params = {
+    ...plainParams(payload.params, payload.modelUnit),
+    ...plainParams(input.params, payload.modelUnit),
   };
+  assertParamsExist(params, parseScadParameters(source));
   const job = ctx.createJob({
     kind: 'cad_render',
-    tool: cad.toolId,
-    inputs: {
-      artifactId: artifact.id,
-      revisionId: rev.id,
-      params,
-      capturedInputs: rev.inputs,
-      scadHash: scad.sha256,
-    },
+    tool: cadTool(ctx).toolId,
+    inputHashes: { source: createHash('sha256').update(source).digest('hex') },
+    inputs: { artifactId: artifact.id, revisionId: rev.id, params },
     sessionId: origin.kind === 'agent' ? origin.sessionId : null,
   });
-
-  const sessionId = origin.kind === 'agent' ? origin.sessionId : 'user';
-  const workDir = ctx.resolvePath(`.omenflow/work/${sessionId}/jobs/${job.id}`);
-  fs.mkdirSync(workDir, { recursive: true });
-  const scadSrc = path.join(workDir, 'input.scad');
-  fs.writeFileSync(scadSrc, ctx.objects.read(scad.sha256));
-  const outPath = path.join(workDir, 'output.stl');
-  ctx.jobCancels.set(job.id, () => cad.cancel(job.id));
-
-  void (async () => {
-    ctx.jobStatus(job.id, 'running');
-    const probe = await cad.probe();
-    if (!probe.available) {
-      ctx.jobStatus(job.id, 'failed', {
-        error: {
-          code: ErrorCodes.TOOL_MISSING,
-          message: probe.error ?? 'OpenSCAD not found',
-          repair: 'Install OpenSCAD, then Connections → Locate OpenSCAD.',
-        },
-      });
-      return;
+  const paramManifest = parseScadParameters(source).map((p) => {
+    const raw = input.params?.[p.name] ?? payload.params[p.name];
+    const prior = payload.paramManifest.find((m) => m.name === p.name);
+    if (raw && typeof raw === 'object' && 'value' in raw && 'unit' in raw) {
+      const dim = dimOf(raw as { value: number; unit: string });
+      return {
+        name: p.name,
+        dimension:
+          dim === 'length'
+            ? ('length' as const)
+            : dim === 'angle'
+              ? ('angle' as const)
+              : ('number' as const),
+        unit: dim === 'length' ? 'mm' : dim === 'angle' ? 'deg' : '1',
+        description: p.comment,
+      };
     }
-    ctx.repo.updateJob(job.id, {
-      toolVersion: probe.version,
-      command: `${probe.executablePath} -o output.stl input.scad`,
-    });
-    const res = await cad.render(
-      { jobId: job.id, scadPath: scadSrc, outPath, params, timeoutMs: input.timeoutMs, workDir },
-      (chunk) => ctx.jobLog(job.id, chunk),
+    return (
+      prior ?? {
+        name: p.name,
+        dimension:
+          typeof p.value === 'boolean'
+            ? ('boolean' as const)
+            : typeof p.value === 'string'
+              ? ('text' as const)
+              : p.name === '$fn'
+                ? ('count' as const)
+                : ('number' as const),
+        description: p.comment,
+      }
     );
-    if (!res.ok) {
-      const cancelled = res.error === 'cancelled';
-      ctx.jobStatus(job.id, cancelled ? 'cancelled' : 'failed', {
-        error: cancelled
-          ? { code: ErrorCodes.CANCELLED, message: 'Render cancelled' }
-          : { code: ErrorCodes.VALIDATION, message: res.error ?? 'render failed' },
-      });
-      return;
-    }
-    if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
-      ctx.jobStatus(job.id, 'failed', {
-        error: { code: ErrorCodes.VALIDATION, message: 'OpenSCAD produced no output' },
-      });
-      return;
-    }
-    const stlBuf = fs.readFileSync(outPath);
-    let inspect;
-    try {
-      inspect = cad.inspectStl(stlBuf);
-    } catch (e) {
-      ctx.jobStatus(job.id, 'failed', {
-        error: {
-          code: ErrorCodes.VALIDATION,
-          message: `Invalid STL output: ${(e as Error).message}`,
-        },
-      });
-      return;
-    }
-    if (!inspect.plausible || inspect.triangles === 0) {
-      ctx.jobStatus(job.id, 'failed', {
-        error: { code: ErrorCodes.VALIDATION, message: 'STL has no geometry' },
-      });
-      return;
-    }
-    const stlHash = ctx.objects.put(stlBuf);
-    const stlRel = scad.path.replace(/\.scad$/, '.stl');
-
-    const captured = rev.inputs;
-    let inputChanged = false;
-    for (const inp of captured) {
-      const up = ctx.repo.getArtifact(inp.artifactId);
-      if (up && up.selectedRevisionId !== inp.revisionId) inputChanged = true;
-    }
-
-    const newPayload: MechanicalPayload = {
-      ...payload,
-      stl: { path: stlRel, sha256: stlHash, role: 'output' },
-      params: { ...payload.params, ...(input.params ?? {}) } as MechanicalPayload['params'],
-      bounds: inspect.bounds,
-      renderJobId: job.id,
-    };
-    const newRev = commitRevision(ctx, {
+  });
+  void cadWriteSource(
+    ctx,
+    {
+      paramManifest,
       artifactId: artifact.id,
-      parentId: rev.id,
-      origin,
-      payload: newPayload,
-      files: [scad, { path: stlRel, sha256: stlHash, role: 'output' }],
-      inputs: captured,
-      rationale: inputChanged
-        ? 'render output — inputs changed during run (not current evidence)'
-        : 'render output',
-      reviewState: 'draft',
-    });
-    ctx.materialize(stlRel, stlHash, newRev.id, { overwrite: true });
-    materializeReadableView(ctx, artifact, newRev);
-    ctx.jobStatus(job.id, inputChanged ? 'failed' : 'succeeded', {
-      outputHashes: { stl: stlHash },
-      error: inputChanged
-        ? {
-            code: ErrorCodes.INPUT_CHANGED,
-            message:
-              'Recorded inputs changed during render; output kept as draft, not current evidence',
-            details: { draftRevisionId: newRev.id },
-          }
-        : undefined,
-    });
-    ctx.jobCancels.delete(job.id);
-  })();
-
+      expectedRevisionId: rev.id,
+      source,
+      params,
+      rationale: 'render output',
+      timeoutMs: input.timeoutMs,
+      existingJob: job,
+    },
+    origin,
+  )
+    .catch((error: unknown) => {
+      const e = OmenflowError.from(error);
+      ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+        error: e.toBody(),
+      });
+    })
+    .finally(() => ctx.jobCancels.delete(job.id));
   return { job };
 }

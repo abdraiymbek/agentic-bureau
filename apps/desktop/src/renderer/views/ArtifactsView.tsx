@@ -35,6 +35,11 @@ import {
 } from '../components/ui';
 import { InspectButton } from '../components/InspectButton';
 import { CaretRight } from '@phosphor-icons/react';
+import {
+  displayedMechanicalRevision,
+  mechanicalCandidates,
+  mechanicalParameterUnit,
+} from './mechanical-revisions';
 
 const TYPE_ORDER: ArtifactType[] = [
   'mechanical',
@@ -54,7 +59,7 @@ const TYPE_ORDER: ArtifactType[] = [
 ];
 
 export function ArtifactsView() {
-  const { artifacts, selectedArtifactId, selectArtifact } = useStore();
+  const { artifacts, selectedArtifactId, selectArtifact, projectId } = useStore();
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Set<ArtifactType>>(new Set());
   const toggleGroup = (type: ArtifactType) =>
@@ -121,7 +126,7 @@ export function ArtifactsView() {
         </aside>
         <div className="object-detail flush">
           {selected ? (
-            <ArtifactDetail key={selected.artifact.id} view={selected} />
+            <ArtifactDetail key={`${projectId}:${selected.artifact.id}`} view={selected} />
           ) : (
             <EmptyState
               title="A home for every part of the design"
@@ -166,122 +171,278 @@ function ArtifactDetail({ view }: { view: ArtifactView }) {
   }
 }
 
-/** Loads drafts for an artifact (agent proposals live there until accepted). */
-function useDrafts(artifactId: string | undefined) {
-  const [drafts, setDrafts] = useState<Revision[]>([]);
-  useEffect(() => {
-    if (!artifactId) return;
-    void cmd<{ drafts: Revision[] }>('artifact.read', { artifactId })
-      .then((r) => setDrafts(r.drafts))
-      .catch(() => setDrafts([]));
-  }, [artifactId]);
-  return drafts;
-}
-
 /* ------------------------------------------------------------------ */
 /* Mechanical                                                          */
 /* ------------------------------------------------------------------ */
 
 function MechanicalDetail({ view }: { view: ArtifactView }) {
-  const { toast, refreshArtifacts } = useStore();
-  const drafts = useDrafts(view.artifact.id);
-  const [stl, setStl] = useState<ArrayBuffer | null>(null);
-  const [compareStl, setCompareStl] = useState<ArrayBuffer | null>(null);
+  const { toast, refreshArtifacts, refreshProposals, projectId, readOnly, set } = useStore();
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [chosenRevisionId, chooseRevision] = useState<string | null>(null);
+  const [revisionLoading, setRevisionLoading] = useState(true);
+  const [revisionError, setRevisionError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [mesh, setMesh] = useState<{ revisionId: string; data: ArrayBuffer } | null>(null);
+  const [meshError, setMeshError] = useState<string | null>(null);
+  const [meshLoading, setMeshLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const rev = view.revision;
+  const [sourceEdited, setSourceEdited] = useState(false);
+  const [paramsEdited, setParamsEdited] = useState(false);
+  const editing = sourceEdited || paramsEdited;
+  const baselineId = view.artifact.selectedRevisionId;
+  const candidates = mechanicalCandidates(revisions, baselineId);
+  const rev = displayedMechanicalRevision(revisions, baselineId, chosenRevisionId);
+  const displayedId = useRef<string | undefined>(rev?.id);
+  displayedId.current = rev?.id;
   const p = (rev?.payload ?? {}) as MechanicalPayload;
-  const draft = drafts[0] ?? null;
+  const isBaseline = !!rev && rev.id === baselineId;
+  const isCandidate = !!rev && candidates.some((r) => r.id === rev.id);
+  const visibleView = { ...view, revision: rev };
+  const stlFile =
+    rev?.files.find((f) => f.path === p.stl?.path) ??
+    rev?.files.find((f) => f.path.endsWith('.stl'));
+  const meshPath = stlFile?.path;
+  const displayedRevisionId = rev?.id;
 
-  const loadFile = async (path: string, revisionId?: string): Promise<ArrayBuffer> => {
-    const r = await cmd<{ contentBase64: string }>('artifact.read_file', {
-      artifactId: view.artifact.id,
-      path,
-      revisionId,
-    });
-    const bytes = Uint8Array.from(atob(r.contentBase64), (c) => c.charCodeAt(0));
-    return bytes.buffer as ArrayBuffer;
-  };
   useEffect(() => {
-    setStl(null);
-    setCompareStl(null);
-    const stlFile = rev?.files.find((f) => f.path.endsWith('.stl'));
-    if (stlFile)
-      void loadFile(stlFile.path)
-        .then(setStl)
-        .catch(() => {});
-    const draftStl = draft?.files.find((f) => f.path.endsWith('.stl'));
-    if (draftStl && draft)
-      void loadFile(draftStl.path, draft.id)
-        .then(setCompareStl)
-        .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rev?.id, draft?.id]);
+    let active = true;
+    if (!projectId) return;
+    setRevisionLoading(true);
+    setRevisionError(null);
+    void cmd<{ revisions: Revision[] }>(
+      'artifact.history',
+      { artifactId: view.artifact.id },
+      { projectId },
+    )
+      .then((r) => {
+        if (active && useStore.getState().projectId === projectId) setRevisions(r.revisions);
+      })
+      .catch((error) => {
+        if (active) setRevisionError(errMsg(error));
+      })
+      .finally(() => {
+        if (active) setRevisionLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [view, projectId, reload]);
 
+  useEffect(() => {
+    let active = true;
+    setMesh(null);
+    setMeshError(null);
+    setMeshLoading(false);
+    if (!projectId || !displayedRevisionId || !meshPath) return;
+    const revisionId = displayedRevisionId;
+    setMeshLoading(true);
+    void cmd<{ contentBase64: string }>(
+      'artifact.read_file',
+      {
+        artifactId: view.artifact.id,
+        revisionId,
+        path: meshPath,
+      },
+      { projectId },
+    )
+      .then((result) => {
+        if (!active || useStore.getState().projectId !== projectId) return;
+        const bytes = Uint8Array.from(atob(result.contentBase64), (c) => c.charCodeAt(0));
+        setMesh({ revisionId, data: bytes.buffer as ArrayBuffer });
+      })
+      .catch((error) => {
+        if (active) setMeshError(errMsg(error));
+      })
+      .finally(() => {
+        if (active) setMeshLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [displayedRevisionId, meshPath, view.artifact.id, projectId]);
+
+  const refresh = async (revisionId?: string) => {
+    if (useStore.getState().projectId !== projectId) return;
+    if (revisionId && displayedId.current === rev?.id) chooseRevision(revisionId);
+    setReload((v) => v + 1);
+    await Promise.all([refreshArtifacts(), refreshProposals()]);
+  };
   const render = async () => {
+    if (!projectId || !rev) return;
     setBusy(true);
     try {
-      await cmd('cad.render', { artifactId: view.artifact.id });
-      toast('ok', 'Render job started');
+      await cmd('cad.render', { artifactId: view.artifact.id, revisionId: rev.id }, { projectId });
+      if (useStore.getState().projectId !== projectId) return;
+      chooseRevision(null);
+      toast('ok', 'Render job started for the displayed revision');
+      await refresh();
     } catch (e) {
       toast('error', errMsg(e));
     } finally {
       setBusy(false);
-      void refreshArtifacts();
     }
   };
   const validate = async () => {
+    if (!projectId || !rev) return;
     try {
-      const r = await cmd<{ ok: boolean; errors: string[] }>('cad.validate_source', {
-        artifactId: view.artifact.id,
-      });
-      toast(r.ok ? 'ok' : 'error', r.ok ? 'Source valid' : r.errors.join('; ') || 'Invalid');
+      const r = await cmd<{ ok: boolean; errors: string[] }>(
+        'cad.validate_source',
+        {
+          artifactId: view.artifact.id,
+          revisionId: rev.id,
+        },
+        { projectId },
+      );
+      if (useStore.getState().projectId === projectId)
+        toast(
+          r.ok ? 'ok' : 'error',
+          r.ok
+            ? `Saved source on revision ${rev.seq} is valid`
+            : r.errors.join('; ') || 'Invalid source',
+        );
     } catch (e) {
       toast('error', errMsg(e));
     }
   };
   const acceptDraft = async () => {
-    if (!draft) return;
+    if (!projectId || !rev || rev.reviewState !== 'draft' || isBaseline) return;
+    setBusy(true);
     try {
-      await cmd('artifact.accept_draft', {
-        artifactId: view.artifact.id,
-        draftRevisionId: draft.id,
-        rationale: 'accept render',
-      });
-      await refreshArtifacts();
-      toast('ok', 'Draft accepted as baseline');
+      await cmd(
+        'artifact.accept_draft',
+        {
+          artifactId: view.artifact.id,
+          draftRevisionId: rev.id,
+          rationale: `Accept displayed revision ${rev.seq}`,
+        },
+        { projectId },
+      );
+      await refresh(rev.id);
+      if (useStore.getState().projectId === projectId)
+        toast('ok', `Revision ${rev.seq} accepted as baseline`);
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="mechanical-detail">
       <Header
-        view={view}
+        view={visibleView}
         actions={
           <>
-            <button className="primary compact" onClick={render} disabled={busy}>
-              {busy ? 'Starting render…' : 'Render STL'}
+            <button
+              className="primary compact"
+              onClick={render}
+              disabled={
+                busy ||
+                editing ||
+                revisionLoading ||
+                !!revisionError ||
+                !rev ||
+                (!isBaseline && !isCandidate)
+              }
+            >
+              {busy ? 'Working…' : 'Render displayed revision'}
             </button>
-            {draft && (
-              <button className="compact" onClick={acceptDraft}>
-                Accept draft revision {draft.seq}
+            {isCandidate && rev?.reviewState === 'draft' && (
+              <button
+                className="compact"
+                onClick={acceptDraft}
+                disabled={
+                  busy ||
+                  editing ||
+                  revisionLoading ||
+                  !!revisionError ||
+                  meshLoading ||
+                  !mesh ||
+                  mesh.revisionId !== rev.id ||
+                  !!meshError
+                }
+              >
+                Accept displayed draft {rev.seq}
+              </button>
+            )}
+            {rev?.reviewState === 'proposed' && (
+              <button
+                className="compact"
+                disabled={editing}
+                onClick={() => set({ nav: 'reviews' })}
+              >
+                Review candidate
               </button>
             )}
           </>
         }
       />
+      <section className="detail-section">
+        <FormField label="Displayed revision">
+          <select
+            aria-label="Displayed mechanical revision"
+            value={rev?.id ?? ''}
+            disabled={busy || revisionLoading || editing}
+            onChange={(event) => chooseRevision(event.target.value)}
+          >
+            {!rev && (
+              <option value="">
+                {revisionLoading ? 'Loading revisions…' : 'No revision available'}
+              </option>
+            )}
+            {[...revisions]
+              .sort((a, b) => b.seq - a.seq)
+              .map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.id === baselineId
+                    ? 'Selected baseline'
+                    : candidates.some((candidate) => candidate.id === r.id)
+                      ? 'Candidate'
+                      : 'History'}{' '}
+                  · revision {r.seq} · {r.reviewState}
+                </option>
+              ))}
+          </select>
+        </FormField>
+        {editing && (
+          <p className="table-footnote">Save or discard local edits before switching revisions.</p>
+        )}
+        {revisionError && (
+          <div className="inline-notice warning" role="alert">
+            Could not load revisions: {revisionError}{' '}
+            <button className="compact" onClick={() => setReload((v) => v + 1)}>
+              Retry
+            </button>
+          </div>
+        )}
+        {rev && (
+          <p className="table-footnote">
+            {isBaseline
+              ? 'Showing the selected baseline.'
+              : isCandidate
+                ? 'Showing an unapproved candidate. Inspect this revision before accepting it.'
+                : 'Showing a historical revision; editing is disabled.'}{' '}
+            Approval does not establish engineering validity.
+          </p>
+        )}
+      </section>
       <div className="canvas-frame">
-        {stl ? (
-          <StlViewport stlData={stl} compareData={compareStl} modelUnit={p.modelUnit ?? 'mm'} />
+        {mesh?.revisionId === rev?.id && mesh ? (
+          <StlViewport key={rev?.id} stlData={mesh.data} modelUnit={p.modelUnit ?? 'mm'} />
         ) : (
           <EmptyState
-            title="No geometry on this revision"
-            body="Render the model from its source to inspect it in 3D. Rendering needs OpenSCAD on this machine."
-            action={
-              <button className="primary" onClick={render} disabled={busy}>
-                Render STL
-              </button>
+            title={
+              meshError
+                ? 'Geometry could not be loaded'
+                : meshLoading || revisionLoading
+                  ? 'Loading geometry…'
+                  : 'No geometry on this revision'
+            }
+            body={
+              meshError ??
+              (meshLoading || revisionLoading
+                ? 'Loading the exact displayed revision.'
+                : 'Render this revision to inspect its mesh. OpenSCAD is required.')
             }
           />
         )}
@@ -289,74 +450,122 @@ function MechanicalDetail({ view }: { view: ArtifactView }) {
       {p.manufacturing?.includes('Illustrative') && (
         <div className="inline-notice warning">{p.manufacturing}</div>
       )}
-      <ParamsTable
-        params={p.params ?? {}}
-        modelUnit={p.modelUnit ?? 'mm'}
-        artifactId={view.artifact.id}
-        revisionId={rev?.id}
-      />
-      <ScadEditor view={view} onValidate={validate} />
+      {rev && (
+        <>
+          <ParamsTable
+            key={rev.id}
+            params={p.params ?? {}}
+            paramManifest={p.paramManifest ?? []}
+            artifactId={view.artifact.id}
+            revisionId={rev.id}
+            projectId={projectId}
+            readOnly={readOnly || !isBaseline || sourceEdited}
+            onEdit={() => {
+              chooseRevision(rev.id);
+              setParamsEdited(true);
+            }}
+            onClean={() => setParamsEdited(false)}
+            onSaved={refresh}
+          />
+          <ScadEditor
+            view={visibleView}
+            projectId={projectId}
+            editable={!readOnly && !paramsEdited && (isBaseline || isCandidate)}
+            isBaseline={isBaseline}
+            onEdit={() => {
+              chooseRevision(rev.id);
+              setSourceEdited(true);
+            }}
+            onClean={() => setSourceEdited(false)}
+            onSaved={refresh}
+            onValidate={validate}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 function ParamsTable(props: {
   params: Record<string, unknown>;
-  modelUnit: string;
+  paramManifest: MechanicalPayload['paramManifest'];
   artifactId: string;
-  revisionId?: string;
+  revisionId: string;
+  projectId: string | null;
+  readOnly: boolean;
+  onEdit: () => void;
+  onClean: () => void;
+  onSaved: (revisionId?: string) => Promise<void>;
 }) {
-  const { refreshArtifacts, toast } = useStore();
+  const toast = useStore((s) => s.toast);
   const entries = Object.entries(props.params);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
   if (entries.length === 0) return null;
-  const numOf = (v: unknown): number | undefined => {
-    if (typeof v === 'number') return v;
-    if (v && typeof v === 'object' && 'value' in v) return (v as { value?: number }).value;
-    return undefined;
-  };
-  const unitOf = (v: unknown): string => {
-    if (v && typeof v === 'object' && 'unit' in v) return String((v as { unit?: string }).unit);
-    return props.modelUnit;
-  };
+  const numOf = (v: unknown): number | undefined =>
+    typeof v === 'number'
+      ? v
+      : v && typeof v === 'object' && 'value' in v
+        ? (v as { value?: number }).value
+        : undefined;
   const commit = async () => {
+    if (!props.projectId || props.readOnly) return;
     const params: Record<string, unknown> = { ...props.params };
     for (const [k, v] of Object.entries(edits)) {
-      if (v === '' || Number.isNaN(Number(v))) continue;
+      if (!v.trim() || !Number.isFinite(Number(v))) {
+        toast('error', `Enter a finite value for ${k}`);
+        return;
+      }
       const cur = props.params[k];
       params[k] =
         typeof cur === 'object' && cur !== null
           ? { ...(cur as object), value: Number(v) }
           : Number(v);
     }
+    setBusy(true);
     try {
-      await cmd('artifact.apply_edit', {
-        artifactId: props.artifactId,
-        baseRevisionId: props.revisionId,
-        payloadPatch: { params },
-        rationale: 'edit param',
-      });
+      const result = await cmd<{ revision: Revision }>(
+        'artifact.apply_edit',
+        {
+          artifactId: props.artifactId,
+          baseRevisionId: props.revisionId,
+          payloadPatch: { params },
+          rationale: 'Edit baseline parameters',
+        },
+        { projectId: props.projectId },
+      );
       setEdits({});
-      await refreshArtifacts();
-      toast('ok', 'Parameters updated — dependents marked stale');
+      props.onClean();
+      await props.onSaved(result.revision.id);
+      if (useStore.getState().projectId === props.projectId)
+        toast('ok', 'Parameters saved; geometry needs a new render');
     } catch (e) {
       toast('error', errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
-  const dirty = Object.values(edits).some((v) => v !== '');
+  const dirty = Object.keys(edits).length > 0;
   return (
     <section className="detail-section">
       <div className="section-heading">
         <h2>
-          Parameters<span className="count">{entries.length}</span>
+          Parameter overrides<span className="count">{entries.length}</span>
         </h2>
         {dirty && (
           <div className="row">
-            <button className="ghost compact" onClick={() => setEdits({})}>
+            <button
+              className="ghost compact"
+              disabled={busy}
+              onClick={() => {
+                setEdits({});
+                props.onClean();
+              }}
+            >
               Discard
             </button>
-            <button className="primary compact" onClick={commit}>
-              Apply parameters
+            <button className="primary compact" disabled={busy || props.readOnly} onClick={commit}>
+              {busy ? 'Saving…' : 'Apply parameters'}
             </button>
           </div>
         )}
@@ -365,16 +574,22 @@ function ParamsTable(props: {
         <tbody>
           {entries.map(([k, v]) => {
             const n = numOf(v);
+            const unit = mechanicalParameterUnit(k, v, props.paramManifest);
             return (
               <tr key={k}>
                 <td className="dim">{k}</td>
                 <td>
                   {n !== undefined ? (
                     <input
-                      aria-label={`${k} (${unitOf(v)})`}
+                      aria-label={`${k} (${unit})`}
                       className="num"
+                      readOnly={props.readOnly}
+                      disabled={busy}
                       value={edits[k] ?? String(n)}
-                      onChange={(e) => setEdits((s) => ({ ...s, [k]: e.target.value }))}
+                      onChange={(e) => {
+                        props.onEdit();
+                        setEdits((s) => ({ ...s, [k]: e.target.value }));
+                      }}
                     />
                   ) : (
                     <span className="mono">
@@ -382,86 +597,239 @@ function ParamsTable(props: {
                     </span>
                   )}
                 </td>
-                <td className="faint">{unitOf(v)}</td>
+                <td className="faint">{unit}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      {props.readOnly && (
+        <p className="table-footnote">
+          Recorded parameter overrides are read-only in this view. Ask the agent to revise them, or
+          edit the selected baseline in a writable project.
+        </p>
+      )}
       {dirty && (
         <p className="table-footnote">
-          Applying creates a new revision and marks dependent objects out of date until they are
-          re-run.
+          Applying creates a new baseline revision. Geometry and dependent objects must be rebuilt.
         </p>
       )}
     </section>
   );
 }
 
-function ScadEditor({ view, onValidate }: { view: ArtifactView; onValidate: () => void }) {
-  const { refreshArtifacts, toast } = useStore();
+function ScadEditor({
+  view,
+  projectId,
+  editable,
+  isBaseline,
+  onEdit,
+  onClean,
+  onSaved,
+  onValidate,
+}: {
+  view: ArtifactView;
+  projectId: string | null;
+  editable: boolean;
+  isBaseline: boolean;
+  onEdit: () => void;
+  onClean: () => void;
+  onSaved: (revisionId?: string) => Promise<void>;
+  onValidate: () => void;
+}) {
+  const toast = useStore((s) => s.toast);
   const scad = view.revision?.files.find((f) => f.path.endsWith('.scad'));
-  const [src, setSrc] = useState<string | null>(null);
+  const sourcePath = scad?.path;
+  const revisionId = view.revision?.id;
+  const [source, setSource] = useState<{
+    revisionId: string;
+    text: string;
+    originalText: string;
+    recordedParams: Record<string, string | number | boolean>;
+  } | null>(null);
   const [open, setOpen] = useState(false);
-  const dirty = useRef(false);
-
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadAttempt, retryLoad] = useState(0);
+  const requestId = useRef(0);
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
   useEffect(() => {
-    if (!scad || !open) return;
-    void cmd<{ contentBase64: string }>('artifact.read_file', {
-      artifactId: view.artifact.id,
-      path: scad.path,
-    }).then((r) => setSrc(decodeURIComponent(escape(atob(r.contentBase64)))));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scad?.path, view.revision?.id, open]);
-
-  const save = async () => {
-    if (src == null || !scad || !view.revision) return;
-    try {
-      await cmd('artifact.apply_edit', {
+    const token = ++requestId.current;
+    if (sourceRef.current?.revisionId !== revisionId) {
+      setSource(null);
+      setDirty(false);
+    }
+    setError(null);
+    setLoading(false);
+    if (!sourcePath || !open || !revisionId || !projectId) return;
+    if (sourceRef.current?.revisionId === revisionId) return;
+    setLoading(true);
+    void cmd<{
+      revisionId: string;
+      source: string;
+      recordedParams: Record<string, string | number | boolean>;
+    }>(
+      'cad.read_source',
+      {
         artifactId: view.artifact.id,
-        baseRevisionId: view.revision.id,
-        fileWrites: [{ path: scad.path, contentBase64: btoa(unescape(encodeURIComponent(src))) }],
-        rationale: 'edit source',
+        revisionId,
+      },
+      { projectId },
+    )
+      .then((result) => {
+        if (
+          requestId.current === token &&
+          result.revisionId === revisionId &&
+          useStore.getState().projectId === projectId
+        )
+          setSource({
+            revisionId,
+            text: result.source,
+            originalText: result.source,
+            recordedParams: result.recordedParams,
+          });
+      })
+      .catch((e) => {
+        if (requestId.current === token) setError(errMsg(e));
+      })
+      .finally(() => {
+        if (requestId.current === token) setLoading(false);
       });
-      dirty.current = false;
-      await refreshArtifacts();
-      toast('ok', 'Source saved — geometry stale until rendered');
+    return () => {
+      requestId.current = token + 1;
+    };
+  }, [sourcePath, revisionId, open, projectId, view.artifact.id, loadAttempt]);
+  const save = async () => {
+    if (!source || source.revisionId !== revisionId || !scad || !projectId || !editable) return;
+    setBusy(true);
+    setError(null);
+    try {
+      let savedRevisionId: string;
+      if (isBaseline) {
+        const result = await cmd<{ revision: Revision }>(
+          'artifact.apply_edit',
+          {
+            artifactId: view.artifact.id,
+            baseRevisionId: revisionId,
+            fileWrites: [
+              { path: scad.path, contentBase64: btoa(unescape(encodeURIComponent(source.text))) },
+            ],
+            rationale: 'Edit baseline source',
+          },
+          { projectId },
+        );
+        savedRevisionId = result.revision.id;
+      } else {
+        const result = await cmd<{ revisionId: string }>(
+          'cad.write_source',
+          {
+            artifactId: view.artifact.id,
+            expectedRevisionId: revisionId,
+            source: source.text,
+            params: source.recordedParams,
+            rationale: 'Revise displayed candidate source',
+          },
+          { projectId },
+        );
+        savedRevisionId = result.revisionId;
+      }
+      setDirty(false);
+      onClean();
+      await onSaved(savedRevisionId);
+      if (useStore.getState().projectId === projectId)
+        toast(
+          'ok',
+          isBaseline
+            ? 'Source saved; geometry needs a new render'
+            : 'New candidate rendered; review and verify it before accepting',
+        );
     } catch (e) {
-      toast('error', errMsg(e));
+      setError(errMsg(e));
+    } finally {
+      setBusy(false);
     }
   };
-
   if (!scad) return null;
   return (
     <section className="detail-section">
       <div className="section-heading">
-        <button className="disclosure" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <button
+          className="disclosure"
+          aria-expanded={open}
+          disabled={busy}
+          onClick={() => setOpen((o) => !o)}
+        >
           <CaretRight size={12} className={`object-group-caret ${open ? 'open' : ''}`} />
-          Source
-          <span className="mono faint">{scad.path}</span>
+          Source<span className="mono faint">{scad.path}</span>
         </button>
         {open && (
           <div className="row">
-            <button className="compact" onClick={onValidate}>
-              Validate source
+            {dirty && (
+              <button
+                className="ghost compact"
+                disabled={busy}
+                onClick={() => {
+                  setSource((s) => (s ? { ...s, text: s.originalText } : s));
+                  setDirty(false);
+                  onClean();
+                }}
+              >
+                Discard
+              </button>
+            )}
+            <button className="compact" onClick={onValidate} disabled={loading || busy || dirty}>
+              Validate saved source
             </button>
-            <button className="primary compact" onClick={save} disabled={!dirty.current}>
-              Save source
+            <button
+              className="primary compact"
+              onClick={save}
+              disabled={!dirty || !editable || busy || loading}
+            >
+              {busy ? 'Saving…' : isBaseline ? 'Save source' : 'Render new candidate'}
             </button>
           </div>
         )}
       </div>
       {open && (
-        <textarea
-          aria-label="OpenSCAD source"
-          className="mono source-editor"
-          rows={16}
-          value={src ?? ''}
-          onChange={(e) => {
-            setSrc(e.target.value);
-            dirty.current = true;
-          }}
-        />
+        <>
+          {loading && (
+            <p className="dim" role="status">
+              Loading revision {view.revision?.seq} source…
+            </p>
+          )}
+          {error && (
+            <div className="inline-notice warning" role="alert">
+              {error}
+              {!source && (
+                <button className="compact" onClick={() => retryLoad((attempt) => attempt + 1)}>
+                  Retry source load
+                </button>
+              )}
+            </div>
+          )}
+          <textarea
+            aria-label="OpenSCAD source"
+            className="mono source-editor"
+            rows={16}
+            readOnly={!editable}
+            disabled={busy || loading || source?.revisionId !== revisionId}
+            value={source?.revisionId === revisionId ? (source?.text ?? '') : ''}
+            onChange={(e) => {
+              onEdit();
+              setSource((s) => (s ? { ...s, text: e.target.value } : s));
+              setDirty(true);
+            }}
+          />
+          {source && Object.keys(source.recordedParams).length > 0 && (
+            <p className="table-footnote">
+              Recorded parameter overrides are preserved when saving this source.
+            </p>
+          )}
+          {!editable && <p className="table-footnote">This revision is read-only.</p>}
+        </>
       )}
     </section>
   );
@@ -699,6 +1067,10 @@ function CalcDetail({ view }: { view: ArtifactView }) {
           </button>
         }
       />
+      <div className="inline-notice warning" role="status" style={{ marginBottom: 20 }}>
+        Experimental calculation. Referenced sources are labels, not resolved field values. Derived
+        units are incomplete. This result is not verified engineering evidence.
+      </div>
       {inputs.some((i) => i.moved) && (
         <div className="inline-notice warning" style={{ marginBottom: 20 }}>
           An input source has changed. This result uses the recorded values below. Ask your agent to

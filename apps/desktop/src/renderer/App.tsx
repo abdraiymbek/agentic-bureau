@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Panel,
   PanelGroup,
@@ -33,6 +33,7 @@ import { FilesView } from './views/FilesView';
 import { ConnectionsView } from './views/ConnectionsView';
 import { DesignSystemView } from './views/DesignSystemView';
 import type { ProjectEvent } from '@omenflow/contracts';
+import { COMMAND_ERROR_EVENT, formatRecoverableError, type RecoverableCommandError } from './api';
 
 export default function App() {
   const {
@@ -53,6 +54,8 @@ export default function App() {
     session,
     navigate,
   } = useStore();
+  const [serviceError, setServiceError] = useState<string | null>(null);
+  const [commandError, setCommandError] = useState<RecoverableCommandError | null>(null);
   const sidePanel = useRef<ImperativePanelHandle>(null);
   // The breadcrumb names the object being worked on, not just the section.
   const selected =
@@ -74,10 +77,28 @@ export default function App() {
     sidePanel.current?.resize(terminalExpanded ? 50 : 29);
   }, [terminalExpanded]);
   useEffect(() => {
-    const un = window.omenflow.onEvent((e) => pushEvent(e as ProjectEvent));
-    const unJob = window.omenflow.onJobProgress(() => void useStore.getState().refreshJobs());
-    const unTerm = window.omenflow.onTerminalState((s) => set({ session: s as never }));
+    const matches = (e: unknown) =>
+      !(e as { projectId?: string })?.projectId ||
+      (e as { projectId: string }).projectId === useStore.getState().projectId;
+    const un = window.omenflow.onEvent((e) => {
+      if (matches(e)) pushEvent(e as ProjectEvent);
+    });
+    const unJob = window.omenflow.onJobProgress((e) => {
+      if (matches(e))
+        void useStore
+          .getState()
+          .refreshJobs()
+          .catch(() => {});
+    });
+    const unTerm = window.omenflow.onTerminalState((s) => {
+      if (matches(s))
+        set({ session: (s && typeof s === 'object' && 'session' in s ? s.session : s) as never });
+    });
+    const unService = window.omenflow.onServiceState?.((state) =>
+      setServiceError(state.available ? null : (state.message ?? 'Workspace service unavailable')),
+    );
     return () => {
+      unService?.();
       un();
       unJob();
       unTerm();
@@ -107,14 +128,38 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('omenflow:focus-terminal', focusAgent);
+    const onCommandError = (event: Event) => {
+      const detail = (event as CustomEvent<RecoverableCommandError>).detail;
+      if (detail?.code && detail.message) setCommandError(detail);
+    };
+    window.addEventListener(COMMAND_ERROR_EVENT, onCommandError);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('omenflow:focus-terminal', focusAgent);
+      window.removeEventListener(COMMAND_ERROR_EVENT, onCommandError);
     };
   }, [set]);
   return (
     <div className="app-shell">
       <TopBar />
+      {serviceError && (
+        <div role="alert" className="inline-notice warning">
+          {serviceError}
+        </div>
+      )}
+      {commandError && (
+        <div role="alert" className="inline-notice warning">
+          <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
+            <span>
+              {commandError.op}: {formatRecoverableError(commandError)}
+              <span className="mono dim"> {commandError.code}</span>
+            </span>
+            <IconButton label="Dismiss command error" onClick={() => setCommandError(null)}>
+              <X size={14} />
+            </IconButton>
+          </div>
+        </div>
+      )}
       {!projectId ? (
         nav === 'design-system' ? (
           <div className="page-scroll">

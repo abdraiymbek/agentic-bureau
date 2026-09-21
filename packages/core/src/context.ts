@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import {
   Artifact,
   ArtifactView,
@@ -21,6 +20,10 @@ import {
   resolveProjectPath,
   sha256Hex,
   toProjectRelative,
+  resolveMaterializationPath,
+  writeMaterializedFile,
+  validateObjectHash,
+  resolveProjectSourcePath,
 } from '@omenflow/storage';
 
 /** Services the host process (Electron main, or a test stub) provides to core. */
@@ -64,6 +67,7 @@ export const nullHost: HostServices = {
 
 export type { EngineTools } from './tools.js';
 import type { EngineTools } from './tools.js';
+import type { DurabilityHook } from './durability.js';
 
 export type EventListener = (e: ProjectEvent) => void;
 
@@ -75,6 +79,13 @@ export class ProjectContext {
   readonly listeners = new Set<EventListener>();
   readonly jobCancels = new Map<string, () => void>();
   readonly proposalWaiters = new Set<(p: string) => void>();
+  readonly terminalListeners = new Set<
+    (data: { sessionId: string; chunk: string; seq: number }) => void
+  >();
+  readonly inFlightRequests = new Map<string, { hash: string; result: Promise<unknown> }>();
+  readonly inFlightRenders = new Map<string, Promise<{ rawStl: Buffer; log: string }>>();
+  durabilityHooks: DurabilityHook[] = [];
+  closed = false;
   tools: EngineTools = {};
 
   constructor(
@@ -101,12 +112,28 @@ export class ProjectContext {
   emit(type: string, origin: Origin['kind'], data: unknown): number {
     const seq = this.repo.appendEvent(type, origin, data);
     const ev = this.repo.eventsSince(seq - 1).find((e) => e.seq === seq);
-    if (ev) for (const l of this.listeners) l(ev);
-    for (const w of this.proposalWaiters) w(type);
+    this.repo.afterCommit(() => {
+      if (ev)
+        for (const l of this.listeners) {
+          try {
+            l(ev);
+          } catch {
+            /* observers cannot roll back a committed edit */
+          }
+        }
+      for (const w of this.proposalWaiters) {
+        try {
+          w(type);
+        } catch {
+          /* isolate observers */
+        }
+      }
+    });
     return seq;
   }
 
   assertWritable(): void {
+    if (this.closed) throw new OmenflowError(ErrorCodes.CANCELLED, 'Project is closed');
     if (this.readOnly) {
       throw new OmenflowError(
         ErrorCodes.READ_ONLY,
@@ -167,15 +194,8 @@ export class ProjectContext {
 
   /** Store a file already on disk (must be inside the project). */
   storeProjectFile(absPath: string): { sha256: string; relPath: string } {
-    if (!absPath.startsWith(this.root)) {
-      const rel = toProjectRelative(this.root, absPath);
-      if (rel.startsWith('..')) {
-        throw new OmenflowError(
-          ErrorCodes.PATH_OUTSIDE_PROJECT,
-          `File outside project: ${absPath}`,
-        );
-      }
-    }
+    const relPath = toProjectRelative(this.root, absPath);
+    resolveProjectSourcePath(this.root, relPath);
     const sha = sha256Hex(fs.readFileSync(absPath));
     this.objects.putFile(absPath);
     return { sha256: sha, relPath: toProjectRelative(this.root, absPath) };
@@ -192,37 +212,46 @@ export class ProjectContext {
     relPath: string,
     sha256: string,
     revisionId?: string,
-    opts?: { overwrite?: boolean },
+    opts?: { overwrite?: boolean; expectedSha256?: string },
   ): void {
+    this.assertWritable();
+    const abs = resolveMaterializationPath(this.root, relPath);
+    validateObjectHash(sha256);
+    if (opts?.expectedSha256) validateObjectHash(opts.expectedSha256);
     const mid = this.repo.addMaterialization(relPath, sha256, revisionId ?? null);
-    this.onMaterialized?.(relPath, sha256);
-    try {
-      const abs = this.resolvePath(relPath);
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      // Never clobber a divergent external edit: if a user-owned file exists
-      // with different content, leave it and let the watcher import it as a
-      // draft. Generated outputs (views, renders, tool-written sources) pass
-      // `overwrite` — they are ours to replace.
-      const buf = this.objects.read(sha256);
-      if (fs.existsSync(abs)) {
-        const cur = sha256Hex(fs.readFileSync(abs));
-        if (cur === sha256) {
-          this.repo.completeMaterialization(mid);
-          return;
-        }
-        if (opts?.overwrite) {
-          fs.writeFileSync(abs, buf);
+    this.repo.afterCommit(() => {
+      try {
+        // Never clobber a divergent external edit: if a user-owned file exists
+        // with different content, leave it and let the watcher import it as a
+        // draft. A controlled revision can replace the exact parent bytes;
+        // generated outputs use the separately guarded overwrite path.
+        const buf = this.objects.read(sha256);
+        if (fs.existsSync(abs)) {
+          const cur = sha256Hex(fs.readFileSync(abs));
+          if (cur === sha256) {
+            this.repo.completeMaterialization(mid);
+            return;
+          }
+          if (opts?.overwrite || cur === opts?.expectedSha256) {
+            writeMaterializedFile(this.root, relPath, buf);
+          } else {
+            writeMaterializedFile(this.root, `${relPath}.omenflow-conflict-${Date.now()}`, buf);
+          }
         } else {
-          const marker = `${abs}.omenflow-conflict-${Date.now()}`;
-          fs.writeFileSync(marker, buf);
+          writeMaterializedFile(this.root, relPath, buf);
         }
-      } else {
-        fs.writeFileSync(abs, buf);
+        this.onMaterialized?.(relPath, sha256);
+        this.repo.completeMaterialization(mid);
+      } catch (e) {
+        // The authoritative revision/outbox is already durable. Keep failed work
+        // pending for recovery and expose the failure rather than reporting rollback.
+        this.emit('materialization.failed', 'system', {
+          path: relPath,
+          revisionId,
+          error: String(e),
+        });
       }
-      this.repo.completeMaterialization(mid);
-    } catch (e) {
-      throw e;
-    }
+    });
   }
 
   /* ------------------------- jobs -------------------------------------- */
@@ -236,6 +265,7 @@ export class ProjectContext {
     command?: string | null;
     sessionId?: string | null;
   }): Job {
+    this.assertWritable();
     const job: Job = {
       id: newId(),
       kind: fields.kind,
@@ -258,6 +288,7 @@ export class ProjectContext {
   }
 
   jobLog(jobId: string, chunk: string): void {
+    if (this.closed) return;
     this.repo.appendJobLog(jobId, chunk, MAX_JOB_LOG_CHARS);
   }
 
@@ -266,6 +297,10 @@ export class ProjectContext {
     status: JobStatus,
     extra?: { error?: unknown; outputHashes?: Record<string, string> },
   ): void {
+    if (this.closed) return;
+    const before = this.repo.getJob(jobId);
+    if (!before || ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(before.status))
+      return;
     const now = new Date().toISOString();
     this.repo.updateJob(jobId, {
       status,
@@ -278,5 +313,28 @@ export class ProjectContext {
     });
     const job = this.repo.getJob(jobId);
     if (job) this.emit('job.updated', 'system', { jobId, status, kind: job.kind, tool: job.tool });
+  }
+
+  assertJobActive(jobId: string, opts?: { allowFailed?: boolean }): void {
+    // Failed CAD source may be deliberately retained as an unverified draft.
+    // That explicit exception never permits a cancelled/interrupted job to commit.
+    const allowed = opts?.allowFailed ? ['queued', 'running', 'failed'] : ['queued', 'running'];
+    if (this.closed || !allowed.includes(this.repo.getJob(jobId)?.status ?? '')) {
+      throw new OmenflowError(ErrorCodes.CANCELLED, 'Job is no longer active');
+    }
+  }
+
+  cancelJob(jobId: string): void {
+    const job = this.repo.getJob(jobId);
+    if (!job || !['queued', 'running'].includes(job.status)) return;
+    this.jobStatus(jobId, 'cancelled');
+    try {
+      this.jobCancels.get(jobId)?.();
+    } catch (error) {
+      // Cancellation remains terminal even if a worker's signal hook fails.
+      // Report the termination problem without aborting cancellation of other
+      // jobs or preventing project shutdown.
+      this.emit('job.cancellation_error', 'system', { jobId, error: String(error) });
+    }
   }
 }

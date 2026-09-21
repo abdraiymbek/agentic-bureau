@@ -3,6 +3,7 @@ import path from 'node:path';
 import { ErrorCodes, Origin, SourcePayload, OmenflowError, newId } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { createDraft } from './artifacts.js';
+import { resolveProjectSourcePath } from '@omenflow/storage';
 
 /**
  * Sources: captured URLs and imported files with provenance.
@@ -26,7 +27,17 @@ export function captureSource(
   }
   let fileHash: string | undefined;
   if (input.filePath) {
-    const abs = path.isAbsolute(input.filePath) ? input.filePath : ctx.resolvePath(input.filePath);
+    const abs =
+      origin.kind === 'agent'
+        ? resolveProjectSourcePath(
+            ctx.root,
+            path.isAbsolute(input.filePath)
+              ? path.relative(ctx.root, input.filePath)
+              : input.filePath,
+          )
+        : path.isAbsolute(input.filePath)
+          ? input.filePath
+          : ctx.resolvePath(input.filePath);
     if (!fs.existsSync(abs)) {
       throw new OmenflowError(ErrorCodes.NOT_FOUND, `Source file not found: ${input.filePath}`);
     }

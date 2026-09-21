@@ -23,16 +23,41 @@ every `result.json` present.
 2. Runs `codex exec --json` with the model pinned, the task prompt behind a
    constant framing sentence, and `--ignore-user-config` so only Omen Flow's
    MCP server is present.
-3. Takes the **newest revision** of the target mechanical artifact, re-renders
+3. Takes the **final active candidate or selected baseline**, excluding rejected
+   and superseded revisions. A modification task must still refer to its seeded
+   artifact and have a surviving new revision. The expected mechanical artifact
+   count is enforced. It requires a stored render whose identity matches the
+   final source/parameters and persisted verification for that exact revision,
+   render fingerprint and checker version. It then re-renders
    its OpenSCAD source independently, and runs the task's `Expectation`
    through the shared check engine (`packages/core/src/cad-checks.ts`):
    envelope, analytic volume, watertightness, body count, solid/empty probe
    points, cross-section holes/slots/polygons/outlines, parametric variants
    (`-D` re-renders), and for modification tasks a sampled
    "unrelated geometry preserved" comparison against the seed.
-4. Records the trace (`trace.jsonl`), metrics (turns, tool calls, tool errors,
-   shell commands, tokens, time, `cad_check` calls and their last result) and
+4. Requires a successful provider exit, a completed turn without fatal provider
+   errors, no timeout, and no unfinished session jobs. At exit the session grant
+   is revoked and unfinished jobs are cancelled before evaluating the final
+   state. Successful geometry from an earlier attempt cannot rescue a failed run.
+5. Records the trace (`trace.jsonl`), metrics (turns, tool calls, tool errors,
+   shell commands, tokens, time, `cad_check` calls and matching final verification) and
    keeps the project folder for forensics.
+
+`metrics.lastCheckPassed` now means matching final-revision verification. The
+field name remains compatible with historical result readers; it no longer
+comes from finding `pass:true` in terminal/tool text. `finalRevisionId` and
+`verificationEvidenceHash` identify the evaluated evidence. An absent check is
+unverified, and partial or changed scope does not count as verified. This stricter
+gate means historical reports and new pass rates have different completion
+criteria; compare them with that qualification.
+
+OpenSCAD diagnostics are captured from stderr on successful and failed renders.
+Warnings fail the clean-render check for the final source and parametric
+variants. A failed preservation reference also fails the evaluation explicitly.
+Existing STL output is removed before each evaluator render. Set
+`OMENFLOW_EVAL_OPENSCAD` to select an explicit evaluator executable; record the
+version alongside any published evaluation. Model runs still require an installed,
+authenticated Codex CLI and are not run by ordinary CI.
 
 Tolerances: 0.1 mm linear (0.15–0.3 on polygonal circles' bounding boxes),
 1.5 % volume (absorbs `$fn` faceting), roundness ≥ 0.97 for circular holes
@@ -74,5 +99,59 @@ Harness notes that help smaller models (still OpenSCAD / STL — no STEP or mate
 Every expectation was validated against a hand-written reference solution
 before any agent run (`ALL REFERENCE SOLUTIONS PASS`).
 
+The analytic expectations and preservation checks remain unchanged. Independent
+source rendering is not an independent geometry implementation: the evaluator
+still shares mesh/checker code with the product. The closed-form geometry tests
+and adversarial evaluator regressions must both pass; broader independent
+oracles and multi-step/cross-provider evaluation remain separate release work.
+
 Holdout tasks (`holdout.ts`) were written only after the harness changes were
 frozen and never used while modifying the system.
+
+## CI and supported platform scope
+
+The initial release target is **macOS arm64**. Its packaged application/smoke job
+is a release gate. Windows packaging and smoke remain explicitly experimental
+and non-blocking; their presence in CI does not establish Windows release support.
+
+The Linux `real-cad` job is an engineering-test gate, not a Linux desktop support
+claim. It installs the published Ubuntu 24.04 package
+[`openscad=2021.01-6build4`](https://packages.ubuntu.com/noble/openscad), checks the
+installed package and engine versions, and requires a successful real adapter
+probe before running CAD, mesh, lifecycle and evaluator tests with
+`OMENFLOW_OPENSCAD_E2E=1`. Installation/probe failure fails the job instead of
+silently producing a skipped-engine green build. The version output is uploaded
+as an artifact. If that exact distribution package becomes unavailable, update
+the pin deliberately and revalidate geometry; do not fall back silently.
+
+Deterministic evaluator tests require no model credentials:
+
+```sh
+pnpm exec vitest run tests/cad-evaluator.test.ts
+```
+
+## Explicit synchronous geometry limits
+
+V0.1 rejects unsupported workloads with `VALIDATION`, details
+`reason: CAD_WORK_LIMIT` and `status: not_evaluated`; it never silently reduces
+an explicitly requested check's coverage:
+
+| Work                                                          | Limit                                              |
+| ------------------------------------------------------------- | -------------------------------------------------- |
+| STL file/object loaded into CAD analysis                      | 6,000,000 bytes                                    |
+| Parsed mesh                                                   | 100,000 complete triangles with finite coordinates |
+| Explicit probe/section-feature assertions per check           | 512                                                |
+| Public inspection probes / extra section planes               | 64 / 12                                            |
+| Probe, section, preservation or wall-sampling triangle visits | 10,000,000 per operation                           |
+| Self-intersection candidate pairs                             | 8,000,000                                          |
+| Self-intersection pairs with overlapping bounding boxes       | 100,000                                            |
+
+The STL byte budget leaves room for base64 plus message overhead inside the
+unchanged 8 MiB bridge frame. Files are checked before reading renderer output
+or cached/stored meshes, and triangle counts before triangle-buffer allocation.
+An oversized optional inspection diagnostic is labeled “not evaluated.” An
+explicit oversized verification request fails, preserving the distinction
+between unchecked and passing geometry. More complex artifacts need reduced
+tessellation or smaller independent checks until cancellable worker execution
+is available. These limits bound resource use; they do not establish the
+master plan's 100 ms core-stall target for every supported mesh.

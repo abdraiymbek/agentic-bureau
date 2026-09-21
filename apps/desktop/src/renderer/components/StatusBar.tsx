@@ -16,7 +16,9 @@ const jobVerbs: Record<string, string> = {
 
 export function StatusBar() {
   const { proposals, stale, projectPath, readOnly, session, jobs, navigate, set } = useStore();
-  const pending = proposals.filter((p) => p.state === 'pending').length;
+  const pending = proposals.filter((p) =>
+    ['pending', 'changes_requested'].includes(p.state),
+  ).length;
   const staleCount = Object.values(stale).filter((s) => s.length > 0).length;
   const active = jobs.filter((j) => j.status === 'running' || j.status === 'queued');
   const activeLabel =

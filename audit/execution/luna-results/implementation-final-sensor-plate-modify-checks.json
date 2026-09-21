@@ -1,0 +1,202 @@
+[
+  {
+    "revisionId": "f2784931-ae57-4d11-acf9-a7a8f8c2ddc7",
+    "params": {
+      "plate_w": 60,
+      "plate_d": 40,
+      "plate_t": 4,
+      "hole_d": 3.4,
+      "inset": 5,
+      "boss_d": 10,
+      "boss_h": 6
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.01
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [1, 1, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2],
+        [30, 20, 0.5]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [5, 5, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [5, 35, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [55, 5, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [55, 35, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [30, 20, 2],
+            "radius": 3.5
+          }
+        ]
+      }
+    },
+    "pass": true,
+    "verificationStatus": "unverified",
+    "passed": 20,
+    "total": 20,
+    "scopeChanges": [],
+    "failures": [],
+    "next": "This check used an uncommitted or temporary render variant; commit the intended input and check that exact revision. Do not report verified completion."
+  },
+  {
+    "revisionId": "f2784931-ae57-4d11-acf9-a7a8f8c2ddc7",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.01
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [1, 1, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2],
+        [30, 20, 0.5]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [5, 5, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [5, 35, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [55, 5, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [55, 35, 2],
+            "radius": 3.5
+          },
+          {
+            "center": [30, 20, 2],
+            "radius": 3.5
+          }
+        ]
+      }
+    },
+    "pass": true,
+    "verificationStatus": "passed",
+    "passed": 20,
+    "total": 20,
+    "scopeChanges": [],
+    "failures": [],
+    "next": "All declared checks pass for this exact revision. Summarize the covered assertions and unassessed requirements; human approval remains a separate step."
+  }
+]

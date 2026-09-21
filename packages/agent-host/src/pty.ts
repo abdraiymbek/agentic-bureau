@@ -17,22 +17,31 @@ const KILL_GRACE_MS = 2_000;
 
 /** Bounded ring buffer of PTY output for renderer restore after reload. */
 export class Scrollback {
-  private chunks: string[] = [];
+  private chunks: { seq: number; text: string }[] = [];
   private size = 0;
+  private nextSeq = 1;
 
   constructor(private cap = SCROLLBACK_CAP) {}
 
-  push(chunk: string): void {
-    this.chunks.push(chunk);
+  push(chunk: string): number {
+    if (chunk.length > this.cap) chunk = chunk.slice(-this.cap);
+    const seq = this.nextSeq++;
+    this.chunks.push({ seq, text: chunk });
     this.size += chunk.length;
     while (this.size > this.cap && this.chunks.length > 1) {
-      this.size -= this.chunks[0]!.length;
+      this.size -= this.chunks[0]!.text.length;
       this.chunks.shift();
     }
+    return seq;
   }
 
   text(): string {
-    return this.chunks.join('');
+    return this.chunks.map((chunk) => chunk.text).join('');
+  }
+
+  /** Inclusive sequence of the last retained byte; live frames ≤ cursor are already in the snapshot. */
+  snapshot(): { text: string; cursor: number } {
+    return { text: this.text(), cursor: Math.max(0, this.nextSeq - 1) };
   }
 }
 
@@ -134,10 +143,13 @@ export class PtySessionManager implements TerminalHost {
         bridgeEnv,
         bootstrapPath,
       });
+      this.assertStarting(session);
       session.info.executablePath = spec.path;
       session.restoreConfig = (await adapter.prepareProjectConfig?.(ctx.root)) ?? null;
+      this.assertStarting(session);
 
       const pty = await import('node-pty');
+      this.assertStarting(session);
       const [file, args] = spawnTarget(spec.path, spec.args);
       const env = mergedEnv(spec.env);
       // Session PATH: omenflow shim dir, then adapter-specified, then the user's
@@ -164,18 +176,27 @@ export class PtySessionManager implements TerminalHost {
       ctx.emit('session.state', 'system', session.info);
 
       child.onData((chunk) => {
-        session.scrollback.push(chunk);
-        ctx.emit('session.data', 'system', { sessionId, chunk });
+        if (ctx.closed) return;
+        const seq = session.scrollback.push(chunk);
+        for (const listener of ctx.terminalListeners) {
+          try {
+            listener({ sessionId, chunk, seq });
+          } catch {
+            /* A disconnected renderer must not terminate the agent session. */
+          }
+        }
       });
       child.onExit(({ exitCode }) => {
         this.onExit(ctx, session, exitCode);
       });
       return session.info;
     } catch (e) {
-      session.info.state = 'failed';
+      session.info.state = session.stopping ? 'exited' : 'failed';
       session.info.endedAt = new Date().toISOString();
       session.info.lastError = e instanceof Error ? e.message : String(e);
       this.bridge.revoke(sessionId);
+      session.restoreConfig?.();
+      session.restoreConfig = null;
       ctx.repo.upsertSession(session.info);
       ctx.emit('session.state', 'system', session.info);
       if (e instanceof OmenflowError) throw e;
@@ -202,13 +223,20 @@ export class PtySessionManager implements TerminalHost {
   }
 
   interrupt(ctx: ProjectContext): void {
-    this.sessions.get(ctx.projectId)?.pty?.write('\x03');
+    const session = this.sessions.get(ctx.projectId);
+    if (!session) return;
+    this.cancelSessionJobs(ctx, session.info.id);
+    session.pty?.write('\x03');
   }
 
   async stop(ctx: ProjectContext): Promise<void> {
     const s = this.sessions.get(ctx.projectId);
     if (!s) return;
     s.stopping = true;
+    // Revoke synchronously, before awaiting process termination: no connected
+    // tool client may continue issuing operations during the grace period.
+    this.bridge.revoke(s.info.id);
+    this.cancelSessionJobs(ctx, s.info.id);
     const pid = s.pty?.pid ?? null;
     if (s.pty && s.info.state === 'running') {
       await killTree(s.pty, pid);
@@ -219,7 +247,6 @@ export class PtySessionManager implements TerminalHost {
       ctx.repo.upsertSession(s.info);
       ctx.emit('session.state', 'system', s.info);
     }
-    this.bridge.revoke(s.info.id);
     s.restoreConfig?.();
     s.restoreConfig = null;
   }
@@ -240,7 +267,11 @@ export class PtySessionManager implements TerminalHost {
 
   /** Scrollback for renderer restore after reload. */
   getScrollback(ctx: ProjectContext): string {
-    return this.sessions.get(ctx.projectId)?.scrollback.text() ?? '';
+    return this.sessions.get(ctx.projectId)?.scrollback.snapshot().text ?? '';
+  }
+
+  getScrollbackSnapshot(ctx: ProjectContext): { text: string; cursor: number } {
+    return this.sessions.get(ctx.projectId)?.scrollback.snapshot() ?? { text: '', cursor: 0 };
   }
 
   /** Stop every session — call on app quit. */
@@ -256,6 +287,7 @@ export class PtySessionManager implements TerminalHost {
     s.info.exitCode = exitCode;
     s.info.endedAt = new Date().toISOString();
     this.bridge.revoke(s.info.id);
+    this.cancelSessionJobs(ctx, s.info.id);
     try {
       s.restoreConfig?.();
     } catch {
@@ -267,6 +299,25 @@ export class PtySessionManager implements TerminalHost {
       ctx.emit('session.state', 'system', s.info);
     } catch {
       /* project may be closed already */
+    }
+  }
+
+  private assertStarting(session: ManagedSession): void {
+    if (session.stopping || !this.bridge.grantForToken(session.token)?.isActive()) {
+      throw new OmenflowError(
+        ErrorCodes.CANCELLED,
+        'Agent session was stopped before startup completed',
+      );
+    }
+  }
+
+  private cancelSessionJobs(ctx: ProjectContext, sessionId: string): void {
+    // A process exit may arrive after project shutdown closed its database.
+    if (!ctx.repo.db.open) return;
+    for (const status of ['queued', 'running']) {
+      for (const job of ctx.repo.listJobs(Number.MAX_SAFE_INTEGER, status)) {
+        if (job.sessionId === sessionId) ctx.cancelJob(job.id);
+      }
     }
   }
 }

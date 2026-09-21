@@ -224,7 +224,7 @@ export class OpenScadAdapter implements CadAdapter {
         child.kill('SIGTERM');
         const ref = setTimeout(() => {
           try {
-            if (!child.killed) child.kill('SIGKILL');
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
           } catch {
             /* already gone */
           }
@@ -311,14 +311,7 @@ export class OpenScadAdapter implements CadAdapter {
 
     const args = [...exe.argsPrefix, '-o', spec.outPath];
     for (const [k, v] of Object.entries(spec.params ?? {})) {
-      const val =
-        typeof v === 'boolean'
-          ? v
-            ? 'true'
-            : 'false'
-          : typeof v === 'number'
-            ? String(v)
-            : `"${String(v).replace(/(["\\])/g, '\\$1')}"`;
+      const val = typeof v === 'string' ? JSON.stringify(v) : String(v);
       args.push('-D', `${k}=${val}`);
     }
     args.push(spec.scadPath);

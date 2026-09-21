@@ -1,10 +1,13 @@
+import { createHash } from 'node:crypto';
 import {
+  Artifact,
   EVAL_RELATIONSHIPS,
   Edge,
   ErrorCodes,
   ImpactReport,
-  MAX_IMPACT_DEPTH,
   Relationship,
+  RecordedInput,
+  Revision,
   RevisionRef,
   OmenflowError,
   StaleRecord,
@@ -13,52 +16,226 @@ import {
 import type { ProjectContext } from './context.js';
 
 /**
- * Dependency graph semantics.
- *
- * - Evaluation edges (depends_on / derived_from / validates) propagate
- *   freshness and must be acyclic.
- * - connects_to may cycle (physical feedback); belongs_to / alternative_to
- *   are organizational/informative.
+ * Baseline dependency views come from selected immutable revision inputs.
+ * Persisted pinned edges are only a compatibility projection: older releases
+ * changed those rows while drafting, so they must never be authoritative.
+ * Unpinned explicit graph relationships remain supported for navigation.
  */
+interface GraphSnapshot {
+  artifacts: Map<string, Artifact>;
+  selected: Map<string, { revisionId: string; inputs: RecordedInput[] }>;
+  outgoing: Map<string, Edge[]>;
+  incoming: Map<string, Edge[]>;
+}
+
+function inputEdge(
+  artifact: Artifact,
+  revisionId: string,
+  input: RecordedInput,
+  index: number,
+): Edge {
+  const h = createHash('sha256').update(`${revisionId}:${index}`).digest('hex');
+  return {
+    id: `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`,
+    upstreamArtifactId: input.artifactId,
+    downstreamArtifactId: artifact.id,
+    relationship: input.relationship,
+    requiredUpstreamRevisionId: input.revisionId,
+    label: input.label ?? '',
+    createdBy: 'system',
+    createdAt: artifact.createdAt,
+  };
+}
+
+function snapshot(
+  ctx: ProjectContext,
+  overrides: Map<string, { revisionId: string; inputs: RecordedInput[] }> = new Map(),
+): GraphSnapshot {
+  const artifacts = new Map(
+    ctx.repo.listArtifacts({ includeArchived: true }).map((a) => [a.id, a]),
+  );
+  const selected = new Map(ctx.repo.selectedRevisionInputs().map((r) => [r.artifactId, r]));
+  for (const [id, r] of overrides) selected.set(id, { artifactId: id, ...r });
+  const outgoing = new Map<string, Edge[]>();
+  const incoming = new Map<string, Edge[]>();
+  const add = (edge: Edge) => {
+    const out = outgoing.get(edge.upstreamArtifactId) ?? [];
+    out.push(edge);
+    outgoing.set(edge.upstreamArtifactId, out);
+    const inc = incoming.get(edge.downstreamArtifactId) ?? [];
+    inc.push(edge);
+    incoming.set(edge.downstreamArtifactId, inc);
+  };
+  for (const [id, revision] of selected) {
+    const artifact = artifacts.get(id);
+    if (artifact)
+      revision.inputs.forEach((input, i) =>
+        add(inputEdge(artifact, revision.revisionId, input, i)),
+      );
+  }
+  for (const edge of ctx.repo.allEdges()) {
+    if (edge.requiredUpstreamRevisionId === null) add(edge);
+  }
+  return { artifacts, selected, outgoing, incoming };
+}
+
+const evaluating = (edges: Edge[] = []) =>
+  edges.filter((e) => EVAL_RELATIONSHIPS.includes(e.relationship));
 
 export function downstreamNeighbors(ctx: ProjectContext, artifactId: string): Edge[] {
-  return ctx.repo.edgesFrom(artifactId).filter((e) => EVAL_RELATIONSHIPS.includes(e.relationship));
+  return evaluating(snapshot(ctx).outgoing.get(artifactId));
 }
 export function upstreamNeighbors(ctx: ProjectContext, artifactId: string): Edge[] {
-  return ctx.repo.edgesTo(artifactId).filter((e) => EVAL_RELATIONSHIPS.includes(e.relationship));
+  return evaluating(snapshot(ctx).incoming.get(artifactId));
 }
 
-/** Would adding edge upstream→downstream create an evaluation cycle? */
+/** Public baseline graph view, including compatibility-only explicit relationships. */
+export function listEdges(ctx: ProjectContext): Edge[] {
+  return [...snapshot(ctx).outgoing.values()].flat();
+}
+
+function reachablePath(graph: GraphSnapshot, start: string, target: string): string[] | null {
+  const parent = new Map<string, string | null>([[start, null]]);
+  const queue = [start];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i]!;
+    if (id === target) {
+      const path: string[] = [];
+      let cur: string | null = id;
+      while (cur !== null) {
+        path.push(cur);
+        cur = parent.get(cur) ?? null;
+      }
+      return path.reverse();
+    }
+    for (const edge of evaluating(graph.outgoing.get(id))) {
+      if (!parent.has(edge.downstreamArtifactId)) {
+        parent.set(edge.downstreamArtifactId, id);
+        queue.push(edge.downstreamArtifactId);
+      }
+    }
+  }
+  return null;
+}
+
+/** Would adding upstream→downstream create an evaluation cycle? */
 export function findCycle(
   ctx: ProjectContext,
   upstreamId: string,
   downstreamId: string,
 ): string[] | null {
-  // Search downstream's reachable set for upstream.
-  const visited = new Set<string>();
-  const parent = new Map<string, string>();
-  const queue = [downstreamId];
-  while (queue.length) {
-    const cur = queue.shift()!;
-    if (cur === upstreamId) {
-      const path = [upstreamId];
-      let c = cur;
-      while (parent.has(c)) {
-        c = parent.get(c)!;
-        path.unshift(c);
-      }
-      return path;
+  return reachablePath(snapshot(ctx), downstreamId, upstreamId);
+}
+
+function requireValidReferences(
+  ctx: ProjectContext,
+  artifactId: string,
+  inputs: RecordedInput[],
+): void {
+  ctx.requireArtifact(artifactId);
+  for (const input of inputs) {
+    ctx.requireArtifact(input.artifactId);
+    const revision = ctx.requireRevision(input.revisionId);
+    if (revision.artifactId !== input.artifactId) {
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        'Input revision does not belong to its artifact',
+        {
+          details: { artifactId, inputArtifactId: input.artifactId, revisionId: input.revisionId },
+        },
+      );
     }
-    if (visited.has(cur)) continue;
-    visited.add(cur);
-    for (const e of downstreamNeighbors(ctx, cur)) {
-      if (!visited.has(e.downstreamArtifactId)) {
-        parent.set(e.downstreamArtifactId, cur);
-        queue.push(e.downstreamArtifactId);
+    if (input.artifactId === artifactId && EVAL_RELATIONSHIPS.includes(input.relationship)) {
+      throw new OmenflowError(ErrorCodes.CYCLE_DETECTED, 'An artifact cannot depend on itself', {
+        details: { path: [artifactId, artifactId] },
+      });
+    }
+  }
+}
+
+function assertNoCycles(graph: GraphSnapshot): void {
+  // Iterative DFS: long dependency chains must not depend on the JS call stack.
+  const state = new Map<string, 'visiting' | 'done'>();
+  for (const start of graph.artifacts.keys()) {
+    if (state.has(start)) continue;
+    const stack: { id: string; next: number; edges: Edge[] }[] = [
+      { id: start, next: 0, edges: evaluating(graph.outgoing.get(start)) },
+    ];
+    state.set(start, 'visiting');
+    while (stack.length) {
+      const frame = stack[stack.length - 1]!;
+      const edge = frame.edges[frame.next++];
+      if (!edge) {
+        state.set(frame.id, 'done');
+        stack.pop();
+        continue;
+      }
+      const id = edge.downstreamArtifactId;
+      if (state.get(id) === 'visiting') {
+        const first = stack.findIndex((f) => f.id === id);
+        throw new OmenflowError(
+          ErrorCodes.CYCLE_DETECTED,
+          'Revision inputs would create a dependency cycle',
+          {
+            details: { path: [...stack.slice(first).map((f) => f.id), id] },
+          },
+        );
+      }
+      if (!state.has(id)) {
+        state.set(id, 'visiting');
+        stack.push({ id, next: 0, edges: evaluating(graph.outgoing.get(id)) });
       }
     }
   }
-  return null;
+}
+
+/** Validate every revision-writing route before any revision/edge mutation. */
+export function validateRevisionInputs(
+  ctx: ProjectContext,
+  artifactId: string,
+  inputs: RecordedInput[],
+): void {
+  requireValidReferences(ctx, artifactId, inputs);
+  const overrides = new Map([[artifactId, { revisionId: '', inputs }]]);
+  // Unselected input artifacts still have a candidate dependency graph. Include
+  // their exact pinned revisions; never replace an existing baseline with drafts.
+  const queue = [...inputs];
+  const visited = new Set<string>([artifactId]);
+  for (let i = 0; i < queue.length; i++) {
+    const input = queue[i]!;
+    if (visited.has(input.artifactId)) continue;
+    visited.add(input.artifactId);
+    const artifact = ctx.requireArtifact(input.artifactId);
+    if (artifact.selectedRevisionId) continue;
+    const revision = ctx.requireRevision(input.revisionId);
+    requireValidReferences(ctx, artifact.id, revision.inputs);
+    overrides.set(artifact.id, { revisionId: revision.id, inputs: revision.inputs });
+    queue.push(...revision.inputs);
+  }
+  assertNoCycles(snapshot(ctx, overrides));
+}
+
+/** Revalidate the entire proposed selection together at the approval boundary. */
+export function validateSelectedRevisions(ctx: ProjectContext, revisions: Revision[]): void {
+  const overrides = new Map<string, { revisionId: string; inputs: RecordedInput[] }>();
+  for (const revision of revisions) {
+    requireValidReferences(ctx, revision.artifactId, revision.inputs);
+    overrides.set(revision.artifactId, { revisionId: revision.id, inputs: revision.inputs });
+  }
+  assertNoCycles(snapshot(ctx, overrides));
+}
+
+/** Rebuild the compatibility projection only after selecting a baseline. */
+export function syncSelectedInputs(ctx: ProjectContext, artifactId: string): void {
+  const artifact = ctx.requireArtifact(artifactId);
+  for (const edge of ctx.repo.edgesTo(artifactId)) {
+    if (edge.requiredUpstreamRevisionId !== null) ctx.repo.deleteEdge(edge.id);
+  }
+  if (!artifact.selectedRevisionId) return;
+  const revision = ctx.requireRevision(artifact.selectedRevisionId);
+  revision.inputs.forEach((input, i) =>
+    ctx.repo.insertEdge(inputEdge(artifact, revision.id, input, i)),
+  );
 }
 
 export function addEdge(
@@ -80,7 +257,9 @@ export function addEdge(
       throw new OmenflowError(
         ErrorCodes.CYCLE_DETECTED,
         `Adding ${relationship} edge would create a cycle`,
-        { details: { path: cycle } },
+        {
+          details: { path: [...cycle, downstreamArtifactId] },
+        },
       );
     }
   }
@@ -98,14 +277,6 @@ export function addEdge(
   return edge;
 }
 
-/* ------------------------------------------------------------------ */
-/* Freshness evaluation                                                 */
-/*                                                                     */
-/* An artifact is stale when a recorded input revision no longer equals */
-/* the upstream artifact's selected revision (input_changed), or when   */
-/* a required input is missing (archived / no baseline).                */
-/* ------------------------------------------------------------------ */
-
 export interface StaleFinding {
   artifactId: string;
   upstreamArtifactId: string;
@@ -115,131 +286,135 @@ export interface StaleFinding {
   reason: 'input_changed' | 'missing_input';
 }
 
-/** Evaluate one artifact's recorded inputs against current selections. */
-export function evaluateInputs(ctx: ProjectContext, artifactId: string): StaleFinding[] {
-  const artifact = ctx.repo.getArtifact(artifactId);
-  if (!artifact || !artifact.selectedRevisionId) return [];
-  const rev = ctx.repo.getRevision(artifact.selectedRevisionId);
-  if (!rev) return [];
-  const findings: StaleFinding[] = [];
-  const seenUpstream = new Set<string>();
-  for (const input of rev.inputs) {
-    // Several named inputs may reference the same upstream artifact (e.g.
-    // voltage and capacity from one battery revision) — the stale table keys
-    // on (artifact, upstream), so keep the first finding per upstream.
-    if (seenUpstream.has(input.artifactId)) continue;
-    seenUpstream.add(input.artifactId);
-    const up = ctx.repo.getArtifact(input.artifactId);
-    const actual = up?.selectedRevisionId ?? null;
-    if (!up || up.archived || !actual) {
-      findings.push({
-        artifactId,
-        upstreamArtifactId: input.artifactId,
-        expectedRevisionId: input.revisionId,
-        actualRevisionId: actual,
-        path: [input.artifactId, artifactId],
+/** Compute freshness once in upstream-first order, independent of persisted stale rows. */
+function evaluateSnapshot(graph: GraphSnapshot): Map<string, StaleFinding[]> {
+  assertNoCycles(graph);
+  const findings = new Map<string, StaleFinding[]>();
+  const remaining = new Map<string, number>();
+  const queue: string[] = [];
+  for (const id of graph.artifacts.keys()) {
+    // Missing upstream nodes are findings, not blockers for topological traversal.
+    const degree = evaluating(graph.incoming.get(id)).filter((e) =>
+      graph.artifacts.has(e.upstreamArtifactId),
+    ).length;
+    remaining.set(id, degree);
+    if (!degree) queue.push(id);
+  }
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i]!;
+    const artifact = graph.artifacts.get(id)!;
+    const records = new Map<string, StaleFinding>();
+    const revision = graph.selected.get(id);
+    if (artifact.selectedRevisionId && !revision) {
+      records.set(id, {
+        artifactId: id,
+        upstreamArtifactId: id,
+        expectedRevisionId: artifact.selectedRevisionId,
+        actualRevisionId: null,
+        path: [id],
         reason: 'missing_input',
       });
-    } else if (actual !== input.revisionId) {
-      findings.push({
-        artifactId,
-        upstreamArtifactId: input.artifactId,
-        expectedRevisionId: input.revisionId,
-        actualRevisionId: actual,
-        path: [input.artifactId, artifactId],
-        reason: 'input_changed',
-      });
+    }
+    for (const input of revision?.inputs ?? []) {
+      if (!EVAL_RELATIONSHIPS.includes(input.relationship)) continue;
+      const upstream = graph.artifacts.get(input.artifactId);
+      const actual = upstream?.selectedRevisionId ?? null;
+      const missing =
+        !upstream || upstream.archived || !actual || !graph.selected.has(input.artifactId);
+      if (missing || actual !== input.revisionId) {
+        const finding: StaleFinding = {
+          artifactId: id,
+          upstreamArtifactId: input.artifactId,
+          expectedRevisionId: input.revisionId,
+          actualRevisionId: actual,
+          path: [input.artifactId, id],
+          reason: missing ? 'missing_input' : 'input_changed',
+        };
+        // An artifact can consume multiple historical revisions of one upstream;
+        // no matching first input may hide a later obsolete input.
+        if (!records.has(input.artifactId) || missing) records.set(input.artifactId, finding);
+      }
+      for (const cause of findings.get(input.artifactId) ?? []) {
+        if (!records.has(cause.upstreamArtifactId)) {
+          records.set(cause.upstreamArtifactId, {
+            ...cause,
+            artifactId: id,
+            path: [...cause.path, id],
+          });
+        }
+      }
+    }
+    findings.set(id, [...records.values()]);
+    for (const edge of evaluating(graph.outgoing.get(id))) {
+      const next = edge.downstreamArtifactId;
+      const degree = (remaining.get(next) ?? 0) - 1;
+      remaining.set(next, degree);
+      if (degree === 0) queue.push(next);
     }
   }
   return findings;
 }
 
-/**
- * Propagate a baseline change: BFS downstream through evaluation edges from
- * each changed artifact; mark mismatched dependents stale with an explanation
- * path; refresh artifacts whose recorded inputs now match again.
- * Returns the full affected set. Caller emits the project event.
- */
+export function evaluateInputs(ctx: ProjectContext, artifactId: string): StaleFinding[] {
+  return evaluateSnapshot(snapshot(ctx)).get(artifactId) ?? [];
+}
+
+/** Only compress displayed explanations, never traversal or persisted stale evidence. */
+function diagnosticPath(path: string[]): {
+  path: string[];
+  pathTruncated?: boolean;
+  fullPathLength?: number;
+} {
+  if (path.length <= 32) return { path };
+  return {
+    path: [...path.slice(0, 16), ...path.slice(-16)],
+    pathTruncated: true,
+    fullPathLength: path.length,
+  };
+}
+
+/** Recompute changed selections and every downstream baseline, including restored inputs. */
 export function propagateFrom(
   ctx: ProjectContext,
   changedArtifactIds: string[],
   eventSeq: number,
-): { artifactId: string; reason: string; path: string[] }[] {
-  const affected = new Map<string, { reason: string; path: string[] }>();
-  const visited = new Set<string>();
-
-  interface Frame {
-    id: string;
-    path: string[];
-    depth: number;
-  }
-  const queue: Frame[] = changedArtifactIds.map((id) => ({ id, path: [id], depth: 0 }));
-
-  while (queue.length) {
-    const { id, path, depth } = queue.shift()!;
-    if (depth > MAX_IMPACT_DEPTH) break;
-    if (visited.has(id)) continue;
-    visited.add(id);
-
-    for (const edge of ctx.repo.edgesFrom(id)) {
-      const down = edge.downstreamArtifactId;
-      const epath = [...path, down];
-      if (EVAL_RELATIONSHIPS.includes(edge.relationship)) {
-        // Re-evaluate the dependent's inputs now that `id` moved.
-        const findings = evaluateInputs(ctx, down);
-        if (findings.length > 0) {
-          ctx.repo.replaceStale(down, staleToRecord(findings, eventSeq));
-          affected.set(down, {
-            reason: findings[0]!.reason === 'missing_input' ? 'missing input' : 'input changed',
-            path: epath,
-          });
-          queue.push({ id: down, path: epath, depth: depth + 1 });
-        } else {
-          // Its inputs now match — it may have recovered.
-          const hadStale = ctx.repo.staleFor(down).length > 0;
-          ctx.repo.clearStale(down);
-          if (hadStale) affected.set(down, { reason: 'inputs restored', path: epath });
-          // Continue traversal: dependents may still be stale vs this revision.
-          queue.push({ id: down, path: epath, depth: depth + 1 });
-        }
-      } else if (edge.relationship === 'connects_to') {
-        // Informative: continue traversal for reporting but don't mark stale.
-        if (!visited.has(down)) queue.push({ id: down, path: epath, depth: depth + 1 });
-      }
+): {
+  artifactId: string;
+  reason: string;
+  path: string[];
+  pathTruncated?: boolean;
+  fullPathLength?: number;
+}[] {
+  const graph = snapshot(ctx);
+  const findings = evaluateSnapshot(graph);
+  const affected: ReturnType<typeof propagateFrom> = [];
+  const visited = new Set<string>(changedArtifactIds);
+  const queue = changedArtifactIds.map((id) => ({ id, path: [id] }));
+  for (let i = 0; i < queue.length; i++) {
+    const { id, path } = queue[i]!;
+    const current = findings.get(id) ?? [];
+    const hadStale = ctx.repo.staleFor(id).length > 0;
+    if (current.length) {
+      ctx.repo.replaceStale(id, staleToRecord(current, eventSeq));
+      affected.push({
+        artifactId: id,
+        reason: current[0]!.reason === 'missing_input' ? 'missing input' : 'input changed',
+        ...diagnosticPath(current[0]!.path),
+      });
+    } else if (hadStale) {
+      ctx.repo.clearStale(id);
+      affected.push({ artifactId: id, reason: 'inputs restored', ...diagnosticPath(path) });
     }
-    // Recorded inputs can exist without explicit edges — dependents whose
-    // revisions reference `id` are found via reverse input scan.
-    for (const dep of dependentsViaInputs(ctx, id)) {
-      if (visited.has(dep)) continue;
-      const epath = [...path, dep];
-      const findings = evaluateInputs(ctx, dep);
-      if (findings.length > 0) {
-        ctx.repo.replaceStale(dep, staleToRecord(findings, eventSeq));
-        affected.set(dep, {
-          reason: findings[0]!.reason === 'missing_input' ? 'missing input' : 'input changed',
-          path: epath,
-        });
-        queue.push({ id: dep, path: epath, depth: depth + 1 });
+    for (const edge of evaluating(graph.outgoing.get(id))) {
+      const next = edge.downstreamArtifactId;
+      if (!visited.has(next)) {
+        visited.add(next);
+        queue.push({ id: next, path: [...path, next] });
       }
     }
   }
-  return [...affected.entries()].map(([artifactId, v]) => ({ artifactId, ...v }));
+  return affected;
 }
-
-/** Artifacts whose selected revision records an input on `artifactId`. */
-function dependentsViaInputs(ctx: ProjectContext, artifactId: string): string[] {
-  const out: string[] = [];
-  for (const a of ctx.repo.listArtifacts()) {
-    if (!a.selectedRevisionId) continue;
-    const rev = ctx.repo.getRevision(a.selectedRevisionId);
-    if (rev?.inputs.some((i) => i.artifactId === artifactId)) out.push(a.id);
-  }
-  return out;
-}
-
-/* ------------------------------------------------------------------ */
-/* Queries                                                              */
-/* ------------------------------------------------------------------ */
 
 export function neighbors(
   ctx: ProjectContext,
@@ -248,29 +423,29 @@ export function neighbors(
   depth: number,
   relationship?: Relationship,
 ) {
-  const seen = new Map<string, { depth: number; via: string }>();
-  const edges: Edge[] = [];
-  const queue: { id: string; depth: number }[] = [{ id: artifactId, depth: 0 }];
-  seen.set(artifactId, { depth: 0, via: '' });
-  while (queue.length) {
-    const { id, depth: d } = queue.shift()!;
+  const graph = snapshot(ctx);
+  const seen = new Map([[artifactId, { depth: 0 }]]);
+  const edges = new Map<string, Edge>();
+  const queue = [{ id: artifactId, depth: 0 }];
+  for (let i = 0; i < queue.length; i++) {
+    const { id, depth: d } = queue[i]!;
     if (d >= depth) continue;
-    const rel = (e: Edge[]) =>
-      relationship ? e.filter((x) => x.relationship === relationship) : e;
-    const out = direction !== 'upstream' ? rel(ctx.repo.edgesFrom(id)) : [];
-    const inc = direction !== 'downstream' ? rel(ctx.repo.edgesTo(id)) : [];
-    for (const e of [...out, ...inc]) {
-      edges.push(e);
-      const next = e.upstreamArtifactId === id ? e.downstreamArtifactId : e.upstreamArtifactId;
+    const out = direction !== 'upstream' ? (graph.outgoing.get(id) ?? []) : [];
+    const inc = direction !== 'downstream' ? (graph.incoming.get(id) ?? []) : [];
+    for (const edge of [...out, ...inc]) {
+      if (relationship && edge.relationship !== relationship) continue;
+      edges.set(edge.id, edge);
+      const next =
+        edge.upstreamArtifactId === id ? edge.downstreamArtifactId : edge.upstreamArtifactId;
       if (!seen.has(next)) {
-        seen.set(next, { depth: d + 1, via: e.id });
+        seen.set(next, { depth: d + 1 });
         queue.push({ id: next, depth: d + 1 });
       }
     }
   }
   const artifacts = [...seen.keys()]
-    .map((id) => ctx.repo.getArtifact(id))
-    .filter((a): a is NonNullable<typeof a> => !!a)
+    .map((id) => graph.artifacts.get(id))
+    .filter((a): a is Artifact => !!a)
     .map((a) => ({
       id: a.id,
       title: a.title,
@@ -278,56 +453,70 @@ export function neighbors(
       depth: seen.get(a.id)!.depth,
       freshness: ctx.freshnessOf(a.id).freshness,
     }));
-  return { artifacts, edges };
+  return { artifacts, edges: [...edges.values()] };
 }
 
-/** Read-only impact report for a hypothetical change to the given refs. */
-export function impactReport(ctx: ProjectContext, refs: RevisionRef[]): ImpactReport {
+function reconstructPath(parent: Map<string, string | null>, id: string): string[] {
+  const path: string[] = [];
+  const seen = new Set<string>();
+  let cur: string | null = id;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    path.push(cur);
+    cur = parent.has(cur) ? parent.get(cur)! : null;
+  }
+  return path.reverse();
+}
+
+/** Complete impact traversal; no implicit depth limit or per-node database scan. */
+export function impactReport(
+  ctx: ProjectContext,
+  refs: RevisionRef[],
+  opts?: { limit?: number; offset?: number; includePaths?: boolean },
+): ImpactReport {
+  const graph = snapshot(ctx);
   const startIds = [...new Set(refs.map((r) => r.artifactId))];
-  const affected = new Map<string, { reason: string; path: string[] }>();
-  const visited = new Set<string>();
-  const queue = startIds.map((id) => ({ id, path: [id], depth: 0 }));
-  while (queue.length) {
-    const { id, path, depth } = queue.shift()!;
-    if (depth > MAX_IMPACT_DEPTH) break;
-    if (visited.has(id)) continue;
-    visited.add(id);
-    for (const e of ctx.repo.edgesFrom(id)) {
-      const next = e.downstreamArtifactId;
-      if (!visited.has(next)) {
-        if (EVAL_RELATIONSHIPS.includes(e.relationship)) {
-          // Would this edge see a revision change? If pinned, compare.
-          const pinMiss =
-            e.requiredUpstreamRevisionId &&
-            e.requiredUpstreamRevisionId !== ctx.repo.getArtifact(id)?.selectedRevisionId;
-          affected.set(next, {
-            reason: pinMiss ? 'pinned input revision changed' : 'upstream input changed',
-            path: [...path, next],
-          });
-        }
-        queue.push({ id: next, path: [...path, next], depth: depth + 1 });
-      }
-    }
-    for (const dep of dependentsViaInputs(ctx, id)) {
-      if (!visited.has(dep)) {
-        affected.set(dep, { reason: 'recorded input revision changed', path: [...path, dep] });
-        queue.push({ id: dep, path: [...path, dep], depth: depth + 1 });
-      }
+  const visited = new Set(startIds);
+  const parent = new Map<string, string | null>(startIds.map((id) => [id, null]));
+  const queue = [...startIds];
+  const affected: ImpactReport['affected'] = [];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i]!;
+    for (const edge of evaluating(graph.outgoing.get(id))) {
+      const next = edge.downstreamArtifactId;
+      if (visited.has(next)) continue;
+      visited.add(next);
+      parent.set(next, id);
+      const artifact = graph.artifacts.get(next);
+      const pathInfo =
+        opts?.includePaths === false
+          ? { path: [next] }
+          : diagnosticPath(reconstructPath(parent, next));
+      affected.push({
+        artifactId: next,
+        title: artifact?.title ?? next,
+        type: artifact?.type ?? 'note',
+        reason: edge.requiredUpstreamRevisionId
+          ? 'recorded input revision changed'
+          : 'upstream input changed',
+        ...pathInfo,
+      });
+      queue.push(next);
     }
   }
-  const details = [...affected.entries()].map(([artifactId, v]) => {
-    const a = ctx.repo.getArtifact(artifactId);
-    return {
-      artifactId,
-      title: a?.title ?? artifactId,
-      type: a?.type ?? ('note' as const),
-      reason: v.reason,
-      path: v.path,
-    };
-  });
-  return { changedRefs: refs, affected: details, unaffectedSelectedComponentIds: [] };
+  const offset = opts?.offset ?? 0;
+  const limit = opts?.limit;
+  const page = limit === undefined ? affected : affected.slice(offset, offset + limit);
+  return {
+    changedRefs: refs,
+    affected: page,
+    unaffectedSelectedComponentIds: [],
+    totalAffected: affected.length,
+    hasMore: limit === undefined ? false : offset + page.length < affected.length,
+    offset,
+  };
 }
 
-export function staleToRecord(f: StaleFinding[], sinceEventSeq: number): StaleRecord[] {
-  return f.map((x) => ({ ...x, sinceEventSeq }));
+export function staleToRecord(findings: StaleFinding[], sinceEventSeq: number): StaleRecord[] {
+  return findings.map((finding) => ({ ...finding, sinceEventSeq }));
 }

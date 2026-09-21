@@ -62,6 +62,7 @@ export interface CalcEngine {
     expression: string,
     inputs: { name: string; quantity: MaybeQuantity }[],
     outputUnit?: string,
+    opts?: { signal?: AbortSignal },
   ): Promise<{ value: number; unit: string }>;
 }
 

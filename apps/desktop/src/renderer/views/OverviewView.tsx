@@ -41,7 +41,7 @@ const RECORD_ORDER: ArtifactType[] = [
 export function OverviewView() {
   const { project, artifacts, proposals, stale, suggestions, openArtifact, navigate, events, set } =
     useStore();
-  const pending = proposals.filter((p) => p.state === 'pending');
+  const pending = proposals.filter((p) => ['pending', 'changes_requested'].includes(p.state));
   const outdated = artifacts.filter((v) => (stale[v.artifact.id] ?? []).length > 0);
   const approved = artifacts.filter((v) => v.revision?.reviewState === 'approved');
   const reqs = artifacts.filter((v) => v.artifact.type === 'requirement');

@@ -6,6 +6,7 @@ import {
   type MaybeQuantity,
 } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
+import { activeWorkSummary, readActiveWork } from './work.js';
 
 /**
  * Bounded structured project summary — the bootstrap context agents receive.
@@ -74,13 +75,16 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
     recentEvents: events,
     tools: 'omenflow call <op> or omenflow mcp — see tool.list',
     rules: 'Accepted engineering changes go through proposals; drafts are free.',
+    activeWork: activeWorkSummary(readActiveWork(ctx)),
+    truncated: false,
+    detailTools: ['project.search', 'artifact.read', 'proposal.list'],
   };
 
   // Budget enforcement: progressively trim every list section.
   let json = JSON.stringify(summary);
   const lists: { key: keyof typeof summary; min: number }[] = [
-    { key: 'requirements', min: 3 },
-    { key: 'assumptions', min: 3 },
+    { key: 'requirements', min: 0 },
+    { key: 'assumptions', min: 0 },
     { key: 'pendingProposals', min: 0 },
     { key: 'staleArtifacts', min: 0 },
     { key: 'recentDecisions', min: 0 },
@@ -93,9 +97,22 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
       .filter((l) => l.len > l.min)
       .sort((a, b) => b.len - a.len)[0];
     if (!big) break;
+    summary.truncated = true;
     (summary[big.key] as unknown[]).splice(Math.floor(big.len / 2));
     (summary[big.key] as unknown[]).length = Math.max(big.min, Math.floor(big.len / 2));
     json = JSON.stringify(summary);
+  }
+  // Long scalar fields must obey the same budget as list sections. Never
+  // truncate quantity values or identifiers: remove their containing rows above.
+  for (const key of ['intent', 'name'] as const) {
+    if (JSON.stringify(summary).length <= budgetChars) break;
+    summary.truncated = true;
+    while (summary.project[key].length && JSON.stringify(summary).length > budgetChars) {
+      summary.project[key] = summary.project[key].slice(
+        0,
+        Math.floor(summary.project[key].length / 2),
+      );
+    }
   }
   return summary;
 }
@@ -124,5 +141,9 @@ export function search(ctx: ProjectContext, query: string, limit: number) {
 }
 
 export function changesSince(ctx: ProjectContext, seq: number) {
-  return { events: ctx.repo.eventsSince(seq), latest: ctx.repo.latestEventSeq() };
+  const events = ctx.repo.eventsSince(seq);
+  const nextCursor = events.at(-1)?.seq ?? seq;
+  const highWater = ctx.repo.latestEventSeq();
+  // latest remains a safe resume cursor for existing clients.
+  return { events, latest: nextCursor, nextCursor, highWater, hasMore: nextCursor < highWater };
 }

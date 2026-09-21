@@ -128,10 +128,19 @@ export function DesignSystemView() {
       </section>
       <section className="ds-section">
         <SectionHeading title="Engineering state" />
+        <p className="dim">
+          CAD review binds the viewport and assertion table to the displayed candidate revision.
+          Baseline overlay, candidate and baseline source disclosures, effective overrides, and
+          coverage limitations share this identity. Scope acceptance is a separate, explicit
+          checkbox; approval alone does not establish verification. Loading and service errors use
+          the existing labeled notices.
+        </p>
         <div className="ds-example-row">
-          {['approved', 'pending', 'draft', 'stale', 'missing_input', 'rejected'].map((state) => (
+          {['approved', 'pending', 'draft', 'stale', 'missing_input', 'rejected', 'experimental'].map(
+            (state) => (
             <StatusBadge key={state} state={state} />
-          ))}
+            ),
+          )}
         </div>
         <div className="inline-notice warning">
           <div className="row">
@@ -141,9 +150,15 @@ export function DesignSystemView() {
           Payload requirement changed from 300 g to 500 g. Recalculate the mass budget before using
           this result.
         </div>
+        <div className="inline-notice warning" role="alert">
+          artifact.apply_edit: Working file diverged — review the conflict candidate. The source
+          was left unchanged.
+          <span className="mono dim"> REVISION_CONFLICT</span>
+        </div>
         <p className="ds-note">
           Illustrative state example. Review state, freshness, and evidence are independent
-          dimensions.
+          dimensions. Recoverable command failures keep the stable code and repair action visible
+          until the engineer dismisses them.
         </p>
       </section>
       <section className="ds-section">
@@ -206,7 +221,8 @@ export function DesignSystemView() {
             </ObjectGroup>
             <p className="ds-note">
               Object browser group. Groups fold so the engineer sees only the disciplines in play; a
-              search or the current selection always keeps its group open.
+              search or the current selection always keeps its group open. Calculation objects are
+              labeled experimental until quantity bindings and derived units are finished.
             </p>
           </div>
           <div>

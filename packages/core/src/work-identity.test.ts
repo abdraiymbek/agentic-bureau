@@ -1,0 +1,198 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type { Origin } from '@omenflow/contracts';
+import { CoreApp, nullHost, writeBinaryStl, parseStlTriangles, analyzeMesh } from './index.js';
+import { latestCadVerification } from './cad-verification.js';
+import { readActiveWork } from './work.js';
+import type { CadAdapter } from './tools.js';
+import type { CadReport } from './cad.js';
+
+const user: Origin = { kind: 'user' };
+const apps: CoreApp[] = [];
+afterEach(() => {
+  for (const app of apps.splice(0)) app.closeAll();
+});
+
+function boxStl(length: number): Buffer {
+  const vertices = [
+    [0, 0, 0],
+    [length, 0, 0],
+    [length, 10, 0],
+    [0, 10, 0],
+    [0, 0, 2],
+    [length, 0, 2],
+    [length, 10, 2],
+    [0, 10, 2],
+  ];
+  const faces = [
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [3, 7, 6],
+    [3, 6, 2],
+    [0, 4, 7],
+    [0, 7, 3],
+    [1, 2, 6],
+    [1, 6, 5],
+  ];
+  return writeBinaryStl(Float64Array.from(faces.flatMap((f) => f.flatMap((v) => vertices[v]!))));
+}
+
+function fakeCad(onRender?: () => void): CadAdapter {
+  return {
+    toolId: 'openscad',
+    async probe() {
+      return { available: true, executablePath: '/bin/true', version: 'test' };
+    },
+    async validateSource() {
+      return { ok: true, errors: [] };
+    },
+    async render(spec) {
+      onRender?.();
+      if (onRender) await new Promise((r) => setTimeout(r, 30));
+      fs.writeFileSync(spec.outPath, boxStl(Number(spec.params.length ?? 10)));
+      return { ok: true };
+    },
+    cancel() {},
+    inspectStl(buf) {
+      const mesh = analyzeMesh(parseStlTriangles(buf));
+      return {
+        triangles: mesh.triangles,
+        bytes: buf.byteLength,
+        format: 'binary' as const,
+        bounds: mesh.bounds,
+        plausible: mesh.topology.watertight,
+      };
+    },
+  };
+}
+
+async function project(onRender?: () => void) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-work-identity-'));
+  const app = new CoreApp(path.join(dir, 'appdata'), nullHost);
+  apps.push(app);
+  app.engineTools = { cad: fakeCad(onRender) };
+  const created = (await app.dispatch(
+    'project.create',
+    { name: 'Work', path: path.join(dir, 'p') },
+    user,
+  )) as { projectId: string };
+  const ctx = app.contextFor(created.projectId);
+  ctx.tools = app.engineTools;
+  const call = <T>(op: string, payload: unknown) =>
+    app.dispatch(op, payload, user, created.projectId) as Promise<T>;
+  return { app, ctx, call };
+}
+
+describe('request-bound work identity', () => {
+  it('binds committed assertions and ignores exploratory diagnostics', async () => {
+    const { ctx, call } = await project();
+    const written = await call<CadReport>('cad.write_source', {
+      title: 'Block',
+      source: 'cube(10);',
+    });
+    const committed = await call<{
+      verificationStatus: string;
+      work: { nextAction: string; specHash: string };
+    }>('cad.check', {
+      artifactId: written.artifactId,
+      expect: { shells: 1, bbox: { min: [0, 0, 0], max: [10, 10, 2], tol: 0.5 } },
+    });
+    expect(committed.verificationStatus).toBe('passed');
+    expect(committed.work.nextAction).toBe('request_review');
+    expect(committed.work.specHash).toBeTruthy();
+    const exploratory = await call<{
+      verificationStatus: string;
+      exploratory?: boolean;
+      work: { nextAction: string; specHash: string };
+    }>('cad.check', {
+      artifactId: written.artifactId,
+      exploratory: true,
+      expect: { shells: 1 },
+    });
+    expect(exploratory.exploratory).toBe(true);
+    expect(exploratory.work.specHash).toBe(committed.work.specHash);
+    expect(exploratory.work.nextAction).toBe('commit_assertions');
+    expect(latestCadVerification(ctx, ctx.requireRevision(written.revisionId)).status).toBe(
+      'passed',
+    );
+    const dropped = await call<{
+      verificationStatus: string;
+      work: { nextAction: string };
+    }>('cad.check', {
+      artifactId: written.artifactId,
+      expect: { shells: 1 },
+    });
+    expect(dropped.verificationStatus).toBe('scope_changed');
+    expect(dropped.work.nextAction).toBe('restore_assertions');
+    expect(readActiveWork(ctx)?.specHash).toBe(committed.work.specHash);
+  });
+});
+
+describe('identical render sharing', () => {
+  it('runs OpenSCAD once for concurrent identical source', async () => {
+    let renders = 0;
+    const { call } = await project(() => {
+      renders++;
+    });
+    const [a, b] = await Promise.all([
+      call<CadReport>('cad.write_source', { title: 'A', source: 'cube(10);' }),
+      call<CadReport>('cad.write_source', { title: 'B', source: 'cube(10);' }),
+    ]);
+    expect(a.render.ok).toBe(true);
+    expect(b.render.ok).toBe(true);
+    expect(renders).toBe(1);
+  });
+});
+
+describe('two live projects with delayed calculations', () => {
+  it('keeps delayed results on the originating project', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-two-projects-'));
+    const app = new CoreApp(path.join(dir, 'appdata'), nullHost);
+    apps.push(app);
+    const slow = (value: number, ms: number) => ({
+      templates: () => [],
+      evaluate: async () => {
+        await new Promise((r) => setTimeout(r, ms));
+        return { value, unit: 'kg' };
+      },
+    });
+    const a = (await app.dispatch(
+      'project.create',
+      { name: 'A', path: path.join(dir, 'a') },
+      user,
+    )) as { projectId: string };
+    const b = (await app.dispatch(
+      'project.create',
+      { name: 'B', path: path.join(dir, 'b') },
+      user,
+    )) as { projectId: string };
+    app.contextFor(a.projectId).tools.calc = slow(11, 40);
+    app.contextFor(b.projectId).tools.calc = slow(22, 5);
+    const payload = (n: number) => ({
+      expression: String(n),
+      inputs: [{ name: 'x', quantity: { value: n, unit: 'kg' }, literal: true }],
+      submitForReview: false,
+      title: `calc-${n}`,
+    });
+    const [ra, rb] = await Promise.all([
+      app.dispatch('calculation.run', payload(11), user, a.projectId) as Promise<{
+        result: { value: number };
+      }>,
+      app.dispatch('calculation.run', payload(22), user, b.projectId) as Promise<{
+        result: { value: number };
+      }>,
+    ]);
+    expect(ra.result.value).toBe(11);
+    expect(rb.result.value).toBe(22);
+    expect(app.contextFor(a.projectId).repo.listArtifacts()).toHaveLength(1);
+    expect(app.contextFor(b.projectId).repo.listArtifacts()).toHaveLength(1);
+    expect(app.contextFor(a.projectId).repo.listArtifacts()[0]?.title).toBe('calc-11');
+    expect(app.contextFor(b.projectId).repo.listArtifacts()[0]?.title).toBe('calc-22');
+  });
+});

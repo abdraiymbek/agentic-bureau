@@ -5,7 +5,13 @@ import type {
   TransportSendOptions,
 } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import { MAX_FRAME_BYTES, OPS_BY_NAME, OmenflowError, toErrorBody } from '@omenflow/contracts';
+import {
+  ErrorCodes,
+  MAX_FRAME_BYTES,
+  OPS_BY_NAME,
+  OmenflowError,
+  toErrorBody,
+} from '@omenflow/contracts';
 import type { CoreApp } from '@omenflow/core';
 import type { z } from 'zod';
 
@@ -14,6 +20,7 @@ export interface McpGrant {
   projectId: string;
   sessionId: string;
   ops: Iterable<string>;
+  isActive?: () => boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -139,6 +146,7 @@ export class OmenflowMcpServer {
         },
         async (args) => {
           try {
+            this.assertActive();
             const idem = (args as { idempotencyKey?: string } | undefined)?.idempotencyKey;
             const result = await this.app.dispatch(
               op.name,
@@ -170,6 +178,7 @@ export class OmenflowMcpServer {
       'omenflow://project/summary',
       { description: 'Bounded structured project summary', mimeType: 'application/json' },
       async (uri) => {
+        this.assertActive();
         const result = await this.app.dispatch(
           'project.summary',
           {},
@@ -183,6 +192,12 @@ export class OmenflowMcpServer {
         };
       },
     );
+  }
+
+  private assertActive(): void {
+    if (this.grant.isActive && !this.grant.isActive()) {
+      throw new OmenflowError(ErrorCodes.CONNECTION_DENIED, 'Agent session grant was revoked');
+    }
   }
 
   /** Connect this server to an authenticated bridge socket. */

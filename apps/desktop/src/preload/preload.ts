@@ -21,8 +21,9 @@ const api = {
     ipcRenderer.on(IPC.event, l);
     return () => ipcRenderer.removeListener(IPC.event, l);
   },
-  onTerminalData: (cb: (chunk: string) => void) => {
-    const l = (_: unknown, data: unknown) => cb(data as string);
+  onTerminalData: (cb: (data: { projectId: string; sessionId: string; chunk: string; seq?: number }) => void) => {
+    const l = (_: unknown, data: unknown) =>
+      cb(data as { projectId: string; sessionId: string; chunk: string; seq?: number });
     ipcRenderer.on(IPC.terminalData, l);
     return () => ipcRenderer.removeListener(IPC.terminalData, l);
   },
@@ -35,6 +36,12 @@ const api = {
     const l = (_: unknown, data: unknown) => cb(data);
     ipcRenderer.on(IPC.jobProgress, l);
     return () => ipcRenderer.removeListener(IPC.jobProgress, l);
+  },
+
+  onServiceState: (cb: (data: { available: boolean; message?: string }) => void) => {
+    const listener = (_: unknown, data: { available: boolean; message?: string }) => cb(data);
+    ipcRenderer.on('omenflow:service-state', listener);
+    return () => ipcRenderer.removeListener('omenflow:service-state', listener);
   },
 
   pickDirectory: (title?: string) => ipcRenderer.invoke(IPC.pickDirectory, { title }),

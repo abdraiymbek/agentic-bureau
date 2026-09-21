@@ -15,6 +15,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
+import { createTerminalRestore } from './terminal-restore';
 import '@xterm/xterm/css/xterm.css';
 
 /**
@@ -71,17 +72,44 @@ export function TerminalPane() {
 
     t.onData((data) => {
       // Keystrokes go straight to the PTY — terminal semantics preserved.
-      void cmd('terminal.write', { data }).catch(() => {});
+      void cmd('terminal.write', { data }, { projectId: projectId! }).catch(() => {});
     });
-    const unData = window.omenflow.onTerminalData((chunk) => t.write(chunk));
-    const unState = window.omenflow.onTerminalState(() => void refreshSession());
+    // The restore belongs to this xterm instance, including StrictMode remounts.
+    restored.current = false;
+    const history = createTerminalRestore(
+      () =>
+        cmd<{ session: { scrollback?: string; scrollbackCursor?: number } | null }>(
+          'terminal.state',
+          {},
+          { projectId: projectId! },
+        ),
+      (text) => {
+        if (text) t.write(text);
+        restored.current = true;
+      },
+    );
+    const unData = window.omenflow.onTerminalData((data) => {
+      if (
+        data.projectId === projectId &&
+        (!useStore.getState().session || data.sessionId === useStore.getState().session?.id)
+      )
+        history.acceptLive({ seq: data.seq, chunk: data.chunk });
+    });
+    const unState = window.omenflow.onTerminalState((value) => {
+      if ((value as { projectId?: string }).projectId === projectId) {
+        void refreshSession();
+        void history.restore();
+      }
+    });
     const ro = new ResizeObserver(() => {
       try {
         f.fit();
         if (term.current) {
-          void cmd('terminal.resize', { cols: term.current.cols, rows: term.current.rows }).catch(
-            () => {},
-          );
+          void cmd(
+            'terminal.resize',
+            { cols: term.current.cols, rows: term.current.rows },
+            { projectId: projectId! },
+          ).catch(() => {});
         }
       } catch {
         /* hidden */
@@ -91,19 +119,12 @@ export function TerminalPane() {
     const onFocus = () => t.focus();
     window.addEventListener('omenflow:focus-terminal', onFocus);
 
-    // Restore scrollback for a still-running session after reload.
-    void (async () => {
-      if (restored.current) return;
-      restored.current = true;
-      try {
-        const r = await cmd<{ session: { scrollback?: string } | null }>('terminal.state', {});
-        if (r.session?.scrollback) t.write(r.session.scrollback);
-      } catch {
-        /* core may not be up yet */
-      }
-    })();
+    // Restore once per live terminal; a later state notification retries a
+    // missing session or transient service failure.
+    void history.restore();
 
     return () => {
+      history.dispose();
       unData();
       unState();
       ro.disconnect();
@@ -136,7 +157,7 @@ export function TerminalPane() {
     try {
       // A fresh session shouldn't inherit a dead session's scrollback.
       term.current?.reset();
-      await cmd('terminal.start', { adapterId });
+      await cmd('terminal.start', { adapterId }, { projectId: projectId! });
       await refreshSession();
       term.current?.focus();
     } catch (e) {
@@ -146,15 +167,15 @@ export function TerminalPane() {
     }
   };
   const stop = async () => {
-    await cmd('terminal.stop', {}).catch(() => {});
+    await cmd('terminal.stop', {}, { projectId: projectId! }).catch(() => {});
     await refreshSession();
   };
   const interrupt = async () => {
-    await cmd('terminal.interrupt', {}).catch(() => {});
+    await cmd('terminal.interrupt', {}, { projectId: projectId! }).catch(() => {});
   };
   const restart = async () => {
     term.current?.reset();
-    await cmd('terminal.restart', {}).catch(() => {});
+    await cmd('terminal.restart', {}, { projectId: projectId! }).catch(() => {});
     await refreshSession();
   };
 

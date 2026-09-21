@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { Origin } from '@omenflow/contracts';
-import { CoreApp, nullHost, type CadReport } from '@omenflow/core';
+import { CoreApp, nullHost, cadInspect, type CadReport } from '@omenflow/core';
 import { createEngineTools, OpenScadAdapter } from './index.js';
 
 /**
@@ -133,7 +133,7 @@ describe.skipIf(
 
   it('inspect answers sections/probes and re-renders parameter variants without committing', async () => {
     if (!available) return;
-    const { call } = await project();
+    const { call, app, projectId } = await project();
     const w = await call<CadReport>('cad.write_source', { title: 'Plate', source: PLATE });
     const i = await call<CadReport>('cad.inspect', {
       artifactId: w.artifactId,
@@ -152,6 +152,25 @@ describe.skipIf(
     expect(i.sections!.some((s) => s.plane.startsWith('x=60'))).toBe(true);
     const hist = await call('artifact.history', { artifactId: w.artifactId });
     expect(hist.revisions.length).toBe(1);
+    for (const request of [
+      { probes: Array.from({ length: 513 }, () => [0, 0, 0]) },
+      { sections: Array.from({ length: 513 }, () => ({ axis: 'z', at: 3 })) },
+    ]) {
+      await expect(
+        call('cad.inspect', { artifactId: w.artifactId, ...request }),
+      ).rejects.toMatchObject({ code: 'VALIDATION' });
+      // Internal callers bypass the stricter public schema (64 probes / 12 planes).
+      await expect(
+        cadInspect(
+          app.contextFor(projectId),
+          { artifactId: w.artifactId, ...request } as never,
+          AGENT,
+        ),
+      ).rejects.toMatchObject({
+        code: 'VALIDATION',
+        details: expect.objectContaining({ reason: 'CAD_WORK_LIMIT', status: 'not_evaluated' }),
+      });
+    }
   });
 
   it('rejects unknown parameters with the list of declared ones', async () => {
@@ -279,9 +298,9 @@ describe.skipIf(
       expect: { preserve: { changeRegions: [{ center: [50, 20, 3], radius: 8 }] } },
     });
     expect(fail.pass).toBe(false);
-    expect(fail.checks.some((c: { name: string }) => c.name === 'unrelated geometry preserved')).toBe(
-      true,
-    );
+    expect(
+      fail.checks.some((c: { name: string }) => c.name === 'unrelated geometry preserved'),
+    ).toBe(true);
   });
 
   it('inspects an oblique plane and flags a loosened tolerance as weakening', async () => {
@@ -292,7 +311,9 @@ describe.skipIf(
       artifactId: w.artifactId,
       sections: [{ origin: [50, 20, 3], normal: [0, 0, 1] }],
     });
-    expect(i.sections!.some((s) => s.plane.includes('origin') || s.plane.includes('n='))).toBe(true);
+    expect(i.sections!.some((s) => s.plane.includes('origin') || s.plane.includes('n='))).toBe(
+      true,
+    );
 
     await call('cad.check', {
       artifactId: w.artifactId,

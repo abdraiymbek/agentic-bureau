@@ -10,6 +10,11 @@
 import type { Expectation } from '@omenflow/contracts';
 import {
   analyzeMesh,
+  assertFiniteMesh,
+  assertIntersectionBudget,
+  MAX_CAD_CHECK_TRIANGLE_VISITS,
+  MAX_CAD_CHECK_ASSERTIONS,
+  meshWorkLimit,
   containsPoint,
   countIntersectingPairs,
   crossSection,
@@ -84,6 +89,27 @@ function nearest(
 
 export function runChecks(tris: TriangleBuffer, expIn: Expectation): CheckResult[] {
   const exp = expIn as unknown as ExpectationT;
+  assertFiniteMesh(tris);
+  const assertionCount =
+    (exp.solid?.length ?? 0) +
+    (exp.empty?.length ?? 0) +
+    (exp.sections ?? []).reduce(
+      (sum, section) =>
+        sum +
+        1 +
+        (section.holes?.length ?? 0) +
+        (section.slots?.length ?? 0) +
+        (section.polygons?.length ?? 0),
+      0,
+    );
+  if (assertionCount > MAX_CAD_CHECK_ASSERTIONS)
+    meshWorkLimit('CAD check assertions', assertionCount, MAX_CAD_CHECK_ASSERTIONS);
+  if (exp.maxSelfIntersections !== undefined) assertIntersectionBudget(tris);
+  const visits =
+    (tris.length / 9) *
+    ((exp.solid?.length ?? 0) + (exp.empty?.length ?? 0) + (exp.sections?.length ?? 0) * 2);
+  if (visits > MAX_CAD_CHECK_TRIANGLE_VISITS)
+    meshWorkLimit('CAD check triangle visits', visits, MAX_CAD_CHECK_TRIANGLE_VISITS);
   const out: CheckResult[] = [];
   const report = analyzeMesh(tris);
   const minRound = exp.minRoundness ?? 0.97;
@@ -351,6 +377,11 @@ export function preservationCheck(
   changeRegions: { center: Vec3; radius: number }[],
   samples = 400,
 ): CheckResult {
+  assertFiniteMesh(original);
+  assertFiniteMesh(modified);
+  const visits = samples * ((original.length + modified.length) / 9 + changeRegions.length);
+  if (visits > MAX_CAD_CHECK_TRIANGLE_VISITS)
+    meshWorkLimit('Preservation check triangle visits', visits, MAX_CAD_CHECK_TRIANGLE_VISITS);
   const b0 = analyzeMesh(original).bounds;
   const b1 = analyzeMesh(modified).bounds;
   const min: Vec3 = [

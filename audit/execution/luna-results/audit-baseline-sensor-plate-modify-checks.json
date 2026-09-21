@@ -1,0 +1,174 @@
+[
+  {
+    "revisionId": "d0ba1ddd-442c-4c55-8074-5a8cb4f1bcef",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.01
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [1, 1, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2],
+        [30, 20, 7]
+      ],
+      "shells": 1,
+      "watertight": true,
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          }
+        ]
+      }
+    },
+    "pass": false,
+    "verificationStatus": null,
+    "passed": 19,
+    "total": 20,
+    "scopeChanges": null,
+    "failures": [
+      {
+        "name": "unrelated geometry preserved",
+        "pass": false,
+        "detail": "no parent mesh to compare — preserve requires a prior revision of this part"
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "d0ba1ddd-442c-4c55-8074-5a8cb4f1bcef",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.01
+          },
+          "outerCount": 1
+        },
+        {
+          "axis": "z",
+          "at": 7,
+          "outer": {
+            "center": [45, 20],
+            "d": 10,
+            "tol": 0.05
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [1, 1, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2],
+        [30, 20, 7]
+      ],
+      "shells": 1,
+      "watertight": true
+    },
+    "pass": true,
+    "verificationStatus": null,
+    "passed": 21,
+    "total": 21,
+    "scopeChanges": null,
+    "failures": [],
+    "next": "All checks passed. The part matches the stated expectations; report done with a short summary of what was verified. WARNING — this run dropped 1 assertion(s) that FAILED on this same geometry earlier (unrelated geometry preserved). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source."
+  }
+]

@@ -93,7 +93,7 @@ describe('OmenflowMcpServer over bridge frames', () => {
   });
 
   /** Accept one connection on a tmp socket; hand it to connectMcpToBridge. */
-  async function attachClient(): Promise<FakeMcpClient> {
+  async function attachClient(isActive?: () => boolean): Promise<FakeMcpClient> {
     server = net.createServer();
     await new Promise<void>((r) => server.listen(sockPath, r));
     const accepted = new Promise<net.Socket>((resolve) => server.once('connection', resolve));
@@ -109,6 +109,7 @@ describe('OmenflowMcpServer over bridge frames', () => {
       projectId,
       sessionId: newId(),
       ops: [...AGENT_OPS],
+      isActive,
     });
     return new FakeMcpClient(clientSock);
   }
@@ -155,7 +156,7 @@ describe('OmenflowMcpServer over bridge frames', () => {
     }
     const check = list.result.tools.find((t) => t.name === 'cad_check')!;
     expect(check.inputSchema.properties?.expect?.description).toMatch(/must be true/i);
-    expect(check.annotations?.readOnlyHint).toBe(true);
+    expect(check.annotations?.readOnlyHint).toBe(false); // persists verification job evidence
     expect(check.annotations?.destructiveHint).toBe(false);
     const write = list.result.tools.find((t) => t.name === 'cad_write_source')!;
     expect(write.annotations?.readOnlyHint).toBe(false);
@@ -195,6 +196,29 @@ describe('OmenflowMcpServer over bridge frames', () => {
     expect(res.result.isError).toBe(true);
     const body = JSON.parse(res.result.content[0]!.text) as { code: string };
     expect(body.code).toBe('NOT_FOUND');
+  });
+
+  it('checks grant validity on every tool and resource request', async () => {
+    let active = true;
+    const client = await attachClient(() => active);
+    await client.rpc('initialize', {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'test', version: '0' },
+    });
+    client.notify('notifications/initialized');
+    active = false;
+    const response = (await client.rpc('tools/call', {
+      name: 'artifact_create_draft',
+      arguments: { type: 'note', title: 'Revoked write', payload: { markdown: 'must not commit' } },
+    })) as { result: { isError?: boolean; content: { text: string }[] } };
+    expect(response.result.isError).toBe(true);
+    expect(JSON.parse(response.result.content[0]!.text).code).toBe('CONNECTION_DENIED');
+    expect(app.contextFor(projectId).repo.listArtifacts()).toHaveLength(0);
+    const resource = (await client.rpc('resources/read', {
+      uri: 'omenflow://project/summary',
+    })) as { error?: { message: string } };
+    expect(resource.error?.message).toMatch(/revoked/);
   });
 
   it('FrameTransport roundtrips a raw message', async () => {

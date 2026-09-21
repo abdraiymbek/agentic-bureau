@@ -23,6 +23,8 @@ export interface BridgeGrant {
   projectId: string;
   sessionId: string;
   ops: Set<string>;
+  /** Checked on every call, including after the socket is handed to MCP. */
+  isActive: () => boolean;
 }
 
 const HELLO_TIMEOUT_MS = 10_000;
@@ -46,6 +48,7 @@ export class BridgeServer {
   private sockets = new Set<net.Socket>();
   private grants = new Map<string, BridgeGrant>(); // token → grant
   private sessionTokens = new Map<string, string>(); // sessionId → token
+  private sessionSockets = new Map<string, Set<net.Socket>>();
   private _socketPath: string;
   private closed = false;
 
@@ -74,13 +77,16 @@ export class BridgeServer {
 
   /** Issue a per-session credential. `ops` is the allowed op set (AGENT_OPS). */
   issueToken(input: { projectId: string; sessionId: string; ops: Iterable<string> }): string {
+    this.revoke(input.sessionId);
     const token = randomBytes(24).toString('hex');
-    this.grants.set(token, {
+    const grant: BridgeGrant = {
       token,
       projectId: input.projectId,
       sessionId: input.sessionId,
       ops: new Set(input.ops),
-    });
+      isActive: () => !this.closed && this.grants.get(token) === grant,
+    };
+    this.grants.set(token, grant);
     this.sessionTokens.set(input.sessionId, token);
     return token;
   }
@@ -90,6 +96,8 @@ export class BridgeServer {
     const token = this.sessionTokens.get(sessionId);
     if (token) this.grants.delete(token);
     this.sessionTokens.delete(sessionId);
+    for (const socket of this.sessionSockets.get(sessionId) ?? []) socket.destroy();
+    this.sessionSockets.delete(sessionId);
   }
 
   grantForToken(token: string): BridgeGrant | null {
@@ -143,6 +151,9 @@ export class BridgeServer {
 
   async close(): Promise<void> {
     this.closed = true;
+    this.grants.clear();
+    this.sessionTokens.clear();
+    this.sessionSockets.clear();
     for (const socket of this.sockets) socket.destroy();
     this.sockets.clear();
     const server = this.server;
@@ -177,6 +188,7 @@ export class BridgeServer {
       }
     }, HELLO_TIMEOUT_MS);
     helloTimer.unref?.();
+    socket.once('close', () => clearTimeout(helloTimer));
 
     socket.on('data', (chunk) => {
       let messages: unknown[];
@@ -188,10 +200,14 @@ export class BridgeServer {
         socket.end();
         return;
       }
-      for (const message of messages) {
+      for (const [index, message] of messages.entries()) {
         if (mode === 'handed-off') return;
         if (mode === 'await-hello') {
-          const result = this.handleHello(socket, message, decoder);
+          const buffered = Buffer.concat([
+            ...messages.slice(index + 1).map((frame) => encodeFrame(frame)),
+            decoder.pending(),
+          ]);
+          const result = this.handleHello(socket, message, buffered);
           if (!result) return; // hello failed — socket closing
           grant = result.grant;
           mode = result.mode;
@@ -212,7 +228,7 @@ export class BridgeServer {
   private handleHello(
     socket: net.Socket,
     message: unknown,
-    decoder: FrameDecoder,
+    buffered: Buffer,
   ): { mode: 'call' | 'handed-off'; grant: BridgeGrant } | null {
     const parsed = bridgeHelloSchema.safeParse(message);
     if (!parsed.success) {
@@ -231,11 +247,20 @@ export class BridgeServer {
       return null;
     }
     const grant = this.grants.get(hello.token);
-    if (!grant) {
+    if (!grant?.isActive()) {
       sendError(socket, ErrorCodes.CONNECTION_DENIED, 'Unknown or revoked bridge token');
       socket.end();
       return null;
     }
+    const sessionSockets = this.sessionSockets.get(grant.sessionId) ?? new Set<net.Socket>();
+    sessionSockets.add(socket);
+    this.sessionSockets.set(grant.sessionId, sessionSockets);
+    socket.once('close', () => {
+      sessionSockets.delete(socket);
+      if (!sessionSockets.size && this.sessionSockets.get(grant.sessionId) === sessionSockets) {
+        this.sessionSockets.delete(grant.sessionId);
+      }
+    });
     socket.write(
       encodeFrame({
         type: 'welcome',
@@ -249,7 +274,6 @@ export class BridgeServer {
       // Hand the raw socket to the MCP server, along with any bytes the
       // decoder already consumed past the hello frame.
       socket.removeAllListeners('data');
-      const buffered = decoder.pending();
       if (this.onMcpConnection) {
         this.onMcpConnection(socket, grant, buffered);
       } else {
@@ -273,7 +297,13 @@ export class BridgeServer {
         ? (message as { requestId: string }).requestId
         : 'unknown';
     let response: ResponseEnvelope;
-    if (!parsed.success) {
+    if (!grant.isActive()) {
+      response = errResponse(
+        requestId,
+        ErrorCodes.CONNECTION_DENIED,
+        'Agent session grant was revoked',
+      );
+    } else if (!parsed.success) {
       response = errResponse(requestId, ErrorCodes.VALIDATION, 'Malformed request envelope');
     } else {
       const env = parsed.data;

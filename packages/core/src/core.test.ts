@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ErrorCodes, Origin, OmenflowError, qty } from '@omenflow/contracts';
 import { openProject } from '@omenflow/storage';
-import { CoreApp, nullHost } from './index.js';
+import { CoreApp, nullHost, writeBinaryStl, parseStlTriangles, analyzeMesh } from './index.js';
 import { dispatch } from './dispatch.js';
 import type { ProjectContext } from './context.js';
 import type { CalcEngine, CadAdapter } from './tools.js';
@@ -46,22 +46,33 @@ const fakeCalc: CalcEngine = {
   },
 };
 
-const asciiStl = `solid t
- facet normal 0 0 1
-  outer loop
-   vertex 0 0 0
-   vertex 10 0 0
-   vertex 0 10 0
-  endloop
- endfacet
- facet normal 0 0 -1
-  outer loop
-   vertex 0 0 0
-   vertex 0 10 0
-   vertex 10 0 0
-  endloop
- endfacet
-endsolid t`;
+function boxStl(length: number): Buffer {
+  const vertices = [
+    [0, 0, 0],
+    [length, 0, 0],
+    [length, 10, 0],
+    [0, 10, 0],
+    [0, 0, 2],
+    [length, 0, 2],
+    [length, 10, 2],
+    [0, 10, 2],
+  ];
+  const faces = [
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [1, 2, 6],
+    [1, 6, 5],
+    [2, 3, 7],
+    [2, 7, 6],
+    [3, 0, 4],
+    [3, 4, 7],
+  ];
+  return writeBinaryStl(Float64Array.from(faces.flatMap((f) => f.flatMap((v) => vertices[v]!))));
+}
 
 const fakeCad: CadAdapter = {
   toolId: 'openscad',
@@ -72,22 +83,18 @@ const fakeCad: CadAdapter = {
     return { ok: true, errors: [] };
   },
   async render(spec) {
-    fs.writeFileSync(spec.outPath, asciiStl);
+    fs.writeFileSync(spec.outPath, boxStl(Number(spec.params.length ?? 10)));
     return { ok: true };
   },
   cancel() {},
   inspectStl(buf) {
-    const text = buf.toString('utf8');
-    const facets = (text.match(/facet/g) ?? []).length;
+    const mesh = analyzeMesh(parseStlTriangles(buf));
     return {
-      triangles: facets,
+      triangles: mesh.triangles,
       bytes: buf.byteLength,
-      format: 'ascii' as const,
-      bounds: {
-        min: [0, 0, 0] as [number, number, number],
-        max: [10, 10, 0] as [number, number, number],
-      },
-      plausible: facets > 0,
+      format: 'binary' as const,
+      bounds: mesh.bounds,
+      plausible: mesh.topology.watertight,
     };
   },
 };
@@ -454,7 +461,7 @@ describe('components and BOM', () => {
 describe('CAD job path (fake adapter, real pipeline)', () => {
   it('render job produces a draft revision with STL + bounds', async () => {
     const { ctx } = await setup();
-    const scadB64 = Buffer.from('cube([10,10,2]);').toString('base64');
+    const scadB64 = Buffer.from('length=10; cube([length,10,2]);').toString('base64');
     const { artifact } = (await agentCall(ctx, 'artifact.create_draft', {
       type: 'mechanical',
       title: 'Tray',
@@ -480,7 +487,7 @@ describe('CAD job path (fake adapter, real pipeline)', () => {
     const last = drafts.at(-1)!;
     const p = last.payload as { stl?: { sha256?: string }; bounds?: { max: number[] } };
     expect(p.stl?.sha256).toBeTruthy();
-    expect(p.bounds?.max[0]).toBe(10);
+    expect(p.bounds?.max[0]).toBe(100);
   });
 });
 

@@ -15,16 +15,26 @@ import { commitRevision, createDraft } from './artifacts.js';
 import { submitProposal } from './proposals.js';
 import type { CalcEngine, CalcTemplate } from './tools.js';
 
+export const CALC_EXPERIMENTAL_SCOPE =
+  'Experimental: referenced source values are labels, not resolved revision fields; supplied quantities are used as given. Derived-unit inference is incomplete — declare the output unit explicitly. Do not treat results as verified engineering evidence.';
+
+export function listTemplates(ctx: ProjectContext): CalcTemplate[] {
+  return calcTool(ctx)
+    .templates()
+    .map((t) => ({
+      ...t,
+      limitations: t.limitations.includes(CALC_EXPERIMENTAL_SCOPE)
+        ? t.limitations
+        : [...t.limitations, CALC_EXPERIMENTAL_SCOPE],
+    }));
+}
+
 function calcTool(ctx: ProjectContext): CalcEngine {
   const calc = ctx.tools.calc as CalcEngine | undefined;
   if (!calc) {
     throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'Calculation engine not registered');
   }
   return calc;
-}
-
-export function listTemplates(ctx: ProjectContext): CalcTemplate[] {
-  return calcTool(ctx).templates();
 }
 
 /**
@@ -94,8 +104,40 @@ export async function runCalculation(
     const q = input.inputs[0]?.quantity;
     return q && !isUnknown(q) ? (q as { unit: string }).unit : undefined;
   })();
-  const result = await calc.evaluate(expression, input.inputs, template?.outputUnit ?? firstUnit);
+  const job = ctx.createJob({
+    kind: 'calculation',
+    tool: 'calc',
+    inputs: {
+      templateId: input.templateId ?? null,
+      expression,
+      experimental: true,
+    },
+    sessionId: origin.kind === 'agent' ? origin.sessionId : null,
+  });
+  const ac = new AbortController();
+  ctx.jobCancels.set(job.id, () => ac.abort());
+  ctx.jobStatus(job.id, 'running');
+  let result: { value: number; unit: string };
+  try {
+    ctx.assertJobActive(job.id);
+    result = await calc.evaluate(expression, input.inputs, template?.outputUnit ?? firstUnit, {
+      signal: ac.signal,
+    });
+    ctx.assertJobActive(job.id);
+  } catch (error) {
+    ctx.jobCancels.delete(job.id);
+    const e = OmenflowError.from(error);
+    if (ctx.repo.getJob(job.id)?.status !== 'cancelled')
+      ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+        error: e.toBody(),
+      });
+    throw e;
+  }
 
+  const limitations = [
+    ...(template?.limitations ?? []),
+    ...(template?.limitations?.includes(CALC_EXPERIMENTAL_SCOPE) ? [] : [CALC_EXPERIMENTAL_SCOPE]),
+  ];
   const payload: CalculationPayload = {
     templateId: input.templateId,
     expression,
@@ -107,7 +149,7 @@ export async function runCalculation(
     })),
     assumptions: [...(template?.assumptions ?? []), ...input.assumptions],
     result: { quantity: qty(result.value, result.unit) },
-    limitations: template?.limitations ?? [],
+    limitations,
     toolVersion: 'mathjs-restricted',
     ranAt: new Date().toISOString(),
     evidenceKind: 'calculated',
@@ -121,58 +163,80 @@ export async function runCalculation(
       label: `input ${i.name}`,
     }));
 
-  let artifactId = input.artifactId;
-  let revision;
-  if (artifactId) {
-    const artifact = ctx.requireArtifact(artifactId);
-    revision = commitRevision(ctx, {
-      artifactId: artifact.id,
-      parentId: artifact.selectedRevisionId,
-      origin,
-      payload,
-      files: [],
-      inputs,
-      rationale: `run ${input.templateId ?? 'expression'}`,
-      reviewState: 'draft',
-    });
-  } else {
-    const created = createDraft(
-      ctx,
-      {
-        type: 'calculation',
-        title: input.title ?? template?.title ?? 'calculation',
+  try {
+    ctx.assertJobActive(job.id);
+    let artifactId = input.artifactId;
+    let revision;
+    if (artifactId) {
+      const artifact = ctx.requireArtifact(artifactId);
+      revision = commitRevision(ctx, {
+        artifactId: artifact.id,
+        parentId: artifact.selectedRevisionId,
+        origin,
         payload,
         files: [],
         inputs,
         rationale: `run ${input.templateId ?? 'expression'}`,
-      },
-      origin,
-    );
-    artifactId = created.artifact.id;
-    revision = created.revision;
-  }
+        reviewState: 'draft',
+      });
+    } else {
+      const created = createDraft(
+        ctx,
+        {
+          type: 'calculation',
+          title: input.title ?? template?.title ?? 'calculation',
+          payload,
+          files: [],
+          inputs,
+          rationale: `run ${input.templateId ?? 'expression'}`,
+        },
+        origin,
+      );
+      artifactId = created.artifact.id;
+      revision = created.revision;
+    }
 
-  let proposal = null;
-  const artifact = ctx.requireArtifact(artifactId);
-  if (input.submitForReview) {
-    proposal = submitProposal(
-      ctx,
-      {
-        changes: [
-          {
-            artifactId,
-            baseRevisionId: artifact.selectedRevisionId,
-            newRevisionId: revision.id,
-            kind: artifact.selectedRevisionId ? 'baseline_update' : 'new_artifact',
-          },
-        ],
-        reason: `calculation result: ${formatQty({ value: result.value, unit: result.unit })}`,
-      },
-      origin,
-    );
+    ctx.assertJobActive(job.id);
+    let proposal = null;
+    const artifact = ctx.requireArtifact(artifactId);
+    if (input.submitForReview) {
+      proposal = submitProposal(
+        ctx,
+        {
+          changes: [
+            {
+              artifactId,
+              baseRevisionId: artifact.selectedRevisionId,
+              newRevisionId: revision.id,
+              kind: artifact.selectedRevisionId ? 'baseline_update' : 'new_artifact',
+            },
+          ],
+          reason: `calculation result: ${formatQty({ value: result.value, unit: result.unit })}`,
+        },
+        origin,
+      );
+    }
+    ctx.assertJobActive(job.id);
+    ctx.jobStatus(job.id, 'succeeded', { outputHashes: { revision: revision.id } });
+    void newId;
+    return {
+      artifactId,
+      revision,
+      result: { value: result.value, unit: result.unit },
+      proposal,
+      experimental: true,
+      limitations,
+    };
+  } catch (error) {
+    const e = OmenflowError.from(error);
+    if (ctx.repo.getJob(job.id)?.status !== 'cancelled')
+      ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
+        error: e.toBody(),
+      });
+    throw e;
+  } finally {
+    ctx.jobCancels.delete(job.id);
   }
-  void newId;
-  return { artifactId, revision, result: { value: result.value, unit: result.unit }, proposal };
 }
 
 export function explainInputs(ctx: ProjectContext, artifactId: string) {

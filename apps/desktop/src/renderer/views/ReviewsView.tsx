@@ -5,6 +5,7 @@ import type { Proposal, Revision, Artifact, ProposedChange } from '@omenflow/con
 import { formatQty, isUnknown } from '@omenflow/contracts';
 import { ArtifactIcon, EmptyState, PageHeader, StatusBadge, SearchField } from '../components/ui';
 import { GitBranch, CheckCircle } from '@phosphor-icons/react';
+import { CadRevisionReview, type VerificationReview } from '../components/CadRevisionReview';
 
 interface ProposalDetail {
   proposal: Proposal;
@@ -13,6 +14,7 @@ interface ProposalDetail {
     artifact: Artifact | null;
     base: Revision | null;
     next: Revision | null;
+    verification?: VerificationReview;
   }[];
 }
 
@@ -26,6 +28,22 @@ export function ReviewsView() {
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [query, setQuery] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [acceptedScopes, setAcceptedScopes] = useState<Record<string, string>>({});
+  const [resumeProposal, setResumeProposal] = useState<string | null>(null);
+  const [sentDecision, setSentDecision] = useState<string | null>(null);
+  const projectId = useStore((s) => s.project?.id);
+  const session = useStore((s) => s.session);
+  const decisionId =
+    resumeProposal ??
+    (detail &&
+    ['changes_requested', 'accepted', 'rejected'].includes(detail.proposal.state) &&
+    detail.proposal.id !== sentDecision
+      ? detail.proposal.id
+      : null);
+  useEffect(() => {
+    setResumeProposal(null);
+    setSentDecision(null);
+  }, [projectId]);
   const visible = proposals.filter(
     (p) =>
       (filter === 'all' || ['pending', 'changes_requested'].includes(p.state)) &&
@@ -37,8 +55,9 @@ export function ReviewsView() {
     setDetail(null);
     setLoadError('');
     setRationale('');
+    setAcceptedScopes({});
     if (activeId)
-      void cmd<ProposalDetail>('proposal.read', { proposalId: activeId })
+      void cmd<ProposalDetail>('proposal.read', { proposalId: activeId }, { projectId })
         .then((r) => {
           if (!cancelled) setDetail(r);
         })
@@ -48,7 +67,7 @@ export function ReviewsView() {
     return () => {
       cancelled = true;
     };
-  }, [activeId, proposals]);
+  }, [activeId, proposals, projectId]);
   const act = async (
     op: 'proposal.approve' | 'proposal.reject' | 'proposal.request_changes',
     id: string,
@@ -56,7 +75,18 @@ export function ReviewsView() {
     if (readOnly) return;
     setBusy(true);
     try {
-      await cmd(op, { proposalId: id, rationale });
+      await cmd(
+        op,
+        {
+          proposalId: id,
+          rationale,
+          ...(op === 'proposal.approve' ? { verificationEvidence: acceptedScopes } : {}),
+        },
+        { projectId },
+      );
+      if (useStore.getState().project?.id !== projectId) return;
+      setResumeProposal(id);
+      setSentDecision(null);
       toast(
         'ok',
         op === 'proposal.approve'
@@ -78,7 +108,7 @@ export function ReviewsView() {
     <div className="page">
       <PageHeader
         title="Review queue"
-        count={proposals.filter((p) => p.state === 'pending').length}
+        count={proposals.filter((p) => ['pending', 'changes_requested'].includes(p.state)).length}
         compact
       />
       <div className="toolbar">
@@ -93,6 +123,38 @@ export function ReviewsView() {
         <span className="grow" />
         <SearchField value={query} onChange={setQuery} placeholder="Find a proposal" />
       </div>
+      {decisionId && (
+        <div className="inline-notice">
+          <span>
+            Decision recorded.{' '}
+            {session?.state === 'running'
+              ? 'Continue with the connected agent.'
+              : 'Start the agent to continue from this decision.'}
+          </span>{' '}
+          <button
+            disabled={readOnly || session?.state !== 'running'}
+            onClick={() => {
+              void cmd(
+                'terminal.write',
+                {
+                  data: `\x1b[200~Read proposal ${decisionId} and its saved review decision using proposal.read. Continue the engineering task from that decision; preserve the accepted baseline and verify any new candidate. If changes were requested, submit the corrected candidate as a replacement proposal for review.\x1b[201~`,
+                },
+                { projectId },
+              )
+                .then(() => cmd('terminal.write', { data: '\r' }, { projectId }))
+                .then(() => {
+                  if (useStore.getState().project?.id !== projectId) return;
+                  setResumeProposal(null);
+                  setSentDecision(decisionId);
+                  useStore.getState().set({ sidecarOpen: true, sidecarTab: 'agent' });
+                })
+                .catch((e) => toast('error', errMsg(e)));
+            }}
+          >
+            Resume agent from decision
+          </button>
+        </div>
+      )}
       <div className="object-layout">
         <aside className="object-browser review-browser" aria-label="Proposals">
           {visible.map((p) => (
@@ -139,6 +201,15 @@ export function ReviewsView() {
               setRationale={setRationale}
               act={act}
               busy={busy || readOnly}
+              acceptedScopes={acceptedScopes}
+              setScope={(artifactId, hash, accepted) =>
+                setAcceptedScopes((prev) => {
+                  const next = { ...prev };
+                  if (accepted) next[artifactId] = hash;
+                  else delete next[artifactId];
+                  return next;
+                })
+              }
               selectArtifact={(id) => {
                 selectArtifact(id);
                 useStore.getState().set({ sidecarOpen: true, sidecarTab: 'inspector' });
@@ -160,6 +231,8 @@ function ReviewDetail(props: {
     id: string,
   ) => Promise<void>;
   busy: boolean;
+  acceptedScopes: Record<string, string>;
+  setScope: (artifactId: string, hash: string, accepted: boolean) => void;
   selectArtifact: (id: string) => void;
 }) {
   const { detail } = props;
@@ -176,8 +249,25 @@ function ReviewDetail(props: {
       <div className="faint" style={{ fontSize: 12, marginBottom: 12 }}>
         proposed by {p.createdBy} · {p.createdAt.replace('T', ' ').slice(0, 16)}
       </div>
+      {p.impact?.supersedesProposalIds?.length ? (
+        <div className="inline-notice">
+          This replacement supersedes {p.impact.supersedesProposalIds.length === 1
+            ? 'an earlier changes-requested review'
+            : `${p.impact.supersedesProposalIds.length} earlier changes-requested reviews`}
+          . The earlier review stays in the record and is no longer actionable.
+        </div>
+      ) : null}
+      {p.state === 'superseded' && (
+        <div className="inline-notice">
+          Superseded by a later replacement
+          {p.impact?.supersededByProposalId
+            ? ` (${p.impact.supersededByProposalId.slice(0, 8)})`
+            : ''}
+          . It remains in the project history and is no longer in the review queue.
+        </div>
+      )}
 
-      {detail.changes.map(({ change, artifact, base, next }, i) => (
+      {detail.changes.map(({ change, artifact, base, next, verification }, i) => (
         <div
           key={i}
           style={{
@@ -202,8 +292,25 @@ function ReviewDetail(props: {
           <div className="faint" style={{ fontSize: 11, margin: '4px 0' }}>
             base {base ? `rev ${base.seq}` : 'none'} → proposed rev {next?.seq ?? '?'}
           </div>
-          {base && next && <PayloadDiff from={base.payload} to={next.payload} />}
-          {!base && next && (
+          {artifact?.type === 'mechanical' && next ? (
+            <CadRevisionReview
+              base={base}
+              next={next}
+              verification={verification}
+              accepted={
+                props.acceptedScopes[artifact.id] === verification?.evidenceHash &&
+                !!verification?.evidenceHash
+              }
+              onAcceptScope={(accepted) =>
+                verification?.evidenceHash &&
+                props.setScope(artifact.id, verification.evidenceHash, accepted)
+              }
+              disabled={props.busy || !['pending', 'changes_requested'].includes(p.state)}
+            />
+          ) : (
+            base && next && <PayloadDiff from={base.payload} to={next.payload} />
+          )}
+          {!base && next && artifact?.type !== 'mechanical' && (
             <div className="dim" style={{ fontSize: 12 }}>
               New artifact — {summarize(next.payload)}
             </div>
@@ -251,6 +358,7 @@ function ReviewDetail(props: {
 
       {(p.state === 'pending' || p.state === 'changes_requested') && (
         <div className="review-decision" role="group" aria-label="Decision">
+          {p.resolutionRationale && <p>Latest review decision: {p.resolutionRationale}</p>}
           <label htmlFor="review-rationale">Decision rationale</label>
           <textarea
             id="review-rationale"

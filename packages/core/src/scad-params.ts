@@ -207,9 +207,7 @@ const CURVED = /\b(cylinder|sphere|circle|rotate_extrude)\s*\(/;
  * already set `$fn`. Prismatic-only files are left alone.
  */
 export function ensureDefaultFaceting(source: string): { source: string; injected: boolean } {
-  const stripped = source
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/\/\/[^\n]*/g, ' ');
+  const stripped = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
   if (/\$fn\s*=/.test(stripped)) return { source, injected: false };
   if (!CURVED.test(stripped)) return { source, injected: false };
   return { source: `$fn = 64;\n${source}`, injected: true };
@@ -251,6 +249,6 @@ export function setScadParameter(
   if (line === undefined) throw new Error(`No file-scope parameter "${name}".`);
   const re = new RegExp(`(${escapeRegExp(name)}\\s*=\\s*)([^;]+)`);
   if (!re.test(line)) throw new Error(`No file-scope parameter "${name}".`);
-  lines[idx] = line.replace(re, `$1${formatScadValue(value)}`);
+  lines[idx] = line.replace(re, (_match, prefix: string) => `${prefix}${formatScadValue(value)}`);
   return { source: lines.join('\n'), previous: param.value };
 }

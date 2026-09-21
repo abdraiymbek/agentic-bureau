@@ -1,0 +1,220 @@
+[
+  {
+    "revisionId": "d6b76275-dac8-48a6-84f8-59d9059ceede",
+    "params": {
+      "foot_x": 40,
+      "foot_y": 30,
+      "top_z_at_x0": 20,
+      "top_z_at_x40": 10,
+      "hole_d": 6,
+      "hole_x": 20,
+      "hole_y": 15,
+      "hole_z": 15
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.01
+      },
+      "shells": 1,
+      "watertight": true,
+      "volume": {
+        "value": 17563,
+        "tolPct": 1
+      },
+      "solid": [
+        [5, 15, 5],
+        [35, 15, 5],
+        [20, 5, 14]
+      ],
+      "empty": [
+        [20, 15, 14],
+        [20, 15, 16],
+        [16.25, 15, 0.5]
+      ],
+      "sections": [
+        {
+          "axis": "x",
+          "at": 20,
+          "outer": {
+            "size": [30, 15],
+            "center": [15, 7.5],
+            "tol": 0.02
+          }
+        }
+      ]
+    },
+    "pass": false,
+    "verificationStatus": "failed",
+    "passed": 10,
+    "total": 12,
+    "scopeChanges": [],
+    "failures": [
+      {
+        "name": "section x=20: outer profile",
+        "pass": false,
+        "detail": "no material in this plane"
+      },
+      {
+        "name": "section x=20: closed",
+        "pass": false,
+        "detail": "10 open chain(s) in section \u2014 either the mesh is not closed here or the plane coincides with a face/edge; move `at` into the feature"
+      }
+    ],
+    "next": "A failed check means the geometry or reference is wrong: fix the source and repeat the same expectations. Do not change assertions merely to obtain a pass."
+  },
+  {
+    "revisionId": "d6b76275-dac8-48a6-84f8-59d9059ceede",
+    "params": {
+      "foot_x": 40,
+      "foot_y": 30,
+      "top_z_at_x0": 20,
+      "top_z_at_x40": 10,
+      "hole_d": 6,
+      "hole_x": 20,
+      "hole_y": 15,
+      "hole_z": 15
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.01
+      },
+      "shells": 1,
+      "watertight": true,
+      "volume": {
+        "value": 17563,
+        "tolPct": 1
+      },
+      "solid": [
+        [5, 15, 5],
+        [35, 15, 5],
+        [20, 5, 14]
+      ],
+      "empty": [
+        [20, 15, 14],
+        [20, 15, 16],
+        [16.25, 15, 0.5]
+      ],
+      "sections": [
+        {
+          "axis": "x",
+          "at": 10,
+          "outer": {
+            "size": [30, 17.5],
+            "center": [15, 8.75],
+            "tol": 0.02
+          }
+        }
+      ]
+    },
+    "pass": true,
+    "verificationStatus": "unverified",
+    "passed": 11,
+    "total": 11,
+    "scopeChanges": ["sections"],
+    "failures": [],
+    "next": "This check used an uncommitted or temporary render variant; commit the intended input and check that exact revision. Do not report verified completion. WARNING \u2014 this run dropped 2 assertion(s) that FAILED on this same geometry earlier (section x=20: outer profile; section x=20: closed). Passing by removing checks is not verification: either the request does not require them (say so explicitly in your summary) or the geometry is wrong and must be fixed with cad.write_source."
+  },
+  {
+    "revisionId": "232d5e2b-7321-4f25-af9a-60d02a7b97a8",
+    "params": {
+      "foot_x": 40,
+      "foot_y": 30,
+      "top_z_at_x0": 20,
+      "top_z_at_x40": 10,
+      "hole_d": 6,
+      "hole_x": 20,
+      "hole_y": 15,
+      "hole_z": 15
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.01
+      },
+      "shells": 1,
+      "watertight": true,
+      "volume": {
+        "value": 17563,
+        "tolPct": 1
+      },
+      "solid": [
+        [5, 15, 5],
+        [35, 15, 5],
+        [20, 5, 14]
+      ],
+      "empty": [
+        [20, 15, 14],
+        [20, 15, 16],
+        [16.25, 15, 0.5]
+      ],
+      "sections": [
+        {
+          "axis": "x",
+          "at": 10,
+          "outer": {
+            "size": [30, 17.5],
+            "center": [15, 8.75],
+            "tol": 0.02
+          }
+        }
+      ]
+    },
+    "pass": true,
+    "verificationStatus": "unverified",
+    "passed": 11,
+    "total": 11,
+    "scopeChanges": ["sections"],
+    "failures": [],
+    "next": "This check used an uncommitted or temporary render variant; commit the intended input and check that exact revision. Do not report verified completion."
+  },
+  {
+    "revisionId": "232d5e2b-7321-4f25-af9a-60d02a7b97a8",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.01
+      },
+      "shells": 1,
+      "watertight": true,
+      "volume": {
+        "value": 17563,
+        "tolPct": 1
+      },
+      "solid": [
+        [5, 15, 5],
+        [35, 15, 5],
+        [20, 5, 14]
+      ],
+      "empty": [
+        [20, 15, 14],
+        [20, 15, 16],
+        [16.25, 15, 0.5]
+      ],
+      "sections": [
+        {
+          "axis": "x",
+          "at": 10,
+          "outer": {
+            "size": [30, 17.5],
+            "center": [15, 8.75],
+            "tol": 0.02
+          }
+        }
+      ]
+    },
+    "pass": true,
+    "verificationStatus": "scope_changed",
+    "passed": 11,
+    "total": 11,
+    "scopeChanges": ["sections"],
+    "failures": [],
+    "next": "Verification scope changed (sections). Restore prior assertions or request explicit human acceptance of changed requirements. This result is not verified-ready."
+  }
+]

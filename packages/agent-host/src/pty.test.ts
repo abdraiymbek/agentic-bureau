@@ -5,7 +5,8 @@ import path from 'node:path';
 import { CoreApp } from '@omenflow/core';
 import { createProject } from '@omenflow/storage';
 import { BridgeServer } from './bridge/server.js';
-import { PtySessionManager } from './pty.js';
+import { PtySessionManager, Scrollback } from './pty.js';
+import { newId } from '@omenflow/contracts';
 
 // node-pty is a native module — it may fail to load under vitest depending on
 // how it was built. Skip the live-PTY tests gracefully in that case.
@@ -100,13 +101,70 @@ describe('PtySessionManager', () => {
     20_000,
   );
 
-  it.skipIf(!posix || !ptyAvailable)('session.data events land in the repo', async () => {
-    const info = await mgr.start(ctx, { adapterId: 'custom', executablePath: '/bin/sh', args: [] });
-    mgr.write(ctx, 'echo data-event-check\n');
-    await waitFor(() => mgr.getScrollback(ctx).includes('data-event-check'));
-    const events = ctx.repo.eventsSince(0).filter((e) => e.type === 'session.data');
-    expect(events.length).toBeGreaterThan(0);
+  it.skipIf(!posix || !ptyAvailable)(
+    'terminal output is transient and stays out of engineering events',
+    async () => {
+      const output: string[] = [];
+      ctx.terminalListeners.add((data) => output.push(data.chunk));
+      const info = await mgr.start(ctx, {
+        adapterId: 'custom',
+        executablePath: '/bin/sh',
+        args: [],
+      });
+      mgr.write(ctx, 'echo data-event-check\n');
+      await waitFor(() => mgr.getScrollback(ctx).includes('data-event-check'));
+      const events = ctx.repo.eventsSince(0).filter((e) => e.type === 'session.data');
+      expect(events).toHaveLength(0);
+      expect(output.join('')).toContain('data-event-check');
+      await mgr.stop(ctx);
+      void info;
+    },
+  );
+
+  it.skipIf(!posix || !ptyAvailable)(
+    'interrupt and stop cancel session-owned jobs before signaling the CLI',
+    async () => {
+      const info = await mgr.start(ctx, {
+        adapterId: 'custom',
+        executablePath: '/bin/sh',
+        args: [],
+      });
+      const unrelated = ctx.createJob({ kind: 'test', tool: 'test', sessionId: newId() });
+      const running = ctx.createJob({ kind: 'test', tool: 'test', sessionId: info.id });
+      ctx.jobStatus(running.id, 'running');
+      let cancelled = false;
+      ctx.jobCancels.set(running.id, () => {
+        cancelled = true;
+      });
+      mgr.interrupt(ctx);
+      expect(cancelled).toBe(true);
+      expect(ctx.repo.getJob(running.id)?.status).toBe('cancelled');
+      expect(ctx.repo.getJob(unrelated.id)?.status).toBe('queued');
+      expect(mgr.state(ctx)?.state).toBe('running');
+      const queued = ctx.createJob({ kind: 'test', tool: 'test', sessionId: info.id });
+      const grant = bridge.grantForToken(mgr.sessionFor(ctx.projectId)!.token)!;
+      const stopping = mgr.stop(ctx);
+      expect(grant.isActive()).toBe(false);
+      expect(ctx.repo.getJob(queued.id)?.status).toBe('cancelled');
+      await stopping;
+      ctx.jobStatus(queued.id, 'succeeded');
+      expect(ctx.repo.getJob(queued.id)?.status).toBe('cancelled');
+    },
+  );
+
+  it('a stop during startup cannot launch a process afterwards', async () => {
+    const starting = mgr.start(ctx, { adapterId: 'custom', executablePath: '/bin/sh', args: [] });
+    const rejected = expect(starting).rejects.toMatchObject({ code: 'CANCELLED' });
     await mgr.stop(ctx);
-    void info;
+    await rejected;
+    expect(mgr.state(ctx)?.state).toBe('exited');
+    expect(mgr.state(ctx)?.pid).toBeNull();
+  });
+
+  it('bounds a single oversized terminal output chunk', () => {
+    const scrollback = new Scrollback(32);
+    scrollback.push('x'.repeat(1000) + 'end');
+    expect(scrollback.text()).toHaveLength(32);
+    expect(scrollback.text().endsWith('end')).toBe(true);
   });
 });

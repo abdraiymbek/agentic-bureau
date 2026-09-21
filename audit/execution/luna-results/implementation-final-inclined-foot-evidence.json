@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "artifactId": "d8624b8c-e537-4709-bcf6-45310871c56b",
+  "revisionId": "232d5e2b-7321-4f25-af9a-60d02a7b97a8",
+  "inputFingerprint": "085baa98a6c5d250d78165790b5d45f7a4b95a469db66c93113f2907d2c9ad56",
+  "outputHash": "e77c080a57cbbed42f4545cfbb8f8239d20f622819ee6a420004eb4cd5ab9cea",
+  "specHash": "aa5b0322c2ddd4bdc332b3d9892742e33056e739dfba6602deebe9ac06d20b03",
+  "checkerVersion": "omenflow-mesh-checks-v2",
+  "expect": {
+    "bbox": {
+      "min": [0, 0, 0],
+      "max": [40, 30, 20],
+      "tol": 0.01
+    },
+    "volume": {
+      "value": 17563,
+      "tolPct": 1
+    },
+    "solid": [
+      [5, 15, 5],
+      [35, 15, 5],
+      [20, 5, 14]
+    ],
+    "empty": [
+      [20, 15, 14],
+      [20, 15, 16],
+      [16.25, 15, 0.5]
+    ],
+    "sections": [
+      {
+        "axis": "x",
+        "at": 10,
+        "outer": {
+          "size": [30, 17.5],
+          "center": [15, 8.75],
+          "tol": 0.02
+        }
+      }
+    ],
+    "watertight": true,
+    "shells": 1
+  },
+  "checks": [
+    {
+      "name": "bounding box",
+      "pass": true,
+      "detail": "min (0, 0, 0) max (40, 30, 20) \u2014 expected min (0, 0, 0) max (40, 30, 20) \u00b10.01",
+      "tightness": 100
+    },
+    {
+      "name": "volume",
+      "pass": true,
+      "detail": "17563.534 mm\u00b3 \u2014 expected 17563 \u00b11% (off by 0.00%)",
+      "tightness": 1
+    },
+    {
+      "name": "watertight",
+      "pass": true,
+      "detail": "boundary edges 0, non-manifold 0, inverted false"
+    },
+    {
+      "name": "single body",
+      "pass": true,
+      "detail": "1 shell(s) \u2014 expected 1"
+    },
+    {
+      "name": "solid at (5, 15, 5)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (35, 15, 5)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (20, 5, 14)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "empty at (20, 15, 14)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (20, 15, 16)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (16.25, 15, 0.5)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "section x=10: outer rectangle 30\u00d717.5",
+      "pass": true,
+      "detail": "found 30\u00d717.5 centered (15, 8.75)"
+    }
+  ],
+  "integrity": {
+    "pass": true,
+    "detail": "Mandatory finite, nonempty, closed, positive-volume mesh; self-intersections and physical safety are only assessed where explicitly declared."
+  },
+  "pass": true,
+  "status": "scope_changed",
+  "priorSpecHashes": [
+    "aa5b0322c2ddd4bdc332b3d9892742e33056e739dfba6602deebe9ac06d20b03",
+    "8252b769dad5aa8911532f5efb86787faf2a5c8e818707c2d8e33ec920756512"
+  ],
+  "scopeChanges": ["sections"],
+  "coverage": {
+    "units": "mm",
+    "frame": "right-handed-z-up",
+    "assertions": [
+      "bounding box",
+      "volume",
+      "watertight",
+      "single body",
+      "solid at (5, 15, 5)",
+      "solid at (35, 15, 5)",
+      "solid at (20, 5, 14)",
+      "empty at (20, 15, 14)",
+      "empty at (20, 15, 16)",
+      "empty at (16.25, 15, 0.5)",
+      "section x=10: outer rectangle 30\u00d717.5"
+    ],
+    "requirementAuthority": "agent_or_user_declared",
+    "limitations": [
+      "Checks cover only the declared assertions, not completeness of the engineering request.",
+      "Triangle mesh and sampled cross-section/preservation checks are approximate and can miss unsampled defects.",
+      "Material, mass, strength, fit tolerances and manufacturability are not assessed.",
+      "A changed assertion scope requires explicit human acceptance of this evidence; acceptance does not establish completeness of the request."
+    ]
+  }
+}

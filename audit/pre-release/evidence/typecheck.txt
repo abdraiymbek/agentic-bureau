@@ -1,0 +1,27 @@
+
+> omenflow@0.1.0 typecheck /Users/abraiymbek/Projects/Omen Flow
+> pnpm -r run typecheck
+
+Scope: 7 of 8 workspace projects
+packages/contracts typecheck$ tsc -p tsconfig.json --noEmit
+packages/contracts typecheck: Done
+packages/storage typecheck$ tsc -p tsconfig.json --noEmit
+packages/storage typecheck: Done
+packages/core typecheck$ tsc -p tsconfig.json --noEmit
+packages/core typecheck: src/cad.ts(952,59): error TS2345: Argument of type '{ center: number[]; radius: number; }[]' is not assignable to parameter of type '{ center: Vec3; radius: number; }[]'.
+packages/core typecheck:   Type '{ center: number[]; radius: number; }' is not assignable to type '{ center: Vec3; radius: number; }'.
+packages/core typecheck:     Types of property 'center' are incompatible.
+packages/core typecheck:       Type 'number[]' is not assignable to type 'Vec3'.
+packages/core typecheck:         Target requires 3 element(s) but source may have fewer.
+packages/core typecheck: src/scad-params.test.ts(23,12): error TS18048: 'by.height' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(24,12): error TS18048: 'by.height' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(25,12): error TS18048: 'by.height' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(26,12): error TS18048: 'by.inset' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(27,12): error TS18048: 'by.inset' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(28,12): error TS18048: 'by.label' is possibly 'undefined'.
+packages/core typecheck: src/scad-params.test.ts(29,12): error TS18048: 'by.label' is possibly 'undefined'.
+packages/core typecheck: Failed
+/Users/abraiymbek/Projects/Omen Flow/packages/core:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @omenflow/core@0.1.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.

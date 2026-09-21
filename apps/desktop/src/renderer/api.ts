@@ -8,9 +8,12 @@ export interface OmenflowApi {
   ): Promise<ResponseEnvelope>;
   setActiveProject(id: string | null): Promise<void>;
   onEvent(cb: (e: unknown) => void): () => void;
-  onTerminalData(cb: (chunk: string) => void): () => void;
+  onTerminalData(
+    cb: (data: { projectId: string; sessionId: string; chunk: string; seq?: number }) => void,
+  ): () => void;
   onTerminalState(cb: (s: unknown) => void): () => void;
   onJobProgress(cb: (d: unknown) => void): () => void;
+  onServiceState?(cb: (data: { available: boolean; message?: string }) => void): () => void;
   pickDirectory(title?: string): Promise<string | null>;
   pickFile(opts?: {
     title?: string;
@@ -45,11 +48,24 @@ export class CommandError extends Error {
   }
 }
 
+export interface RecoverableCommandError {
+  op: string;
+  code: string;
+  message: string;
+  repair?: string;
+}
+
+export const COMMAND_ERROR_EVENT = 'omenflow:command-error';
+
 /** Error text for toasts: appends the repair hint when the op provided one. */
 export function errMsg(e: unknown): string {
   const msg = e instanceof Error ? e.message : String(e);
   const repair = e instanceof CommandError ? e.repair : undefined;
   return repair ? `${msg} — ${repair}` : msg;
+}
+
+export function formatRecoverableError(error: RecoverableCommandError): string {
+  return error.repair ? `${error.message} — ${error.repair}` : error.message;
 }
 
 /** Invoke a core op; throws CommandError with stable code on failure. */
@@ -59,12 +75,19 @@ export async function cmd<T = unknown>(
   opts?: { idempotencyKey?: string; projectId?: string },
 ): Promise<T> {
   const res = await window.omenflow.command(op, payload, opts);
-  if (!res.ok)
-    throw new CommandError(
-      (res.error as OmenflowErrorBody | undefined) ?? {
-        code: 'INTERNAL',
-        message: 'unknown error',
-      },
-    );
+  if (!res.ok) {
+    const body = (res.error as OmenflowErrorBody | undefined) ?? {
+      code: 'INTERNAL',
+      message: 'unknown error',
+    };
+    const detail: RecoverableCommandError = {
+      op,
+      code: body.code,
+      message: body.message,
+      repair: body.repair,
+    };
+    window.dispatchEvent(new CustomEvent(COMMAND_ERROR_EVENT, { detail }));
+    throw new CommandError(body);
+  }
   return res.result as T;
 }

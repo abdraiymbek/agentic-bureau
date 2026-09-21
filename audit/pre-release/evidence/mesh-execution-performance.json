@@ -1,0 +1,125 @@
+{
+  "measuredAt": "2026-09-20",
+  "machine": "Apple M5, Node24, local macOS",
+  "method": "One sample for each synthetic size/shape in a single process before/after; no model or network work. Illustrative blocking latency, not a p95 benchmark. Disjoint triangles use separated bounding boxes; overlap fixture forces expensive pair checks. The improvement is an explicit supported-work rejection, not a claim of faster full intersection evaluation.",
+  "limits": {
+    "stlBytes": 6000000,
+    "triangles": 100000,
+    "checkAssertions": 512,
+    "triangleVisitsPerCheck": 10000000,
+    "intersectionCandidatePairs": 8000000,
+    "intersectionOverlappingPairs": 100000
+  },
+  "before": [
+    {
+      "n": 500,
+      "kind": "disjoint",
+      "pairs": 124750,
+      "result": 0,
+      "ms": 2.3417910000000006
+    },
+    {
+      "n": 500,
+      "kind": "overlap",
+      "pairs": 124750,
+      "result": 124750,
+      "ms": 54.786041000000004
+    },
+    {
+      "n": 1000,
+      "kind": "disjoint",
+      "pairs": 499500,
+      "result": 0,
+      "ms": 2.0432500000000005
+    },
+    {
+      "n": 1000,
+      "kind": "overlap",
+      "pairs": 499500,
+      "result": 499500,
+      "ms": 211.19687500000003
+    },
+    {
+      "n": 2000,
+      "kind": "disjoint",
+      "pairs": 1999000,
+      "result": 0,
+      "ms": 8.212333000000001
+    },
+    {
+      "n": 2000,
+      "kind": "overlap",
+      "pairs": 1999000,
+      "result": 1999000,
+      "ms": 929.5835000000001
+    }
+  ],
+  "after": [
+    {
+      "n": 500,
+      "kind": "disjoint",
+      "result": 0,
+      "ms": 3.6032920000000104
+    },
+    {
+      "n": 500,
+      "kind": "overlap",
+      "error": "Self-intersection overlapping pairs exceeds the supported V0.1 work limit (100001 > 100000)",
+      "ms": 42.54108400000001
+    },
+    {
+      "n": 1000,
+      "kind": "disjoint",
+      "result": 0,
+      "ms": 4.121125000000006
+    },
+    {
+      "n": 1000,
+      "kind": "overlap",
+      "error": "Self-intersection overlapping pairs exceeds the supported V0.1 work limit (100001 > 100000)",
+      "ms": 40.22687500000001
+    },
+    {
+      "n": 2000,
+      "kind": "disjoint",
+      "result": 0,
+      "ms": 7.885084000000006
+    },
+    {
+      "n": 2000,
+      "kind": "overlap",
+      "error": "Self-intersection overlapping pairs exceeds the supported V0.1 work limit (100001 > 100000)",
+      "ms": 41.532208
+    },
+    {
+      "n": 20000,
+      "kind": "disjoint",
+      "error": "Self-intersection candidate pairs exceeds the supported V0.1 work limit (199990000 > 8000000)",
+      "ms": 0.03725000000000023
+    },
+    {
+      "n": 20000,
+      "kind": "overlap",
+      "error": "Self-intersection candidate pairs exceeds the supported V0.1 work limit (199990000 > 8000000)",
+      "ms": 0.14270799999999895
+    }
+  ],
+  "supportedLinearWork": [
+    {
+      "triangles": 10000,
+      "bytes": 500084,
+      "parseMs": 1.1135419999999954,
+      "analysisMs": 27.354917
+    },
+    {
+      "triangles": 100000,
+      "bytes": 5000084,
+      "parseMs": 2.8805420000000055,
+      "analysisMs": 401.984333
+    }
+  ],
+  "remaining": [
+    "A synchronous supported100000triangle full analysis can exceed100ms; worker execution remains P1.",
+    "Triangle-mesh validation remains approximate; an explicit work-limit rejection does not certify omitted checks."
+  ]
+}

@@ -1,0 +1,536 @@
+[
+  {
+    "revisionId": "f39b0658-b210-48cf-9280-7ec59bbe1c20",
+    "params": {
+      "hole_d": 3.4,
+      "plate_w": 60,
+      "plate_d": 40,
+      "plate_t": 4,
+      "inset": 5,
+      "boss_d": 10,
+      "boss_h": 6
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ],
+      "solid": [
+        [30, 10, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [30, 10, 2],
+            "radius": 3
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          },
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          }
+        ]
+      }
+    },
+    "pass": false,
+    "verificationStatus": "failed",
+    "passed": 17,
+    "total": 18,
+    "scopeChanges": [],
+    "failures": [
+      {
+        "name": "unrelated geometry preserved",
+        "pass": false,
+        "detail": "no parent mesh to compare — preserve requires a prior revision of this part"
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "f39b0658-b210-48cf-9280-7ec59bbe1c20",
+    "params": {
+      "hole_d": 3.4,
+      "plate_w": 60,
+      "plate_d": 40,
+      "plate_t": 4,
+      "inset": 5,
+      "boss_d": 10,
+      "boss_h": 6
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ],
+      "solid": [
+        [30, 10, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [30, 10, 2],
+            "radius": 3
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          },
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          }
+        ]
+      }
+    },
+    "pass": false,
+    "verificationStatus": "failed",
+    "passed": 17,
+    "total": 18,
+    "scopeChanges": [],
+    "failures": [
+      {
+        "name": "unrelated geometry preserved",
+        "pass": false,
+        "detail": "no parent mesh to compare — preserve requires a prior revision of this part"
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "c69c7883-1f8b-414f-8714-89032e5be694",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 4,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 2.5,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 2.5,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 2.5,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 2.5,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ]
+    },
+    "pass": true,
+    "verificationStatus": "unverified",
+    "passed": 9,
+    "total": 9,
+    "scopeChanges": ["solid", "empty", "sections", "preserve"],
+    "failures": [],
+    "next": "This check used an uncommitted or temporary render variant; render/commit the intended input and check that exact revision before calling it verified. All checks passed. The part matches the stated expectations; report done with a short summary of what was verified."
+  },
+  {
+    "revisionId": "f39b0658-b210-48cf-9280-7ec59bbe1c20",
+    "params": {
+      "hole_d": 3.4,
+      "plate_w": 60,
+      "plate_d": 40,
+      "plate_t": 4,
+      "inset": 5,
+      "boss_d": 10,
+      "boss_h": 6
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ],
+      "solid": [
+        [30, 10, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [30, 10, 2],
+            "radius": 3
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          },
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          }
+        ]
+      }
+    },
+    "pass": false,
+    "verificationStatus": "failed",
+    "passed": 17,
+    "total": 18,
+    "scopeChanges": ["sections"],
+    "failures": [
+      {
+        "name": "unrelated geometry preserved",
+        "pass": false,
+        "detail": "no parent mesh to compare — preserve requires a prior revision of this part"
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "7412b08a-4748-485c-9350-7ca0824e2651",
+    "params": {
+      "hole_d": 3.4,
+      "plate_w": 60,
+      "plate_d": 40,
+      "plate_t": 4,
+      "inset": 5,
+      "boss_d": 10,
+      "boss_h": 6
+    },
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ],
+      "solid": [
+        [30, 10, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [30, 10, 2],
+            "radius": 3
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          },
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          }
+        ]
+      }
+    },
+    "pass": true,
+    "verificationStatus": "unverified",
+    "passed": 18,
+    "total": 18,
+    "scopeChanges": ["sections"],
+    "failures": [],
+    "next": "This check used an uncommitted or temporary render variant; render/commit the intended input and check that exact revision before calling it verified. All checks passed. The part matches the stated expectations; report done with a short summary of what was verified."
+  },
+  {
+    "revisionId": "7412b08a-4748-485c-9350-7ca0824e2651",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [60, 40, 10],
+        "tol": 0.01
+      },
+      "watertight": true,
+      "shells": 1,
+      "sections": [
+        {
+          "axis": "z",
+          "at": 2,
+          "holeCount": 5,
+          "holes": [
+            {
+              "center": [5, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [5, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 5],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [55, 35],
+              "d": 3.4,
+              "tol": 0.05
+            },
+            {
+              "center": [30, 20],
+              "d": 3.4,
+              "tol": 0.05
+            }
+          ],
+          "outer": {
+            "center": [30, 20],
+            "size": [60, 40],
+            "tol": 0.05
+          }
+        }
+      ],
+      "solid": [
+        [30, 10, 2],
+        [45, 20, 7]
+      ],
+      "empty": [
+        [5, 5, 2],
+        [5, 35, 2],
+        [55, 5, 2],
+        [55, 35, 2],
+        [30, 20, 2]
+      ],
+      "preserve": {
+        "changeRegions": [
+          {
+            "center": [30, 10, 2],
+            "radius": 3
+          },
+          {
+            "center": [20, 20, 2],
+            "radius": 3
+          },
+          {
+            "center": [45, 20, 7],
+            "radius": 5
+          }
+        ]
+      }
+    },
+    "pass": true,
+    "verificationStatus": "scope_changed",
+    "passed": 18,
+    "total": 18,
+    "scopeChanges": ["sections"],
+    "failures": [],
+    "next": "Verification scope changed (sections). This result is not verified-ready: restore the prior assertions or request human review of changed requirements. All checks passed. The part matches the stated expectations; report done with a short summary of what was verified."
+  }
+]

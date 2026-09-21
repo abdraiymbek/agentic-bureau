@@ -1,0 +1,162 @@
+{
+  "taskId": "sensor-plate-modify",
+  "runName": "r1",
+  "category": "modification",
+  "pass": false,
+  "checks": [
+    {
+      "name": "provider completed successfully",
+      "pass": true,
+      "detail": "provider exit 0"
+    },
+    {
+      "name": "provider completed a turn without fatal errors",
+      "pass": true,
+      "detail": "1 completed turn(s); fatal provider events are disqualifying"
+    },
+    {
+      "name": "agent jobs complete",
+      "pass": true,
+      "detail": "0 unfinished session job(s) at provider exit"
+    },
+    {
+      "name": "mechanical artifact count",
+      "pass": true,
+      "detail": "1 mechanical artifact(s) present, expected 1"
+    },
+    {
+      "name": "new revision on the same artifact",
+      "pass": true,
+      "detail": "final active revision 3 on \"Sensor mount plate\"; rejected history is excluded"
+    },
+    {
+      "name": "final revision rendered by agent",
+      "pass": true,
+      "detail": "stored STL matches the final source, parameters and render identity"
+    },
+    {
+      "name": "final revision verified",
+      "pass": false,
+      "detail": "matching persisted verification: scope_changed"
+    },
+    {
+      "name": "source renders cleanly",
+      "pass": true,
+      "detail": "no OpenSCAD warnings"
+    },
+    {
+      "name": "bounding box",
+      "pass": true,
+      "detail": "min (0, 0, 0) max (60, 40, 10) — expected min (0, 0, 0) max (60, 40, 10) ±0.1",
+      "tightness": 10
+    },
+    {
+      "name": "volume",
+      "pass": true,
+      "detail": "9889.475 mm³ — expected 9889.655 ±1.5% (off by 0.00%)",
+      "tightness": 0.6666666666666666
+    },
+    {
+      "name": "watertight",
+      "pass": true,
+      "detail": "boundary edges 0, non-manifold 0, inverted false"
+    },
+    {
+      "name": "single body",
+      "pass": true,
+      "detail": "1 shell(s) — expected 1"
+    },
+    {
+      "name": "section z=2: hole count",
+      "pass": true,
+      "detail": "5 cut-out loop(s) — expected 5; found: cut-out circle d=3.4 at (x=30, y=20); cut-out circle d=3.4 at (x=5, y=5); cut-out circle d=3.4 at (x=5, y=35); cut-out circle d=3.4 at (x=55, y=5); cut-out circle d=3.4 at (x=55, y=35)"
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=5, y=5)",
+      "pass": true,
+      "detail": "found d=3.4 at (5, 5) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=55, y=5)",
+      "pass": true,
+      "detail": "found d=3.4 at (55, 5) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=5, y=35)",
+      "pass": true,
+      "detail": "found d=3.4 at (5, 35) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=55, y=35)",
+      "pass": true,
+      "detail": "found d=3.4 at (55, 35) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: hole d3.4 at (x=30, y=20)",
+      "pass": true,
+      "detail": "found d=3.4 at (30, 20) roundness 0.995",
+      "tightness": 10
+    },
+    {
+      "name": "section z=2: outer rectangle 60×40",
+      "pass": true,
+      "detail": "found 60×40 centered (30, 20)"
+    },
+    {
+      "name": "section z=7: hole count",
+      "pass": true,
+      "detail": "0 cut-out loop(s) — expected 0"
+    },
+    {
+      "name": "section z=7: body count",
+      "pass": true,
+      "detail": "1 material region(s) — expected 1"
+    },
+    {
+      "name": "section z=7: outer circle d10",
+      "pass": true,
+      "detail": "found d=10 at (45, 20) roundness 0.998"
+    },
+    {
+      "name": "unrelated geometry preserved",
+      "pass": true,
+      "detail": "392 sample points outside change regions, 0 differ"
+    }
+  ],
+  "metrics": {
+    "durationMs": 163527,
+    "turns": 1,
+    "agentMessages": 7,
+    "reasoningItems": 0,
+    "toolCalls": 13,
+    "toolErrors": 0,
+    "toolCallsByName": {
+      "project_search": 1,
+      "artifact_list": 1,
+      "cad_read_source": 1,
+      "cad_write_source": 2,
+      "cad_check": 6,
+      "cad_inspect": 1,
+      "artifact_history": 1
+    },
+    "shellCommands": 0,
+    "inputTokens": 412313,
+    "cachedInputTokens": 368128,
+    "outputTokens": 7948,
+    "reasoningTokens": 4153,
+    "exitCode": 0,
+    "timedOut": false,
+    "finalMessage": "Updated the existing “Sensor mount plate” artifact in a new draft revision:\n\n- Artifact: `a710720e-b093-4165-9cce-8c9522b00181`\n- Revision: `7412b08a-4748-485c-9350-7ca0824e2651`\n- Four corner holes changed to Ø3.4 mm\n- Center Ø3.4 mm through-hole added at (30,20)\n- Plate and connector boss unchanged\n- Render succeeded; all 18 geometry checks passed\n\nVerification is marked `scope_changed`, requiring human acceptance of the changed hole-section assertion.",
+    "checkCalls": 6,
+    "lastCheckPassed": false,
+    "finalRevisionId": "7412b08a-4748-485c-9350-7ca0824e2651",
+    "verificationEvidenceHash": "94632b66af31a857c2c996f35dde140fafbe353fad0772e074f263f356d11bad"
+  },
+  "scadPath": "/tmp/omen-v01-execution/eval/sensor-plate-modify/r1/delivered.scad",
+  "notes": [],
+  "sourceResultPath": "/tmp/omen-v01-execution/eval/sensor-plate-modify/r1/result.json"
+}

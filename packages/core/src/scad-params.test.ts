@@ -20,13 +20,13 @@ describe('parseScadParameters', () => {
       label = "mount";
     `);
     const by = Object.fromEntries(p.map((x) => [x.name, x]));
-    expect(by.height.derived).toBe(true);
-    expect(by.height.expr).toBe('2 * plate_w');
-    expect(by.height.value).toBe(120);
-    expect(by.inset.derived).toBe(true);
-    expect(by.inset.value).toBe(25);
-    expect(by.label.value).toBe('mount');
-    expect(by.label.derived).toBe(false);
+    expect(by.height!.derived).toBe(true);
+    expect(by.height!.expr).toBe('2 * plate_w');
+    expect(by.height!.value).toBe(120);
+    expect(by.inset!.derived).toBe(true);
+    expect(by.inset!.value).toBe(25);
+    expect(by.label!.value).toBe('mount');
+    expect(by.label!.derived).toBe(false);
   });
 
   it('does not treat module-internal assignments as parameters', () => {
@@ -57,6 +57,10 @@ describe('ensureDefaultFaceting', () => {
 });
 
 describe('setScadParameter', () => {
+  it('preserves literal replacement syntax in string values', () => {
+    const r = setScadParameter('label = "before";\n', 'label', '$& $1 $$');
+    expect(r.source).toBe('label = "$& $1 $$";\n');
+  });
   it('replaces a file-scope literal and leaves the rest of the file alone', () => {
     const src = 'w = 100;\nhole_d = 8;\ncube([w, 40, 6]);\n';
     const r = setScadParameter(src, 'hole_d', 10);

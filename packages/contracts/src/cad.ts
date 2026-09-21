@@ -127,11 +127,13 @@ export const expectationSchema = z.object({
             radius: z.number().positive().describe('Radius of the allowed-change sphere (mm).'),
           }),
         )
-        .describe('Regions where the edit is allowed; everything else must match the parent revision.'),
+        .describe(
+          'Regions where the edit is allowed; everything else must match the approved baseline (or initial draft ancestor).',
+        ),
     })
     .optional()
     .describe(
-      'Require unrelated geometry to match the parent revision (sampled points outside changeRegions).',
+      'Require unrelated geometry to match the approved baseline (or initial draft ancestor) (sampled points outside changeRegions).',
     ),
 });
 

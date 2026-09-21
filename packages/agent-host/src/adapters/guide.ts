@@ -48,18 +48,26 @@ through the tools so it is recorded as a revision.
    proven otherwise — fix the source; drop or loosen an assertion only when it misread the
    request, and say so. Execution without errors is not correctness; a report of "done" must
    cite passing checks.
-- \`cad_inspect\` measures arbitrary planes/points (use it to debug). Axis-aligned: \`axis\`+\`at\`.
-  Inclined holes: \`origin\`+\`normal\` (true normal-to-face cut) plus \`probes\` through the bore.
+- A geometric \`pass\` alone is not verified readiness. Read \`verificationStatus\` and \`work.nextAction\`: \`passed\`
+  binds this exact revision and declared scope; \`scope_changed\` needs the committed assertions restored or human
+  acceptance — do not claim the part is verified; \`partial\` needs explicit dimensions/features; \`unverified\` needs
+  a matching committed render. Keep prior assertions when fixing geometry; do not erase failures.
+- \`cad_inspect\` measures arbitrary planes/points (use it to debug). It does **not** bind request assertions.
+  Axis-aligned: \`axis\`+\`at\`. Inclined holes: \`origin\`+\`normal\` plus \`probes\` through the bore.
+  \`cad_check\` with \`exploratory: true\` is the same class of diagnostic: it must not replace the committed spec.
 - \`cad_read_source\` returns an existing part's source. \`cad_set_param\` changes one file-scope
   \`name = value;\` (prefer this for a single dimension). \`cad_patch_source\` replaces one unique
   snippet. \`cad_write_source\` still accepts a full rewrite.
 - \`cad_compose\` places existing parts with translate/rotate only — no mates, no STEP. Each
   source is wrapped in a module so file-scope names do not collide.
 - Modify a part on the **same** \`artifactId\` — never create a second artifact for a change.
-  \`cad_check\` \`preserve.changeRegions\` samples the parent revision so unrelated geometry stays put.
+  \`cad_check\` \`preserve.changeRegions\` compares the original baseline/reference so unrelated geometry stays put; source-only references render automatically. Rewriting the candidate never resets that reference.
 
 ## OpenSCAD conventions that matter
 - Units are millimetres. +Z is up. Coordinates in the request are absolute unless stated.
+- V0.1 source must be self-contained and deterministic: no \`include\`, \`use\`, \`import\`,
+  \`surface\`, host-font \`text()\`, or \`rands()\`. Inline construction source, use explicit dimensions,
+  and explain this supported boundary instead of retrying unsupported dependencies.
 - Set \`$fn\` (e.g. \`$fn = 64;\` at top) so round features are round. If you omit it on a cylinder
   / sphere / circle, the harness injects \`$fn = 64\` so a default pentagon cannot sneak through.
 - Cutters in \`difference()\` must extend past the faces they cut (start below, end above);

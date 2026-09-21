@@ -5,19 +5,24 @@
  *   ← Codex CLI (`codex exec`, model pinned) ← task prompt
  *
  * then evaluates the project state deterministically (evals/cad/checks.ts).
- * The agent's deliverable is the newest revision of the target mechanical
+ * The agent's deliverable is the active, non-rejected revision of the target mechanical
  * artifact; its OpenSCAD source is re-rendered here, independently of any
  * render the agent ran, so the source itself is what is judged.
  */
-import { execFileSync, spawn } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_OPS, newId, type Origin } from '@omenflow/contracts';
-import { CoreApp, nullHost } from '@omenflow/core';
+import { AGENT_OPS, newId, type Origin, type MechanicalPayload } from '@omenflow/contracts';
+import { CoreApp, nullHost, latestCadVerification } from '@omenflow/core';
+import {
+  canonicalScadRef,
+  effectiveCadParams,
+  renderMatchesInput,
+} from '../../packages/core/src/cad-input.js';
 import { createEngineTools } from '@omenflow/engineering';
-import { parseStlTriangles, type TriangleBuffer } from '@omenflow/core';
+import { assertMeshByteLimit, parseStlTriangles, type TriangleBuffer } from '@omenflow/core';
 import { BridgeServer, CodexAdapter, writeBootstrapBrief } from '@omenflow/agent-host';
 import { connectMcpToBridge } from '@omenflow/mcp-server';
 import { preservationCheck, runChecks, type CheckResult } from './checks.js';
@@ -61,8 +66,10 @@ export interface TraceMetrics {
   finalMessage: string;
   /** Deterministic verification calls the agent made (cad_check via MCP or CLI). */
   checkCalls: number;
-  /** Result of the agent's last cad_check, if any. */
+  /** Whether matching persisted verification passed for the final delivered revision. */
   lastCheckPassed: boolean | null;
+  finalRevisionId?: string | null;
+  verificationEvidenceHash?: string | null;
 }
 
 export interface TaskResult {
@@ -122,7 +129,7 @@ function makeShimDir(root: string): string {
 /* Codex exec                                                          */
 /* ------------------------------------------------------------------ */
 
-interface CodexRun {
+export interface CodexRun {
   exitCode: number | null;
   timedOut: boolean;
   events: Record<string, unknown>[];
@@ -167,15 +174,27 @@ function runCodex(
       }
     });
     child.stderr.on('data', (d) => (stderr += String(d)));
+    child.on('error', (error) => {
+      stderr += `\n${error.message}`;
+      events.push({ type: 'error', message: error.message });
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (buf.trim()) {
+        trace.write(buf + '\n');
+        try {
+          events.push(JSON.parse(buf));
+        } catch {
+          events.push({ type: 'raw', text: buf });
+        }
+      }
       trace.end();
       resolve({ exitCode: code, timedOut, events, stderr, durationMs: Date.now() - started });
     });
   });
 }
 
-function metricsFrom(run: CodexRun): TraceMetrics {
+export function metricsFrom(run: CodexRun): TraceMetrics {
   const m: TraceMetrics = {
     durationMs: run.durationMs,
     turns: 0,
@@ -194,11 +213,6 @@ function metricsFrom(run: CodexRun): TraceMetrics {
     finalMessage: '',
     checkCalls: 0,
     lastCheckPassed: null,
-  };
-  const noteCheck = (text: string) => {
-    m.checkCalls++;
-    const hit = /"pass":\s*(true|false)/.exec(text);
-    if (hit) m.lastCheckPassed = hit[1] === 'true';
   };
   for (const ev of run.events) {
     const type = ev.type as string;
@@ -223,7 +237,7 @@ function metricsFrom(run: CodexRun): TraceMetrics {
       case 'command_execution': {
         m.shellCommands++;
         const cmd = String(item.command ?? '');
-        if (/omenflow call cad\.check/.test(cmd)) noteCheck(String(item.aggregated_output ?? ''));
+        if (/omenflow call cad\.check/.test(cmd)) m.checkCalls++;
         break;
       }
       case 'mcp_tool_call': {
@@ -235,7 +249,7 @@ function metricsFrom(run: CodexRun): TraceMetrics {
           { isError?: boolean; content?: { type: string; text?: string }[] } | undefined;
         if (status === 'failed' || result?.isError || item.error) m.toolErrors++;
         if (name === 'cad_check') {
-          noteCheck((result?.content ?? []).map((c) => c.text ?? '').join('\n'));
+          m.checkCalls++;
         }
         break;
       }
@@ -251,6 +265,7 @@ function metricsFrom(run: CodexRun): TraceMetrics {
 /* ------------------------------------------------------------------ */
 
 function openscadExe(): string {
+  if (process.env.OMENFLOW_EVAL_OPENSCAD) return process.env.OMENFLOW_EVAL_OPENSCAD;
   for (const p of [
     '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD',
     '/opt/homebrew/bin/openscad',
@@ -270,19 +285,30 @@ export function renderScad(
   const src = path.join(outDir, `${name}.scad`);
   const stl = path.join(outDir, `${name}.stl`);
   fs.writeFileSync(src, scad);
+  // A previous successful render must not survive a failed or empty rerender.
+  fs.rmSync(stl, { force: true });
   const args = ['-o', stl, '--export-format', 'binstl'];
   for (const [k, v] of Object.entries(params)) {
-    const val = typeof v === 'string' ? `"${v}"` : String(v);
+    const val = JSON.stringify(v);
     args.push('-D', `${k}=${val}`);
   }
   args.push(src);
   try {
-    const stderr = execFileSync(openscadExe(), args, {
+    const result = spawnSync(openscadExe(), args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 120_000,
     });
+    const stderr = result.stderr ?? '';
+    if (result.error || result.status !== 0)
+      return {
+        error:
+          result.error?.message ??
+          `OpenSCAD exited ${result.status}${result.signal ? ` (${result.signal})` : ''}`,
+        stderr,
+      };
     if (!fs.existsSync(stl) || fs.statSync(stl).size === 0) return { error: 'no output', stderr };
+    assertMeshByteLimit(fs.statSync(stl).size);
     return { tris: parseStlTriangles(fs.readFileSync(stl)), stderr };
   } catch (e) {
     const err = e as { stderr?: string; message: string };
@@ -290,15 +316,30 @@ export function renderScad(
   }
 }
 
-function paramValues(
-  params: Record<string, unknown> | undefined,
-): Record<string, number | string | boolean> {
-  const out: Record<string, number | string | boolean> = {};
-  for (const [k, v] of Object.entries(params ?? {})) {
-    if (v && typeof v === 'object' && 'value' in v) out[k] = (v as { value: number }).value;
-    else if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') out[k] = v;
-  }
-  return out;
+export function providerRunChecks(run: CodexRun): CheckResult[] {
+  return [
+    {
+      name: 'provider completed successfully',
+      pass: run.exitCode === 0 && !run.timedOut,
+      detail: run.timedOut ? 'provider timed out' : `provider exit ${run.exitCode ?? 'unknown'}`,
+    },
+    {
+      name: 'provider completed a turn without fatal errors',
+      pass:
+        run.events.some((e) => e.type === 'turn.completed') &&
+        !run.events.some((e) => ['error', 'turn.failed', 'thread.failed'].includes(String(e.type))),
+      detail: `${run.events.filter((e) => e.type === 'turn.completed').length} completed turn(s); fatal provider events are disqualifying`,
+    },
+  ];
+}
+
+interface EvaluationResult {
+  checks: CheckResult[];
+  scadPath: string | null;
+  notes: string[];
+  finalRevisionId: string | null;
+  finalCheckPassed: boolean | null;
+  verificationEvidenceHash: string | null;
 }
 
 export async function evaluateProject(
@@ -307,92 +348,140 @@ export async function evaluateProject(
   task: Task,
   seededArtifactId: string | null,
   outDir: string,
-): Promise<{ checks: CheckResult[]; scadPath: string | null; notes: string[] }> {
+  render: typeof renderScad = renderScad,
+): Promise<EvaluationResult> {
   const notes: string[] = [];
   const checks: CheckResult[] = [];
   const ctx = app.contextFor(projectId);
   const mechs = ctx.repo.listArtifacts({ type: 'mechanical' });
 
   let target = seededArtifactId ? mechs.find((a) => a.id === seededArtifactId) : undefined;
-  if (!target) {
-    if (seededArtifactId)
-      notes.push('seeded artifact missing; falling back to newest mechanical artifact');
+  if (!target && !seededArtifactId) {
     target = [...mechs].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   }
   const expectedCount = task.artifactCount ?? 1;
-  if (mechs.length !== expectedCount) {
-    notes.push(`${mechs.length} mechanical artifact(s) present, expected ${expectedCount}`);
-  }
+  checks.push({
+    name: 'mechanical artifact count',
+    pass: mechs.length === expectedCount,
+    detail: `${mechs.length} mechanical artifact(s) present, expected ${expectedCount}`,
+  });
+  const result: EvaluationResult = {
+    checks,
+    scadPath: null,
+    notes,
+    finalRevisionId: null,
+    finalCheckPassed: null,
+    verificationEvidenceHash: null,
+  };
   if (!target) {
-    return {
-      checks: [{ name: 'deliverable', pass: false, detail: 'no mechanical artifact in project' }],
-      scadPath: null,
-      notes,
-    };
+    checks.push({
+      name: 'deliverable',
+      pass: false,
+      detail: seededArtifactId
+        ? 'seeded artifact is missing or archived; replacement artifacts cannot satisfy a modification task'
+        : 'no mechanical artifact in project',
+    });
+    return result;
   }
 
   const revisions = ctx.repo.listRevisions(target.id);
-  const latest = revisions[revisions.length - 1]!;
+  const latest = revisions
+    .filter(
+      (r) =>
+        r.reviewState === 'draft' ||
+        r.reviewState === 'proposed' ||
+        r.id === target.selectedRevisionId,
+    )
+    .filter((r) => r.reviewState !== 'rejected' && r.reviewState !== 'superseded')
+    .at(-1);
+  if (!latest) {
+    checks.push({
+      name: 'deliverable',
+      pass: false,
+      detail: 'no active candidate or selected baseline revision',
+    });
+    return result;
+  }
+  result.finalRevisionId = latest.id;
   if (task.seed) {
     checks.push({
       name: 'new revision on the same artifact',
-      pass: revisions.length > 1,
-      detail: `${revisions.length} revision(s) on "${target.title}"`,
+      pass: latest.seq > 1,
+      detail: `final active revision ${latest.seq} on "${target.title}"; rejected history is excluded`,
     });
   }
-  const payload = latest.payload as {
-    scad?: { path: string; sha256?: string };
-    stl?: { sha256?: string };
-    params?: Record<string, unknown>;
-    modelUnit?: string;
-  };
-  const scadRef = payload.scad ?? latest.files.find((f) => f.path.endsWith('.scad'));
+  const payload = latest.payload as MechanicalPayload;
+  const scadRef = canonicalScadRef(latest);
   if (!scadRef?.sha256 || !ctx.objects.has(scadRef.sha256)) {
     checks.push({
       name: 'deliverable',
       pass: false,
-      detail: 'latest revision has no .scad source',
+      detail: 'final active revision has no stored .scad source',
     });
-    return { checks, scadPath: null, notes };
+    return result;
   }
   const scad = ctx.objects.read(scadRef.sha256).toString('utf8');
   const scadPath = path.join(outDir, 'delivered.scad');
+  result.scadPath = scadPath;
   fs.writeFileSync(scadPath, scad);
 
-  const stlRef = payload.stl ?? latest.files.find((f) => f.path.endsWith('.stl'));
-  const rendered = revisions.some((r) => {
-    const p = r.payload as { stl?: { sha256?: string } };
-    return !!(p.stl?.sha256 ?? r.files.find((f) => f.path.endsWith('.stl'))?.sha256);
-  });
+  const stlRef = latest.files.find((f) => f.path === payload.stl?.path) ?? payload.stl;
+  let rendered = false;
+  try {
+    rendered =
+      renderMatchesInput(payload, latest.files) &&
+      !!stlRef?.sha256 &&
+      ctx.objects.has(stlRef.sha256);
+  } catch {
+    /* invalid units/parameters are not a valid render */
+  }
   checks.push({
-    name: 'rendered by agent',
+    name: 'final revision rendered by agent',
     pass: rendered,
     detail: rendered
-      ? `STL present${stlRef ? ' on latest revision' : ' on an earlier revision only'}`
-      : 'agent never produced a render for this artifact',
+      ? 'stored STL matches the final source, parameters and render identity'
+      : 'no matching render on the final revision; historical meshes do not count',
   });
-  if ((payload.modelUnit ?? 'mm') !== 'mm') notes.push(`modelUnit is ${payload.modelUnit}`);
+  const verification = rendered
+    ? latestCadVerification(ctx, latest)
+    : { status: 'unverified' as const };
+  result.finalCheckPassed =
+    verification.status === 'passed' ? true : verification.status === 'unverified' ? null : false;
+  result.verificationEvidenceHash =
+    'evidenceHash' in verification ? (verification.evidenceHash ?? null) : null;
+  checks.push({
+    name: 'final revision verified',
+    pass: verification.status === 'passed',
+    detail: `matching persisted verification: ${verification.status}`,
+  });
+  let params: Record<string, number | string | boolean>;
+  try {
+    params = effectiveCadParams(payload.params, payload.modelUnit);
+  } catch (error) {
+    checks.push({ name: 'CAD units and parameters', pass: false, detail: String(error) });
+    return result;
+  }
 
-  const render = renderScad(scad, outDir, 'delivered', paramValues(payload.params));
-  if ('error' in render) {
+  const renderedSource = render(scad, outDir, 'delivered', params);
+  if ('error' in renderedSource) {
     checks.push({
       name: 'source renders',
       pass: false,
-      detail: `${render.error}\n${render.stderr.slice(0, 500)}`,
+      detail: `${renderedSource.error}\n${renderedSource.stderr.slice(0, 500)}`,
     });
-    return { checks, scadPath, notes };
+    return result;
   }
-  const warnings = render.stderr.split('\n').filter((l) => /WARNING|ERROR/.test(l));
+  const warnings = renderedSource.stderr.split('\n').filter((l) => /WARNING|ERROR/.test(l));
   checks.push({
     name: 'source renders cleanly',
     pass: warnings.length === 0,
     detail: warnings.length ? warnings.slice(0, 3).join(' | ') : 'no OpenSCAD warnings',
   });
-  checks.push(...runChecks(render.tris, task.expect));
+  checks.push(...runChecks(renderedSource.tris, task.expect));
 
   for (const [i, variant] of (task.variants ?? []).entries()) {
-    const vr = renderScad(scad, outDir, `variant-${i}`, {
-      ...paramValues(payload.params),
+    const vr = render(scad, outDir, `variant-${i}`, {
+      ...params,
       ...variant.params,
     });
     const label = `variant ${JSON.stringify(variant.params)}`;
@@ -400,16 +489,27 @@ export async function evaluateProject(
       checks.push({ name: label, pass: false, detail: `render failed: ${vr.error}` });
       continue;
     }
+    const variantWarnings = vr.stderr.split('\n').filter((line) => /WARNING|ERROR/.test(line));
+    checks.push({
+      name: `${label}: source renders cleanly`,
+      pass: !variantWarnings.length,
+      detail: variantWarnings.slice(0, 3).join(' | ') || 'no OpenSCAD warnings',
+    });
     for (const c of runChecks(vr.tris, variant.expect))
       checks.push({ ...c, name: `${label}: ${c.name}` });
   }
 
   if (task.seed && task.changeRegions) {
-    const orig = renderScad(task.seed.scad, outDir, 'seed', paramValues(task.seed.params));
-    if (!('error' in orig))
-      checks.push(preservationCheck(orig.tris, render.tris, task.changeRegions));
+    const orig = render(task.seed.scad, outDir, 'seed', effectiveCadParams(task.seed.params));
+    if ('error' in orig || /WARNING|ERROR/.test(orig.stderr))
+      checks.push({
+        name: 'unrelated geometry preserved',
+        pass: false,
+        detail: `reference seed did not render cleanly: ${'error' in orig ? orig.error : orig.stderr}`,
+      });
+    else checks.push(preservationCheck(orig.tris, renderedSource.tris, task.changeRegions));
   }
-  return { checks, scadPath, notes };
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -501,12 +601,24 @@ export async function runTask(task: Task, opts: RunOptions): Promise<TaskResult>
     path.join(outDir, 'trace.jsonl'),
   );
   fs.writeFileSync(path.join(outDir, 'stderr.txt'), run.stderr);
-  fs.writeFileSync(path.join(outDir, 'project-events.json'), JSON.stringify(events, null, 2));
-
-  // Let any in-flight render job settle before judging.
-  await new Promise((r) => setTimeout(r, 1500));
+  // Freeze the agent's final state. A provider exit cannot be repaired by a
+  // late tool mutation or by geometry from an earlier successful attempt.
+  bridge.revoke(sessionId);
+  const unfinished = ctx.repo
+    .listJobs(Number.MAX_SAFE_INTEGER)
+    .filter((job) => job.sessionId === sessionId && ['queued', 'running'].includes(job.status));
+  for (const job of unfinished) ctx.cancelJob(job.id);
   const metrics = metricsFrom(run);
   const evalResult = await evaluateProject(app, projectId, task, seededId, outDir);
+  evalResult.checks.unshift(...providerRunChecks(run), {
+    name: 'agent jobs complete',
+    pass: unfinished.length === 0,
+    detail: `${unfinished.length} unfinished session job(s) at provider exit`,
+  });
+  metrics.lastCheckPassed = evalResult.finalCheckPassed;
+  metrics.finalRevisionId = evalResult.finalRevisionId;
+  metrics.verificationEvidenceHash = evalResult.verificationEvidenceHash;
+  fs.writeFileSync(path.join(outDir, 'project-events.json'), JSON.stringify(events, null, 2));
 
   // Keep the project folder for forensic inspection.
   const keep = path.join(outDir, 'project');
@@ -548,7 +660,7 @@ export function formatResult(r: TaskResult): string {
         .map(([k, v]) => `${k}×${v}`)
         .join(', ') || 'none'
     }` +
-      ` · verification: ${r.metrics.checkCalls} cad_check call(s)${r.metrics.lastCheckPassed === null ? '' : r.metrics.lastCheckPassed ? ', last passed' : ', last FAILED'}`,
+      ` · verification: ${r.metrics.checkCalls} cad_check call(s)${r.metrics.lastCheckPassed === null ? ', final revision unverified' : r.metrics.lastCheckPassed ? ', final revision passed' : ', final revision FAILED or incomplete'}`,
     '',
   ];
   return lines.join('\n');

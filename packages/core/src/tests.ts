@@ -1,7 +1,6 @@
 import { ErrorCodes, Origin, OmenflowError, TestResult, newId } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft, ingestFiles } from './artifacts.js';
-import { addEdge } from './graph.js';
 
 /** Tests: procedures + independently-typed results (assumed/measured/…). */
 export function createTestDraft(
@@ -31,9 +30,6 @@ export function createTestDraft(
     },
     origin,
   );
-  for (const r of input.requirementRefs) {
-    addEdge(ctx, r.artifactId, artifact.id, 'validates', 'covered by test', origin.kind);
-  }
   return { artifact, revision };
 }
 

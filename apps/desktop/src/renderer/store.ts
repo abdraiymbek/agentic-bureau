@@ -81,6 +81,7 @@ function readPreference(key: string): string | null {
 }
 
 let toastSeq = 0;
+let projectGeneration = 0;
 
 const RECENT_LIMIT = 6;
 const recentKey = (projectId: string) => `omen.recent.${projectId}`;
@@ -139,47 +140,83 @@ export const useStore = create<State>((set, get) => ({
   set: (p) => {
     // Opening or switching projects swaps the remembered working set with it.
     if ('projectId' in p && p.projectId !== get().projectId) {
-      set({ ...p, recentArtifactIds: readRecents(p.projectId ?? null) });
+      projectGeneration++;
+      set({
+        artifacts: [],
+        proposals: [],
+        events: [],
+        jobs: [],
+        session: null,
+        stale: {},
+        selectedArtifactId: null,
+        ...p,
+        recentArtifactIds: readRecents(p.projectId ?? null),
+      });
       return;
     }
     set(p);
   },
   setActive: (projectId) => {
-    set({ projectId, recentArtifactIds: readRecents(projectId) });
+    projectGeneration++;
+    set({
+      projectId,
+      artifacts: [],
+      proposals: [],
+      events: [],
+      jobs: [],
+      session: null,
+      stale: {},
+      selectedArtifactId: null,
+      recentArtifactIds: readRecents(projectId),
+    });
     void window.omenflow.setActiveProject(projectId);
   },
   refreshArtifacts: async () => {
     const { projectId } = get();
+    const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ artifacts: ArtifactView[] }>(
       'artifact.list',
       { includeArchived: false, limit: 500 },
       { projectId },
     );
+    if (generation !== projectGeneration) return;
     const stale: Record<string, StaleRecord[]> = {};
     for (const v of r.artifacts) stale[v.artifact.id] = v.staleReasons;
     set({ artifacts: r.artifacts, stale });
   },
   refreshProposals: async () => {
     const { projectId } = get();
+    const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ proposals: Proposal[] }>('proposal.list', {}, { projectId });
+    if (generation !== projectGeneration) return;
     set({ proposals: r.proposals });
   },
   refreshEvents: async () => {
     const { projectId } = get();
+    const generation = projectGeneration;
     if (!projectId) return;
-    const r = await cmd<{ events: ProjectEvent[] }>(
+    let r = await cmd<{ events: ProjectEvent[]; highWater: number; hasMore: boolean }>(
       'project.changes_since',
       { seq: 0 },
       { projectId },
     );
+    if (r.hasMore)
+      r = await cmd(
+        'project.changes_since',
+        { seq: Math.max(0, r.highWater - 300) },
+        { projectId },
+      );
+    if (generation !== projectGeneration) return;
     set({ events: r.events.slice(-300) });
   },
   refreshJobs: async () => {
     const { projectId } = get();
+    const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ jobs: Job[] }>('job.list', { limit: 50 }, { projectId });
+    if (generation !== projectGeneration) return;
     set({ jobs: r.jobs });
   },
   refreshAdapters: async () => {
@@ -188,8 +225,10 @@ export const useStore = create<State>((set, get) => ({
   },
   refreshSession: async () => {
     const { projectId } = get();
+    const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ session: SessionInfo | null }>('terminal.state', {}, { projectId });
+    if (generation !== projectGeneration) return;
     set({ session: r.session });
   },
   selectArtifact: (id) => {

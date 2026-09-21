@@ -48,7 +48,9 @@ export function Sidebar() {
   const [openProjects, setOpenProjects] = useState<{ id: string; name: string; root: string }[]>(
     [],
   );
-  const pending = proposals.filter((p) => p.state === 'pending').length;
+  const pending = proposals.filter((p) =>
+    ['pending', 'changes_requested'].includes(p.state),
+  ).length;
   // The working set: objects the engineer actually opened, newest first.
   const recent = recentArtifactIds
     .map((id) => artifacts.find((v) => v.artifact.id === id))

@@ -9,14 +9,15 @@ import {
 } from '@omenflow/contracts';
 import type { ProjectContext } from './context.js';
 import { promoteRevision } from './artifacts.js';
-import { impactReport, propagateFrom } from './graph.js';
+import { impactReport, propagateFrom, validateSelectedRevisions } from './graph.js';
+import { approveCadVerificationScope, latestCadVerification } from './cad-verification.js';
 
 /**
  * Proposal = immutable bound change set. Only the human path resolves it;
  * approval rechecks base bindings before committing.
  */
 
-export function submitProposal(
+function submitProposalImpl(
   ctx: ProjectContext,
   input: { changes: ProposedChange[]; reason: string },
   origin: Origin,
@@ -39,7 +40,11 @@ export function submitProposal(
       );
     }
     const cur = artifact.selectedRevisionId;
-    if (c.baseRevisionId !== (cur ?? null) && c.kind !== 'new_artifact') {
+    if (
+      c.baseRevisionId !== (cur ?? null) ||
+      (c.kind === 'new_artifact' && cur !== null) ||
+      (c.kind === 'baseline_update' && cur === null)
+    ) {
       throw new OmenflowError(
         ErrorCodes.REVISION_CONFLICT,
         `Proposal base does not match selected revision`,
@@ -49,13 +54,25 @@ export function submitProposal(
         },
       );
     }
-    ctx.repo.setRevisionState(rev.id, 'proposed');
   }
+  if (new Set(input.changes.map((c) => c.artifactId)).size !== input.changes.length)
+    throw new OmenflowError(
+      ErrorCodes.VALIDATION,
+      'A proposal cannot change the same artifact twice',
+    );
+  validateSelectedRevisions(
+    ctx,
+    input.changes
+      .filter((c) => c.kind !== 'archive')
+      .map((c) => ctx.requireRevision(c.newRevisionId)),
+  );
+  for (const c of input.changes) ctx.repo.setRevisionState(c.newRevisionId, 'proposed');
   const refs: RevisionRef[] = input.changes.map((c) => ({
     artifactId: c.artifactId,
     revisionId: c.newRevisionId,
   }));
   const impact = impactReport(ctx, refs);
+  const replaced = changesRequestedReplacedBy(ctx, input.changes);
   const proposal: Proposal = {
     id: newId(),
     changes: input.changes,
@@ -63,6 +80,7 @@ export function submitProposal(
     impact: {
       affectedArtifactIds: impact.affected.map((a) => a.artifactId),
       summary: `${impact.affected.length} downstream artifact(s) may be affected`,
+      ...(replaced.length ? { supersedesProposalIds: replaced.map((p) => p.id) } : {}),
     },
     state: 'pending',
     createdBy: origin.kind,
@@ -72,13 +90,71 @@ export function submitProposal(
     resolutionRationale: null,
   };
   ctx.repo.insertProposal(proposal);
+  retireReplacedChangeRequests(ctx, proposal, replaced, origin.kind);
   ctx.emit('proposal.submitted', origin.kind, {
     proposalId: proposal.id,
     changes: input.changes.length,
     affected: impact.affected.length,
     reason: input.reason,
+    supersedesProposalIds: replaced.map((p) => p.id),
   });
   return proposal;
+}
+
+function changesRequestedReplacedBy(
+  ctx: ProjectContext,
+  changes: ProposedChange[],
+): Proposal[] {
+  const artifactIds = new Set(changes.map((c) => c.artifactId));
+  return ctx.repo
+    .listProposals('changes_requested')
+    .filter(
+      (p) =>
+        p.changes.length > 0 && p.changes.every((change) => artifactIds.has(change.artifactId)),
+    );
+}
+
+function retireReplacedChangeRequests(
+  ctx: ProjectContext,
+  replacement: Proposal,
+  replaced: Proposal[],
+  actor: Proposal['createdBy'],
+): void {
+  for (const previous of replaced) {
+    const rationale = `Superseded by replacement proposal ${replacement.id}`;
+    ctx.repo.updateProposalState(
+      previous.id,
+      'superseded',
+      rationale,
+      {
+        ...(previous.impact ?? {
+          affectedArtifactIds: [],
+          summary: previous.reason,
+        }),
+        supersededByProposalId: replacement.id,
+      },
+    );
+    for (const change of previous.changes) {
+      const rev = ctx.repo.getRevision(change.newRevisionId);
+      if (rev?.reviewState === 'proposed') ctx.repo.setRevisionState(rev.id, 'superseded');
+    }
+    const seq = ctx.emit('proposal.resolved', actor, {
+      proposalId: previous.id,
+      state: 'superseded',
+      supersededByProposalId: replacement.id,
+    });
+    ctx.repo.insertDecision({
+      id: newId(),
+      proposalId: previous.id,
+      action: 'superseded',
+      actor,
+      ts: new Date().toISOString(),
+      rationale,
+      priorBaseline: [],
+      newBaseline: [],
+      eventSeq: seq,
+    });
+  }
 }
 
 export function readProposal(ctx: ProjectContext, proposalId: string) {
@@ -89,7 +165,9 @@ export function readProposal(ctx: ProjectContext, proposalId: string) {
     const artifact = ctx.repo.getArtifact(c.artifactId);
     const base = c.baseRevisionId ? ctx.repo.getRevision(c.baseRevisionId) : null;
     const next = ctx.repo.getRevision(c.newRevisionId);
-    return { change: c, artifact, base, next };
+    const verification =
+      next && artifact?.type === 'mechanical' ? latestCadVerification(ctx, next) : undefined;
+    return { change: c, artifact, base, next, verification };
   });
   return { proposal: p, changes };
 }
@@ -131,8 +209,23 @@ export async function waitProposal(
 function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
   for (const c of p.changes) {
     const artifact = ctx.requireArtifact(c.artifactId);
+    const revision = ctx.requireRevision(c.newRevisionId);
+    if (
+      revision.artifactId !== artifact.id ||
+      (c.kind !== 'archive' && !['draft', 'proposed'].includes(revision.reviewState))
+    ) {
+      throw new OmenflowError(
+        ErrorCodes.REVISION_CONFLICT,
+        'Proposed revision is no longer an active candidate',
+        {
+          repair:
+            'Refresh the review and submit a current candidate. Rejected or superseded work cannot be promoted.',
+        },
+      );
+    }
     const selected = artifact.selectedRevisionId ?? null;
-    if (c.kind === 'new_artifact') continue;
+    if (c.kind === 'new_artifact' && selected !== null)
+      throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'New artifact now has a baseline');
     if (c.baseRevisionId !== selected) {
       ctx.repo.updateProposalState(
         p.id,
@@ -148,7 +241,12 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
 }
 
 /** Approve a proposal: recheck bindings, promote revisions, apply side effects, propagate. */
-export function approveProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
+function approveProposalImpl(
+  ctx: ProjectContext,
+  proposalId: string,
+  rationale: string,
+  verificationEvidence?: Record<string, string>,
+) {
   ctx.assertWritable();
   const p = ctx.repo.getProposal(proposalId);
   if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
@@ -156,6 +254,19 @@ export function approveProposal(ctx: ProjectContext, proposalId: string, rationa
     throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   resolveConflicts(ctx, p);
+  for (const [artifactId, hash] of Object.entries(verificationEvidence ?? {})) {
+    const change = p.changes.find((c) => c.artifactId === artifactId && c.kind !== 'archive');
+    if (!change)
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        'Verification scope is not part of this proposal',
+      );
+    approveCadVerificationScope(ctx, ctx.requireRevision(change.newRevisionId), hash);
+  }
+  validateSelectedRevisions(
+    ctx,
+    p.changes.filter((c) => c.kind !== 'archive').map((c) => ctx.requireRevision(c.newRevisionId)),
+  );
 
   const changedArtifactIds: string[] = [];
   const newBaseline: RevisionRef[] = [];
@@ -170,6 +281,7 @@ export function approveProposal(ctx: ProjectContext, proposalId: string, rationa
       }
       if (c.kind === 'archive') {
         ctx.repo.setArchived(artifact.id, true);
+        changedArtifactIds.push(artifact.id);
         continue;
       }
       promoteRevision(ctx, artifact, rev);
@@ -201,6 +313,8 @@ export function approveProposal(ctx: ProjectContext, proposalId: string, rationa
         for (const id of c.removeBomLineIds) ctx.repo.deleteBomLine(id);
       }
     }
+    const leftover = changesRequestedReplacedBy(ctx, p.changes).filter((prev) => prev.id !== p.id);
+    retireReplacedChangeRequests(ctx, p, leftover, 'user');
     ctx.repo.updateProposalState(proposalId, 'accepted', rationale);
     const seq = ctx.emit('proposal.resolved', 'user', { proposalId, state: 'accepted' });
     ctx.repo.insertDecision({
@@ -223,7 +337,7 @@ export function approveProposal(ctx: ProjectContext, proposalId: string, rationa
   return ctx.repo.getProposal(proposalId);
 }
 
-export function rejectProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
+function rejectProposalImpl(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
   if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending' && p.state !== 'changes_requested') {
@@ -251,7 +365,7 @@ export function rejectProposal(ctx: ProjectContext, proposalId: string, rational
   return ctx.repo.getProposal(proposalId);
 }
 
-export function requestChangesProposal(ctx: ProjectContext, proposalId: string, rationale: string) {
+function requestChangesProposalImpl(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
   if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending') {
@@ -260,4 +374,32 @@ export function requestChangesProposal(ctx: ProjectContext, proposalId: string, 
   ctx.repo.updateProposalState(proposalId, 'changes_requested', rationale);
   ctx.emit('proposal.resolved', 'user', { proposalId, state: 'changes_requested' });
   return ctx.repo.getProposal(proposalId);
+}
+
+export function submitProposal(
+  ...args: Parameters<typeof submitProposalImpl>
+): ReturnType<typeof submitProposalImpl> {
+  args[0].assertWritable();
+  return args[0].repo.tx(() => submitProposalImpl(...args));
+}
+
+export function approveProposal(
+  ...args: Parameters<typeof approveProposalImpl>
+): ReturnType<typeof approveProposalImpl> {
+  args[0].assertWritable();
+  return args[0].repo.tx(() => approveProposalImpl(...args));
+}
+
+export function rejectProposal(
+  ...args: Parameters<typeof rejectProposalImpl>
+): ReturnType<typeof rejectProposalImpl> {
+  args[0].assertWritable();
+  return args[0].repo.tx(() => rejectProposalImpl(...args));
+}
+
+export function requestChangesProposal(
+  ...args: Parameters<typeof requestChangesProposalImpl>
+): ReturnType<typeof requestChangesProposalImpl> {
+  args[0].assertWritable();
+  return args[0].repo.tx(() => requestChangesProposalImpl(...args));
 }

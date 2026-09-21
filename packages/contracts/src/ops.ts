@@ -51,7 +51,11 @@ const projectSearch = z.object({
   limit: z.number().int().positive().max(100).default(20),
 });
 const projectChangesSince = z.object({ seq: z.number().int().nonnegative() });
-const projectExportArchive = z.object({ destPath: z.string().min(1) });
+const projectExportArchive = z.object({
+  destPath: z.string().min(1),
+  includeTerminalHistory: z.boolean().default(false),
+  grantTerminalExportConsent: z.boolean().default(false),
+});
 const projectImportArchive = z.object({
   archivePath: z.string().min(1),
   destDir: z.string().min(1),
@@ -144,6 +148,10 @@ const artifactAcceptDraft = z.object({
   artifactId: idSchema,
   draftRevisionId: idSchema,
   rationale: z.string().default(''),
+  verificationEvidenceHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   ...idem,
 });
 /** User-only direct baseline edit. Agents receive APPROVAL_REQUIRED. */
@@ -187,7 +195,12 @@ const graphNeighbors = z.object({
   depth: z.number().int().positive().max(10).default(1),
   relationship: relationshipSchema.optional(),
 });
-const graphImpact = z.object({ refs: z.array(revisionRefSchema).min(1) });
+const graphImpact = z.object({
+  refs: z.array(revisionRefSchema).min(1),
+  limit: z.number().int().positive().max(2000).default(200),
+  offset: z.number().int().nonnegative().default(0),
+  includePaths: z.boolean().default(true),
+});
 const graphProposeEdges = z.object({
   edges: z
     .array(
@@ -363,15 +376,22 @@ const sectionRequest = z.object({
     .array(z.number())
     .length(3)
     .optional()
-    .describe('Point on an oblique cutting plane [x,y,z] mm. Use with `normal` for inclined holes.'),
+    .describe(
+      'Point on an oblique cutting plane [x,y,z] mm. Use with `normal` for inclined holes.',
+    ),
   normal: z
     .array(z.number())
     .length(3)
     .optional()
-    .describe('Normal of an oblique cutting plane. Use with `origin` when the cut is not axis-aligned.'),
+    .describe(
+      'Normal of an oblique cutting plane. Use with `origin` when the cut is not axis-aligned.',
+    ),
 });
 
 const cadWriteSource = z.object({
+  expectedRevisionId: idSchema
+    .optional()
+    .describe('Revision read before this edit; conflicts fail without overwriting newer work.'),
   artifactId: idSchema
     .optional()
     .describe('Existing mechanical artifact to revise. Omit to create a new part.'),
@@ -424,6 +444,12 @@ const cadCheck = z.object({
   expect: expectationSchema.describe(
     'What must be true of the part, taken from the request: envelope, volume, solid/empty points, cross-section holes and outlines.',
   ),
+  exploratory: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, measure without binding or replacing the committed request assertion spec. Use cad.inspect for most diagnostics. Default false: this check is request-bound.',
+    ),
 });
 const cadExport = z.object({
   artifactId: idSchema,
@@ -431,6 +457,9 @@ const cadExport = z.object({
   format: z.enum(['stl', 'scad']).default('stl'),
 });
 const cadPatchSource = z.object({
+  expectedRevisionId: idSchema
+    .optional()
+    .describe('Revision read before this edit; conflicts fail without overwriting newer work.'),
   artifactId: idSchema.describe('Existing mechanical part to edit.'),
   oldString: z
     .string()
@@ -442,11 +471,11 @@ const cadPatchSource = z.object({
   ...idem,
 });
 const cadSetParam = z.object({
+  expectedRevisionId: idSchema
+    .optional()
+    .describe('Revision read before this edit; conflicts fail without overwriting newer work.'),
   artifactId: idSchema.describe('Existing mechanical part to edit.'),
-  name: z
-    .string()
-    .min(1)
-    .describe('File-scope parameter name from cad.read_source (e.g. hole_d).'),
+  name: z.string().min(1).describe('File-scope parameter name from cad.read_source (e.g. hole_d).'),
   value: z
     .union([z.number(), z.string(), z.boolean()])
     .describe('New literal value written into the source assignment.'),
@@ -460,6 +489,7 @@ const cadCompose = z.object({
     .array(
       z.object({
         artifactId: idSchema.describe('Existing mechanical part to place.'),
+        revisionId: idSchema.optional().describe('Pin the part revision placed in this snapshot.'),
         translate: z
           .array(z.number())
           .length(3)
@@ -474,7 +504,9 @@ const cadCompose = z.object({
     )
     .min(1)
     .max(32)
-    .describe('Parts to place. Each source is wrapped in its own module so file-scope names do not collide.'),
+    .describe(
+      'Parts to place. Each source is wrapped in its own module so file-scope names do not collide.',
+    ),
   rationale: z.string().default('').describe('One line on why these parts are placed together.'),
   timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
   ...idem,
@@ -536,12 +568,21 @@ const proposalWait = z.object({
 });
 const proposalList = z.object({
   state: z
-    .enum(['pending', 'accepted', 'rejected', 'changes_requested', 'conflicted', 'cancelled'])
+    .enum([
+      'pending',
+      'accepted',
+      'rejected',
+      'changes_requested',
+      'conflicted',
+      'cancelled',
+      'superseded',
+    ])
     .optional(),
 });
 const proposalApprove = z.object({
   proposalId: idSchema,
   rationale: z.string().default(''),
+  verificationEvidence: z.record(z.string().regex(/^[a-f0-9]{64}$/)).optional(),
   ...idem,
 });
 const proposalReject = z.object({
@@ -816,7 +857,7 @@ export const OPS: OpDef[] = [
     'cad.validate_source',
     cadValidateSource,
     'both',
-    false,
+    true,
     'Validate .scad source parses',
     legacy,
   ),
@@ -846,22 +887,22 @@ export const OPS: OpDef[] = [
     'cad.inspect',
     cadInspect,
     'both',
-    false,
-    'Measure a rendered part: envelope, volume, watertightness, body count, cross-sections at chosen planes (axis-aligned axis/at, or oblique origin+normal for inclined holes), and solid/empty classification of probe points. Optionally re-render with parameter overrides. Read-only.',
+    true,
+    'Diagnostic measurements of a rendered part: envelope, volume, watertightness, body count, cross-sections and probe points. Does not bind request assertions or establish verification. Use cad.check to commit request-bound expectations.',
   ),
   def(
     'cad.check',
     cadCheck,
     'both',
-    false,
-    'Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections, optional preserve vs the parent revision). Returns PASS/FAIL per assertion with measured vs expected values. A part is done only when its checks pass.',
+    true,
+    'Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections, optional preserve vs the approved baseline or initial draft ancestor). Commits the request-bound assertion spec unless exploratory is true. Only verificationStatus passed establishes matching declared evidence. Scope changes require explicit human review; a raw pass does not establish readiness. Do not claim verified completion when status is scope_changed, partial, failed or unverified.',
   ),
   def(
     'cad.patch_source',
     cadPatchSource,
     'both',
     true,
-    'Replace one unique snippet in an existing part\'s OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.',
+    "Replace one unique snippet in an existing part's OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.",
   ),
   def(
     'cad.set_param',
@@ -875,19 +916,31 @@ export const OPS: OpDef[] = [
     cadCompose,
     'both',
     true,
-    'Place existing parts together with translate/rotate (no mates, no STEP). Each part\'s source is wrapped in a module so its variables stay isolated. Returns a new mechanical artifact with the combined mesh.',
+    "Place existing parts together with translate/rotate (no mates, no STEP). Each part's source is wrapped in a module so its variables stay isolated. Returns a new mechanical artifact with the combined mesh.",
   ),
   def('cad.export', cadExport, 'user', false, 'Export STL/SCAD file to a chosen path'),
 
-  def('calculation.run', calculationRun, 'both', true, 'Run a unit-aware calculation'),
+  def(
+    'calculation.run',
+    calculationRun,
+    'both',
+    true,
+    'Experimental unit-aware calculation. Source references are labels, not resolved field values; derived-unit inference is incomplete. Results are not verified engineering evidence.',
+  ),
   def(
     'calculation.explain_inputs',
     calculationExplainInputs,
     'both',
     false,
-    'Explain inputs and their provenance',
+    'Explain calculation inputs and their recorded provenance (experimental)',
   ),
-  def('calculation.templates', calculationTemplates, 'both', false, 'List calculation templates'),
+  def(
+    'calculation.templates',
+    calculationTemplates,
+    'both',
+    false,
+    'List experimental calculation templates. Derived units and source-field binding are unfinished.',
+  ),
 
   def('wiring.validate', wiringValidate, 'both', false, 'Run wiring checks'),
   def('wiring.render', wiringRender, 'both', false, 'Derived wiring table + diagram'),
@@ -982,15 +1035,21 @@ export function describeOp(name: string): {
 }
 
 /** Operations an agent session may call. Everything else is user-only. */
-export const AGENT_OPS = new Set(OPS.filter((op) => op.capability === 'both').map((op) => op.name));
+export const AGENT_OPS = new Set(
+  OPS.filter((op) => op.capability === 'both' && !/^(browser|research)\./.test(op.name)).map(
+    (op) => op.name,
+  ),
+);
 
 /** Subset of AGENT_OPS listed as tools (MCP). Hidden ops stay callable via `omenflow call`. */
 export const AGENT_TOOL_OPS = new Set(
-  OPS.filter((op) => op.capability === 'both' && op.agentVisible).map((op) => op.name),
+  OPS.filter(
+    (op) => op.capability === 'both' && op.agentVisible && !/^(browser|research)\./.test(op.name),
+  ).map((op) => op.name),
 );
 
 export function opAllowed(name: string, capability: 'user' | 'agent'): boolean {
   const op = OPS_BY_NAME.get(name);
   if (!op) return false;
-  return capability === 'user' || op.capability === 'both';
+  return capability === 'user' || (op.capability === 'both' && !/^(browser|research)\./.test(name));
 }

@@ -12,7 +12,16 @@ import { ProjectDb } from './db.js';
 import { LATEST_SCHEMA_VERSION } from './schema.js';
 import { ObjectStore } from './objects.js';
 import { Repo } from './repo.js';
-import { assertWritable, canonicalize } from './paths.js';
+import {
+  assertWritable,
+  canonicalize,
+  resolveProjectPath,
+  resolveMaterializationPath,
+  writeMaterializedFile,
+  sha256Hex,
+} from './paths.js';
+import { validateObjectHash } from './objects.js';
+import { randomUUID } from 'node:crypto';
 
 export const ARTIFACT_DIRS = [
   'requirements',
@@ -47,7 +56,7 @@ export class ProjectHandle {
     public readonly readOnly: boolean,
   ) {
     this.repo = new Repo(pdb.db);
-    this.objects = new ObjectStore(path.join(root, '.omenflow', 'objects'));
+    this.objects = new ObjectStore(resolveProjectPath(root, '.omenflow/objects'), readOnly);
   }
 
   get project(): Project {
@@ -57,6 +66,7 @@ export class ProjectHandle {
   }
 
   workDir(sessionId: string): string {
+    if (this.readOnly) throw new OmenflowError(ErrorCodes.READ_ONLY, 'Project is read-only');
     const dir = path.join(this.root, '.omenflow', 'work', sessionId);
     fs.mkdirSync(dir, { recursive: true });
     return dir;
@@ -68,11 +78,86 @@ export class ProjectHandle {
 }
 
 function writeProjectFile(root: string, pf: ProjectFile): void {
-  fs.writeFileSync(path.join(root, PROJECT_FILE), JSON.stringify(pf, null, 2) + '\n', 'utf8');
+  const dest = resolveProjectPath(root, PROJECT_FILE);
+  const tmp = `${dest}.tmp-${randomUUID()}`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(pf, null, 2) + '\n', { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(tmp, dest);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+export function updateProjectFile(
+  root: string,
+  changes: Partial<Pick<ProjectFile, 'id' | 'name'>>,
+): void {
+  const previous = readProjectFile(root);
+  if (previous.version > SCHEMA_VERSION)
+    throw new OmenflowError(ErrorCodes.READ_ONLY, 'Project is read-only');
+  writeProjectFile(root, { ...previous, ...changes });
+}
+
+/** One journal covers SQLite name + marker file; recovery finishes both. */
+export interface RenameJournal {
+  version: 1;
+  name: string;
+  startedAt: string;
+}
+
+export function renameJournalPath(root: string): string {
+  return path.join(canonicalize(root), '.omenflow', 'recovery', 'rename.json');
+}
+
+export function writeRenameJournal(root: string, name: string): void {
+  const dest = renameJournalPath(root);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const tmp = `${dest}.tmp-${randomUUID()}`;
+  const journal: RenameJournal = { version: 1, name, startedAt: new Date().toISOString() };
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(journal) + '\n', { encoding: 'utf8', flag: 'wx' });
+    fs.renameSync(tmp, dest);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
+}
+
+export function readRenameJournal(root: string): RenameJournal | null {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(renameJournalPath(root), 'utf8')) as RenameJournal;
+    return parsed.version === 1 && parsed.name ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearRenameJournal(root: string): void {
+  fs.rmSync(renameJournalPath(root), { force: true });
+}
+
+/** Finish a crash between the DB rename and the marker, or vice versa. */
+export function applyRenameJournal(handle: ProjectHandle): boolean {
+  if (handle.readOnly) return false;
+  const journal = readRenameJournal(handle.root);
+  if (!journal) return false;
+  const project = handle.repo.getProject();
+  if (project && project.name !== journal.name) {
+    handle.repo.tx(() => {
+      handle.repo.updateProject({ name: journal.name });
+      handle.repo.appendEvent('project.renamed', 'system', {
+        name: journal.name,
+        recovered: true,
+      });
+    });
+  }
+  const marker = readProjectFile(handle.root);
+  if (marker.name !== journal.name) updateProjectFile(handle.root, { name: journal.name });
+  clearRenameJournal(handle.root);
+  return true;
 }
 
 function readProjectFile(root: string): ProjectFile {
-  const p = path.join(root, PROJECT_FILE);
+  const p = resolveProjectPath(root, PROJECT_FILE);
   if (!fs.existsSync(p)) {
     throw new OmenflowError(
       ErrorCodes.NOT_FOUND,
@@ -97,6 +182,13 @@ function readProjectFile(root: string): ProjectFile {
 /** Create a project folder + canonical DB. Idempotent-ish: refuses non-empty non-project dirs. */
 export function createProject(dir: string, name: string, intent: string): ProjectHandle {
   const root = canonicalize(dir);
+  // Creation must never rewrite an existing marker (in particular, downgrade
+  // a newer project format before its read-only guard can inspect it).
+  if (fs.existsSync(path.join(root, PROJECT_FILE))) {
+    throw new OmenflowError(ErrorCodes.VALIDATION, 'Project already exists', {
+      repair: 'Open the existing project instead of creating over it.',
+    });
+  }
   fs.mkdirSync(root, { recursive: true });
   assertWritable(root);
 
@@ -156,24 +248,58 @@ export function openProject(dir: string): ProjectHandle {
   const pf = readProjectFile(root);
   if (pf.version > SCHEMA_VERSION) {
     // Open read-only: allow export but not mutation.
-    const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'));
+    const pdb = new ProjectDb(resolveProjectPath(root, '.omenflow/state.sqlite'), {
+      readOnly: true,
+    });
     return new ProjectHandle(root, pdb, true);
   }
-  const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'));
+  const pdb = new ProjectDb(resolveProjectPath(root, '.omenflow/state.sqlite'));
   const handle = new ProjectHandle(root, pdb, pdb.readOnly);
+  if (handle.readOnly) return handle;
+
+  applyRenameJournal(handle);
 
   // Crash recovery: re-materialize pending file writes from object store.
   for (const m of handle.repo.pendingMaterializations()) {
     try {
-      const abs = path.join(root, m.path);
-      fs.mkdirSync(path.dirname(abs), { recursive: true });
-      if (m.sha256 && handle.objects.has(m.sha256)) {
-        const buf = handle.objects.read(m.sha256);
-        fs.writeFileSync(abs, buf);
+      resolveMaterializationPath(root, m.path);
+      validateObjectHash(m.sha256 ?? '');
+    } catch (error) {
+      handle.repo.tx(() => {
+        handle.repo.db
+          .prepare(`UPDATE materialization SET state='quarantined' WHERE id=?`)
+          .run(m.id);
+        handle.repo.appendEvent('project.recovery_error', 'system', {
+          materializationId: m.id,
+          path: m.path,
+          state: 'quarantined',
+          error: (error as Error).message,
+        });
+      });
+      continue;
+    }
+    try {
+      // read() verifies the digest. A missing/corrupt object must not complete
+      // the journal, and must not replace the last usable working file.
+      const buf = handle.objects.read(m.sha256!);
+      const dest = resolveMaterializationPath(root, m.path);
+      if (fs.existsSync(dest) && sha256Hex(fs.readFileSync(dest)) !== m.sha256) {
+        const conflictPath = `${m.path}.omenflow-recovery-${m.id}`;
+        const conflict = resolveMaterializationPath(root, conflictPath);
+        if (!fs.existsSync(conflict)) writeMaterializedFile(root, conflictPath, buf);
+        throw new Error(
+          `Working file differs from pending recovery; preserved both versions at ${m.path} and ${conflictPath}`,
+        );
       }
+      writeMaterializedFile(root, m.path, buf);
       handle.repo.completeMaterialization(m.id);
-    } catch {
-      /* leave pending; retried next open */
+    } catch (error) {
+      handle.repo.appendEvent('project.recovery_error', 'system', {
+        materializationId: m.id,
+        path: m.path,
+        state: 'pending',
+        error: (error as Error).message,
+      });
     }
   }
 

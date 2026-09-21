@@ -130,8 +130,12 @@ export class MathJsCalcEngine implements CalcEngine {
     expression: string,
     inputs: { name: string; quantity: MaybeQuantity }[],
     outputUnit?: string,
+    opts?: { signal?: AbortSignal },
   ): Promise<{ value: number; unit: string }> {
     assertExpressionSafe(expression);
+    if (opts?.signal?.aborted) {
+      throw new OmenflowError(ErrorCodes.CANCELLED, 'Calculation was cancelled');
+    }
 
     const marshalled: WorkerInput[] = [];
     for (const i of inputs) {
@@ -168,7 +172,7 @@ export class MathJsCalcEngine implements CalcEngine {
       out = def.dim === 'dimensionless' ? '1' : def.name;
     }
 
-    const reply = await this.runWorker({ expression, inputs: marshalled, outputUnit: out });
+    const reply = await this.runWorker({ expression, inputs: marshalled, outputUnit: out }, opts?.signal);
     if (!reply.ok) {
       const code =
         reply.code === 'INVALID_UNITS' ? ErrorCodes.INVALID_UNITS : ErrorCodes.VALIDATION;
@@ -181,7 +185,7 @@ export class MathJsCalcEngine implements CalcEngine {
     return { value, unit: reply.unit ?? out };
   }
 
-  private runWorker(job: WorkerJob): Promise<WorkerReply> {
+  private runWorker(job: WorkerJob, signal?: AbortSignal): Promise<WorkerReply> {
     return new Promise((resolve, reject) => {
       let settled = false;
       const worker = new Worker(new URL('./calc-worker.mjs', import.meta.url), {
@@ -192,9 +196,12 @@ export class MathJsCalcEngine implements CalcEngine {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
         void worker.terminate();
         fn();
       };
+      const onAbort = () =>
+        done(() => reject(new OmenflowError(ErrorCodes.CANCELLED, 'Calculation was cancelled')));
       const timer = setTimeout(() => {
         done(() =>
           reject(
@@ -205,6 +212,10 @@ export class MathJsCalcEngine implements CalcEngine {
           ),
         );
       }, this.timeoutMs);
+      if (signal) {
+        if (signal.aborted) onAbort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+      }
       worker.once('message', (m: WorkerReply) => done(() => resolve(m)));
       worker.once('error', (e) =>
         done(() =>

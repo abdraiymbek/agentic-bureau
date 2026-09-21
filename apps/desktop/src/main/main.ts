@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import { IPC, MAX_EXTRACT_CHARS } from '@omenflow/contracts';
 import { ResearchSurface } from './research.js';
+import { UTILITY_QUIT_GRACE_MS, utilityQuitDecision } from './quit-barrier.js';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -104,19 +105,28 @@ function startCore(): void {
       return;
     }
     if (msg.type === 'event' && mainWindow) {
-      mainWindow.webContents.send(IPC.event, msg.event);
+      mainWindow.webContents.send(IPC.event, {
+        ...(msg.event as object),
+        projectId: msg.projectId,
+      });
       return;
     }
     if (msg.type === 'terminalData' && mainWindow) {
-      mainWindow.webContents.send(IPC.terminalData, msg.data);
+      mainWindow.webContents.send(IPC.terminalData, {
+        ...(msg.data as object),
+        projectId: msg.projectId,
+      });
       return;
     }
     if (msg.type === 'terminalState' && mainWindow) {
-      mainWindow.webContents.send(IPC.terminalState, msg.session);
+      mainWindow.webContents.send(IPC.terminalState, {
+        session: msg.session,
+        projectId: msg.projectId,
+      });
       return;
     }
     if (msg.type === 'jobProgress' && mainWindow) {
-      mainWindow.webContents.send(IPC.jobProgress, msg.data);
+      mainWindow.webContents.send(IPC.jobProgress, { data: msg.data, projectId: msg.projectId });
       return;
     }
     if (msg.type === 'hostCall') {
@@ -133,6 +143,10 @@ function startCore(): void {
     for (const p of pending.values()) p.reject(new Error('core process exited'));
     pending.clear();
     coreProc = null;
+    mainWindow?.webContents.send('omenflow:service-state', {
+      available: false,
+      message: 'Workspace service stopped. Reopen Omen Flow to recover saved work.',
+    });
   });
   coreProc.stdout?.on('data', (d) => process.stdout.write(`[core] ${d}`));
   coreProc.stderr?.on('data', (d) => process.stderr.write(`[core!] ${d}`));
@@ -282,6 +296,14 @@ function wireIpc(): void {
       body: { op: string; payload: unknown; projectId?: string; idempotencyKey?: string },
     ) => {
       // projectId in the body wins (renderer knows its project); fall back to active.
+      if (!coreProc)
+        return {
+          ok: false,
+          error: {
+            code: 'INTERNAL',
+            message: 'Workspace service unavailable. Reopen Omen Flow to recover saved work.',
+          },
+        };
       const pid = body.projectId ?? activeProjectId ?? undefined;
       const requestId = `req-${++reqSeq}`;
       return new Promise((resolve) => {
@@ -409,7 +431,30 @@ app.on('window-all-closed', () => {
   // before-quit owns shutdown on every platform.
   if (process.platform !== 'darwin') app.quit();
 });
-app.on('before-quit', () => {
+let shutdownRequested = false;
+let shutdownComplete = false;
+app.on('before-quit', (event) => {
+  const decision = utilityQuitDecision({
+    shutdownComplete,
+    shutdownRequested,
+    hasUtility: Boolean(coreProc),
+  });
+  if (!decision.preventDefault) return;
+  event.preventDefault();
+  if (!decision.startShutdown) return;
+  shutdownRequested = true;
+  const service = coreProc!;
+  // Allow session revocation, child termination and SQLite close to finish.
+  const timeout = setTimeout(() => {
+    service.kill();
+    shutdownComplete = true;
+    app.quit();
+  }, UTILITY_QUIT_GRACE_MS);
+  service.once('exit', () => {
+    clearTimeout(timeout);
+    shutdownComplete = true;
+    app.quit();
+  });
   sendToCore({ type: 'shutdown' });
 });
 app.on('second-instance', () => {

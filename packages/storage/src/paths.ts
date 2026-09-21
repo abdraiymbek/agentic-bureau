@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, OmenflowError, PROJECT_FILE } from '@omenflow/contracts';
 
 /** Normalize to a canonical absolute path (no trailing sep, real casing where possible). */
 export function canonicalize(p: string): string {
@@ -41,7 +41,13 @@ export function isInside(root: string, child: string): boolean {
  * escapes, and symlink redirection outside the project root.
  */
 export function resolveProjectPath(root: string, rel: string): string {
-  if (path.isAbsolute(rel) || /^[a-zA-Z]:[\\/]/.test(rel)) {
+  if (
+    !rel ||
+    rel.includes('\0') ||
+    rel.includes('\\') ||
+    path.isAbsolute(rel) ||
+    /^[a-zA-Z]:/.test(rel)
+  ) {
     throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Absolute path not allowed: ${rel}`);
   }
   const rootCanon = canonicalize(root);
@@ -65,6 +71,40 @@ export function resolveProjectPath(root: string, rel: string): string {
     throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Symlink escapes project: ${rel}`);
   }
   return abs;
+}
+
+/** Author-controlled files never share a namespace with canonical state. */
+export function resolveMaterializationPath(root: string, rel: string): string {
+  const abs = resolveProjectPath(root, rel);
+  const normalized = path.relative(canonicalize(root), abs).split(path.sep).join('/');
+  const first = normalized.split('/')[0]?.toLowerCase();
+  if (!normalized || first === '.omenflow' || first === PROJECT_FILE.toLowerCase()) {
+    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
+  }
+  // A safe-looking alias may resolve back into canonical state.
+  const actual = path.relative(canonicalize(root), canonicalize(abs)).split(path.sep).join('/');
+  const actualFirst = actual.split('/')[0]?.toLowerCase();
+  if (actualFirst === '.omenflow' || actualFirst === PROJECT_FILE.toLowerCase()) {
+    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
+  }
+  return abs;
+}
+
+export const resolveProjectSourcePath = resolveMaterializationPath;
+
+/** Atomic replacement, with policy checked again after creating directories. */
+export function writeMaterializedFile(root: string, rel: string, bytes: Buffer): void {
+  const dest = resolveMaterializationPath(root, rel);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  resolveMaterializationPath(root, rel);
+  const tmp = path.join(path.dirname(dest), `.omenflow-write-${randomUUID()}`);
+  try {
+    fs.writeFileSync(tmp, bytes, { flag: 'wx' });
+    resolveMaterializationPath(root, rel);
+    fs.renameSync(tmp, dest);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+  }
 }
 
 export function toProjectRelative(root: string, abs: string): string {

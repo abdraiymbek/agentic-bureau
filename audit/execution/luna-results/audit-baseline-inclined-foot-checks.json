@@ -1,0 +1,101 @@
+[
+  {
+    "revisionId": "80d0ae83-9ebc-443b-9654-e2e0de768129",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.05
+      },
+      "watertight": true,
+      "shells": 1,
+      "solid": [
+        [10, 5, 5],
+        [30, 25, 5]
+      ],
+      "empty": [
+        [18.0603, 15, 7.239],
+        [20, 15, 16]
+      ],
+      "sections": [
+        {
+          "axis": "z",
+          "at": 10,
+          "holeCount": 1,
+          "holes": [
+            {
+              "center": [18.75, 15],
+              "d": 6.184,
+              "tol": 0.08
+            }
+          ],
+          "outer": {
+            "size": [40, 30],
+            "tol": 0.08
+          }
+        }
+      ]
+    },
+    "pass": false,
+    "verificationStatus": null,
+    "passed": 9,
+    "total": 10,
+    "scopeChanges": null,
+    "failures": [
+      {
+        "name": "section z=10: hole d6.184 at (x=18.75, y=15)",
+        "pass": false,
+        "detail": "found d=6.184 at (18.75, 15) roundness 0.969 — FACETED (roundness < 0.97; increase $fn)",
+        "tightness": 12.5
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "3be541c7-7cb4-49e2-857b-7ac52cca4ef8",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.05
+      },
+      "watertight": true,
+      "shells": 1,
+      "solid": [
+        [10, 5, 5],
+        [30, 25, 5]
+      ],
+      "empty": [
+        [18.0603, 15, 7.239],
+        [20, 15, 16]
+      ],
+      "sections": [
+        {
+          "axis": "z",
+          "at": 10,
+          "holeCount": 1,
+          "holes": [
+            {
+              "center": [18.75, 15],
+              "d": 6.184,
+              "tol": 0.08
+            }
+          ],
+          "outer": {
+            "size": [40, 30],
+            "tol": 0.08
+          }
+        }
+      ]
+    },
+    "pass": true,
+    "verificationStatus": null,
+    "passed": 10,
+    "total": 10,
+    "scopeChanges": null,
+    "failures": [],
+    "next": "All checks passed. The part matches the stated expectations; report done with a short summary of what was verified."
+  }
+]

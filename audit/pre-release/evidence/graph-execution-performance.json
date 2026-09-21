@@ -1,0 +1,180 @@
+{
+  "measuredAt": "2026-09-20",
+  "command": "pnpm exec tsx audit/pre-release/measure.ts",
+  "method": "Same synthetic immutable baseline chain fixture before/after. Five impact samples each, no concurrent CAD evaluation. Command latency excludes JSON serialization. One root edit per size. Desktop RSS is not measured by this diagnostic.",
+  "before": [
+    {
+      "artifacts": 100,
+      "artifact.list": {
+        "ms": [5.33, 3.69, 3.42, 4.09, 6.3],
+        "jsonBytes": 96872
+      },
+      "project.summary": {
+        "ms": [0.5, 0.15, 0.16, 0.14, 0.12],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [84.72, 93.32, 76.14, 74.99, 76.39],
+        "jsonBytes": 95453
+      },
+      "rootEditMs": 77,
+      "staleCount": 1,
+      "rssMiB": 559
+    },
+    {
+      "artifacts": 500,
+      "artifact.list": {
+        "ms": [17.36, 17.38, 17.41, 21.69, 17.45],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [0.36, 0.24, 0.23, 0.23, 0.23],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [411.37, 370.86, 378.12, 380.53, 405.22],
+        "jsonBytes": 95453
+      },
+      "rootEditMs": 345,
+      "staleCount": 1,
+      "rssMiB": 1694
+    },
+    {
+      "artifacts": 2000,
+      "artifact.list": {
+        "ms": [17.06, 17.39, 16.92, 17.62, 16.82],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [0.84, 0.78, 0.72, 0.69, 0.71],
+        "jsonBytes": 446
+      },
+      "graph.impact": {
+        "ms": [1432.46, 1662.49, 1469.49, 1557.91, 1497.04],
+        "jsonBytes": 95453
+      },
+      "rootEditMs": 1443,
+      "staleCount": 1,
+      "rssMiB": 2331
+    }
+  ],
+  "after": [
+    {
+      "artifacts": 100,
+      "artifact.list": {
+        "ms": [4.31, 4, 4.79, 3.81, 3.31],
+        "jsonBytes": 96872
+      },
+      "project.summary": {
+        "ms": [0.38, 0.17, 0.15, 0.15, 0.12],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [0.91, 0.43, 0.35, 0.37, 0.36],
+        "jsonBytes": 122229
+      },
+      "rootEditMs": 26,
+      "staleCount": 99,
+      "rssMiB": 130
+    },
+    {
+      "artifacts": 500,
+      "artifact.list": {
+        "ms": [17, 17.11, 16.56, 16.39, 17.88],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [0.35, 0.25, 0.24, 0.25, 0.23],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [1.45, 1.49, 2.34, 1.3, 1.22],
+        "jsonBytes": 694629
+      },
+      "rootEditMs": 47,
+      "staleCount": 499,
+      "rssMiB": 249
+    },
+    {
+      "artifacts": 2000,
+      "artifact.list": {
+        "ms": [17.21, 17.9, 16.73, 16.3, 16.46],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [1.05, 0.96, 0.75, 0.75, 0.75],
+        "jsonBytes": 446
+      },
+      "graph.impact": {
+        "ms": [13.76, 7.38, 8.82, 8.91, 7.19],
+        "jsonBytes": 2843130
+      },
+      "rootEditMs": 346,
+      "staleCount": 1999,
+      "rssMiB": 634
+    }
+  ],
+  "limits": [
+    "Before traversal stopped after64 levels; after traverses all nodes.",
+    "Impact/propagation display paths retain first16/last16 nodes, explicitly declaring pathTruncated and fullPathLength; full paths remain stored as stale evidence.",
+    "2000-node response is now2.84MB, below8MiB framing limit; larger projects still require paging to meet32KiB default model context target.",
+    "A single2000-node root edit takes346ms; full stale explanation paths have quadratic storage cost on long chains.",
+    "Synthetic process RSS includes fixture construction, V8 heap and result serialization; it is not a desktop memory claim."
+  ],
+  "intermediateUnboundedAfter": [
+    {
+      "artifacts": 100,
+      "artifact.list": {
+        "ms": [5.24, 3.91, 3.46, 3.48, 3.47],
+        "jsonBytes": 96872
+      },
+      "project.summary": {
+        "ms": [0.36, 0.16, 0.13, 0.12, 0.12],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [0.91, 0.45, 0.33, 0.34, 0.81],
+        "jsonBytes": 210934
+      },
+      "rootEditMs": 7,
+      "staleCount": 99,
+      "rssMiB": 132
+    },
+    {
+      "artifacts": 500,
+      "artifact.list": {
+        "ms": [16.54, 17.26, 16.43, 16.24, 17.76],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [0.33, 0.26, 0.24, 0.25, 0.25],
+        "jsonBytes": 444
+      },
+      "graph.impact": {
+        "ms": [1.35, 1.35, 2.45, 1.19, 1.12],
+        "jsonBytes": 4955134
+      },
+      "rootEditMs": 50,
+      "staleCount": 499,
+      "rssMiB": 284
+    },
+    {
+      "artifacts": 2000,
+      "artifact.list": {
+        "ms": [16.94, 16.34, 16.01, 16.58, 16.11],
+        "jsonBytes": 485272
+      },
+      "project.summary": {
+        "ms": [0.85, 3.14, 0.73, 0.68, 0.7],
+        "jsonBytes": 446
+      },
+      "graph.impact": {
+        "ms": [11.27, 13.25, 19.6, 17.32, 10.18],
+        "jsonBytes": 78321884
+      },
+      "rootEditMs": 593,
+      "staleCount": 1999,
+      "rssMiB": 1107
+    }
+  ]
+}

@@ -53,8 +53,58 @@ jobs:
           path: apps/desktop/out/
           if-no-files-found: error
 
+  real-cad:
+    name: real CAD + evaluator regressions (OpenSCAD 2021.01)
+    runs-on: ubuntu-24.04
+    env:
+      # Ubuntu Noble's published package; update deliberately with geometry checks.
+      # https://packages.ubuntu.com/noble/openscad
+      OPENSCAD_PACKAGE_VERSION: 2021.01-6build4
+      OMENFLOW_OPENSCAD_E2E: '1'
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install and verify the pinned distribution engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y "openscad=${OPENSCAD_PACKAGE_VERSION}"
+          test "$(dpkg-query -W -f='${Version}' openscad)" = "$OPENSCAD_PACKAGE_VERSION"
+          openscad --version 2>&1 | tee openscad-version.txt
+          grep -F 'OpenSCAD version 2021.01' openscad-version.txt
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm rebuild:node
+      - name: Require a functioning engine before running suites that permit local skips
+        run: >-
+          pnpm exec tsx -e 'import { OpenScadAdapter } from "@omenflow/engineering";
+          new OpenScadAdapter().probe().then((p) => {
+          console.log(JSON.stringify(p));
+          if (!p.available || p.executablePath !== "/usr/bin/openscad") process.exit(1);
+          });'
+      - name: Run real geometry and evaluator tests
+        run: >-
+          pnpm exec vitest run
+          packages/engineering/src/openscad.test.ts
+          packages/engineering/src/mesh.test.ts
+          packages/engineering/src/cad-tools.test.ts
+          packages/engineering/src/cad-consistency.test.ts
+          tests/cad-evaluator.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openscad-linux-version
+          path: openscad-version.txt
+          if-no-files-found: error
+
   package-windows:
-    name: package (Windows x64)
+    name: experimental package (Windows x64; not a release gate)
+    continue-on-error: true
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

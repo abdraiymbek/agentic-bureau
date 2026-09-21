@@ -190,4 +190,54 @@ describe('BridgeServer', () => {
     const ra2 = (await ca.next()) as { ok: boolean };
     expect(ra2.ok).toBe(true);
   });
+
+  it('revokes already authenticated call and MCP sockets, and invalidates captured grants', async () => {
+    const issued = token();
+    const capturedGrant = bridge.grantForToken(issued.token)!;
+    const call = await connect();
+    const mcp = await connect();
+    bridge.onMcpConnection = () => {};
+    await call.hello(issued.token);
+    await mcp.hello(issued.token, 'mcp');
+    expect(capturedGrant.isActive()).toBe(true);
+    const closed = [call, mcp].map(
+      (client) => new Promise<void>((resolve) => client.socket.once('close', () => resolve())),
+    );
+    bridge.revoke(issued.sessionId);
+    await Promise.all(closed);
+    expect(capturedGrant.isActive()).toBe(false);
+    expect(call.socket.destroyed).toBe(true);
+    expect(mcp.socket.destroyed).toBe(true);
+    expect(ctx.repo.listArtifacts()).toHaveLength(0);
+  });
+
+  it('token rotation invalidates the previous credential for the same session', async () => {
+    const old = token();
+    const capturedGrant = bridge.grantForToken(old.token)!;
+    const next = token(old.sessionId);
+    expect(bridge.grantForToken(old.token)).toBeNull();
+    expect(capturedGrant.isActive()).toBe(false);
+    expect(bridge.grantForToken(next.token)?.isActive()).toBe(true);
+  });
+
+  it('preserves complete MCP frames that arrive in the hello packet', async () => {
+    const issued = token();
+    const request = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
+    const handedOff = new Promise<Buffer>((resolve) => {
+      bridge.onMcpConnection = (_socket, _grant, buffered) => resolve(buffered);
+    });
+    const client = await connect();
+    client.socket.write(
+      Buffer.concat([
+        encodeFrame({
+          type: 'hello',
+          token: issued.token,
+          protocolVersion: PROTOCOL_VERSION,
+          mode: 'mcp',
+        }),
+        encodeFrame(request),
+      ]),
+    );
+    expect(new FrameDecoder().push(await handedOff)).toEqual([request]);
+  });
 });

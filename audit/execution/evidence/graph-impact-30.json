@@ -1,0 +1,35 @@
+{
+  "measuredAt": "2026-09-20T06:36:04.600Z",
+  "command": "pnpm exec tsx audit/execution/measure-graph.ts",
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "memoryGiB": 16,
+    "node": "v24.19.0"
+  },
+  "method": "Thirty consecutive samples, no excluded warmup; nearest-rank p50/p95. Same 2000-node immutable baseline chain as pre-release/measure.ts. Times cover await CoreApp.dispatch only, not JSON serialization, bridge or renderer. Each result is serialized outside the timer. One root edit, no root-edit percentile claim. Synthetic process RSS includes fixture and serialization allocation, not desktop memory.",
+  "results": [
+    {
+      "artifacts": 2000,
+      "graph.impact": {
+        "ms": [
+          18.759, 18.453, 23.856, 10.242, 19.755, 10.67, 12.697, 12.881, 23.872, 9.267, 16.386,
+          14.647, 12.099, 12.964, 18.031, 11.569, 14.332, 17.414, 12.477, 14.064, 14.854, 11.569,
+          12.334, 17.295, 14.688, 10.463, 9.948, 9.908, 8.973, 10.365
+        ],
+        "p50Ms": 12.880832999999996,
+        "p95Ms": 23.855542000000014,
+        "jsonBytes": 2843130
+      },
+      "rootEditMs": 427,
+      "staleCount": 1999,
+      "rssMiB": 527
+    }
+  ],
+  "limitations": [
+    "Not whole-desktop reference performance.",
+    "No 100 ms event-loop stall claim.",
+    "No 32 KiB transport budget claim."
+  ]
+}

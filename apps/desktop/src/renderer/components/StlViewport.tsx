@@ -28,6 +28,7 @@ export function StlViewport(props: {
   const controlsRef = useRef<OrbitControls | null>(null);
   const meshRef = useRef<THREE.Mesh | null>(null);
   const compareRef = useRef<THREE.Mesh | null>(null);
+  const invalidateRef = useRef<() => void>(() => {});
   const [wireframe, setWireframe] = useState(false);
   const [ortho, setOrtho] = useState(false);
   const [gridOn, setGridOn] = useState(true);
@@ -55,12 +56,14 @@ export function StlViewport(props: {
     const axes = new THREE.AxesHelper(25);
     scene.add(axes);
     const grid = new THREE.GridHelper(200, 40, '#343b44', '#262a30');
+    grid.rotation.x = Math.PI / 2;
     scene.add(grid);
     grid.name = 'grid';
 
     const setSize = () => {
       if (!mount.current || !rendererRef.current) return;
-      const { clientWidth: w, clientHeight: h } = mount.current;
+      const w = Math.max(1, mount.current.clientWidth),
+        h = Math.max(1, mount.current.clientHeight);
       rendererRef.current.setSize(w, h);
       const cam = cameraRef.current;
       if (cam instanceof THREE.PerspectiveCamera) {
@@ -74,17 +77,20 @@ export function StlViewport(props: {
         (cam as THREE.OrthographicCamera).bottom = -s;
         cam.updateProjectionMatrix();
       }
+      invalidateRef.current();
     };
     const mkCam = (orthographic: boolean) => {
       const { clientWidth: w = 1, clientHeight: h = 1 } = mount.current!;
       if (orthographic) {
         const s = 60;
         const c = new THREE.OrthographicCamera((-s * w) / h, (s * w) / h, s, -s, 0.1, 5000);
+        c.up.set(0, 0, 1);
         c.position.set(80, 60, 80);
         c.lookAt(0, 0, 0);
         return c;
       }
       const c = new THREE.PerspectiveCamera(45, w / h, 0.1, 5000);
+      c.up.set(0, 0, 1);
       c.position.set(80, 60, 80);
       c.lookAt(0, 0, 0);
       return c;
@@ -95,12 +101,16 @@ export function StlViewport(props: {
     controlsRef.current = controls;
 
     let raf = 0;
-    const loop = () => {
-      controls.update();
-      renderer.render(scene, cameraRef.current!);
-      raf = requestAnimationFrame(loop);
+    const invalidate = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        renderer.render(scene, cameraRef.current!);
+      });
     };
-    loop();
+    invalidateRef.current = invalidate;
+    controls.addEventListener('change', invalidate);
+    invalidate();
     const ro = new ResizeObserver(setSize);
     ro.observe(mount.current);
     setSize();
@@ -110,7 +120,18 @@ export function StlViewport(props: {
       }
     )._mkCam = mkCam;
     return () => {
+      invalidateRef.current = () => {};
       cancelAnimationFrame(raf);
+      controls.removeEventListener('change', invalidate);
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {
+          object.geometry.dispose();
+          for (const material of Array.isArray(object.material)
+            ? object.material
+            : [object.material])
+            material.dispose();
+        }
+      });
       ro.disconnect();
       controls.dispose();
       renderer.dispose();
@@ -127,6 +148,7 @@ export function StlViewport(props: {
       (meshRef.current.material as THREE.MeshStandardMaterial).color.set(
         css.getPropertyValue('--model-color').trim(),
       );
+    invalidateRef.current();
   }, [theme]);
 
   // Swap camera on ortho toggle.
@@ -150,11 +172,13 @@ export function StlViewport(props: {
       controlsRef.current.object = cam;
       controlsRef.current.update();
     }
+    invalidateRef.current();
   }, [ortho]);
 
   useEffect(() => {
     const g = sceneRef.current?.getObjectByName('grid');
     if (g) g.visible = gridOn;
+    invalidateRef.current();
   }, [gridOn]);
 
   // Load mesh on data change.
@@ -175,6 +199,7 @@ export function StlViewport(props: {
     }
     if (!props.stlData) {
       setDims(null);
+      invalidateRef.current();
       return;
     }
     const loader = new STLLoader();
@@ -231,6 +256,7 @@ export function StlViewport(props: {
     cam.updateProjectionMatrix();
     controls.target.copy(center);
     controls.update();
+    invalidateRef.current();
   };
 
   return (
@@ -255,6 +281,8 @@ export function StlViewport(props: {
             cam.position.set(80, 60, 80);
             controlsRef.current?.target.set(0, 0, 0);
           }
+          controlsRef.current?.update();
+          invalidateRef.current();
         }}
       />
       <div className="viewport-tools">
@@ -286,6 +314,7 @@ export function StlViewport(props: {
             cameraRef.current?.position.set(80, 60, 80);
             controlsRef.current?.target.set(0, 0, 0);
             controlsRef.current?.update();
+            invalidateRef.current();
           }}
         >
           <ArrowCounterClockwise size={14} />

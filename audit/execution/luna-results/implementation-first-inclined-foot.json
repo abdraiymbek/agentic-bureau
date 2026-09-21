@@ -1,0 +1,144 @@
+{
+  "taskId": "inclined-foot",
+  "runName": "r1",
+  "category": "spatial",
+  "pass": true,
+  "checks": [
+    {
+      "name": "provider completed successfully",
+      "pass": true,
+      "detail": "provider exit 0"
+    },
+    {
+      "name": "provider completed a turn without fatal errors",
+      "pass": true,
+      "detail": "1 completed turn(s); fatal provider events are disqualifying"
+    },
+    {
+      "name": "agent jobs complete",
+      "pass": true,
+      "detail": "0 unfinished session job(s) at provider exit"
+    },
+    {
+      "name": "mechanical artifact count",
+      "pass": true,
+      "detail": "1 mechanical artifact(s) present, expected 1"
+    },
+    {
+      "name": "final revision rendered by agent",
+      "pass": true,
+      "detail": "stored STL matches the final source, parameters and render identity"
+    },
+    {
+      "name": "final revision verified",
+      "pass": true,
+      "detail": "matching persisted verification: passed"
+    },
+    {
+      "name": "source renders cleanly",
+      "pass": true,
+      "detail": "no OpenSCAD warnings"
+    },
+    {
+      "name": "bounding box",
+      "pass": true,
+      "detail": "min (0, 0, 0) max (40, 30, 20) — expected min (0, 0, 0) max (40, 30, 20) ±0.1",
+      "tightness": 10
+    },
+    {
+      "name": "volume",
+      "pass": true,
+      "detail": "17563.008 mm³ — expected 17562.832 ±1.5% (off by 0.00%)",
+      "tightness": 0.6666666666666666
+    },
+    {
+      "name": "watertight",
+      "pass": true,
+      "detail": "boundary edges 0, non-manifold 0, inverted false"
+    },
+    {
+      "name": "single body",
+      "pass": true,
+      "detail": "1 shell(s) — expected 1"
+    },
+    {
+      "name": "solid at (21.552, 15, 6.366)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (14.567, 15, 8.112)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (18.06, 18.6, 7.239)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (1, 15, 19.5)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "solid at (38, 5, 5)",
+      "pass": true,
+      "detail": "material present"
+    },
+    {
+      "name": "empty at (19.951, 15, 14.806)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (19.515, 15, 13.06)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (18.06, 15, 7.239)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (16.847, 15, 2.388)",
+      "pass": true,
+      "detail": "empty"
+    },
+    {
+      "name": "empty at (39, 15, 12)",
+      "pass": true,
+      "detail": "empty"
+    }
+  ],
+  "metrics": {
+    "durationMs": 131825,
+    "turns": 1,
+    "agentMessages": 5,
+    "reasoningItems": 0,
+    "toolCalls": 6,
+    "toolErrors": 0,
+    "toolCallsByName": {
+      "cad_write_source": 2,
+      "cad_check": 2,
+      "cad_patch_source": 1,
+      "cad_inspect": 1
+    },
+    "shellCommands": 0,
+    "inputTokens": 211604,
+    "cachedInputTokens": 185344,
+    "outputTokens": 6668,
+    "reasoningTokens": 4305,
+    "exitCode": 0,
+    "timedOut": false,
+    "finalMessage": "Created and rendered the draft mechanical artifact:\n\n- [OpenSCAD source](</private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-eval-inclined-foot-oo9dKB/project/artifacts/mechanical/inclined-hole-wedge-foot.scad>)\n- Artifact: `b765b2fd-9c15-4244-8186-d1a235354c4d`\n- Revision: `45005f42-c7e2-424d-8584-5113e2cabc4c`\n\nVerification passed: 40×30×20 mm envelope, watertight single shell, inclined Ø6 mm through-hole centered at `(20,15,15)`, and oblique inspection confirmed the hole is perpendicular to the top plane.",
+    "checkCalls": 2,
+    "lastCheckPassed": true,
+    "finalRevisionId": "45005f42-c7e2-424d-8584-5113e2cabc4c",
+    "verificationEvidenceHash": "f9c4933f2f2a11606ea5104c95f671b1cce412abba387ee0683fa1125ebb17cb"
+  },
+  "scadPath": "/tmp/omen-v01-execution/eval/inclined-foot/r1/delivered.scad",
+  "notes": [],
+  "sourceResultPath": "/tmp/omen-v01-execution/eval/inclined-foot/r1/result.json"
+}

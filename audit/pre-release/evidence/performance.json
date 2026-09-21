@@ -1,0 +1,76 @@
+[
+  {
+    "artifacts": 100,
+    "artifact.list": {
+      "ms": [4.69, 3.99, 3.54, 3.75, 3.65],
+      "jsonBytes": 96872
+    },
+    "project.summary": {
+      "ms": [0.38, 0.31, 0.43, 0.42, 0.2],
+      "jsonBytes": 444
+    },
+    "graph.impact": {
+      "ms": [83.23, 82.68, 77.77, 77.52, 77.91],
+      "jsonBytes": 95453
+    },
+    "rootEditMs": 91,
+    "staleCount": 1,
+    "rssMiB": 560
+  },
+  {
+    "artifacts": 500,
+    "artifact.list": {
+      "ms": [18.24, 19.05, 17.8, 19.01, 21.84],
+      "jsonBytes": 485272
+    },
+    "project.summary": {
+      "ms": [0.44, 0.27, 0.23, 0.23, 0.23],
+      "jsonBytes": 444
+    },
+    "graph.impact": {
+      "ms": [387.21, 386.49, 386.02, 386.67, 438.62],
+      "jsonBytes": 95453
+    },
+    "rootEditMs": 348,
+    "staleCount": 1,
+    "rssMiB": 1459
+  },
+  {
+    "artifacts": 2000,
+    "artifact.list": {
+      "ms": [17.48, 25.05, 17.17, 17.23, 17.13],
+      "jsonBytes": 485272
+    },
+    "project.summary": {
+      "ms": [0.8, 0.77, 0.72, 0.65, 0.69],
+      "jsonBytes": 446
+    },
+    "graph.impact": {
+      "ms": [1469.51, 1566.89, 1725.38, 1637.03, 1515.33],
+      "jsonBytes": 95453
+    },
+    "rootEditMs": 1555,
+    "staleCount": 1,
+    "rssMiB": 1735
+  },
+  {
+    "triangles": 1000,
+    "pairs": 0,
+    "intersectionMs": 4
+  },
+  {
+    "triangles": 5000,
+    "pairs": 0,
+    "intersectionMs": 100
+  },
+  {
+    "triangles": 10000,
+    "pairs": 0,
+    "intersectionMs": 159
+  },
+  {
+    "triangles": 20000,
+    "pairs": 0,
+    "intersectionMs": 637
+  }
+]

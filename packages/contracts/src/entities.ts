@@ -166,6 +166,7 @@ export const mechanicalPayload = z.object({
       z.object({
         name: z.string(),
         unit: z.string().optional(),
+        dimension: z.enum(['length', 'angle', 'count', 'boolean', 'text', 'number']).optional(),
         description: z.string().optional(),
       }),
     )
@@ -180,6 +181,21 @@ export const mechanicalPayload = z.object({
   material: z.string().optional(),
   manufacturing: z.string().optional(),
   renderJobId: idSchema.optional(),
+  /** Additive evidence identity; older projects remain readable but need a fresh render. */
+  renderIdentity: z
+    .object({
+      version: z.literal(1),
+      sourceHash: z.string(),
+      params: z.record(z.string(), z.union([z.number(), z.string(), z.boolean()])),
+      modelUnit: z.string(),
+      frame: z.literal('right-handed-z-up'),
+      engine: z.string(),
+      engineVersion: z.string(),
+      options: z.string(),
+      inputFingerprint: z.string(),
+      outputHash: z.string(),
+    })
+    .optional(),
 });
 export type MechanicalPayload = z.infer<typeof mechanicalPayload>;
 
@@ -399,6 +415,8 @@ export const proposalSchema = z.object({
     .object({
       affectedArtifactIds: z.array(idSchema),
       summary: z.string(),
+      supersedesProposalIds: z.array(idSchema).optional(),
+      supersededByProposalId: idSchema.optional(),
     })
     .optional(),
   state: z.enum([
@@ -408,6 +426,7 @@ export const proposalSchema = z.object({
     'changes_requested',
     'conflicted',
     'cancelled',
+    'superseded',
   ]),
   createdBy: z.enum(['user', 'agent', 'system']),
   createdBySession: idSchema.nullable(),
@@ -544,7 +563,13 @@ export interface ImpactReport {
     title: string;
     type: ArtifactType;
     reason: string;
+    /** Ordered path; long paths retain the first and last 16 nodes. */
     path: string[];
+    pathTruncated?: boolean;
+    fullPathLength?: number;
   }[];
   unaffectedSelectedComponentIds: string[];
+  totalAffected?: number;
+  hasMore?: boolean;
+  offset?: number;
 }

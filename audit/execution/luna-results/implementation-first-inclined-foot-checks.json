@@ -1,0 +1,105 @@
+[
+  {
+    "revisionId": "51683683-3edc-4dc4-ba13-ef1e858ca766",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.05
+      },
+      "sections": [
+        {
+          "axis": "z",
+          "at": 8,
+          "holeCount": 1,
+          "holes": [
+            {
+              "center": [18.25, 15],
+              "d": 6.184,
+              "tol": 0.15
+            }
+          ],
+          "outer": {
+            "size": [40, 30],
+            "center": [20, 15],
+            "tol": 0.05
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [10, 15, 5],
+        [30, 25, 5]
+      ],
+      "empty": [
+        [18.25, 15, 8],
+        [20, 15, 22]
+      ],
+      "shells": 1,
+      "watertight": true
+    },
+    "pass": false,
+    "verificationStatus": "failed",
+    "passed": 10,
+    "total": 11,
+    "scopeChanges": [],
+    "failures": [
+      {
+        "name": "section z=8: hole d6.184 at (x=18.25, y=15)",
+        "pass": false,
+        "detail": "found d=6.184 at (18.25, 15) roundness 0.969 — FACETED (roundness < 0.97; increase $fn)",
+        "tightness": 6.666666666666667
+      }
+    ],
+    "next": "A failed check means the geometry is wrong until proven otherwise: fix the source (cad.write_source with artifactId) and run cad.check again with the same expectations. Change an assertion only if it misread the request."
+  },
+  {
+    "revisionId": "45005f42-c7e2-424d-8584-5113e2cabc4c",
+    "params": null,
+    "expect": {
+      "bbox": {
+        "min": [0, 0, 0],
+        "max": [40, 30, 20],
+        "tol": 0.05
+      },
+      "sections": [
+        {
+          "axis": "z",
+          "at": 8,
+          "holeCount": 1,
+          "holes": [
+            {
+              "center": [18.25, 15],
+              "d": 6.184,
+              "tol": 0.15
+            }
+          ],
+          "outer": {
+            "size": [40, 30],
+            "center": [20, 15],
+            "tol": 0.05
+          },
+          "outerCount": 1
+        }
+      ],
+      "solid": [
+        [10, 15, 5],
+        [30, 25, 5]
+      ],
+      "empty": [
+        [18.25, 15, 8],
+        [20, 15, 22]
+      ],
+      "shells": 1,
+      "watertight": true
+    },
+    "pass": true,
+    "verificationStatus": "passed",
+    "passed": 11,
+    "total": 11,
+    "scopeChanges": [],
+    "failures": [],
+    "next": "All checks passed. The part matches the stated expectations; report done with a short summary of what was verified."
+  }
+]
