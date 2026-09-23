@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use std::time::Instant;
 
 #[derive(Clone)]
 struct Grant {
@@ -236,6 +237,9 @@ fn dispatch_agent(
             format!("Op not granted to this session: {op}"),
         ));
     }
+    if op == "proposal.wait" {
+        return wait_proposal(&shared.core, &grant.project_id, &payload);
+    }
     let mut core = shared
         .core
         .lock()
@@ -258,6 +262,32 @@ fn dispatch_agent(
         }
     }
     result
+}
+
+pub fn wait_proposal(
+    core: &Arc<Mutex<CoreApp>>,
+    project_id: &str,
+    payload: &Value,
+) -> Result<Value, ContractError> {
+    let definition = registry()
+        .operation("proposal.wait")
+        .expect("proposal.wait contract");
+    let input = omenflow_contracts::parse_input(definition, payload.clone())?;
+    let proposal_id = input["proposalId"]
+        .as_str()
+        .ok_or_else(|| ContractError::validation("Missing proposalId"))?;
+    let timeout = Duration::from_millis(input["timeoutMs"].as_u64().unwrap_or(60_000));
+    let started = Instant::now();
+    loop {
+        let snapshot = core
+            .lock()
+            .map_err(|_| ContractError::new("INTERNAL", "Application state is unavailable"))?
+            .proposal_wait_snapshot(project_id, proposal_id)?;
+        if snapshot["state"] != "pending" || started.elapsed() >= timeout {
+            return Ok(snapshot);
+        }
+        thread::sleep(Duration::from_millis(50).min(timeout.saturating_sub(started.elapsed())));
+    }
 }
 
 fn serve_calls(stream: &mut Stream, shared: &Shared, token: &str) {
@@ -446,5 +476,48 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("MCP"));
+    }
+
+    #[test]
+    fn proposal_wait_releases_core_lock_for_human_resolution() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut core = CoreApp::new(temp.path().join("app")).unwrap();
+        let project = core
+            .dispatch(
+                "project.create",
+                json!({"path":temp.path().join("project"),"name":"Wait","intent":"test"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let project_id = project["projectId"].as_str().unwrap().to_owned();
+        let draft=core.dispatch("artifact.create_draft",json!({"type":"requirement","title":"Test","payload":{"statement":"Observe","acceptanceCriterion":"Record"}}),Origin::User,Some(&project_id)).unwrap();
+        let proposal=core.dispatch("proposal.submit",json!({"changes":[{"artifactId":draft["artifact"]["id"],"baseRevisionId":null,"newRevisionId":draft["revision"]["id"],"kind":"new_artifact"}],"reason":"review"}),Origin::User,Some(&project_id)).unwrap();
+        let proposal_id = proposal["id"].as_str().unwrap().to_owned();
+        let core = Arc::new(Mutex::new(core));
+        let resolver = Arc::clone(&core);
+        let id = project_id.clone();
+        let proposal_id_for_thread = proposal_id.clone();
+        let thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            resolver
+                .lock()
+                .unwrap()
+                .dispatch(
+                    "proposal.approve",
+                    json!({"proposalId":proposal_id_for_thread,"rationale":"reviewed"}),
+                    Origin::User,
+                    Some(&id),
+                )
+                .unwrap();
+        });
+        let result = wait_proposal(
+            &core,
+            &project_id,
+            &json!({"proposalId":proposal_id,"timeoutMs":2_000}),
+        )
+        .unwrap();
+        thread.join().unwrap();
+        assert_eq!(result["state"], "accepted");
     }
 }

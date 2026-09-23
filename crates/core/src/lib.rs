@@ -1,10 +1,16 @@
 //! Rust application command layer. Each migrated operation is kept behind the
 //! same contract name and JSON shape as the v0.1 TypeScript implementation.
 
+mod archive;
+mod build;
+mod cad;
+mod calculation;
 mod components;
 mod graph;
 mod models;
 mod simple;
+mod test_results;
+mod wiring;
 
 use base64::Engine;
 use chrono::{SecondsFormat, Utc};
@@ -116,6 +122,15 @@ impl CoreApp {
                 }
                 let handle = ProjectHandle::open(canonical).map_err(storage_error)?;
                 self.register(handle)
+            }
+            "project.import_archive" => {
+                let archive_path = required_str(&payload, "archivePath")?;
+                let dest = required_str(&payload, "destDir")?;
+                let copy = payload["newIdentity"].as_bool().unwrap_or(false);
+                let handle = archive::import_archive(archive_path, dest, copy)?;
+                let mut result = self.register(handle)?;
+                result["readOnly"] = json!(false);
+                Ok(result)
             }
             "project.list_open" => Ok(json!({"projects": self.projects.values().map(|h| {
                 let project = h.project().ok().flatten().unwrap_or(Value::Null);
@@ -334,6 +349,26 @@ impl CoreApp {
             .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))
     }
 
+    pub fn proposal_wait_snapshot(&self, project_id: &str, proposal_id: &str) -> CoreResult<Value> {
+        let handle = self
+            .projects
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
+        let state = handle
+            .db
+            .query_row(
+                "SELECT state FROM proposal WHERE id=?1",
+                [proposal_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(internal)?
+            .ok_or_else(|| {
+                ContractError::new("NOT_FOUND", format!("Proposal not found: {proposal_id}"))
+            })?;
+        Ok(json!({"state":state,"cursor":self.latest_event_seq(project_id)?}))
+    }
+
     pub fn adapter_config(&self, adapter_id: &str) -> Value {
         self.read_settings()["adapters"][adapter_id].clone()
     }
@@ -455,6 +490,7 @@ fn dispatch_project(
                 .map_err(storage_error)?;
             Ok(json!({"project": handle.project().map_err(storage_error)?}))
         }
+        "project.export_archive" => archive::export_archive(handle, payload),
         "project.update_intent" => {
             let intent = required_str(payload, "intent")?;
             let tx = handle.db.unchecked_transaction().map_err(internal)?;
@@ -493,7 +529,22 @@ fn dispatch_project(
         "source.capture" => simple::source_capture(handle, payload, origin),
         "source.read" => simple::source_read(handle, payload),
         "test.create_draft" => simple::test_create_draft(handle, payload, origin),
+        "test.record_result" => test_results::record_result(handle, payload, origin),
+        "build.preview" => build::preview(handle, false),
+        "build.export" => build::export(handle, payload, origin),
+        "calculation.templates" => calculation::templates(),
+        "calculation.explain_inputs" => calculation::explain_inputs(handle, payload),
+        "calculation.run" => calculation::run(handle, payload, origin),
         "cad.export" => simple::cad_export(handle, payload),
+        "cad.probe" => cad::probe(),
+        "cad.read_source" => cad::read_source(handle, payload),
+        "cad.validate_source" => cad::validate_source(handle, payload),
+        "cad.write_source" => cad::write_source(handle, payload, origin),
+        "cad.inspect" => cad::inspect(handle, payload, origin),
+        "cad.patch_source" => cad::patch_source(handle, payload, origin),
+        "cad.set_param" => cad::set_param(handle, payload, origin),
+        "cad.compose" => cad::compose(handle, payload, origin),
+        "cad.render" => cad::render(handle, payload, origin),
         "component.add_candidate" => components::add_candidate(handle, payload, origin),
         "component.add_offer" => components::add_offer(handle, payload),
         "component.compare" => components::compare(handle, payload),
@@ -503,6 +554,10 @@ fn dispatch_project(
         "bom.update_line" => components::bom_update_line(handle, payload),
         "bom.remove_line" => components::bom_remove_line(handle, payload),
         "bom.export" => components::bom_export(handle, payload),
+        "wiring.validate" => wiring::validate(handle, payload),
+        "wiring.render" => wiring::render(handle, payload),
+        "wiring.set_pins" => wiring::set_pins(handle, payload, origin),
+        "wiring.set_connections" => wiring::set_connections(handle, payload, origin),
         "ui.open_artifact" => {
             emit(
                 handle,

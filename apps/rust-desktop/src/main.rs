@@ -1,4 +1,4 @@
-use omenflow_agent_host::{BridgeServer, PtyHost, TerminalEvent};
+use omenflow_agent_host::{wait_proposal, BridgeServer, PtyHost, TerminalEvent};
 use omenflow_contracts::{parse_input, registry, ContractError, ResponseEnvelope};
 use omenflow_core::{CoreApp, Origin};
 use serde_json::Value;
@@ -58,6 +58,9 @@ fn omenflow_command(
         "terminal.stop" => Some(with_project(&project_id, |id| state.pty.stop(id))),
         "terminal.restart" => Some(with_project(&project_id, |id| state.pty.restart(id))),
         "terminal.state" => Some(with_project(&project_id, |id| Ok(state.pty.state(id)))),
+        "proposal.wait" => Some(with_project(&project_id, |id| {
+            wait_proposal(&state.core, id, &payload)
+        })),
         _ => None,
     };
     if let Some(result) = host_result {

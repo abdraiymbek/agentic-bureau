@@ -13,6 +13,8 @@ use std::thread;
 use uuid::Uuid;
 
 const SCROLLBACK_CAP: usize = 256 * 1024;
+const AGENT_GUIDE: &str = include_str!("../agent-guide.md");
+const GUIDE_MARKER: &str = "<!-- omenflow:agent-guide -->";
 
 #[derive(Clone, Debug)]
 pub enum TerminalEvent {
@@ -80,7 +82,8 @@ impl PtyHost {
         let work = root.join(".omenflow/work").join(&session_id);
         fs::create_dir_all(&work).map_err(failure)?;
         let bootstrap = work.join("bootstrap.md");
-        fs::write(&bootstrap, format!("# Omen Flow session\n\nProject: {}\n\nThis is an engineering workspace. Draft revisions require human review and approval. The baseline is never agent-editable. Use Omen Flow tools and keep quantities, units, unknowns, evidence and revision IDs explicit.\n\n## Project context\n\n```json\n{}\n```\n", root.display(), serde_json::to_string_pretty(&summary).unwrap_or_default())).map_err(failure)?;
+        fs::write(&bootstrap, format!("# Omen Flow session\n\nProject: {}\n\nThis is an engineering workspace. Draft revisions require human review and approval. The baseline is never agent-editable. Use Omen Flow tools and keep quantities, units, unknowns, evidence and revision IDs explicit.\n\n## Project context\n\n```json\n{}\n```\n\n{}", root.display(), serde_json::to_string_pretty(&summary).unwrap_or_default(),AGENT_GUIDE)).map_err(failure)?;
+        write_agent_guide(&root)?;
         let token = self.bridge.issue_token(project_id, &session_id);
         let mut command = CommandBuilder::new(&path);
         command.cwd(&root);
@@ -560,6 +563,27 @@ fn find_executable(name: &str) -> Option<PathBuf> {
 
 fn now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+fn write_agent_guide(root: &Path) -> Result<(), ContractError> {
+    let path = root.join("AGENTS.md");
+    let existing = fs::read_to_string(&path).unwrap_or_default();
+    let next = if existing.is_empty() {
+        AGENT_GUIDE.to_owned()
+    } else if let Some(index) = existing.find(GUIDE_MARKER) {
+        let head = existing[..index].trim_end();
+        if head.is_empty() {
+            AGENT_GUIDE.to_owned()
+        } else {
+            format!("{head}\n\n{AGENT_GUIDE}")
+        }
+    } else {
+        format!("{}\n\n{AGENT_GUIDE}", existing.trim_end())
+    };
+    if next != existing {
+        fs::write(path, next).map_err(failure)?;
+    }
+    Ok(())
 }
 fn failure(error: impl std::fmt::Display) -> ContractError {
     ContractError::new("INTERNAL", error.to_string())

@@ -1,0 +1,512 @@
+{
+  "1": {
+    "name": "1",
+    "dim": "dimensionless",
+    "scale": 1,
+    "offset": 0
+  },
+  "m": {
+    "name": "m",
+    "dim": "length",
+    "scale": 1,
+    "offset": 0
+  },
+  "mm": {
+    "name": "mm",
+    "dim": "length",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "cm": {
+    "name": "cm",
+    "dim": "length",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "km": {
+    "name": "km",
+    "dim": "length",
+    "scale": 1000,
+    "offset": 0
+  },
+  "in": {
+    "name": "in",
+    "dim": "length",
+    "scale": 0.0254,
+    "offset": 0
+  },
+  "inch": {
+    "name": "in",
+    "dim": "length",
+    "scale": 0.0254,
+    "offset": 0
+  },
+  "\"": {
+    "name": "in",
+    "dim": "length",
+    "scale": 0.0254,
+    "offset": 0
+  },
+  "ft": {
+    "name": "ft",
+    "dim": "length",
+    "scale": 0.3048,
+    "offset": 0
+  },
+  "kg": {
+    "name": "kg",
+    "dim": "mass",
+    "scale": 1,
+    "offset": 0
+  },
+  "g": {
+    "name": "g",
+    "dim": "mass",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "mg": {
+    "name": "mg",
+    "dim": "mass",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "lb": {
+    "name": "lb",
+    "dim": "mass",
+    "scale": 0.45359237,
+    "offset": 0
+  },
+  "lbs": {
+    "name": "lb",
+    "dim": "mass",
+    "scale": 0.45359237,
+    "offset": 0
+  },
+  "oz": {
+    "name": "oz",
+    "dim": "mass",
+    "scale": 0.028349523125,
+    "offset": 0
+  },
+  "s": {
+    "name": "s",
+    "dim": "time",
+    "scale": 1,
+    "offset": 0
+  },
+  "sec": {
+    "name": "s",
+    "dim": "time",
+    "scale": 1,
+    "offset": 0
+  },
+  "ms": {
+    "name": "ms",
+    "dim": "time",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "min": {
+    "name": "min",
+    "dim": "time",
+    "scale": 60,
+    "offset": 0
+  },
+  "h": {
+    "name": "h",
+    "dim": "time",
+    "scale": 3600,
+    "offset": 0
+  },
+  "hr": {
+    "name": "h",
+    "dim": "time",
+    "scale": 3600,
+    "offset": 0
+  },
+  "hour": {
+    "name": "h",
+    "dim": "time",
+    "scale": 3600,
+    "offset": 0
+  },
+  "day": {
+    "name": "day",
+    "dim": "time",
+    "scale": 86400,
+    "offset": 0
+  },
+  "A": {
+    "name": "A",
+    "dim": "current",
+    "scale": 1,
+    "offset": 0
+  },
+  "mA": {
+    "name": "mA",
+    "dim": "current",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "uA": {
+    "name": "uA",
+    "dim": "current",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "µA": {
+    "name": "uA",
+    "dim": "current",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "V": {
+    "name": "V",
+    "dim": "voltage",
+    "scale": 1,
+    "offset": 0
+  },
+  "mV": {
+    "name": "mV",
+    "dim": "voltage",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "kV": {
+    "name": "kV",
+    "dim": "voltage",
+    "scale": 1000,
+    "offset": 0
+  },
+  "W": {
+    "name": "W",
+    "dim": "power",
+    "scale": 1,
+    "offset": 0
+  },
+  "mW": {
+    "name": "mW",
+    "dim": "power",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "kW": {
+    "name": "kW",
+    "dim": "power",
+    "scale": 1000,
+    "offset": 0
+  },
+  "J": {
+    "name": "J",
+    "dim": "energy",
+    "scale": 1,
+    "offset": 0
+  },
+  "Wh": {
+    "name": "Wh",
+    "dim": "energy",
+    "scale": 3600,
+    "offset": 0
+  },
+  "mWh": {
+    "name": "mWh",
+    "dim": "energy",
+    "scale": 3.6,
+    "offset": 0
+  },
+  "kWh": {
+    "name": "kWh",
+    "dim": "energy",
+    "scale": 3600000,
+    "offset": 0
+  },
+  "C": {
+    "name": "C",
+    "dim": "charge",
+    "scale": 1,
+    "offset": 0
+  },
+  "Ah": {
+    "name": "Ah",
+    "dim": "charge",
+    "scale": 3600,
+    "offset": 0
+  },
+  "mAh": {
+    "name": "mAh",
+    "dim": "charge",
+    "scale": 3.6,
+    "offset": 0
+  },
+  "N": {
+    "name": "N",
+    "dim": "force",
+    "scale": 1,
+    "offset": 0
+  },
+  "lbf": {
+    "name": "lbf",
+    "dim": "force",
+    "scale": 4.4482216152605,
+    "offset": 0
+  },
+  "kgf": {
+    "name": "kgf",
+    "dim": "force",
+    "scale": 9.80665,
+    "offset": 0
+  },
+  "N*m": {
+    "name": "N*m",
+    "dim": "torque",
+    "scale": 1,
+    "offset": 0
+  },
+  "Nm": {
+    "name": "N*m",
+    "dim": "torque",
+    "scale": 1,
+    "offset": 0
+  },
+  "N·m": {
+    "name": "N*m",
+    "dim": "torque",
+    "scale": 1,
+    "offset": 0
+  },
+  "N*mm": {
+    "name": "N*mm",
+    "dim": "torque",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "Nmm": {
+    "name": "N*mm",
+    "dim": "torque",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "N·mm": {
+    "name": "N*mm",
+    "dim": "torque",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "N*cm": {
+    "name": "N*cm",
+    "dim": "torque",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "Ncm": {
+    "name": "N*cm",
+    "dim": "torque",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "N·cm": {
+    "name": "N*cm",
+    "dim": "torque",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "kg*cm": {
+    "name": "kg*cm",
+    "dim": "torque",
+    "scale": 0.0980665,
+    "offset": 0
+  },
+  "kgcm": {
+    "name": "kg*cm",
+    "dim": "torque",
+    "scale": 0.0980665,
+    "offset": 0
+  },
+  "kg·cm": {
+    "name": "kg*cm",
+    "dim": "torque",
+    "scale": 0.0980665,
+    "offset": 0
+  },
+  "kgf·cm": {
+    "name": "kg*cm",
+    "dim": "torque",
+    "scale": 0.0980665,
+    "offset": 0
+  },
+  "oz*in": {
+    "name": "oz*in",
+    "dim": "torque",
+    "scale": 0.0070615518,
+    "offset": 0
+  },
+  "ozin": {
+    "name": "oz*in",
+    "dim": "torque",
+    "scale": 0.0070615518,
+    "offset": 0
+  },
+  "oz·in": {
+    "name": "oz*in",
+    "dim": "torque",
+    "scale": 0.0070615518,
+    "offset": 0
+  },
+  "rad": {
+    "name": "rad",
+    "dim": "angle",
+    "scale": 1,
+    "offset": 0
+  },
+  "deg": {
+    "name": "deg",
+    "dim": "angle",
+    "scale": 0.017453292519943295,
+    "offset": 0
+  },
+  "°": {
+    "name": "deg",
+    "dim": "angle",
+    "scale": 0.017453292519943295,
+    "offset": 0
+  },
+  "rad/s": {
+    "name": "rad/s",
+    "dim": "angular_speed",
+    "scale": 1,
+    "offset": 0
+  },
+  "rpm": {
+    "name": "rpm",
+    "dim": "angular_speed",
+    "scale": 0.10471975511965977,
+    "offset": 0
+  },
+  "m/s": {
+    "name": "m/s",
+    "dim": "speed",
+    "scale": 1,
+    "offset": 0
+  },
+  "km/h": {
+    "name": "km/h",
+    "dim": "speed",
+    "scale": 0.2777777777777778,
+    "offset": 0
+  },
+  "mph": {
+    "name": "mph",
+    "dim": "speed",
+    "scale": 0.44704,
+    "offset": 0
+  },
+  "m/s^2": {
+    "name": "m/s^2",
+    "dim": "acceleration",
+    "scale": 1,
+    "offset": 0
+  },
+  "cm/s^2": {
+    "name": "cm/s^2",
+    "dim": "acceleration",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "ft/s^2": {
+    "name": "ft/s^2",
+    "dim": "acceleration",
+    "scale": 0.3048,
+    "offset": 0
+  },
+  "K": {
+    "name": "K",
+    "dim": "temperature",
+    "scale": 1,
+    "offset": 0
+  },
+  "degC": {
+    "name": "degC",
+    "dim": "temperature",
+    "scale": 1,
+    "offset": 273.15
+  },
+  "°C": {
+    "name": "degC",
+    "dim": "temperature",
+    "scale": 1,
+    "offset": 273.15
+  },
+  "Celsius": {
+    "name": "degC",
+    "dim": "temperature",
+    "scale": 1,
+    "offset": 273.15
+  },
+  "B": {
+    "name": "B",
+    "dim": "data",
+    "scale": 1,
+    "offset": 0
+  },
+  "byte": {
+    "name": "B",
+    "dim": "data",
+    "scale": 1,
+    "offset": 0
+  },
+  "kB": {
+    "name": "kB",
+    "dim": "data",
+    "scale": 1000,
+    "offset": 0
+  },
+  "MB": {
+    "name": "MB",
+    "dim": "data",
+    "scale": 1000000,
+    "offset": 0
+  },
+  "GB": {
+    "name": "GB",
+    "dim": "data",
+    "scale": 1000000000,
+    "offset": 0
+  },
+  "KiB": {
+    "name": "KiB",
+    "dim": "data",
+    "scale": 1024,
+    "offset": 0
+  },
+  "MiB": {
+    "name": "MiB",
+    "dim": "data",
+    "scale": 1048576,
+    "offset": 0
+  },
+  "": {
+    "name": "1",
+    "dim": "dimensionless",
+    "scale": 1,
+    "offset": 0
+  },
+  "unitless": {
+    "name": "1",
+    "dim": "dimensionless",
+    "scale": 1,
+    "offset": 0
+  },
+  "%": {
+    "name": "%",
+    "dim": "dimensionless",
+    "scale": 0.01,
+    "offset": 0
+  },
+  "percent": {
+    "name": "%",
+    "dim": "dimensionless",
+    "scale": 0.01,
+    "offset": 0
+  }
+}

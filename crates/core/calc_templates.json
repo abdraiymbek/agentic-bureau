@@ -1,0 +1,153 @@
+[
+  {
+    "id": "mass_budget",
+    "title": "Mass budget",
+    "description": "Total dry mass as the sum of subsystem masses.",
+    "expression": "payload + chassis + electronics + battery",
+    "inputs": [
+      {
+        "name": "payload",
+        "unit": "kg",
+        "required": true,
+        "description": "Payload mass"
+      },
+      {
+        "name": "chassis",
+        "unit": "kg",
+        "required": true,
+        "description": "Chassis / frame mass"
+      },
+      {
+        "name": "electronics",
+        "unit": "kg",
+        "required": true,
+        "description": "Electronics mass"
+      },
+      {
+        "name": "battery",
+        "unit": "kg",
+        "required": true,
+        "description": "Battery mass"
+      }
+    ],
+    "outputUnit": "kg",
+    "assumptions": [
+      "Static dry mass sum; connectors and wiring not included"
+    ],
+    "limitations": [
+      "Estimate only — weigh the final assembly"
+    ]
+  },
+  {
+    "id": "power_budget",
+    "title": "Power budget",
+    "description": "Required supply power: larger of margined average load and peak load.",
+    "expression": "max(avg_load * margin, peak_load)",
+    "inputs": [
+      {
+        "name": "avg_load",
+        "unit": "W",
+        "required": true,
+        "description": "Average continuous load"
+      },
+      {
+        "name": "peak_load",
+        "unit": "W",
+        "required": true,
+        "description": "Worst-case momentary load"
+      },
+      {
+        "name": "margin",
+        "unit": "1",
+        "required": true,
+        "description": "Dimensionless headroom factor applied to average load (e.g. 1.25)"
+      }
+    ],
+    "outputUnit": "W",
+    "assumptions": [
+      "Peak load is a hard floor regardless of margin"
+    ],
+    "limitations": [
+      "Estimate only — measure real draw under load"
+    ]
+  },
+  {
+    "id": "battery_energy",
+    "title": "Battery energy",
+    "description": "Usable pack energy from nominal voltage, capacity and depth of discharge.",
+    "expression": "voltage * capacity * usable_fraction",
+    "inputs": [
+      {
+        "name": "voltage",
+        "unit": "V",
+        "required": true,
+        "description": "Nominal pack voltage"
+      },
+      {
+        "name": "capacity",
+        "unit": "Ah",
+        "required": true,
+        "description": "Nameplate capacity"
+      },
+      {
+        "name": "usable_fraction",
+        "unit": "1",
+        "required": true,
+        "description": "Usable fraction of nameplate (0–1), e.g. 0.8 for 80% DoD"
+      }
+    ],
+    "outputUnit": "Wh",
+    "assumptions": [
+      "Constant nominal voltage; ignores discharge-curve sag and temperature"
+    ],
+    "limitations": [
+      "Estimate only — real capacity varies with rate, age and temperature"
+    ]
+  },
+  {
+    "id": "torque_load",
+    "title": "Torque load (incline + acceleration)",
+    "description": "Wheel torque needed to hold on an incline while accelerating: m·g·(sin θ + a/g)·r.",
+    "expression": "mass * g * (sin(incline) + accel / g) * wheel_radius",
+    "inputs": [
+      {
+        "name": "mass",
+        "unit": "kg",
+        "required": true,
+        "description": "Total vehicle mass"
+      },
+      {
+        "name": "g",
+        "unit": "m/s^2",
+        "required": true,
+        "description": "Gravity (9.80665 m/s^2 standard)"
+      },
+      {
+        "name": "incline",
+        "unit": "deg",
+        "required": true,
+        "description": "Maximum incline angle"
+      },
+      {
+        "name": "wheel_radius",
+        "unit": "m",
+        "required": true,
+        "description": "Loaded wheel radius"
+      },
+      {
+        "name": "accel",
+        "unit": "m/s^2",
+        "required": true,
+        "description": "Required linear acceleration"
+      }
+    ],
+    "outputUnit": "N*m",
+    "assumptions": [
+      "Standard gravity 9.80665 m/s² is applied inside the expression",
+      "Total torque at the driven wheels — divide by driven-wheel count for per-wheel torque"
+    ],
+    "limitations": [
+      "Ignores rolling resistance, drivetrain losses and wheel slip"
+    ]
+  }
+]
