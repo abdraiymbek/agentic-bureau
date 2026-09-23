@@ -9,6 +9,8 @@ __pycache__/
 *.pyc
 .venv/
 target/
+apps/desktop/rust-dist/
+apps/rust-desktop/gen/
 .vite/
 out/
 *.tsbuildinfo

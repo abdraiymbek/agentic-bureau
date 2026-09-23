@@ -1,0 +1,5905 @@
+{
+  "protocolVersion": 1,
+  "schemaVersion": 1,
+  "projectFile": "omenflow.project.json",
+  "maxFrameBytes": 8388608,
+  "envKeys": {
+    "socketPath": "OMENFLOW_BRIDGE_SOCK",
+    "token": "OMENFLOW_BRIDGE_TOKEN",
+    "projectId": "OMENFLOW_PROJECT_ID",
+    "sessionId": "OMENFLOW_SESSION_ID"
+  },
+  "errorCodes": [
+    "REVISION_CONFLICT",
+    "APPROVAL_REQUIRED",
+    "TOOL_MISSING",
+    "INVALID_UNITS",
+    "MISSING_SOURCE",
+    "INPUT_CHANGED",
+    "PATH_OUTSIDE_PROJECT",
+    "CONNECTION_DENIED",
+    "JOB_INTERRUPTED",
+    "CYCLE_DETECTED",
+    "NOT_FOUND",
+    "VALIDATION",
+    "CAPABILITY_DENIED",
+    "APP_NOT_RUNNING",
+    "PROTOCOL_MISMATCH",
+    "ARCHIVE_INVALID",
+    "UNSUPPORTED_SCHEMA",
+    "MIXED_CURRENCY",
+    "READ_ONLY",
+    "BUSY",
+    "CANCELLED",
+    "TIMEOUT",
+    "INTERNAL"
+  ],
+  "eventTypes": [
+    "project.created",
+    "project.opened",
+    "revision.committed",
+    "baseline.changed",
+    "proposal.submitted",
+    "proposal.resolved",
+    "impact.propagated",
+    "stale.changed",
+    "job.updated",
+    "bom.changed",
+    "file.external_edit",
+    "session.state",
+    "ui.suggested_action",
+    "ui.open_artifact"
+  ],
+  "artifactPayloadSchemas": {
+    "requirement": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value",
+                "unit"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "unknown": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "unknown",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "acceptanceCriterion": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "must",
+            "should",
+            "could"
+          ],
+          "default": "should"
+        },
+        "sourceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "verification": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "acceptanceCriterion"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "assumption": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "value",
+                "unit"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "unknown": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "unknown",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "uncertainty": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string"
+        },
+        "needsValidation": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": [
+        "statement",
+        "reason",
+        "owner"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "architecture": {
+      "type": "object",
+      "properties": {
+        "markdown": {
+          "type": "string"
+        },
+        "diagramSvg": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "concept": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "systems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "approxDimensions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number"
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "value",
+              "unit"
+            ],
+            "additionalProperties": false
+          },
+          "default": {}
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "visualFile": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "source",
+                "output",
+                "import",
+                "preview",
+                "attachment"
+              ],
+              "default": "source"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "visualKind": {
+          "type": "string",
+          "enum": [
+            "svg_diagram",
+            "openscad_layout",
+            "generated_bitmap"
+          ]
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "component": {
+      "type": "object",
+      "properties": {
+        "manufacturer": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "partNumber": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "quantity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unknown": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "unknown",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "sourceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "locator": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "quantity"
+            ],
+            "additionalProperties": false
+          },
+          "default": {}
+        },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "sourceId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "locator": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "default": {}
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "candidate",
+            "selected",
+            "rejected",
+            "superseded"
+          ],
+          "default": "candidate"
+        },
+        "missingFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "partNumber"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "url",
+            "file"
+          ]
+        },
+        "url": {
+          "type": "string"
+        },
+        "fileHash": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "retrievedAt": {
+          "type": "string"
+        },
+        "locator": {
+          "type": "string"
+        },
+        "excerpt": {
+          "type": "string"
+        },
+        "sourceKind": {
+          "type": "string",
+          "enum": [
+            "manufacturer",
+            "supplier",
+            "datasheet",
+            "article",
+            "user_import",
+            "note",
+            "other"
+          ],
+          "default": "other"
+        }
+      },
+      "required": [
+        "kind",
+        "title",
+        "retrievedAt"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "mechanical": {
+      "type": "object",
+      "properties": {
+        "scad": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "source",
+                "output",
+                "import",
+                "preview",
+                "attachment"
+              ],
+              "default": "source"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "stl": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "source",
+                "output",
+                "import",
+                "preview",
+                "attachment"
+              ],
+              "default": "source"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "min": {
+                    "type": "number"
+                  },
+                  "max": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "unit"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "default": {}
+        },
+        "paramManifest": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "dimension": {
+                "type": "string",
+                "enum": [
+                  "length",
+                  "angle",
+                  "count",
+                  "boolean",
+                  "text",
+                  "number"
+                ]
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "modelUnit": {
+          "type": "string",
+          "default": "mm"
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "max": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false
+        },
+        "material": {
+          "type": "string"
+        },
+        "manufacturing": {
+          "type": "string"
+        },
+        "renderJobId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "renderIdentity": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number",
+              "const": 1
+            },
+            "sourceHash": {
+              "type": "string"
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean"
+                ]
+              }
+            },
+            "modelUnit": {
+              "type": "string"
+            },
+            "frame": {
+              "type": "string",
+              "const": "right-handed-z-up"
+            },
+            "engine": {
+              "type": "string"
+            },
+            "engineVersion": {
+              "type": "string"
+            },
+            "options": {
+              "type": "string"
+            },
+            "inputFingerprint": {
+              "type": "string"
+            },
+            "outputHash": {
+              "type": "string"
+            },
+            "sourceOrientationCorrected": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "version",
+            "sourceHash",
+            "params",
+            "modelUnit",
+            "frame",
+            "engine",
+            "engineVersion",
+            "options",
+            "inputFingerprint",
+            "outputHash"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "wiring": {
+      "type": "object",
+      "properties": {
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "componentArtifactId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "componentRevisionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "pin": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "power",
+                  "ground",
+                  "signal",
+                  "data",
+                  "mechanical",
+                  "unknown"
+                ],
+                "default": "unknown"
+              },
+              "voltageRange": {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "max": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "min",
+                  "max"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "componentArtifactId",
+              "pin"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "from": {
+                "type": "object",
+                "properties": {
+                  "componentArtifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "componentRevisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "pin": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "componentArtifactId",
+                  "componentRevisionId",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "to": {
+                "type": "object",
+                "properties": {
+                  "componentArtifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "componentRevisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "pin": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "componentArtifactId",
+                  "componentRevisionId",
+                  "pin"
+                ],
+                "additionalProperties": false
+              },
+              "voltage": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "min": {
+                    "type": "number"
+                  },
+                  "max": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value",
+                  "unit"
+                ],
+                "additionalProperties": false
+              },
+              "signalRole": {
+                "type": "string"
+              },
+              "polarity": {
+                "type": "string",
+                "enum": [
+                  "+",
+                  "-",
+                  "bidirectional",
+                  "none"
+                ]
+              },
+              "wire": {
+                "type": "object",
+                "properties": {
+                  "gauge": {
+                    "type": "string"
+                  },
+                  "currentRating": {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "from",
+              "to",
+              "signalRole"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "coverageNote": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "calculation": {
+      "type": "object",
+      "properties": {
+        "templateId": {
+          "type": "string"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "quantity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unknown": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "unknown",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "sourceRef": {
+                "type": "object",
+                "properties": {
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "artifactId",
+                  "revisionId"
+                ],
+                "additionalProperties": false
+              },
+              "literal": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "name",
+              "quantity"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "quantity": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "unknown": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "unknown",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "toolVersion": {
+          "type": "string"
+        },
+        "ranAt": {
+          "type": "string"
+        },
+        "evidenceKind": {
+          "type": "string",
+          "enum": [
+            "assumed",
+            "sourced",
+            "calculated",
+            "simulated",
+            "measured"
+          ],
+          "default": "calculated"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "software": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "minLength": 64,
+                "maxLength": 64
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "output",
+                  "import",
+                  "preview",
+                  "attachment"
+                ],
+                "default": "source"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "language": {
+          "type": "string"
+        },
+        "entryPoint": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "assembly": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "order": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "instruction": {
+                "type": "string"
+              },
+              "componentRefs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "default": []
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "calibration": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order",
+              "instruction"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "test": {
+      "type": "object",
+      "properties": {
+        "procedure": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "integer"
+              },
+              "instruction": {
+                "type": "string"
+              },
+              "expected": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "step",
+              "instruction"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "conditions": {
+          "type": "string"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "requirementRef": {
+                "type": "object",
+                "properties": {
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "artifactId",
+                  "revisionId"
+                ],
+                "additionalProperties": false
+              },
+              "evidenceKind": {
+                "type": "string",
+                "enum": [
+                  "assumed",
+                  "sourced",
+                  "calculated",
+                  "simulated",
+                  "measured"
+                ]
+              },
+              "observation": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "planned",
+                  "not_run",
+                  "passed",
+                  "failed",
+                  "inconclusive"
+                ]
+              },
+              "conditions": {
+                "type": "string"
+              },
+              "units": {
+                "type": "string"
+              },
+              "attachments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "minLength": 64,
+                      "maxLength": 64
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "source",
+                        "output",
+                        "import",
+                        "preview",
+                        "attachment"
+                      ],
+                      "default": "source"
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "recordedBy": {
+                "type": "string"
+              },
+              "recordedAt": {
+                "type": "string"
+              },
+              "measurementOrigin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "evidenceKind",
+              "observation",
+              "result",
+              "recordedBy",
+              "recordedAt"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "note": {
+      "type": "object",
+      "properties": {
+        "markdown": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "markdown"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "subsystem": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "operations": [
+    {
+      "name": "project.create",
+      "toolName": "project_create",
+      "description": "Create a project at a folder path",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "intent": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "required": [
+          "name",
+          "path"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.open",
+      "toolName": "project_open",
+      "description": "Open an existing project folder",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.rename",
+      "toolName": "project_rename",
+      "description": "Rename the active project",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.update_intent",
+      "toolName": "project_update_intent",
+      "description": "Update project intent",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.summary",
+      "toolName": "project_summary",
+      "description": "Bounded structured project summary",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "budget": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "default": 6000
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.search",
+      "toolName": "project_search",
+      "description": "Full-text search over project records",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 100,
+            "default": 20
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.changes_since",
+      "toolName": "project_changes_since",
+      "description": "Events after a sequence cursor",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "seq"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.export_archive",
+      "toolName": "project_export_archive",
+      "description": "Lossless project archive export",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "includeTerminalHistory": {
+            "type": "boolean",
+            "default": false
+          },
+          "grantTerminalExportConsent": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "destPath"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.import_archive",
+      "toolName": "project_import_archive",
+      "description": "Import a project archive",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "archivePath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "destDir": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newIdentity": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "archivePath",
+          "destDir"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.list_open",
+      "toolName": "project_list_open",
+      "description": "List open projects",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.close",
+      "toolName": "project_close",
+      "description": "Close an open project",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "app.recent_projects",
+      "toolName": "app_recent_projects",
+      "description": "List recent project folders",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "app.diagnostics",
+      "toolName": "app_diagnostics",
+      "description": "Previewable diagnostic bundle",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.list",
+      "toolName": "artifact_list",
+      "description": "List artifacts with freshness",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ]
+          },
+          "subsystem": {
+            "type": "string"
+          },
+          "includeArchived": {
+            "type": "boolean",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 500,
+            "default": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.read",
+      "toolName": "artifact_read",
+      "description": "Read an artifact revision",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.history",
+      "toolName": "artifact_history",
+      "description": "Revision history",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.compare",
+      "toolName": "artifact_compare",
+      "description": "Compare two revisions",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId",
+          "fromRevisionId",
+          "toRevisionId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.create_draft",
+      "toolName": "artifact_create_draft",
+      "description": "Create a non-CAD artifact (requirement, assumption, component, note, test…) with its first draft revision. For parts use cad.write_source.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "subsystem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload": {},
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "contentBase64": {
+                  "type": "string"
+                },
+                "sourcePath": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "relationship": {
+                  "type": "string",
+                  "enum": [
+                    "depends_on",
+                    "derived_from",
+                    "validates",
+                    "connects_to",
+                    "belongs_to",
+                    "alternative_to"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactId"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.update_draft",
+      "toolName": "artifact_update_draft",
+      "description": "Create a new draft revision on an existing non-CAD artifact (payload/files/inputs). For parts use cad.write_source.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "baseRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "payload": {},
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "contentBase64": {
+                  "type": "string"
+                },
+                "sourcePath": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "relationship": {
+                  "type": "string",
+                  "enum": [
+                    "depends_on",
+                    "derived_from",
+                    "validates",
+                    "connects_to",
+                    "belongs_to",
+                    "alternative_to"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "artifactId"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.import_file",
+      "toolName": "artifact_import_file",
+      "description": "Import a project file as a draft artifact revision (non-CAD files). For OpenSCAD parts use cad.write_source.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.apply_edit",
+      "toolName": "artifact_apply_edit",
+      "description": "User direct baseline edit (decision + propagation)",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "baseRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "payload": {},
+          "payloadPatch": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "fileWrites": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "contentBase64": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "contentBase64"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "baseRevisionId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.accept_draft",
+      "toolName": "artifact_accept_draft",
+      "description": "Accept a draft revision as the baseline",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "draftRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "verificationEvidenceHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "draftRevisionId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.revert",
+      "toolName": "artifact_revert",
+      "description": "Revert baseline to a historical revision",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "toRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "toRevisionId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.archive",
+      "toolName": "artifact_archive",
+      "description": "Archive/unarchive an artifact",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "archived"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.reveal",
+      "toolName": "artifact_reveal",
+      "description": "Reveal artifact files in OS file manager",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.read_file",
+      "toolName": "artifact_read_file",
+      "description": "Read an artifact file (base64) by project-relative path",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId",
+          "path"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "artifact.set_subsystem",
+      "toolName": "artifact_set_subsystem",
+      "description": "Move artifact between subsystems",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "subsystem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "subsystem"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "graph.neighbors",
+      "toolName": "graph_neighbors",
+      "description": "Bounded graph neighborhood",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "upstream",
+              "downstream",
+              "both"
+            ],
+            "default": "both"
+          },
+          "depth": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 10,
+            "default": 1
+          },
+          "relationship": {
+            "type": "string",
+            "enum": [
+              "depends_on",
+              "derived_from",
+              "validates",
+              "connects_to",
+              "belongs_to",
+              "alternative_to"
+            ]
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "graph.impact",
+      "toolName": "graph_impact",
+      "description": "Impact report for changed revisions",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "artifactId",
+                "revisionId"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 2000,
+            "default": 200
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "includePaths": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "refs"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "graph.propose_edges",
+      "toolName": "graph_propose_edges",
+      "description": "Propose/add dependency edges",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "upstreamArtifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "downstreamArtifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "relationship": {
+                  "type": "string",
+                  "enum": [
+                    "depends_on",
+                    "derived_from",
+                    "validates",
+                    "connects_to",
+                    "belongs_to",
+                    "alternative_to"
+                  ]
+                },
+                "label": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "upstreamArtifactId",
+                "downstreamArtifactId",
+                "relationship"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "edges"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "graph.list",
+      "toolName": "graph_list",
+      "description": "All edges for graph/list views",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "source.capture",
+      "toolName": "source_capture",
+      "description": "Capture a URL/file as a source",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "filePath": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "sourceKind": {
+            "type": "string",
+            "enum": [
+              "manufacturer",
+              "supplier",
+              "datasheet",
+              "article",
+              "user_import",
+              "note",
+              "other"
+            ],
+            "default": "other"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "source.read",
+      "toolName": "source_read",
+      "description": "Read a source record",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "sourceId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "research.search",
+      "toolName": "research_search",
+      "description": "Navigate research browser to a search query",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1
+          },
+          "engine": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "research.read_page",
+      "toolName": "research_read_page",
+      "description": "Read current research page text/links",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "browser.open",
+      "toolName": "browser_open",
+      "description": "Open URL in the isolated research browser",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "browser.read",
+      "toolName": "browser_read",
+      "description": "Read current page text",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "browser.follow_link",
+      "toolName": "browser_follow_link",
+      "description": "Follow a link on the current page",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "browser.capture",
+      "toolName": "browser_capture",
+      "description": "Capture current page as a source",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "browser.screenshot",
+      "toolName": "browser_screenshot",
+      "description": "Screenshot current page",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "component.add_candidate",
+      "toolName": "component_add_candidate",
+      "description": "Add a sourced component candidate",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "manufacturer": {
+            "type": "string"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "partNumber": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "unit"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "unknown": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "unknown",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locator": {
+                  "type": "string"
+                },
+                "observedAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "quantity"
+              ],
+              "additionalProperties": false
+            },
+            "default": {}
+          },
+          "attributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "sourceId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "locator": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "default": {}
+          },
+          "offer": {
+            "type": "object",
+            "properties": {
+              "seller": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "price": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(\\.\\d{1,4})?$"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 3
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "quantityBasis": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "default": 1
+              },
+              "availabilityText": {
+                "type": "string"
+              },
+              "sourceId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "seller"
+            ],
+            "additionalProperties": false
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alternativeTo": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "partNumber"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "component.compare",
+      "toolName": "component_compare",
+      "description": "Side-by-side property comparison",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          }
+        },
+        "required": [
+          "artifactIds"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "component.propose_selection",
+      "toolName": "component_propose_selection",
+      "description": "Propose selecting a component",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "bomLines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subsystem": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "quantity": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "offerId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "notes": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "quantity"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "replacesArtifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "revisionId",
+          "bomLines",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "component.add_offer",
+      "toolName": "component_add_offer",
+      "description": "Add a seller offer observation",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seller": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "string",
+                    "pattern": "^-?\\d+(\\.\\d{1,4})?$"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 3
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "quantityBasis": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "default": 1
+          },
+          "availabilityText": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "seller"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "bom.read",
+      "toolName": "bom_read",
+      "description": "Read live BOM with totals",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "bom.propose_edit",
+      "toolName": "bom_propose_edit",
+      "description": "Propose BOM line changes",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentArtifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "componentRevisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "subsystem": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "quantity": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "offerId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "notes": {
+                  "type": "string",
+                  "default": ""
+                }
+              },
+              "required": [
+                "componentArtifactId",
+                "quantity"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "reason": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "bom.update_line",
+      "toolName": "bom_update_line",
+      "description": "User inline BOM line edit",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "offerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lineId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "bom.remove_line",
+      "toolName": "bom_remove_line",
+      "description": "User remove BOM line",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lineId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lineId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "bom.export",
+      "toolName": "bom_export",
+      "description": "Export BOM as CSV/Markdown",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "markdown"
+            ],
+            "default": "markdown"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.probe",
+      "toolName": "cad_probe",
+      "description": "Probe CAD tool availability",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.validate_source",
+      "toolName": "cad_validate_source",
+      "description": "Validate .scad source parses",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.render",
+      "toolName": "cad_render",
+      "description": "Render .scad → .stl via real OpenSCAD (background job)",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 600000,
+            "default": 120000
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.write_source",
+      "toolName": "cad_write_source",
+      "description": "Create or revise a part from OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD, and returns a measured geometry report (envelope, volume, watertightness, mid-plane cross-sections with holes/outlines, detected parameters, render warnings). Use this for every geometry change; then verify with cad.check.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Revision read before this edit; conflicts fail without overwriting newer work."
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Existing mechanical artifact to revise. Omit to create a new part."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Part name; required when creating a new part (e.g. \"Motor mount plate\")."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Complete OpenSCAD source as plain text (not base64). Model units are millimetres; +Z is up; the origin is the reference the request uses."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "description": "Optional parameter values to render with and record on the revision."
+          },
+          "subsystem": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "default": "",
+            "description": "One line on what this revision changes and why."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "default": 90000,
+            "description": "Render timeout."
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.read_source",
+      "toolName": "cad_read_source",
+      "description": "Read the OpenSCAD source of a part as plain text, with its top-level parameters and revision info. Use before modifying an existing part.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the newest revision."
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.inspect",
+      "toolName": "cad_inspect",
+      "description": "Diagnostic measurements of a rendered part: envelope, volume, watertightness, body count, cross-sections and probe points. Does not bind request assertions or establish verification. Use cad.check to commit request-bound expectations.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the newest revision."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "description": "Re-render with these overrides before measuring (nothing is committed)."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "type": "string",
+                  "enum": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "description": "Axis normal to the cutting plane (axis-aligned cut)."
+                },
+                "at": {
+                  "type": "number",
+                  "description": "Plane coordinate along that axis, in mm. Cut through the middle of the feature you want to see, not exactly on a face."
+                },
+                "origin": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "Point on an oblique cutting plane [x,y,z] mm. Use with `normal` for inclined holes."
+                },
+                "normal": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "Normal of an oblique cutting plane. Use with `origin` when the cut is not axis-aligned."
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 12,
+            "description": "Extra cutting planes to report, beyond the automatic mid-planes."
+          },
+          "probes": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "maxItems": 64,
+            "description": "Points (x,y,z) in mm to classify as solid or empty."
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.check",
+      "toolName": "cad_check",
+      "description": "Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections, optional preserve vs the approved baseline or initial draft ancestor). Commits the request-bound assertion spec unless exploratory is true. Only verificationStatus passed establishes matching declared evidence. Scope changes require explicit human review; a raw pass does not establish readiness. Do not claim verified completion when status is scope_changed, partial, failed or unverified.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the newest revision."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "description": "Check a parameter variant instead of the recorded values (nothing is committed)."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "bbox": {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "[x, y, z] in mm"
+                  },
+                  "max": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "[x, y, z] in mm"
+                  },
+                  "tol": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "min",
+                  "max"
+                ],
+                "additionalProperties": false,
+                "description": "Overall envelope: exact min and max corner in mm (default tolerance 0.1 mm)."
+              },
+              "volume": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "tolPct": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false,
+                "description": "Expected solid volume in mm³ (default tolerance 1.5 %, which absorbs polygonal circle approximation)."
+              },
+              "solid": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "[x, y, z] in mm"
+                },
+                "description": "Points (x,y,z) that must lie inside material."
+              },
+              "empty": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "[x, y, z] in mm"
+                },
+                "description": "Points (x,y,z) that must lie in empty space (e.g. hole centers, pockets, outside chamfers)."
+              },
+              "sections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "axis": {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "y",
+                        "z"
+                      ],
+                      "description": "Axis normal to the cutting plane."
+                    },
+                    "at": {
+                      "type": "number",
+                      "description": "Coordinate of the cutting plane along that axis (pick a plane through the middle of the feature, not on a face)."
+                    },
+                    "holes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "center": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "Hole center in the two in-plane axes (x,y for a z-section; x,z for a y-section; y,z for an x-section)."
+                          },
+                          "d": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "Expected diameter in model units (mm)."
+                          },
+                          "tol": {
+                            "type": "number",
+                            "exclusiveMinimum": 0,
+                            "description": "Linear tolerance (default 0.1 mm)."
+                          }
+                        },
+                        "required": [
+                          "center",
+                          "d"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Circular holes that must appear in this plane."
+                    },
+                    "holeCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Exact number of cut-out loops in this plane (catches missing or extra cuts)."
+                    },
+                    "outerCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Exact number of separate material regions in this plane."
+                    },
+                    "slots": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "center": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "[a, b] in the two in-plane axes, in mm"
+                          },
+                          "size": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "[a, b] in the two in-plane axes, in mm"
+                          },
+                          "tol": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        },
+                        "required": [
+                          "center",
+                          "size"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Non-circular cut-outs (slots, pockets, windows) by bounding-box size and center."
+                    },
+                    "polygons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "center": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 2,
+                            "maxItems": 2,
+                            "description": "[a, b] in the two in-plane axes, in mm"
+                          },
+                          "sides": {
+                            "type": "integer",
+                            "minimum": 3
+                          },
+                          "acrossFlats": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          },
+                          "tol": {
+                            "type": "number",
+                            "exclusiveMinimum": 0
+                          }
+                        },
+                        "required": [
+                          "center",
+                          "sides",
+                          "acrossFlats"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "Regular-polygon cut-outs (e.g. hex nut traps) by side count and across-flats width; orientation-independent."
+                    },
+                    "outer": {
+                      "type": "object",
+                      "properties": {
+                        "size": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "description": "Rectangular outline size in the two in-plane axes."
+                        },
+                        "d": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Circular outline diameter."
+                        },
+                        "center": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 2,
+                          "maxItems": 2,
+                          "description": "[a, b] in the two in-plane axes, in mm"
+                        },
+                        "tol": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "additionalProperties": false,
+                      "description": "Shape of the largest material region in this plane."
+                    },
+                    "materialArea": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "tolPct": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        }
+                      },
+                      "required": [
+                        "value"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Net material area in the plane (mm²)."
+                    }
+                  },
+                  "required": [
+                    "axis",
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Cross-section assertions — the primary way to verify holes, bores, slots and wall outlines."
+              },
+              "watertight": {
+                "type": "boolean",
+                "description": "Require a closed manifold mesh (default true)."
+              },
+              "shells": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Expected number of disconnected bodies (1 for a single part)."
+              },
+              "minRoundness": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Minimum roundness for circular features, apothem/radius (default 0.97 ≈ $fn ≥ 13)."
+              },
+              "maxSelfIntersections": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Fail if more than this many triangle pairs interpenetrate (0 = no self-intersection). Detects overlapping bodies that still look like a valid bbox/volume."
+              },
+              "preserve": {
+                "type": "object",
+                "properties": {
+                  "changeRegions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "center": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 3,
+                          "maxItems": 3,
+                          "description": "Center of a sphere (mm) that is allowed to change."
+                        },
+                        "radius": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "description": "Radius of the allowed-change sphere (mm)."
+                        }
+                      },
+                      "required": [
+                        "center",
+                        "radius"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "description": "Regions where the edit is allowed; everything else must match the approved baseline (or initial draft ancestor)."
+                  }
+                },
+                "required": [
+                  "changeRegions"
+                ],
+                "additionalProperties": false,
+                "description": "Require unrelated geometry to match the approved baseline (or initial draft ancestor) (sampled points outside changeRegions)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "What must be true of the part, taken from the request: envelope, volume, solid/empty points, cross-section holes and outlines."
+          },
+          "exploratory": {
+            "type": "boolean",
+            "description": "Use true on the first check for a new request to trial the complete request-derived expectations without binding them. Fix source that violates the request; correct mistaken assertions only against the request, never to fit measured output. After the trial passes, repeat the same complete expect with false to commit verification. Existing committed scope remains binding. Default false: request-bound."
+          }
+        },
+        "required": [
+          "artifactId",
+          "expect"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.patch_source",
+      "toolName": "cad_patch_source",
+      "description": "Replace one unique snippet in an existing part's OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Revision read before this edit; conflicts fail without overwriting newer work."
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Existing mechanical part to edit."
+          },
+          "oldString": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact snippet to replace. Must occur exactly once in the current source."
+          },
+          "newString": {
+            "type": "string",
+            "description": "Replacement text (may be empty to delete the snippet)."
+          },
+          "rationale": {
+            "type": "string",
+            "default": "",
+            "description": "One line on what this edit changes and why."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "default": 90000,
+            "description": "Render timeout."
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "oldString",
+          "newString"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.set_param",
+      "toolName": "cad_set_param",
+      "description": "Change one file-scope OpenSCAD assignment (name = value;) and re-render. Prefer this over rewriting the whole file when only a dimension changes.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expectedRevisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Revision read before this edit; conflicts fail without overwriting newer work."
+          },
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Existing mechanical part to edit."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "File-scope parameter name from cad.read_source (e.g. hole_d)."
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "boolean"
+            ],
+            "description": "New literal value written into the source assignment."
+          },
+          "rationale": {
+            "type": "string",
+            "default": "",
+            "description": "One line on why this dimension changed."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "default": 90000,
+            "description": "Render timeout."
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "name",
+          "value"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.compose",
+      "toolName": "cad_compose",
+      "description": "Place existing parts together with translate/rotate (no mates, no STEP). Each part's source is wrapped in a module so its variables stay isolated. Returns a new mechanical artifact with the combined mesh.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the assembled part."
+          },
+          "instances": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Existing mechanical part to place."
+                },
+                "revisionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Pin the part revision placed in this snapshot."
+                },
+                "translate": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "Translation [x,y,z] mm applied after rotate."
+                },
+                "rotate": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "description": "OpenSCAD Euler rotation [x,y,z] degrees."
+                }
+              },
+              "required": [
+                "artifactId"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "description": "Parts to place. Each source is wrapped in its own module so file-scope names do not collide."
+          },
+          "rationale": {
+            "type": "string",
+            "default": "",
+            "description": "One line on why these parts are placed together."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "default": 90000,
+            "description": "Render timeout."
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "instances"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "cad.export",
+      "toolName": "cad_export",
+      "description": "Export STL/SCAD file to a chosen path",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "destPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "stl",
+              "scad"
+            ],
+            "default": "stl"
+          }
+        },
+        "required": [
+          "artifactId",
+          "destPath"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "calculation.run",
+      "toolName": "calculation_run",
+      "description": "Experimental unit-aware calculation. Source references are labels, not resolved field values; derived-unit inference is incomplete. Results are not verified engineering evidence.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "unit"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "unknown": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "unknown",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "sourceRef": {
+                  "type": "object",
+                  "properties": {
+                    "artifactId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "revisionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "artifactId",
+                    "revisionId"
+                  ],
+                  "additionalProperties": false
+                },
+                "literal": {
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "required": [
+                "name",
+                "quantity"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "title": {
+            "type": "string"
+          },
+          "submitForReview": {
+            "type": "boolean",
+            "default": true
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "calculation.explain_inputs",
+      "toolName": "calculation_explain_inputs",
+      "description": "Explain calculation inputs and their recorded provenance (experimental)",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "calculation.templates",
+      "toolName": "calculation_templates",
+      "description": "List experimental calculation templates. Derived units and source-field binding are unfinished.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "wiring.validate",
+      "toolName": "wiring_validate",
+      "description": "Run wiring checks",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "wiring.render",
+      "toolName": "wiring_render",
+      "description": "Derived wiring table + diagram",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "wiring.set_pins",
+      "toolName": "wiring_set_pins",
+      "description": "Set component pins on a wiring draft",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentArtifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "componentRevisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "pin": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "power",
+                    "ground",
+                    "signal",
+                    "data",
+                    "mechanical",
+                    "unknown"
+                  ],
+                  "default": "unknown"
+                },
+                "voltageRange": {
+                  "type": "object",
+                  "properties": {
+                    "min": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "unit"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "max": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "unit"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "min",
+                    "max"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "componentArtifactId",
+                "pin"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "baseRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "pins"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "wiring.set_connections",
+      "toolName": "wiring_set_connections",
+      "description": "Set connections on a wiring draft",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "from": {
+                  "type": "object",
+                  "properties": {
+                    "componentArtifactId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "componentRevisionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "pin": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "componentArtifactId",
+                    "componentRevisionId",
+                    "pin"
+                  ],
+                  "additionalProperties": false
+                },
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "componentArtifactId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "componentRevisionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "pin": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "componentArtifactId",
+                    "componentRevisionId",
+                    "pin"
+                  ],
+                  "additionalProperties": false
+                },
+                "voltage": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit"
+                  ],
+                  "additionalProperties": false
+                },
+                "signalRole": {
+                  "type": "string"
+                },
+                "polarity": {
+                  "type": "string",
+                  "enum": [
+                    "+",
+                    "-",
+                    "bidirectional",
+                    "none"
+                  ]
+                },
+                "wire": {
+                  "type": "object",
+                  "properties": {
+                    "gauge": {
+                      "type": "string"
+                    },
+                    "currentRating": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "unit"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "from",
+                "to",
+                "signalRole"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "baseRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "connections"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.submit",
+      "toolName": "proposal_submit",
+      "description": "Submit an immutable proposal",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "baseRevisionId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "newRevisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "baseline_update",
+                    "new_artifact",
+                    "component_selection",
+                    "bom_edit",
+                    "archive"
+                  ]
+                },
+                "replacesArtifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "bomLines": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "componentArtifactId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "componentRevisionId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "subsystem": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "quantity": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      "offerId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "location": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "notes": {
+                        "type": "string",
+                        "default": ""
+                      }
+                    },
+                    "required": [
+                      "componentArtifactId",
+                      "componentRevisionId",
+                      "subsystem",
+                      "quantity",
+                      "offerId",
+                      "location"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "removeBomLineIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              },
+              "required": [
+                "artifactId",
+                "newRevisionId",
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "reason": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.read",
+      "toolName": "proposal_read",
+      "description": "Read a proposal",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.wait",
+      "toolName": "proposal_wait",
+      "description": "Bounded wait for proposal resolution",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 600000,
+            "default": 60000
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.list",
+      "toolName": "proposal_list",
+      "description": "List proposals",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected",
+              "changes_requested",
+              "conflicted",
+              "cancelled",
+              "superseded"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.approve",
+      "toolName": "proposal_approve",
+      "description": "Approve a proposal (human only)",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "verificationEvidence": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.reject",
+      "toolName": "proposal_reject",
+      "description": "Reject a proposal (human only)",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "proposal.request_changes",
+      "toolName": "proposal_request_changes",
+      "description": "Request changes on a proposal",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rationale": {
+            "type": "string",
+            "default": ""
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "job.read",
+      "toolName": "job_read",
+      "description": "Read job status/log",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "job.cancel",
+      "toolName": "job_cancel",
+      "description": "Cancel an owned job",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "job.list",
+      "toolName": "job_list",
+      "description": "List jobs",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 200,
+            "default": 50
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "tool.list",
+      "toolName": "tool_list",
+      "description": "List agent/tool availability",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "tool.doctor",
+      "toolName": "tool_doctor",
+      "description": "Run diagnostics for tools",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "toolId": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "tool.describe",
+      "toolName": "tool_describe",
+      "description": "Describe an operation: purpose and JSON schema of its input. Use when unsure how to call a tool.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Operation name, e.g. \"cad.check\" (tool names use `_` for `.`)."
+          }
+        },
+        "required": [
+          "op"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "test.create_draft",
+      "toolName": "test_create_draft",
+      "description": "Create a test procedure draft",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "procedure": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "integer"
+                },
+                "instruction": {
+                  "type": "string"
+                },
+                "expected": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "step",
+                "instruction"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1
+          },
+          "requirementRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "artifactId",
+                "revisionId"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "conditions": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "procedure"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "test.record_result",
+      "toolName": "test_record_result",
+      "description": "Record a test result/observation",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requirementRef": {
+            "type": "object",
+            "properties": {
+              "artifactId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revisionId": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "artifactId",
+              "revisionId"
+            ],
+            "additionalProperties": false
+          },
+          "evidenceKind": {
+            "type": "string",
+            "enum": [
+              "assumed",
+              "sourced",
+              "calculated",
+              "simulated",
+              "measured"
+            ]
+          },
+          "observation": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "not_run",
+              "passed",
+              "failed",
+              "inconclusive"
+            ]
+          },
+          "conditions": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "sourcePath": {
+                  "type": "string"
+                },
+                "contentBase64": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "measurementOrigin": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "evidenceKind",
+          "observation",
+          "result"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "build.preview",
+      "toolName": "build_preview",
+      "description": "Preview build package contents/status",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "build.export",
+      "toolName": "build_export",
+      "description": "Export a build package ZIP",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destPath": {
+            "type": "string",
+            "minLength": 1
+          },
+          "includeDrafts": {
+            "type": "boolean",
+            "default": false
+          },
+          "label": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "destPath"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "ui.open_artifact",
+      "toolName": "ui_open_artifact",
+      "description": "Open an artifact in the workspace",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "ui.request_review",
+      "toolName": "ui_request_review",
+      "description": "Surface a proposal for user review",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "proposalId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "ui.suggest_action",
+      "toolName": "ui_suggest_action",
+      "description": "Add a suggested next action",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "ui.focus_terminal",
+      "toolName": "ui_focus_terminal",
+      "description": "Focus the agent terminal",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.start",
+      "toolName": "terminal_start",
+      "description": "Start an agent session in the PTY",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "adapterId": {
+            "type": "string"
+          },
+          "executablePath": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "adapterId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.write",
+      "toolName": "terminal_write",
+      "description": "Write input bytes to the PTY",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.resize",
+      "toolName": "terminal_resize",
+      "description": "Resize the PTY",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "cols",
+          "rows"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.interrupt",
+      "toolName": "terminal_interrupt",
+      "description": "Send interrupt to the session",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.stop",
+      "toolName": "terminal_stop",
+      "description": "Stop the owned session tree",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.restart",
+      "toolName": "terminal_restart",
+      "description": "Restart the agent session",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "terminal.state",
+      "toolName": "terminal_state",
+      "description": "Read terminal/session state",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "connection.list",
+      "toolName": "connection_list",
+      "description": "List adapter/tool connection status",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "connection.test",
+      "toolName": "connection_test",
+      "description": "Run a live bridge connection test",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "adapterId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapterId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "connection.configure",
+      "toolName": "connection_configure",
+      "description": "Configure adapter executable/args/env",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "adapterId": {
+            "type": "string"
+          },
+          "executablePath": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "adapterId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "settings.get",
+      "toolName": "settings_get",
+      "description": "Read application settings",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "settings.set",
+      "toolName": "settings_set",
+      "description": "Write an application setting",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": [
+          "key"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ]
+}

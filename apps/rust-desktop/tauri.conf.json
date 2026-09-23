@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Omen Flow Rust Preview",
+  "version": "0.1.0",
+  "identifier": "app.omenflow.desktop.rust-preview",
+  "build": {
+    "devUrl": "http://127.0.0.1:5174",
+    "frontendDist": "../desktop/rust-dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Omen Flow",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 700
+      }
+    ],
+    "security": { "capabilities": ["main"] }
+  },
+  "bundle": { "active": true }
+}

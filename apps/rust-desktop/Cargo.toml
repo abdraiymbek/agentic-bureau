@@ -1,0 +1,18 @@
+[package]
+name = "omenflow-rust-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+omenflow-core = { path = "../../crates/core" }
+omenflow-contracts = { path = "../../crates/contracts" }
+serde_json.workspace = true
+tauri = { version = "2.11.6", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+uuid = { version = "1", features = ["v4"] }
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }

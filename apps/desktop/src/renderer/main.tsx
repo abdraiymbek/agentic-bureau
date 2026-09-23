@@ -6,6 +6,10 @@ import './tokens.css';
 import './global.css';
 
 async function mount() {
+  if (!window.omenflow && '__TAURI_INTERNALS__' in window) {
+    const { installTauriApi } = await import('./tauri-api');
+    await installTauriApi();
+  }
   if (
     !window.omenflow &&
     import.meta.env.DEV &&
