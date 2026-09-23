@@ -1,8 +1,10 @@
 //! Rust application command layer. Each migrated operation is kept behind the
 //! same contract name and JSON shape as the v0.1 TypeScript implementation.
 
+mod components;
 mod graph;
 mod models;
+mod simple;
 
 use base64::Engine;
 use chrono::{SecondsFormat, Utc};
@@ -12,6 +14,7 @@ use omenflow_storage::{
 };
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -147,6 +150,43 @@ impl CoreApp {
                 }
                 Ok(json!({"projects": projects, "projectNames": project_names}))
             }
+            "app.diagnostics" => Ok(
+                json!({"appDataDir": self.app_data_dir, "openProjects": self.projects.keys().collect::<Vec<_>>(), "versions": {"rust": env!("CARGO_PKG_VERSION")}}),
+            ),
+            "settings.get" => {
+                let settings = self.read_settings();
+                if let Some(key) = payload["key"].as_str() {
+                    let mut parts = key.split('.');
+                    let first = parts.next().unwrap_or("");
+                    let second = parts.next().unwrap_or("");
+                    Ok(json!({"value": settings[first][second]}))
+                } else {
+                    Ok(json!({"settings": settings}))
+                }
+            }
+            "settings.set" => {
+                let key = required_str(&payload, "key")?;
+                let mut parts = key.split('.');
+                let first = parts.next().unwrap_or("");
+                let second = parts.next().unwrap_or("");
+                if first.is_empty()
+                    || second.is_empty()
+                    || [first, second]
+                        .iter()
+                        .any(|part| matches!(*part, "__proto__" | "constructor" | "prototype"))
+                {
+                    return Err(ContractError::validation(format!(
+                        "Bad settings key: {key}"
+                    )));
+                }
+                let mut settings = self.read_settings();
+                if !settings[first].is_object() {
+                    settings[first] = json!({});
+                }
+                settings[first][second] = payload["value"].clone();
+                self.write_settings(&settings)?;
+                Ok(json!({"ok": true}))
+            }
             _ => {
                 let id = project_id.ok_or_else(|| {
                     ContractError::validation(format!("Operation {op} needs a projectId"))
@@ -162,6 +202,118 @@ impl CoreApp {
         }
     }
 
+    /// Durable at-most-once dispatch for project mutations. A committed result
+    /// is journaled before the SQLite replay row is completed; an interrupted
+    /// pending attempt cannot silently execute twice.
+    pub fn dispatch_idempotent(
+        &mut self,
+        op: &str,
+        payload: Value,
+        origin: Origin,
+        project_id: Option<&str>,
+        idempotency_key: Option<&str>,
+    ) -> CoreResult<Value> {
+        let Some(key) = idempotency_key.filter(|key| !key.is_empty()) else {
+            return self.dispatch(op, payload, origin, project_id);
+        };
+        let definition = registry()
+            .operation(op)
+            .ok_or_else(|| ContractError::validation(format!("Unknown operation: {op}")))?;
+        if !definition.mutating {
+            return self.dispatch(op, payload, origin, project_id);
+        }
+        let project_id = project_id.ok_or_else(|| {
+            ContractError::new(
+                "INTERNAL",
+                "App-level idempotency reservation has not been ported",
+            )
+        })?;
+        let parsed = parse_input(definition, payload)?;
+        let who = origin.session_id().unwrap_or("user");
+        let replay_key = format!("{who}:{op}:{key}");
+        let hash = format!(
+            "{:x}",
+            Sha256::digest(json!({"op":op,"payload":parsed}).to_string().as_bytes())
+        );
+        let root = self.project_root(project_id)?;
+        let handle = self
+            .projects
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
+        if let Some((prior_hash, response)) = handle
+            .db
+            .query_row(
+                "SELECT request_hash,response FROM idempotency WHERE key=?1",
+                [&replay_key],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(internal)?
+        {
+            if prior_hash != hash {
+                return Err(ContractError::validation(
+                    "Idempotency key reused with different payload",
+                ));
+            }
+            let prior: Value = serde_json::from_str(&response).map_err(internal)?;
+            if prior["operationPending"] == true {
+                if let Some(journal) = read_result_journal(&root, &replay_key, &hash) {
+                    handle
+                        .db
+                        .execute(
+                            "UPDATE idempotency SET response=?1 WHERE key=?2",
+                            params![journal.to_string(), replay_key],
+                        )
+                        .map_err(internal)?;
+                    clear_result_journal(&root, &replay_key);
+                    return Ok(with_replay_marker(journal, true));
+                }
+                return Err(ContractError::new("REVISION_CONFLICT", "Previous attempt was interrupted; inspect its jobs/revisions before retrying with a new key"));
+            }
+            if let Some(error) = prior.get("operationFailure") {
+                return Err(serde_json::from_value(error.clone()).map_err(internal)?);
+            }
+            return Ok(with_replay_marker(prior, false));
+        }
+        handle
+            .db
+            .execute(
+                "INSERT INTO idempotency(key,request_hash,response,created_at) VALUES(?1,?2,?3,?4)",
+                params![
+                    replay_key,
+                    hash,
+                    json!({"operationPending":true}).to_string(),
+                    now()
+                ],
+            )
+            .map_err(internal)?;
+        match self.dispatch(op, parsed, origin, Some(project_id)) {
+            Ok(result) => {
+                write_result_journal(&root, &replay_key, &hash, &result)?;
+                self.projects
+                    .get(project_id)
+                    .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?
+                    .db
+                    .execute(
+                        "UPDATE idempotency SET response=?1 WHERE key=?2",
+                        params![result.to_string(), replay_key],
+                    )
+                    .map_err(internal)?;
+                clear_result_journal(&root, &replay_key);
+                Ok(result)
+            }
+            Err(error) => {
+                if let Some(handle) = self.projects.get(project_id) {
+                    let _ = handle.db.execute(
+                        "UPDATE idempotency SET response=?1 WHERE key=?2",
+                        params![json!({"operationFailure":error}).to_string(), replay_key],
+                    );
+                }
+                Err(error)
+            }
+        }
+    }
+
     pub fn latest_event_seq(&self, project_id: &str) -> CoreResult<i64> {
         let handle = self
             .projects
@@ -173,6 +325,52 @@ impl CoreApp {
                 row.get(0)
             })
             .map_err(internal)
+    }
+
+    pub fn project_root(&self, project_id: &str) -> CoreResult<PathBuf> {
+        self.projects
+            .get(project_id)
+            .map(|handle| handle.root.clone())
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))
+    }
+
+    pub fn adapter_config(&self, adapter_id: &str) -> Value {
+        self.read_settings()["adapters"][adapter_id].clone()
+    }
+
+    pub fn configure_adapter(&self, adapter_id: &str, input: &Value) -> CoreResult<()> {
+        let mut settings = self.read_settings();
+        if !settings["adapters"].is_object() {
+            settings["adapters"] = json!({});
+        }
+        let mut current = settings["adapters"][adapter_id].clone();
+        if !current.is_object() {
+            current = json!({});
+        }
+        for key in [
+            "executablePath",
+            "args",
+            "env",
+            "lastTestAt",
+            "lastTestOk",
+            "lastError",
+        ] {
+            if let Some(value) = input.get(key) {
+                current[key] = value.clone();
+            }
+        }
+        settings["adapters"][adapter_id] = current;
+        self.write_settings(&settings)
+    }
+
+    pub fn upsert_session(&self, project_id: &str, info: &Value) -> CoreResult<()> {
+        let handle = self
+            .projects
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
+        handle.db.execute("INSERT INTO session(id,adapter_id,executable_path,state,pid,exit_code,started_at,ended_at,last_error) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9) ON CONFLICT(id) DO UPDATE SET adapter_id=excluded.adapter_id,executable_path=excluded.executable_path,state=excluded.state,pid=excluded.pid,exit_code=excluded.exit_code,started_at=excluded.started_at,ended_at=excluded.ended_at,last_error=excluded.last_error", params![info["id"].as_str(), info["adapterId"].as_str(), info["executablePath"].as_str(), info["state"].as_str(), info["pid"].as_i64(), info["exitCode"].as_i64(), info["startedAt"].as_str(), info["endedAt"].as_str(), info["lastError"].as_str()]).map_err(internal)?;
+        emit(handle, "session.state", &Origin::System, info.clone())?;
+        Ok(())
     }
 
     pub fn events_since(&self, project_id: &str, seq: i64) -> CoreResult<Vec<Value>> {
@@ -216,18 +414,28 @@ impl CoreApp {
     }
 
     fn save_settings(&self) -> CoreResult<()> {
-        let path = self.app_data_dir.join("settings.json");
-        let mut settings: Value = fs::read(&path)
+        let mut settings = self.read_settings();
+        settings["recentProjects"] = json!(self.recent_projects);
+        self.write_settings(&settings)
+    }
+
+    fn read_settings(&self) -> Value {
+        fs::read(self.app_data_dir.join("settings.json"))
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_else(|| json!({}));
-        settings["recentProjects"] = json!(self.recent_projects);
+            .unwrap_or_else(
+                || json!({"recentProjects": [], "adapters": {}, "prefs": {}, "toolPaths": {}}),
+            )
+    }
+
+    fn write_settings(&self, settings: &Value) -> CoreResult<()> {
+        let path = self.app_data_dir.join("settings.json");
         let temp = self
             .app_data_dir
             .join(format!("settings-{}.tmp", uuid::Uuid::new_v4()));
         fs::write(
             &temp,
-            serde_json::to_vec_pretty(&settings).map_err(internal)?,
+            serde_json::to_vec_pretty(settings).map_err(internal)?,
         )
         .map_err(internal)?;
         fs::rename(temp, path).map_err(internal)
@@ -241,10 +449,35 @@ fn dispatch_project(
     origin: &Origin,
 ) -> CoreResult<Value> {
     match op {
+        "project.rename" => {
+            handle
+                .rename(required_str(payload, "name")?)
+                .map_err(storage_error)?;
+            Ok(json!({"project": handle.project().map_err(storage_error)?}))
+        }
+        "project.update_intent" => {
+            let intent = required_str(payload, "intent")?;
+            let tx = handle.db.unchecked_transaction().map_err(internal)?;
+            tx.execute("UPDATE project SET intent=?1", [intent])
+                .map_err(internal)?;
+            tx_event(
+                &tx,
+                "project.intent_changed",
+                origin.kind(),
+                json!({"intent": intent}),
+            )?;
+            tx.commit().map_err(internal)?;
+            Ok(json!({"project": handle.project().map_err(storage_error)?}))
+        }
         "artifact.list" => artifact_list(handle, payload),
         "artifact.read" => artifact_read(handle, payload),
         "artifact.history" => artifact_history(handle, payload),
+        "artifact.compare" => artifact_compare(handle, payload),
+        "artifact.archive" => artifact_archive(handle, payload),
+        "artifact.set_subsystem" => artifact_set_subsystem(handle, payload),
         "artifact.read_file" => artifact_read_file(handle, payload),
+        "artifact.reveal" => simple::artifact_reveal(handle, payload),
+        "project.summary" => simple::project_summary(handle, payload),
         "project.changes_since" => changes_since(handle, payload),
         "project.search" => project_search(handle, payload),
         "graph.list" => graph_list(handle),
@@ -252,6 +485,55 @@ fn dispatch_project(
         "graph.impact" => graph::impact(handle, payload),
         "graph.propose_edges" => graph::propose_edges(handle, payload, origin.kind()),
         "job.list" => job_list(handle, payload),
+        "job.read" => simple::job_read(handle, payload),
+        "job.cancel" => simple::job_cancel(handle, payload, origin),
+        "tool.list" => simple::tool_list(),
+        "tool.describe" => simple::tool_describe(payload),
+        "tool.doctor" => simple::tool_doctor(payload),
+        "source.capture" => simple::source_capture(handle, payload, origin),
+        "source.read" => simple::source_read(handle, payload),
+        "test.create_draft" => simple::test_create_draft(handle, payload, origin),
+        "cad.export" => simple::cad_export(handle, payload),
+        "component.add_candidate" => components::add_candidate(handle, payload, origin),
+        "component.add_offer" => components::add_offer(handle, payload),
+        "component.compare" => components::compare(handle, payload),
+        "component.propose_selection" => components::propose_selection(handle, payload, origin),
+        "bom.read" => components::bom_read(handle),
+        "bom.propose_edit" => components::bom_propose_edit(handle, payload, origin),
+        "bom.update_line" => components::bom_update_line(handle, payload),
+        "bom.remove_line" => components::bom_remove_line(handle, payload),
+        "bom.export" => components::bom_export(handle, payload),
+        "ui.open_artifact" => {
+            emit(
+                handle,
+                "ui.open_artifact",
+                origin,
+                json!({"artifactId": payload["artifactId"]}),
+            )?;
+            Ok(json!({"ok":true}))
+        }
+        "ui.request_review" => {
+            emit(
+                handle,
+                "ui.request_review",
+                origin,
+                json!({"proposalId": payload["proposalId"]}),
+            )?;
+            Ok(json!({"ok":true}))
+        }
+        "ui.suggest_action" => {
+            emit(
+                handle,
+                "ui.suggested_action",
+                origin,
+                json!({"title": payload["title"], "detail": payload["detail"]}),
+            )?;
+            Ok(json!({"ok":true}))
+        }
+        "ui.focus_terminal" => {
+            emit(handle, "ui.focus_terminal", origin, json!({}))?;
+            Ok(json!({"ok":true}))
+        }
         "proposal.list" => proposal_list(handle, payload),
         "proposal.read" => proposal_read(handle, payload),
         "proposal.submit" => proposal_submit(handle, payload, origin),
@@ -260,7 +542,10 @@ fn dispatch_project(
         "proposal.request_changes" => proposal_resolve(handle, payload, "changes_requested"),
         "artifact.create_draft" => create_draft(handle, payload, origin),
         "artifact.update_draft" => update_draft(handle, payload, origin),
+        "artifact.import_file" => artifact_import_file(handle, payload, origin),
+        "artifact.apply_edit" => apply_edit(handle, payload),
         "artifact.accept_draft" => accept_draft(handle, payload),
+        "artifact.revert" => revert_artifact(handle, payload),
         "terminal.state" => Ok(json!({"session": null})),
         _ => Err(ContractError::new(
             "INTERNAL",
@@ -387,6 +672,157 @@ fn artifact_history(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(internal)?;
     Ok(json!({"revisions": revisions}))
+}
+
+fn artifact_compare(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
+    let artifact_id = required_str(payload, "artifactId")?;
+    let artifact = require_artifact(handle, artifact_id)?;
+    let from = require_revision(handle, required_str(payload, "fromRevisionId")?)?;
+    let to = require_revision(handle, required_str(payload, "toRevisionId")?)?;
+    if from["artifactId"] != artifact_id || to["artifactId"] != artifact_id {
+        return Err(ContractError::validation(
+            "Revisions do not belong to artifact",
+        ));
+    }
+    let mut payload_diff = Vec::new();
+    diff_payloads(
+        Some(&from["payload"]),
+        Some(&to["payload"]),
+        "",
+        &mut payload_diff,
+    );
+    let from_files = from["files"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let to_files = to["files"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let added_files = to_files
+        .iter()
+        .filter(|file| {
+            !from_files
+                .iter()
+                .any(|prior| prior["path"] == file["path"] && prior["sha256"] == file["sha256"])
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed_files = from_files
+        .iter()
+        .filter(|file| {
+            !to_files
+                .iter()
+                .any(|next| next["path"] == file["path"] && next["sha256"] == file["sha256"])
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let from_inputs = from["inputs"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let to_inputs = to["inputs"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let added_inputs = to_inputs
+        .iter()
+        .filter(|item| {
+            !from_inputs.iter().any(|prior| {
+                prior["artifactId"] == item["artifactId"]
+                    && prior["revisionId"] == item["revisionId"]
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let removed_inputs = from_inputs
+        .iter()
+        .filter(|item| {
+            !to_inputs.iter().any(|next| {
+                next["artifactId"] == item["artifactId"] && next["revisionId"] == item["revisionId"]
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    Ok(
+        json!({"artifact": artifact, "from": from, "to": to, "payloadDiff": payload_diff, "fileDiff": {"added": added_files, "removed": removed_files}, "inputDiff": {"added": added_inputs, "removed": removed_inputs}}),
+    )
+}
+
+fn diff_payloads(from: Option<&Value>, to: Option<&Value>, path: &str, out: &mut Vec<Value>) {
+    if from == to {
+        return;
+    }
+    let from_object = from.and_then(Value::as_object);
+    let to_object = to.and_then(Value::as_object);
+    if from_object.is_some() && to_object.is_some() {
+        for key in from_object
+            .unwrap()
+            .keys()
+            .chain(to_object.unwrap().keys())
+            .collect::<std::collections::BTreeSet<_>>()
+        {
+            let nested = if path.is_empty() {
+                key.clone()
+            } else {
+                format!("{path}.{key}")
+            };
+            diff_payloads(
+                from_object.unwrap().get(key),
+                to_object.unwrap().get(key),
+                &nested,
+                out,
+            );
+        }
+        return;
+    }
+    if let (Some(from_items), Some(to_items)) =
+        (from.and_then(Value::as_array), to.and_then(Value::as_array))
+    {
+        for index in 0..from_items.len().max(to_items.len()) {
+            let nested = if path.is_empty() {
+                index.to_string()
+            } else {
+                format!("{path}.{index}")
+            };
+            diff_payloads(from_items.get(index), to_items.get(index), &nested, out);
+        }
+        return;
+    }
+    let mut entry = serde_json::Map::new();
+    entry.insert(
+        "path".into(),
+        json!(if path.is_empty() { "(root)" } else { path }),
+    );
+    if let Some(value) = from {
+        entry.insert("from".into(), value.clone());
+    }
+    if let Some(value) = to {
+        entry.insert("to".into(), value.clone());
+    }
+    out.push(Value::Object(entry));
+}
+
+fn artifact_archive(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
+    let id = required_str(payload, "artifactId")?;
+    require_artifact(handle, id)?;
+    let archived = payload["archived"].as_bool().unwrap_or(true);
+    let tx = handle.db.unchecked_transaction().map_err(internal)?;
+    tx.execute(
+        "UPDATE artifact SET archived=?1 WHERE id=?2",
+        params![archived as i64, id],
+    )
+    .map_err(internal)?;
+    let seq = tx_event(
+        &tx,
+        "artifact.archived",
+        "user",
+        json!({"artifactId": id, "archived": archived}),
+    )?;
+    tx.commit().map_err(internal)?;
+    graph::propagate_from(handle, &[id.to_owned()], seq)?;
+    Ok(json!({"ok": true}))
+}
+
+fn artifact_set_subsystem(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
+    let id = required_str(payload, "artifactId")?;
+    require_artifact(handle, id)?;
+    handle
+        .db
+        .execute(
+            "UPDATE artifact SET subsystem=?1 WHERE id=?2",
+            params![payload["subsystem"].as_str(), id],
+        )
+        .map_err(internal)?;
+    Ok(json!({"ok": true}))
 }
 
 fn artifact_read_file(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
@@ -681,6 +1117,14 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
 }
 
 fn accept_draft(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
+    accept_draft_with_action(handle, input, "accepted")
+}
+
+fn accept_draft_with_action(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    action: &str,
+) -> CoreResult<Value> {
     let artifact_id = required_str(input, "artifactId")?;
     let artifact = require_artifact(handle, artifact_id)?;
     let revision_id = required_str(input, "draftRevisionId")?;
@@ -730,7 +1174,7 @@ fn accept_draft(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> 
     tx_decision(
         &tx,
         None,
-        "accepted",
+        action,
         input["rationale"].as_str().unwrap_or(""),
         &prior,
         &[json!({"artifactId": artifact_id, "revisionId": revision_id})],
@@ -746,6 +1190,115 @@ fn accept_draft(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> 
     )?;
     Ok(
         json!({"artifact": require_artifact(handle, artifact_id)?, "revision": get_revision(handle, revision_id)?}),
+    )
+}
+
+fn artifact_import_file(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
+    let path = required_str(input, "path")?;
+    let file = json!({"path": path, "sourcePath": path});
+    if let Some(artifact_id) = input["artifactId"].as_str() {
+        update_draft(
+            handle,
+            &json!({"artifactId": artifact_id, "files": [file], "rationale": input["rationale"]}),
+            origin,
+        )
+    } else {
+        let type_name = input["type"].as_str().ok_or_else(|| {
+            ContractError::validation("import_file needs type+title for new artifacts")
+        })?;
+        let title = input["title"].as_str().ok_or_else(|| {
+            ContractError::validation("import_file needs type+title for new artifacts")
+        })?;
+        create_draft(
+            handle,
+            &json!({"type": type_name, "title": title, "payload": {}, "files": [file], "inputs": [], "rationale": input["rationale"]}),
+            origin,
+        )
+    }
+}
+
+fn apply_edit(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
+    let artifact_id = required_str(input, "artifactId")?;
+    let base_id = required_str(input, "baseRevisionId")?;
+    let artifact = require_artifact(handle, artifact_id)?;
+    if artifact["selectedRevisionId"] != base_id {
+        return Err(ContractError::new(
+            "REVISION_CONFLICT",
+            "Base revision is no longer selected",
+        ));
+    }
+    let parent = require_revision(handle, base_id)?;
+    let mut payload = input.get("payload").cloned();
+    if let Some(patch) = input["payloadPatch"].as_object() {
+        let mut base = parent["payload"].as_object().cloned().unwrap_or_default();
+        for (key, value) in patch {
+            base.insert(key.clone(), value.clone());
+        }
+        payload = Some(Value::Object(base));
+    }
+    let mut update = json!({"artifactId": artifact_id, "baseRevisionId": base_id, "rationale": input["rationale"]});
+    if let Some(payload) = payload {
+        update["payload"] = payload;
+    }
+    if let Some(title) = input["title"].as_str() {
+        update["title"] = json!(title);
+    }
+    if let Some(writes) = input["fileWrites"].as_array() {
+        if !writes.is_empty() {
+            let overwritten = writes
+                .iter()
+                .filter_map(|file| file["path"].as_str())
+                .collect::<std::collections::HashSet<_>>();
+            let store = handle.object_store().map_err(storage_error)?;
+            let mut files = Vec::new();
+            for file in parent["files"].as_array().into_iter().flatten() {
+                let path = required_str(file, "path")?;
+                if overwritten.contains(path) {
+                    continue;
+                }
+                let sha = required_str(file, "sha256")?;
+                files.push(json!({"path": path, "contentBase64": base64::engine::general_purpose::STANDARD.encode(store.read(sha).map_err(storage_error)?)}));
+            }
+            files.extend(writes.iter().cloned());
+            update["files"] = json!(files);
+        }
+    }
+    let draft = update_draft(handle, &update, &Origin::User)?;
+    accept_draft_with_action(
+        handle,
+        &json!({"artifactId": artifact_id, "draftRevisionId": draft["revision"]["id"], "rationale": input["rationale"]}),
+        "direct_edit",
+    )
+}
+
+fn revert_artifact(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
+    let artifact_id = required_str(input, "artifactId")?;
+    let artifact = require_artifact(handle, artifact_id)?;
+    let target = require_revision(handle, required_str(input, "toRevisionId")?)?;
+    if target["artifactId"] != artifact_id {
+        return Err(ContractError::validation(
+            "Revision does not belong to artifact",
+        ));
+    }
+    let store = handle.object_store().map_err(storage_error)?;
+    let mut files = Vec::new();
+    for file in target["files"].as_array().into_iter().flatten() {
+        let sha = required_str(file, "sha256")?;
+        files.push(json!({"path": file["path"], "contentBase64": base64::engine::general_purpose::STANDARD.encode(store.read(sha).map_err(storage_error)?)}));
+    }
+    let mut draft_input = json!({"artifactId": artifact_id, "payload": target["payload"], "files": files, "inputs": target["inputs"], "rationale": format!("Revert to revision {}: {}", target["seq"], input["rationale"].as_str().unwrap_or(""))});
+    if let Some(selected) = artifact["selectedRevisionId"].as_str() {
+        draft_input["baseRevisionId"] = json!(selected);
+    }
+    let draft = update_draft(handle, &draft_input, &Origin::User)?;
+    accept_draft_with_action(
+        handle,
+        &json!({"artifactId": artifact_id, "draftRevisionId": draft["revision"]["id"], "rationale": input["rationale"]}),
+        "revert",
     )
 }
 
@@ -919,13 +1472,40 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
                     "Proposal base is stale",
                 ));
             }
-            if change["kind"] != "new_artifact" && change["kind"] != "baseline_update" {
+            if !matches!(
+                change["kind"].as_str(),
+                Some(
+                    "new_artifact"
+                        | "baseline_update"
+                        | "component_selection"
+                        | "bom_edit"
+                        | "archive"
+                )
+            ) {
                 return Err(ContractError::new(
                     "TOOL_MISSING",
                     "This approval change kind is not ported yet",
                 ));
             }
             assert_simple_approval(&artifact)?;
+            if let Some(lines) = change["bomLines"].as_array() {
+                for line in lines {
+                    let component_id = required_str(line, "componentArtifactId")?;
+                    let component = require_artifact(handle, component_id)?;
+                    if component["type"] != "component" {
+                        return Err(ContractError::validation(
+                            "BOM line target must be a component",
+                        ));
+                    }
+                    let linked =
+                        require_revision(handle, required_str(line, "componentRevisionId")?)?;
+                    if linked["artifactId"] != component_id {
+                        return Err(ContractError::validation(
+                            "BOM line revision does not belong to component",
+                        ));
+                    }
+                }
+            }
             graph::validate_revision_inputs(
                 handle,
                 required_str(change, "artifactId")?,
@@ -950,8 +1530,30 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
             if let Some(old) = artifact["selectedRevisionId"].as_str() {
                 prior.push(json!({"artifactId": artifact_id, "revisionId": old}));
             }
-            promote_revision(&tx, &artifact, &revision)?;
-            next.push(json!({"artifactId": artifact_id, "revisionId": revision["id"]}));
+            if change["kind"] == "archive" {
+                tx.execute("UPDATE artifact SET archived=1 WHERE id=?1", [artifact_id])
+                    .map_err(internal)?;
+            } else {
+                promote_revision(&tx, &artifact, &revision)?;
+                next.push(json!({"artifactId": artifact_id, "revisionId": revision["id"]}));
+            }
+            if change["kind"] == "component_selection" {
+                if let Some(replaced) = change["replacesArtifactId"].as_str() {
+                    tx.execute("UPDATE artifact SET archived=1 WHERE id=?1", [replaced])
+                        .map_err(internal)?;
+                }
+            }
+            if let Some(lines) = change["bomLines"].as_array() {
+                for line in lines {
+                    tx.execute("INSERT INTO bom_line(id,component_artifact_id,component_revision_id,subsystem,quantity,offer_id,location,notes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", params![uuid::Uuid::new_v4().to_string(), line["componentArtifactId"].as_str(), line["componentRevisionId"].as_str(), line["subsystem"].as_str(), line["quantity"].as_f64(), line["offerId"].as_str(), line["location"].as_str(), line["notes"].as_str().unwrap_or("")]).map_err(internal)?;
+                }
+            }
+            if let Some(ids) = change["removeBomLineIds"].as_array() {
+                for id in ids.iter().filter_map(Value::as_str) {
+                    tx.execute("DELETE FROM bom_line WHERE id=?1", [id])
+                        .map_err(internal)?;
+                }
+            }
         }
     } else if state == "rejected" {
         for change in changes {
@@ -1218,6 +1820,62 @@ fn now() -> String {
     Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
+fn journal_path(root: &Path, key: &str) -> PathBuf {
+    let digest = format!("{:x}", Sha256::digest(key.as_bytes()));
+    root.join(".omenflow/recovery/idempotency")
+        .join(format!("{digest}.json"))
+}
+
+fn write_result_journal(root: &Path, key: &str, hash: &str, response: &Value) -> CoreResult<()> {
+    use std::io::Write;
+    let path = journal_path(root, key);
+    fs::create_dir_all(path.parent().unwrap()).map_err(internal)?;
+    let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
+    let result = (|| {
+        let mut file = fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .map_err(internal)?;
+        file.write_all(
+            json!({"key":key,"requestHash":hash,"response":response,"writtenAt":now()})
+                .to_string()
+                .as_bytes(),
+        )
+        .map_err(internal)?;
+        file.sync_all().map_err(internal)?;
+        fs::rename(&temporary, &path).map_err(internal)
+    })();
+    let _ = fs::remove_file(&temporary);
+    result
+}
+
+fn read_result_journal(root: &Path, key: &str, hash: &str) -> Option<Value> {
+    let journal: Value = serde_json::from_slice(&fs::read(journal_path(root, key)).ok()?).ok()?;
+    if journal["key"] == key
+        && journal["requestHash"] == hash
+        && journal["response"]["operationPending"] != true
+    {
+        Some(journal["response"].clone())
+    } else {
+        None
+    }
+}
+
+fn clear_result_journal(root: &Path, key: &str) {
+    let _ = fs::remove_file(journal_path(root, key));
+}
+
+fn with_replay_marker(mut response: Value, recovered: bool) -> Value {
+    if let Some(object) = response.as_object_mut() {
+        object.insert("idempotent".into(), json!(true));
+        if recovered {
+            object.insert("recovered".into(), json!(true));
+        }
+    }
+    response
+}
+
 fn required_str<'a>(value: &'a Value, field: &str) -> CoreResult<&'a str> {
     value[field]
         .as_str()
@@ -1270,6 +1928,71 @@ mod tests {
             )
             .unwrap();
         assert_eq!(search["results"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn idempotent_project_mutation_replays_without_duplicating_revision() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("appdata")).unwrap();
+        let created = app
+            .dispatch(
+                "project.create",
+                json!({"name":"Replay","path":temp.path().join("project"),"intent":"test"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let id = created["projectId"].as_str().unwrap();
+        let input = json!({"type":"requirement","title":"Load","payload":{"statement":"Carry load","acceptanceCriterion":"Pass test"}});
+        let first = app
+            .dispatch_idempotent(
+                "artifact.create_draft",
+                input.clone(),
+                Origin::User,
+                Some(id),
+                Some("draft-1"),
+            )
+            .unwrap();
+        let stored_hash: String = app.projects[id]
+            .db
+            .query_row("SELECT request_hash FROM idempotency WHERE key='user:artifact.create_draft:draft-1'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(
+            stored_hash,
+            "ab11b3035d62963e45098bf8b5a6626af9e42dd9db6bb742b680f53472a2b4fe"
+        );
+        let replay = app
+            .dispatch_idempotent(
+                "artifact.create_draft",
+                input.clone(),
+                Origin::User,
+                Some(id),
+                Some("draft-1"),
+            )
+            .unwrap();
+        assert_eq!(first["revision"]["id"], replay["revision"]["id"]);
+        assert_eq!(replay["idempotent"], true);
+        assert_eq!(
+            app.dispatch("artifact.list", json!({}), Origin::User, Some(id))
+                .unwrap()["artifacts"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        let changed = json!({"type":"requirement","title":"Other","payload":{"statement":"Carry load","acceptanceCriterion":"Pass test"}});
+        assert_eq!(
+            app.dispatch_idempotent(
+                "artifact.create_draft",
+                changed,
+                Origin::User,
+                Some(id),
+                Some("draft-1")
+            )
+            .unwrap_err()
+            .code,
+            "VALIDATION"
+        );
     }
 
     #[test]

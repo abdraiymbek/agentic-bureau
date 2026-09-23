@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 omenflow-core = { path = "../../crates/core" }
 omenflow-contracts = { path = "../../crates/contracts" }
+omenflow-agent-host = { path = "../../crates/agent-host" }
 serde_json.workspace = true
 tauri = { version = "2.11.6", features = [] }
 tauri-plugin-dialog = "2"

@@ -126,12 +126,25 @@ fn normalize(schema: &Value, value: &mut Value) {
                 }
             }
             if let Some(additional_schema) = additional.filter(|s| s.is_object()) {
-                for (key, member) in object {
+                for (key, member) in object.iter_mut() {
                     if !properties.contains_key(key) {
                         normalize(additional_schema, member);
                     }
                 }
             }
+            // Zod's object parser emits declared fields in schema order.
+            // Keep that order for JSON.stringify request hashes shared with
+            // the existing TypeScript idempotency store.
+            let mut ordered = Map::new();
+            for key in properties.keys() {
+                if let Some(member) = object.remove(key) {
+                    ordered.insert(key.clone(), member);
+                }
+            }
+            for (key, member) in std::mem::take(object) {
+                ordered.insert(key, member);
+            }
+            *object = ordered;
         }
     }
     if let (Some(item_schema), Some(items)) = (schema.get("items"), value.as_array_mut()) {

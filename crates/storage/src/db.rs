@@ -89,13 +89,15 @@ impl ProjectHandle {
                 format!("Unsupported project schema version {db_version}"),
             ));
         }
-        Ok(Self {
+        let mut handle = Self {
             root,
             file,
             db,
             read_only: false,
             _snapshot: None,
-        })
+        };
+        handle.recover_rename()?;
+        Ok(handle)
     }
 
     pub fn create(root: impl AsRef<Path>, name: &str, intent: &str) -> Result<Self, StorageError> {
@@ -172,6 +174,67 @@ impl ProjectHandle {
         } else {
             Ok(())
         }
+    }
+
+    pub fn rename(&mut self, name: &str) -> Result<(), StorageError> {
+        self.assert_writable()?;
+        let journal = self.root.join(".omenflow/recovery/rename.json");
+        fs::create_dir_all(journal.parent().expect("rename journal has parent"))?;
+        atomic_json_write(
+            &journal,
+            &json!({
+                "version": 1,
+                "name": name,
+                "startedAt": Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+            }),
+        )?;
+        self.apply_rename(name, false)?;
+        fs::remove_file(journal)?;
+        Ok(())
+    }
+
+    fn recover_rename(&mut self) -> Result<(), StorageError> {
+        if self.read_only {
+            return Ok(());
+        }
+        let journal = self.root.join(".omenflow/recovery/rename.json");
+        if !journal.is_file() {
+            return Ok(());
+        }
+        let record: Value = serde_json::from_slice(&fs::read(&journal)?)?;
+        if record["version"] != 1 {
+            return Ok(());
+        }
+        let Some(name) = record["name"].as_str() else {
+            return Ok(());
+        };
+        let name = name.to_owned();
+        self.apply_rename(&name, true)?;
+        fs::remove_file(journal)?;
+        Ok(())
+    }
+
+    fn apply_rename(&mut self, name: &str, recovered: bool) -> Result<(), StorageError> {
+        let current = self.project()?;
+        if current.as_ref().and_then(|p| p["name"].as_str()) != Some(name) {
+            let tx = self.db.unchecked_transaction()?;
+            tx.execute("UPDATE project SET name=?1", [name])?;
+            tx.execute(
+                "INSERT INTO event(id,type,origin,ts,data) VALUES(?1,'project.renamed',?2,?3,?4)",
+                params![
+                    uuid::Uuid::new_v4().to_string(),
+                    if recovered { "system" } else { "user" },
+                    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+                    json!({"name": name, "recovered": recovered}).to_string()
+                ],
+            )?;
+            tx.commit()?;
+        }
+        if self.file.name != name {
+            self.file.name = name.to_owned();
+            atomic_json_write(&self.root.join(PROJECT_FILE), &self.file)?;
+        }
+        Ok(())
     }
 
     pub fn object_store(&self) -> Result<ObjectStore, StorageError> {
@@ -325,5 +388,24 @@ mod tests {
             .is_empty());
         drop(project);
         assert_eq!(fs::read(&db_path).unwrap(), before);
+    }
+
+    #[test]
+    fn rename_recovery_keeps_database_and_marker_in_sync() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("project");
+        let mut project = ProjectHandle::create(&root, "Original", "").unwrap();
+        project.rename("New name").unwrap();
+        assert_eq!(project.project().unwrap().unwrap()["name"], "New name");
+        let journal = root.join(".omenflow/recovery/rename.json");
+        atomic_json_write(&journal, &json!({"version": 1, "name": "Recovered name"})).unwrap();
+        drop(project);
+        let reopened = ProjectHandle::open(&root).unwrap();
+        assert_eq!(
+            reopened.project().unwrap().unwrap()["name"],
+            "Recovered name"
+        );
+        assert_eq!(reopened.file.name, "Recovered name");
+        assert!(!journal.exists());
     }
 }

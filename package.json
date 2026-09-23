@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build:bridge": "cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml",
+    "build:rust": "pnpm build:bridge && pnpm --filter @omenflow/desktop build:rust-ui && pnpm --dir apps/rust-desktop exec tauri build --no-sign",
     "dev": "pnpm --filter @omenflow/desktop start",
     "typecheck": "pnpm -r run typecheck && tsc -p evals/tsconfig.json",
     "lint": "eslint .",

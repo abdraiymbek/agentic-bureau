@@ -97,6 +97,8 @@ fn strip_presentational(value: &Value) -> Value {
         Value::Object(object) => Value::Object(
             object
                 .iter()
+                .collect::<std::collections::BTreeMap<_, _>>()
+                .into_iter()
                 .filter(|(key, _)| {
                     !matches!(key.as_str(), "title" | "description" | "notes" | "label")
                 })

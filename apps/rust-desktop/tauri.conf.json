@@ -20,5 +20,10 @@
     ],
     "security": { "capabilities": ["main"] }
   },
-  "bundle": { "active": true }
+  "bundle": {
+    "active": true,
+    "resources": {
+      "../../native/omenflow-bridge/target/release/omenflow": "omenflow"
+    }
+  }
 }
