@@ -24,6 +24,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub use models::{artifact_from_row, event_from_row, revision_from_row};
 
@@ -57,6 +58,7 @@ pub struct CoreApp {
     app_data_dir: PathBuf,
     projects: HashMap<String, ProjectHandle>,
     recent_projects: Vec<String>,
+    event_hook: Option<Arc<dyn Fn(Value) + Send + Sync>>,
 }
 
 impl CoreApp {
@@ -81,7 +83,12 @@ impl CoreApp {
             app_data_dir,
             projects: HashMap::new(),
             recent_projects,
+            event_hook: None,
         })
+    }
+
+    pub fn set_event_hook(&mut self, hook: Arc<dyn Fn(Value) + Send + Sync>) {
+        self.event_hook = Some(hook);
     }
 
     pub fn dispatch(
@@ -139,6 +146,9 @@ impl CoreApp {
             "project.close" => {
                 let id = project_id
                     .ok_or_else(|| ContractError::validation("Project id is required"))?;
+                if let Some(handle) = self.projects.get(id).filter(|handle| !handle.read_only) {
+                    handle.db.execute("UPDATE job SET status='cancelled',finished_at=?1 WHERE status IN ('queued','running')",[now()]).map_err(internal)?;
+                }
                 if self.projects.remove(id).is_none() {
                     return Err(ContractError::new(
                         "NOT_FOUND",
@@ -203,6 +213,7 @@ impl CoreApp {
                 Ok(json!({"ok": true}))
             }
             _ => {
+                let event_hook = self.event_hook.clone();
                 let id = project_id.ok_or_else(|| {
                     ContractError::validation(format!("Operation {op} needs a projectId"))
                 })?;
@@ -211,6 +222,38 @@ impl CoreApp {
                 })?;
                 if definition.mutating {
                     handle.assert_writable().map_err(storage_error)?;
+                }
+                if op == "cad.render" {
+                    let queued = cad::queue_render(handle, &payload, &origin)?;
+                    let root = handle.root.clone();
+                    let job_id = required_str(&queued["job"], "id")?.to_owned();
+                    let mut input = payload.clone();
+                    input["revisionId"] = queued["job"]["inputs"]["revisionId"].clone();
+                    std::thread::spawn(move || {
+                        let Ok(mut worker) = ProjectHandle::open_worker(&root) else {
+                            return;
+                        };
+                        let before = worker
+                            .db
+                            .query_row("SELECT COALESCE(MAX(seq),0) FROM event", [], |row| {
+                                row.get::<_, i64>(0)
+                            })
+                            .unwrap_or(0);
+                        let _ = cad::finish_queued_render(&mut worker, &input, &origin, &job_id);
+                        if let Some(hook) = event_hook {
+                            if let Ok(mut stmt) = worker
+                                .db
+                                .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq")
+                            {
+                                if let Ok(events) = stmt.query_map([before], event_from_row) {
+                                    for event in events.flatten() {
+                                        hook(event);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                    return Ok(queued);
                 }
                 dispatch_project(handle, op, &payload, &origin)
             }
@@ -524,6 +567,9 @@ impl CoreApp {
                     "Another folder with this project identity is already open",
                 ));
             }
+        }
+        if !handle.read_only {
+            handle.db.execute("UPDATE job SET status='interrupted',finished_at=?1 WHERE status IN ('queued','running')",[now()]).map_err(internal)?;
         }
         let path = handle.root.to_string_lossy().to_string();
         self.recent_projects.retain(|p| p != &path);
@@ -2064,6 +2110,85 @@ fn internal(error: impl std::fmt::Display) -> ContractError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn newer_read_only_project_can_close_without_writing_its_snapshot() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("project");
+        ProjectHandle::create(&root, "Future", "test").unwrap();
+        let marker = root.join("omenflow.project.json");
+        let mut value: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
+        value["version"] = json!(999);
+        fs::write(&marker, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
+        let mut app = CoreApp::new(temp.path().join("appdata")).unwrap();
+        let opened = app
+            .dispatch("project.open", json!({"path":root}), Origin::User, None)
+            .unwrap();
+        app.dispatch(
+            "project.close",
+            json!({}),
+            Origin::User,
+            opened["projectId"].as_str(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn cad_render_returns_a_queued_job_and_commits_a_new_draft_in_background() {
+        if cad::probe().ok().and_then(|v| v["available"].as_bool()) != Some(true) {
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("appdata")).unwrap();
+        let created = app
+            .dispatch(
+                "project.create",
+                json!({"name":"Async CAD","path":temp.path().join("project")}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let id = created["projectId"].as_str().unwrap();
+        let source = app
+            .dispatch(
+                "cad.write_source",
+                json!({"title":"Plate","source":"cube([20,10,2]);","timeoutMs":30000}),
+                Origin::User,
+                Some(id),
+            )
+            .unwrap();
+        let queued=app.dispatch("cad.render",json!({"artifactId":source["artifactId"],"revisionId":source["revisionId"],"timeoutMs":30000}),Origin::User,Some(id)).unwrap();
+        assert_eq!(queued["job"]["status"], "queued");
+        let job_id = queued["job"]["id"].as_str().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let job = app
+                .dispatch("job.read", json!({"jobId":job_id}), Origin::User, Some(id))
+                .unwrap();
+            if job["job"]["status"] == "succeeded" {
+                break;
+            }
+            assert!(
+                job["job"]["status"] == "queued" || job["job"]["status"] == "running",
+                "{job}"
+            );
+            assert!(
+                std::time::Instant::now() < deadline,
+                "render job timed out: {job}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let history = app
+            .dispatch(
+                "artifact.history",
+                json!({"artifactId":source["artifactId"]}),
+                Origin::User,
+                Some(id),
+            )
+            .unwrap();
+        assert_eq!(history["revisions"].as_array().unwrap().len(), 2);
+        assert_eq!(history["revisions"][1]["reviewState"], "draft");
+    }
 
     #[test]
     fn app_level_create_replays_across_restart_without_second_project() {

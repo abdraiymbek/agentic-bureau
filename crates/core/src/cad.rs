@@ -58,9 +58,26 @@ fn run_tool(
     timeout_ms: u64,
     cwd: &Path,
 ) -> CoreResult<(bool, String, bool)> {
+    let (ok, log, timed_out, _) = run_tool_interruptible(exe, args, timeout_ms, cwd, || false)?;
+    Ok((ok, log, timed_out))
+}
+
+fn run_tool_interruptible(
+    exe: &Path,
+    args: &[String],
+    timeout_ms: u64,
+    cwd: &Path,
+    cancelled: impl Fn() -> bool,
+) -> CoreResult<(bool, String, bool, bool)> {
     let log_path = cwd.join(format!("tool-{}.log", uuid::Uuid::new_v4()));
     let output = fs::File::create(&log_path).map_err(internal)?;
-    let mut child = Command::new(exe)
+    let mut command = Command::new(exe);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command
         .args(args)
         .current_dir(cwd)
         .stdout(Stdio::from(output.try_clone().map_err(internal)?))
@@ -68,14 +85,17 @@ fn run_tool(
         .spawn()
         .map_err(internal)?;
     let start = Instant::now();
-    let (ok, timed_out) = loop {
+    let (ok, timed_out, was_cancelled) = loop {
         if let Some(status) = child.try_wait().map_err(internal)? {
-            break (status.success(), false);
+            break (status.success(), false, false);
+        }
+        if cancelled() {
+            terminate_tool(&mut child);
+            break (false, false, true);
         }
         if start.elapsed() > Duration::from_millis(timeout_ms) {
-            let _ = child.kill();
-            let _ = child.wait();
-            break (false, true);
+            terminate_tool(&mut child);
+            break (false, true, false);
         }
         std::thread::sleep(Duration::from_millis(20));
     };
@@ -85,7 +105,23 @@ fn run_tool(
         ok,
         String::from_utf8_lossy(&bytes[..bytes.len().min(1_048_576)]).into_owned(),
         timed_out,
+        was_cancelled,
     ))
+}
+
+fn terminate_tool(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    unsafe {
+        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    }
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 pub(super) fn probe() -> CoreResult<Value> {
@@ -390,6 +426,16 @@ fn hash_text(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
 }
 
+fn job_cancelled(handle: &ProjectHandle, id: &str) -> bool {
+    handle
+        .db
+        .query_row("SELECT status FROM job WHERE id=?1", [id], |row| {
+            row.get::<_, String>(0)
+        })
+        .is_ok_and(|status| matches!(status.as_str(), "cancelled" | "interrupted"))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn render_source(
     handle: &ProjectHandle,
     source: &str,
@@ -398,20 +444,37 @@ fn render_source(
     origin: &Origin,
     artifact_id: &str,
     parent_id: Option<&str>,
+    existing_job_id: Option<&str>,
 ) -> CoreResult<Render> {
     safe_scad(source)?;
+    if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
+        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+    }
     let exe =
         executable().ok_or_else(|| ContractError::new("TOOL_MISSING", "OpenSCAD not found"))?;
     let version = engine_version(&exe)?;
+    if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
+        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+    }
     let source_hash = handle
         .object_store()
         .map_err(storage_error)?
         .put(source.as_bytes())
         .map_err(storage_error)?;
-    let job_id = uuid::Uuid::new_v4().to_string();
+    let job_id = existing_job_id
+        .map(str::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let timestamp = now();
-    handle.db.execute("INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at,started_at,finished_at) VALUES(?1,'cad_render','openscad',?2,?3,?4,NULL,'running','','{}',NULL,?5,?6,?6,NULL)",
-        params![job_id,version,json!({"artifactId":artifact_id,"revisionId":parent_id,"params":params}).to_string(),json!({"source":source_hash}).to_string(),origin.session_id(),timestamp]).map_err(internal)?;
+    if existing_job_id.is_some() {
+        let updated=handle.db.execute("UPDATE job SET status='running',tool_version=?1,input_hashes=?2,started_at=?3 WHERE id=?4 AND status='queued'",
+            params![version,json!({"source":source_hash}).to_string(),timestamp,job_id]).map_err(internal)?;
+        if updated != 1 {
+            return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+        }
+    } else {
+        handle.db.execute("INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at,started_at,finished_at) VALUES(?1,'cad_render','openscad',?2,?3,?4,NULL,'running','','{}',NULL,?5,?6,?6,NULL)",
+            params![job_id,version,json!({"artifactId":artifact_id,"revisionId":parent_id,"params":params}).to_string(),json!({"source":source_hash}).to_string(),origin.session_id(),timestamp]).map_err(internal)?;
+    }
     let temp = tempfile::tempdir().map_err(internal)?;
     let scad = temp.path().join("input.scad");
     let stl = temp.path().join("output.stl");
@@ -429,7 +492,13 @@ fn render_source(
     }
     args.push(scad.to_string_lossy().into_owned());
     let start = Instant::now();
-    let (ok, log, timed_out) = run_tool(&exe, &args, timeout_ms, temp.path())?;
+    let (ok, log, timed_out, was_cancelled) =
+        run_tool_interruptible(&exe, &args, timeout_ms, temp.path(), || {
+            job_cancelled(handle, &job_id)
+        })?;
+    if was_cancelled || job_cancelled(handle, &job_id) {
+        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+    }
     let ms = start.elapsed().as_millis();
     let warnings = log
         .lines()
@@ -504,10 +573,13 @@ fn render_source(
             .into(),
         );
     }
-    handle.db.execute("UPDATE job SET status=?1,log=?2,output_hashes=?3,error=?4,command=?5,finished_at=?6 WHERE id=?7",
-        params![if result.ok {"succeeded"} else {"failed"},result.log,json!(result.identity.as_ref().map(|i|json!({"stl":i["outputHash"]})).unwrap_or(json!({}))).to_string(),
+    let updated=handle.db.execute("UPDATE job SET status=?1,log=?2,output_hashes=?3,error=?4,command=?5,finished_at=?6 WHERE id=?7 AND status='running'",
+        params![if result.ok && existing_job_id.is_some() {"running"} else if result.ok {"succeeded"} else {"failed"},result.log,json!(result.identity.as_ref().map(|i|json!({"stl":i["outputHash"]})).unwrap_or(json!({}))).to_string(),
             if result.ok {None} else {Some(json!({"code":"VALIDATION","message":result.errors.first()}).to_string())},
-            format!("{} -o output.stl input.scad",exe.display()),now(),job_id]).map_err(internal)?;
+            format!("{} -o output.stl input.scad",exe.display()),if result.ok && existing_job_id.is_some(){None}else{Some(now())},job_id]).map_err(internal)?;
+    if updated != 1 {
+        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+    }
     Ok(result)
 }
 
@@ -595,6 +667,7 @@ fn commit_cad(
     rationale: &str,
     subsystem: Option<&str>,
     origin: &Origin,
+    queued_job_id: Option<&str>,
 ) -> CoreResult<(Value, Value)> {
     let source_ref = json!({"path":source_path,"sha256":source_hash,"role":"source"});
     let mut files = vec![source_ref.clone()];
@@ -643,6 +716,20 @@ fn commit_cad(
         .map_err(internal)?;
     let timestamp = now();
     let tx = handle.db.unchecked_transaction().map_err(internal)?;
+    if let Some(job_id) = queued_job_id {
+        let updated = tx
+            .execute(
+                "UPDATE job SET status='succeeded',finished_at=?1 WHERE id=?2 AND status='running'",
+                params![timestamp, job_id],
+            )
+            .map_err(internal)?;
+        if updated != 1 {
+            return Err(ContractError::new(
+                "CANCELLED",
+                "Render was cancelled before commit",
+            ));
+        }
+    }
     if artifact.is_none() {
         tx.execute("INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?1,'mechanical',?2,?3,NULL,0,?4)",params![artifact_id,title,subsystem,timestamp]).map_err(internal)?;
     }
@@ -743,6 +830,7 @@ pub(super) fn write_source(
         origin,
         &artifact_id,
         parent.as_ref().and_then(|p| p["id"].as_str()),
+        None,
     )?;
     let after = resolve_materialization_path(&handle.root, &path).map_err(storage_error)?;
     let after_hash = fs::read(&after)
@@ -783,6 +871,7 @@ pub(super) fn write_source(
         rationale,
         input["subsystem"].as_str(),
         origin,
+        None,
     )?;
     let mut notes = Vec::new();
     if !render.ok {
@@ -855,6 +944,7 @@ fn load_render(
         origin,
         required_str(artifact, "id")?,
         revision["id"].as_str(),
+        None,
     )
 }
 
@@ -1085,11 +1175,10 @@ pub(super) fn compose(
     write_source(handle, &args, origin)
 }
 
-pub(super) fn render(
-    handle: &mut ProjectHandle,
+fn render_inputs(
+    handle: &ProjectHandle,
     input: &Value,
-    origin: &Origin,
-) -> CoreResult<Value> {
+) -> CoreResult<(Value, Value, String, Value)> {
     let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
     let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
     let (_, source) = source_of(handle, &revision)?;
@@ -1105,6 +1194,78 @@ pub(super) fn render(
             .map(|(k, v)| (k.clone(), v.clone())),
     );
     let params = override_params(&json!(params), &parameters(&source))?;
+    Ok((artifact, revision, source, params))
+}
+
+pub(super) fn queue_render(
+    handle: &ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
+    let (artifact, revision, source, params) = render_inputs(handle, input)?;
+    safe_scad(&source)?;
+    let id = uuid::Uuid::new_v4().to_string();
+    let source_hash = required_str(
+        scad_ref(&revision).ok_or_else(|| ContractError::validation("CAD source missing"))?,
+        "sha256",
+    )?;
+    handle.db.execute("INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at,started_at,finished_at) VALUES(?1,'cad_render','openscad',NULL,?2,?3,NULL,'queued','','{}',NULL,?4,?5,NULL,NULL)",
+        params![id,json!({"artifactId":artifact["id"],"revisionId":revision["id"],"params":params}).to_string(),json!({"source":source_hash}).to_string(),origin.session_id(),now()]).map_err(internal)?;
+    emit(
+        handle,
+        "job.updated",
+        origin,
+        json!({"jobId":id,"status":"queued"}),
+    )?;
+    simple::job_read(handle, &json!({"jobId":id}))
+}
+
+pub(super) fn render(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
+    render_with_job(handle, input, origin, None)
+}
+
+pub(super) fn finish_queued_render(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+    job_id: &str,
+) -> CoreResult<Value> {
+    let result = render_with_job(handle, input, origin, Some(job_id));
+    if let Err(error) = &result {
+        handle.db.execute("UPDATE job SET status='failed',error=?1,finished_at=?2 WHERE id=?3 AND status IN ('queued','running','succeeded')",
+            params![json!({"code":error.code,"message":error.message}).to_string(),now(),job_id]).map_err(internal)?;
+    }
+    let status = handle
+        .db
+        .query_row("SELECT status FROM job WHERE id=?1", [job_id], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(internal)?;
+    emit(
+        handle,
+        "job.updated",
+        origin,
+        json!({"jobId":job_id,"status":status}),
+    )?;
+    result
+}
+
+fn render_with_job(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+    existing_job_id: Option<&str>,
+) -> CoreResult<Value> {
+    let (artifact, revision, source, params) = render_inputs(handle, input)?;
+    let (path, _) = source_of(handle, &revision)?;
+    let materialized = resolve_materialization_path(&handle.root, &path).map_err(storage_error)?;
+    let before = fs::read(&materialized)
+        .ok()
+        .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
     let result = render_source(
         handle,
         &source,
@@ -1113,9 +1274,31 @@ pub(super) fn render(
         origin,
         required_str(&artifact, "id")?,
         revision["id"].as_str(),
+        existing_job_id,
     )?;
     if result.ok {
-        let (path, _) = source_of(handle, &revision)?;
+        if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
+            return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+        }
+        let latest = handle
+            .db
+            .query_row(
+                "SELECT id FROM revision WHERE artifact_id=?1 ORDER BY seq DESC LIMIT 1",
+                [required_str(&artifact, "id")?],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(internal)?;
+        if latest != required_str(&revision, "id")?
+            || fs::read(&materialized)
+                .ok()
+                .map(|bytes| format!("{:x}", Sha256::digest(bytes)))
+                != before
+        {
+            return Err(ContractError::new(
+                "REVISION_CONFLICT",
+                "CAD source changed during render; reread before retrying",
+            ));
+        }
         let hash = required_str(scad_ref(&revision).unwrap(), "sha256")?;
         let _ = commit_cad(
             handle,
@@ -1132,6 +1315,7 @@ pub(super) fn render(
             "rendered source",
             artifact["subsystem"].as_str(),
             origin,
+            existing_job_id,
         )?;
     }
     let job = handle
@@ -1179,6 +1363,29 @@ pub(super) fn validate_source(handle: &ProjectHandle, input: &Value) -> CoreResu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn cancelled_openscad_process_group_cannot_leave_a_child_running() {
+        let temp = tempfile::tempdir().unwrap();
+        let marker = temp.path().join("child-survived");
+        let script = format!("(sleep 1; touch '{}') & wait", marker.display());
+        let start = Instant::now();
+        let result = run_tool_interruptible(
+            Path::new("/bin/sh"),
+            &["-c".into(), script],
+            5_000,
+            temp.path(),
+            || start.elapsed() > Duration::from_millis(100),
+        )
+        .unwrap();
+        assert!(result.3, "expected cancellation");
+        std::thread::sleep(Duration::from_millis(1200));
+        assert!(
+            !marker.exists(),
+            "OpenSCAD subprocess survived cancellation"
+        );
+    }
 
     #[test]
     fn openscad_render_keeps_source_and_mesh_in_schema_one_project() {
@@ -1282,5 +1489,49 @@ mod tests {
         )
         .unwrap();
         assert_eq!(without_reference["verificationStatus"], "failed");
+        let queued = queue_render(
+            &handle,
+            &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
+            &Origin::User,
+        )
+        .unwrap();
+        let job_id = queued["job"]["id"].as_str().unwrap();
+        simple::job_cancel(&handle, &json!({"jobId":job_id}), &Origin::User).unwrap();
+        assert_eq!(
+            finish_queued_render(
+                &mut handle,
+                &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
+                &Origin::User,
+                job_id
+            )
+            .unwrap_err()
+            .code,
+            "CANCELLED"
+        );
+        assert_eq!(
+            simple::job_read(&handle, &json!({"jobId":job_id})).unwrap()["job"]["status"],
+            "cancelled"
+        );
+        let orphan = queue_render(
+            &handle,
+            &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
+            &Origin::User,
+        )
+        .unwrap();
+        let reopened = CoreApp::new(temp.path().join("appdata"))
+            .unwrap()
+            .dispatch(
+                "project.open",
+                json!({"path":handle.root}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        assert_eq!(reopened["projectId"], handle.file.id);
+        assert_eq!(
+            simple::job_read(&handle, &json!({"jobId":orphan["job"]["id"]})).unwrap()["job"]
+                ["status"],
+            "interrupted"
+        );
     }
 }

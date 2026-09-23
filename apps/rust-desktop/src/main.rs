@@ -175,6 +175,12 @@ fn migrate_legacy_settings(app: &tauri::AppHandle, path: &std::path::Path) -> st
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -187,9 +193,13 @@ fn main() {
             if override_path.is_none() {
                 migrate_legacy_settings(app.handle(), &path)?;
             }
-            let core = Arc::new(Mutex::new(
-                CoreApp::new(&path).map_err(|error| std::io::Error::other(error.message))?,
-            ));
+            let mut core =
+                CoreApp::new(&path).map_err(|error| std::io::Error::other(error.message))?;
+            let background_events = app.handle().clone();
+            core.set_event_hook(Arc::new(move |event| {
+                let _ = background_events.emit("omenflow:event", event);
+            }));
+            let core = Arc::new(Mutex::new(core));
             let event_handle = app.handle().clone();
             let research = Arc::new(ResearchBrowser::new(
                 app.handle().clone(),

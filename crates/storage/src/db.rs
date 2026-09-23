@@ -45,6 +45,43 @@ pub struct ProjectHandle {
 }
 
 impl ProjectHandle {
+    /// Open another connection to a schema-1 project already owned by this
+    /// process. A render worker must read the live WAL through SQLite rather
+    /// than copy its database and WAL files while the UI is writing them.
+    pub fn open_worker(root: impl AsRef<Path>) -> Result<Self, StorageError> {
+        let root = canonicalize(root)?;
+        let file: ProjectFile = serde_json::from_slice(&fs::read(root.join(PROJECT_FILE))?)?;
+        if file.format != "omenflow-project" || file.id.is_empty() {
+            return Err(StorageError::domain("VALIDATION", "Invalid project marker"));
+        }
+        if file.version != SCHEMA_VERSION {
+            return Err(StorageError::domain(
+                "UNSUPPORTED_SCHEMA",
+                format!("Unsupported project marker version {}", file.version),
+            ));
+        }
+        let db = Connection::open_with_flags(
+            root.join(".omenflow/state.sqlite"),
+            OpenFlags::SQLITE_OPEN_READ_WRITE,
+        )?;
+        db.pragma_update(None, "foreign_keys", "ON")?;
+        db.busy_timeout(Duration::from_millis(5_000))?;
+        let db_version = current_schema_version(&db)?;
+        if db_version != SCHEMA_VERSION {
+            return Err(StorageError::domain(
+                "UNSUPPORTED_SCHEMA",
+                format!("Unsupported project schema version {db_version}"),
+            ));
+        }
+        Ok(Self {
+            root,
+            file,
+            db,
+            read_only: false,
+            _snapshot: None,
+        })
+    }
+
     pub fn open(root: impl AsRef<Path>) -> Result<Self, StorageError> {
         let root = canonicalize(root)?;
         let file: ProjectFile = serde_json::from_slice(&fs::read(root.join(PROJECT_FILE))?)?;
@@ -344,6 +381,32 @@ mod tests {
         let reopened = ProjectHandle::open(temp.path().join("project")).unwrap();
         assert!(!reopened.read_only);
         assert_eq!(reopened.file.version, 1);
+    }
+
+    #[test]
+    fn worker_reads_live_wal_and_rejects_newer_marker() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("project");
+        let project = ProjectHandle::create(&root, "Test", "Intent").unwrap();
+        project
+            .db
+            .execute("UPDATE project SET name='Changed'", [])
+            .unwrap();
+        let worker = ProjectHandle::open_worker(&root).unwrap();
+        assert_eq!(worker.project().unwrap().unwrap()["name"], "Changed");
+        drop(worker);
+        drop(project);
+        let marker = root.join(PROJECT_FILE);
+        let mut value: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
+        value["version"] = json!(2);
+        fs::write(&marker, serde_json::to_vec(&value).unwrap()).unwrap();
+        assert!(matches!(
+            ProjectHandle::open_worker(&root),
+            Err(StorageError::Domain {
+                code: "UNSUPPORTED_SCHEMA",
+                ..
+            })
+        ));
     }
 
     #[test]

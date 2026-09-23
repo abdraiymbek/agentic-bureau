@@ -1,56 +1,56 @@
 {
   "method": "Ten sequential packaged Rust app launches with fresh isolated app data; OS cache warm. Spawn-to-bridge readiness via smoke stdout, not first frame or workspace readiness.",
-  "p50Ms": 203.55091600000014,
-  "p95Ms": 214.59841699999924,
+  "p50Ms": 203.06137500000114,
+  "p95Ms": 203.65587500000038,
   "samples": [
     {
       "run": 1,
-      "bridgeReadyMs": 206.05612499999998,
+      "bridgeReadyMs": 202.174708,
       "smokePassed": true
     },
     {
       "run": 2,
-      "bridgeReadyMs": 203.8222499999997,
+      "bridgeReadyMs": 203.31608400000005,
       "smokePassed": true
     },
     {
       "run": 3,
-      "bridgeReadyMs": 204.22454199999993,
+      "bridgeReadyMs": 203.36524999999983,
       "smokePassed": true
     },
     {
       "run": 4,
-      "bridgeReadyMs": 214.59841699999924,
+      "bridgeReadyMs": 203.12279099999978,
       "smokePassed": true
     },
     {
       "run": 5,
-      "bridgeReadyMs": 203.55091600000014,
+      "bridgeReadyMs": 202.38433299999997,
       "smokePassed": true
     },
     {
       "run": 6,
-      "bridgeReadyMs": 202.8324160000011,
+      "bridgeReadyMs": 203.15037499999926,
       "smokePassed": true
     },
     {
       "run": 7,
-      "bridgeReadyMs": 202.89308399999936,
+      "bridgeReadyMs": 203.65587500000038,
       "smokePassed": true
     },
     {
       "run": 8,
-      "bridgeReadyMs": 203.51566599999933,
+      "bridgeReadyMs": 202.70954199999687,
       "smokePassed": true
     },
     {
       "run": 9,
-      "bridgeReadyMs": 202.7557909999996,
+      "bridgeReadyMs": 203.06137500000114,
       "smokePassed": true
     },
     {
       "run": 10,
-      "bridgeReadyMs": 203.62779099999898,
+      "bridgeReadyMs": 202.5977079999975,
       "smokePassed": true
     }
   ]

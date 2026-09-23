@@ -2,1932 +2,1932 @@
   "method": "60 one-second ps samples; root plus descendants and WebKit XPC PIDs newly created by launch. Summed RSS includes shared pages; WebKit attribution by launch delta is an estimate.",
   "seconds": 60,
   "extraWebKitPids": [
-    57178,
-    57179,
-    57180
+    66132,
+    66133,
+    66134
   ],
-  "meanCpu": 0.5716666666666667,
-  "maxRssMiB": 274.34375,
-  "maxMainRssMiB": 121.4375,
+  "meanCpu": 0.3283333333333333,
+  "maxRssMiB": 274.625,
+  "maxMainRssMiB": 123.5625,
   "samples": [
     {
-      "at": 1790135303.857302,
+      "at": 1790137960.828149,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 32880,
+          "rssKiB": 32832,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 107536,
+          "rssKiB": 107104,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 276208,
+      "mainRssKiB": 126416,
+      "rssKiB": 277856,
       "cpu": 0.0
     },
     {
-      "at": 1790135304.9067168,
+      "at": 1790137961.878224,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 32880,
+          "rssKiB": 32624,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 107536,
+          "rssKiB": 107040,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 276208,
+      "mainRssKiB": 126416,
+      "rssKiB": 277584,
       "cpu": 0.0
     },
     {
-      "at": 1790135305.9553332,
+      "at": 1790137962.9284952,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126320,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 32880,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124176,
-      "rssKiB": 276080,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135307.004666,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124176,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124176,
-      "rssKiB": 276080,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135308.0547671,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135309.081077,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135310.107164,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135311.1529548,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135312.201076,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135313.249676,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135314.298374,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135315.328035,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107408,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135316.376606,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135317.4249432,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135318.4729888,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135319.5184891,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135320.56742,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135321.615206,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135322.6620438,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135323.709557,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135324.758701,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135325.805311,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135326.854452,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124144,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124144,
-      "rssKiB": 276032,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135327.9008949,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135328.948891,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135329.995939,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135331.0435991,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135332.089074,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135333.138222,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135334.186385,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135335.233942,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135336.28241,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124128,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 32880,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 107392,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124128,
-      "rssKiB": 276016,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135337.3189812,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 6.3,
-          "rssKiB": 124176,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 4.0,
-          "rssKiB": 33056,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 16.2,
-          "rssKiB": 111152,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280000,
-      "cpu": 26.5
-    },
-    {
-      "at": 1790135338.3573818,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 4.2,
-          "rssKiB": 124240,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.1,
-          "rssKiB": 33056,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.5,
-          "rssKiB": 111168,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124240,
-      "rssKiB": 280080,
-      "cpu": 4.8
-    },
-    {
-      "at": 1790135339.405195,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124224,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33056,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.1,
-          "rssKiB": 111168,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124224,
-      "rssKiB": 280064,
-      "cpu": 0.1
-    },
-    {
-      "at": 1790135340.457164,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124224,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33056,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111168,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124224,
-      "rssKiB": 280064,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135341.504802,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 1.6,
-          "rssKiB": 124352,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33056,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.2,
-          "rssKiB": 111168,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280192,
-      "cpu": 1.8
-    },
-    {
-      "at": 1790135342.555521,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.1,
-          "rssKiB": 124352,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
+          "pid": 66133,
           "cpu": 0.6,
-          "rssKiB": 33744,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.2,
-          "rssKiB": 111216,
+          "rssKiB": 107088,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280928,
-      "cpu": 0.9
+      "mainRssKiB": 126320,
+      "rssKiB": 277424,
+      "cpu": 0.6
     },
     {
-      "at": 1790135343.6038778,
+      "at": 1790137963.9784,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124352,
+          "rssKiB": 126320,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33744,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.1,
-          "rssKiB": 111216,
+          "rssKiB": 107088,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280928,
+      "mainRssKiB": 126320,
+      "rssKiB": 277424,
       "cpu": 0.1
     },
     {
-      "at": 1790135344.651873,
+      "at": 1790137965.028377,
       "processes": [
         {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124352,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33744,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111216,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280928,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135345.7007182,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124352,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33744,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111216,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280928,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135346.747457,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124352,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33584,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111216,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
-        },
-        {
-          "pid": 57180,
-          "cpu": 0.0,
-          "rssKiB": 11616,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
-        }
-      ],
-      "mainRssKiB": 124352,
-      "rssKiB": 280768,
-      "cpu": 0.0
-    },
-    {
-      "at": 1790135347.7964,
-      "processes": [
-        {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124256,
-          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
-        },
-        {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33424,
-          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
-        },
-        {
-          "pid": 57179,
+          "pid": 66130,
           "cpu": 0.1,
-          "rssKiB": 111056,
+          "rssKiB": 126368,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32512,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 107088,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124256,
-      "rssKiB": 280352,
+      "mainRssKiB": 126368,
+      "rssKiB": 277472,
       "cpu": 0.1
     },
     {
-      "at": 1790135348.843872,
+      "at": 1790137966.082269,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11504,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126416,
+      "rssKiB": 277392,
       "cpu": 0.0
     },
     {
-      "at": 1790135349.892672,
+      "at": 1790137967.132821,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126416,
+      "rssKiB": 277376,
       "cpu": 0.0
     },
     {
-      "at": 1790135350.9415,
+      "at": 1790137968.182946,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126416,
+      "rssKiB": 277376,
       "cpu": 0.0
     },
     {
-      "at": 1790135351.991262,
+      "at": 1790137969.2335382,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126416,
+      "rssKiB": 277360,
       "cpu": 0.0
     },
     {
-      "at": 1790135353.035454,
+      "at": 1790137970.283751,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126416,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126416,
+      "rssKiB": 277360,
       "cpu": 0.0
     },
     {
-      "at": 1790135354.083086,
+      "at": 1790137971.334669,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33408,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280272,
+      "mainRssKiB": 126352,
+      "rssKiB": 277296,
       "cpu": 0.0
     },
     {
-      "at": 1790135355.130688,
+      "at": 1790137972.384769,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106960,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280256,
+      "mainRssKiB": 126352,
+      "rssKiB": 277296,
       "cpu": 0.0
     },
     {
-      "at": 1790135356.177438,
+      "at": 1790137973.434926,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106864,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280256,
+      "mainRssKiB": 126352,
+      "rssKiB": 277200,
       "cpu": 0.0
     },
     {
-      "at": 1790135357.222045,
+      "at": 1790137974.4840891,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124192,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32496,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111056,
+          "rssKiB": 106864,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124192,
-      "rssKiB": 280256,
+      "mainRssKiB": 126352,
+      "rssKiB": 277200,
       "cpu": 0.0
     },
     {
-      "at": 1790135358.274691,
+      "at": 1790137975.514229,
       "processes": [
         {
-          "pid": 57176,
-          "cpu": 0.0,
-          "rssKiB": 124176,
+          "pid": 66130,
+          "cpu": 4.1,
+          "rssKiB": 126384,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
-          "cpu": 0.0,
-          "rssKiB": 33392,
+          "pid": 66132,
+          "cpu": 1.2,
+          "rssKiB": 32592,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111040,
+          "pid": 66133,
+          "cpu": 12.1,
+          "rssKiB": 110560,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126384,
+      "rssKiB": 281024,
+      "cpu": 17.4
+    },
+    {
+      "at": 1790137976.5503209,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.7,
+          "rssKiB": 126528,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32608,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.5,
+          "rssKiB": 110592,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126528,
+      "rssKiB": 281216,
+      "cpu": 1.2
+    },
+    {
+      "at": 1790137977.6032991,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126528,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32608,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.1,
+          "rssKiB": 110592,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126528,
+      "rssKiB": 281216,
+      "cpu": 0.1
+    },
+    {
+      "at": 1790137978.6442828,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126528,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32608,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110592,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126528,
+      "rssKiB": 281216,
       "cpu": 0.0
     },
     {
-      "at": 1790135359.3214898,
+      "at": 1790137979.694747,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126528,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32608,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110592,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126528,
+      "rssKiB": 281216,
       "cpu": 0.0
     },
     {
-      "at": 1790135360.367664,
+      "at": 1790137980.746729,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126528,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32608,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110592,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126528,
+      "rssKiB": 281216,
       "cpu": 0.0
     },
     {
-      "at": 1790135361.420596,
+      "at": 1790137981.797756,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32608,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110528,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126352,
+      "rssKiB": 280976,
       "cpu": 0.0
     },
     {
-      "at": 1790135362.473243,
+      "at": 1790137982.848017,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32608,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110528,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126352,
+      "rssKiB": 280976,
       "cpu": 0.0
     },
     {
-      "at": 1790135363.5235388,
+      "at": 1790137983.8948631,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110528,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126352,
+      "rssKiB": 280880,
       "cpu": 0.0
     },
     {
-      "at": 1790135364.575344,
+      "at": 1790137984.946042,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
+          "pid": 66133,
           "cpu": 0.0,
-          "rssKiB": 111040,
+          "rssKiB": 110528,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126352,
+      "rssKiB": 280880,
       "cpu": 0.0
     },
     {
-      "at": 1790135365.625192,
+      "at": 1790137985.99691,
       "processes": [
         {
-          "pid": 57176,
+          "pid": 66130,
           "cpu": 0.0,
-          "rssKiB": 124176,
+          "rssKiB": 126352,
           "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
         },
         {
-          "pid": 57178,
+          "pid": 66132,
           "cpu": 0.0,
-          "rssKiB": 33392,
+          "rssKiB": 32512,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
         },
         {
-          "pid": 57179,
-          "cpu": 0.0,
-          "rssKiB": 111040,
+          "pid": 66133,
+          "cpu": 0.1,
+          "rssKiB": 110400,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
         },
         {
-          "pid": 57180,
+          "pid": 66134,
           "cpu": 0.0,
-          "rssKiB": 11616,
+          "rssKiB": 11488,
           "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
         }
       ],
-      "mainRssKiB": 124176,
-      "rssKiB": 280224,
+      "mainRssKiB": 126352,
+      "rssKiB": 280752,
+      "cpu": 0.1
+    },
+    {
+      "at": 1790137987.0472581,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32512,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280736,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137988.099988,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137989.151009,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137990.203501,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137991.253558,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137992.304141,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137993.354472,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137994.403418,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137995.4508128,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.1,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280736,
+      "cpu": 0.1
+    },
+    {
+      "at": 1790137996.502957,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110400,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280736,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137997.553515,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137998.606681,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790137999.633255,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138000.684988,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138001.735911,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138002.7852402,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138003.830254,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138004.8807821,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126352,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126352,
+      "rssKiB": 280720,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138005.914312,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138006.957804,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138008.0085518,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138009.0559502,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138010.106474,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138011.154828,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138012.204074,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138013.255646,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138014.306133,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138015.3574169,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138016.40389,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138017.452308,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138018.5041971,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138019.5538182,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138020.603872,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138021.6529129,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
+      "cpu": 0.0
+    },
+    {
+      "at": 1790138022.703233,
+      "processes": [
+        {
+          "pid": 66130,
+          "cpu": 0.0,
+          "rssKiB": 126336,
+          "comm": "target/release/bundle/macos/Omen Flow.app/Contents/MacOS/omenflow-rust-desktop"
+        },
+        {
+          "pid": 66132,
+          "cpu": 0.0,
+          "rssKiB": 32496,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+        },
+        {
+          "pid": 66133,
+          "cpu": 0.0,
+          "rssKiB": 110384,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+        },
+        {
+          "pid": 66134,
+          "cpu": 0.0,
+          "rssKiB": 11488,
+          "comm": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+        }
+      ],
+      "mainRssKiB": 126336,
+      "rssKiB": 280704,
       "cpu": 0.0
     }
   ]
