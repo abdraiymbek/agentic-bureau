@@ -1,9 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Omen Flow Rust Preview",
+  "productName": "Omen Flow",
   "version": "0.1.0",
-  "identifier": "app.omenflow.desktop.rust-preview",
+  "identifier": "com.electron.omen-flow",
   "build": {
+    "beforeDevCommand": "pnpm --filter @omenflow/desktop dev:rust-ui",
     "devUrl": "http://127.0.0.1:5174",
     "frontendDist": "../desktop/rust-dist"
   },
@@ -22,6 +23,13 @@
   },
   "bundle": {
     "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "resources": {
       "../../native/omenflow-bridge/target/release/omenflow": "omenflow"
     }

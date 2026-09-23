@@ -1,131 +1,69 @@
 # Omen Flow
 
-A local desktop engineering workspace: bring an existing AI coding/agent CLI
-(Codex CLI, Claude Code, or any command-line tool) into a persistent local
-engineering project. The agent runs in a real embedded terminal; structured
-artifacts — requirements, components, calculations, CAD, wiring, tests — live
-in the project, reviewed by a human before they become the baseline.
+Omen Flow is a local desktop engineering workspace. An existing agent CLI runs
+in a native PTY; structured requirements, components, calculations, CAD, wiring,
+and tests live in the project folder. Agents create drafts and proposals. A
+human reviews and approves baseline changes.
 
-State lives in the project folder (`.omenflow/state.sqlite`), not in the agent's
-conversation. Close the app, reopen the project, export it as a portable
-archive — the engineering record survives the chat.
+The production desktop shell, domain dispatch, storage, agent host, MCP server,
+and bridge are Rust. Tauri hosts the existing React renderer in the operating
+system webview. React, Vite, and pnpm are build tools; the packaged app contains
+neither Electron nor a Node runtime. This keeps the established design system,
+STL viewport, and review screens while moving privileged code to Rust.
 
-## What it is
+Projects retain schema 1 at `.omenflow/state.sqlite` with the same object store
+and bridge protocol v1. Existing `@omenflow` operation names and the
+`omenflow call <op>` / `omenflow mcp` CLI remain the compatibility surface.
 
-- **Electron desktop app** — React renderer, dark/light workspaces, real PTY
-  terminal (xterm.js + node-pty), STL viewport, inspector, review queue,
-  BOM table, dependency graph.
-- **Core domain layer** — every operation (GUI, MCP, CLI) goes through one
-  `CoreApp.dispatch` surface with zod validation, capability enforcement,
-  idempotency, and revision-conflict detection.
-- **Engineering memory** — immutable artifact revisions, draft → proposed →
-  approved/rejected review flow, explicit dependency edges, stale
-  propagation with explanation paths, provenance on every sourced fact.
-- **Agent bridge** — agents reach the project through a local unix socket
-  (named pipe on Windows) via the `omenflow` CLI shim (`omenflow call <op>`,
-  `omenflow mcp`) or an MCP server. Every change an agent proposes is a
-  reviewable proposal; nothing self-approves.
-- **Adapters** — Codex CLI, Claude Code, and a generic custom-CLI adapter;
-  OpenSCAD as the first CAD tool (detected on the system, never bundled).
+## Architecture
 
-## Design system
+| Path                         | Role                                                        |
+| ---------------------------- | ----------------------------------------------------------- |
+| `apps/rust-desktop/`         | Tauri shell, commands, isolated research webview            |
+| `apps/desktop/src/renderer/` | React screens, shared UI primitives, Three.js STL viewport  |
+| `crates/contracts/`          | Operation registry, input validation, wire envelopes        |
+| `crates/storage/`            | SQLite schema 1, FTS5, object store, path guards            |
+| `crates/core/`               | Revisions, human review, graph, CAD, calculations, archives |
+| `crates/agent-host/`         | PTY, adapters, local bridge server, MCP dispatch            |
+| `native/omenflow-bridge/`    | Bundled Rust `omenflow` CLI and MCP client                  |
+| `design-system/`             | Canonical tokens, fonts, brand assets, and UI specification |
 
-The Omen Flow redesign covers the project launcher, engineering workspace,
-agent/inspector panels, object editors, reviews, impact, delivery, and settings.
-Read [design-system/design.md](design-system/design.md) before building new UI.
-Tokens, fonts, brand assets, a live component catalog, and captured reference
-screens are included. [AGENTS.md](AGENTS.md) makes this the shared design contract.
+The former Electron main/preload/utility and TypeScript domain packages remain
+in the repository as migration references and compatibility test oracles; they
+are not included in the Tauri bundle. New privileged behavior belongs in Rust.
+Read [the design specification](design-system/design.md) before changing the UI.
 
-```sh
-pnpm design:preview      # populated, disposable projects at http://127.0.0.1:5173
-```
-
-Open `/design-system/` on the preview server for the screen presentation.
-The browser preview uses the real renderer and core; native agent execution
-is disabled. Its example mesh is illustrative, not a verified CAD render.
-Legacy `@omenflow` package names, `.omenflow` project storage, bridge commands, and
-installer names remain compatible; the UI display name is Omen Flow.
-
-## Layout
-
-```
-apps/desktop            Electron app (main, preload, renderer, utility proc)
-packages/contracts      Entities, ops registry, units, bridge protocol
-packages/storage        SQLite persistence, object store, path safety
-packages/core           Dispatch, artifacts, proposals, graph, BOM, jobs
-packages/engineering    OpenSCAD adapter, mathjs calc engine, wiring analyzer
-packages/agent-host     PTY sessions, adapters, bridge server, CLI shim
-packages/mcp-server     MCP tools riding the bridge
-native/omenflow-bridge  Rust bridge helper (packaged when built; Node shim is the fallback)
-fixtures/               Rover + drone reference fixtures (see fixtures/README)
-design-system/          Canonical design, tokens, fonts, brand, screen references
-tests/                  Golden-path integration suite
-evals/cad/              CAD agent evaluation (real agent CLI, geometry-judged)
-scripts/                Native rebuild + packaged smoke harnesses
-```
-
-## Develop
+## Develop and verify
 
 ```sh
-pnpm install
-pnpm rebuild:node        # build better-sqlite3/node-pty for the Node ABI
-pnpm test                # vitest suite (incl. golden-path fixtures)
-pnpm typecheck && pnpm lint && pnpm format:check
-pnpm dev                 # run the desktop app (Electron)
+pnpm install --frozen-lockfile
+pnpm dev                 # Tauri Rust shell + Vite renderer
+cargo test --workspace   # Rust domain, storage, bridge, PTY, MCP
+pnpm typecheck           # renderer and legacy compatibility sources
+pnpm test                # legacy TypeScript behavior oracle
+pnpm make                # release Rust app and unsigned local installer
+pnpm smoke:packaged      # launch bundle and probe its authenticated bridge boundary
 ```
 
-The natives have two ABIs in play: **Node** for vitest/scripts,
-**Electron** for the packaged app. `pnpm package` rebuilds for Electron and
-then restores the Node copies (see `apps/desktop/forge.config.ts`).
+`pnpm make` produces `target/release/bundle/macos/Omen Flow.app` and an unsigned
+DMG on macOS. `pnpm release:macos` signs and notarizes with Apple credentials;
+see [release instructions](docs/release.md). The project needs OpenSCAD
+installed for source rendering. The engine is not bundled.
 
-## Build and verify a package
+`pnpm design:preview` still serves a disposable populated UI for design review.
+It is a preview, not a native agent execution test. `pnpm fixture:rover` and
+`pnpm fixture:drone` build reference projects.
 
-```sh
-pnpm build:bridge        # cargo release build of the `omenflow` helper (optional)
-pnpm package             # Electron Forge → out/Omen Flow-<platform>-<arch>/
-pnpm smoke:packaged      # launch it, wait for the bridge, real `omenflow call`
-pnpm make                # installers (DMG on macOS, Squirrel on Windows)
-```
+## Migration evidence and limits
 
-Packaging ships the compiled Rust `omenflow` helper when
-`native/omenflow-bridge/target/release/` exists (CI builds it); otherwise it
-falls back to the equivalent Node shim.
+The packaged Electron baseline and Rust after measurements are in
+[`audit/rust-migration/`](audit/rust-migration/after/README.md). The Rust app
+has been opened on a copied schema 1 fixture and its 99,852-triangle STL was
+rendered in the existing viewport. The packaged PTY, `omenflow call`, and
+research window were exercised locally. The `BUILD_STATUS.md` ledger and
+`audit/release-v0.1/` describe the earlier Electron candidate; their release
+qualification does not transfer to the Rust package.
 
-## Fixtures
-
-```sh
-pnpm fixture:rover /tmp/my-rover    # inspection rover reference project
-pnpm fixture:drone /tmp/my-drone    # payload→propulsion→endurance chain
-```
-
-## CAD agent evaluation
-
-```sh
-pnpm eval:cad -- --out /tmp/cad-eval --runs 3          # 15 tasks, judged by geometry
-pnpm eval:cad -- --out /tmp/cad-eval --suite holdout   # unseen tasks
-```
-
-Runs a real agent CLI (Codex, model pinned) inside a fresh project through the
-bridge/MCP path the desktop app uses, then re-renders the delivered OpenSCAD
-source and checks envelope, volume, holes, slots, probe points and topology.
-See `evals/cad/README.md`; recorded results live in `evals/cad/results/`.
-
-Both build through the real dispatch surface: requirements, sourced and
-assumption-labeled components, review-approved selections, BOM, OpenSCAD
-tray source, unit-aware calculations, wiring, and a test procedure. The
-golden-path test then raises the rover payload requirement 300 g → 500 g
-and checks that dependent artifacts go stale without losing history.
-
-## CI
-
-`.github/workflows/ci.yml` runs the unit suite on Ubuntu, packages + smokes
-on macOS, packages on Windows (smoke step reports but doesn't gate yet), and
-`cargo fmt`/`clippy` on the bridge helper. Node is pinned to 24 (`.nvmrc`),
-pnpm to 9.15.9 (`packageManager` field).
-
-## Status and limits
-
-See `BUILD_STATUS.md` for the ledger — what's verified locally, what CI
-covers, and what still needs real OpenSCAD / agent-CLI / Windows runs.
-Fixture data is recorded, not live: `[fixture-recorded]` excerpts are not
-release evidence.
+Apple signing, notarization, clean-machine upgrade, and non-macOS acceptance
+still require their respective environments. Current Rust tests and local
+packaged smoke do not constitute public-release approval.

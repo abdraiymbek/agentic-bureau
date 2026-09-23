@@ -1,51 +1,36 @@
-# Release
+# Rust desktop release
 
-The v0.1 qualification target is **macOS Apple Silicon**. Intel macOS, Windows and
-Linux builds remain unqualified until their own native acceptance runs pass.
-See `audit/release-v0.1/README.md` for current evidence and remaining gates.
-Historical model scores in the build ledger are not current release approval.
+The Rust/Tauri migration is qualified locally on macOS Apple Silicon as an
+unsigned candidate. Apple signing, notarization, clean-machine upgrade, and
+Windows/Linux runtime acceptance are still open. The Electron v0.1 release
+record in `audit/release-v0.1/` is historical and does not qualify this build.
 
 ## Local candidate
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm rebuild:node
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
 pnpm typecheck
-pnpm lint
-pnpm format:check
-OMENFLOW_OPENSCAD_E2E=1 pnpm test
 pnpm make
-pnpm smoke:packaged --cad
+pnpm smoke:packaged
 ```
 
-OpenSCAD must be installed for the real CAD and packaged CAD checks. Record its
-version, OS version, CLI version/model configuration, source revision and dirty
-diff with the results. The Rust bridge also requires `cargo fmt --check`,
-`cargo clippy --locked --all-targets -- -D warnings` and `cargo test --locked`
-from `native/omenflow-bridge`.
+`pnpm make` builds the Rust bridge helper, the static React renderer, and the
+Rust Tauri app. On macOS it creates
+`target/release/bundle/macos/Omen Flow.app` and an unsigned DMG under
+`target/release/bundle/dmg/`. The package contains no Electron or Node runtime.
+OpenSCAD is a separately installed engine. Run a native CAD render, terminal
+session, review approval, export/reopen, and populated-project upgrade test
+before calling a package releasable. The smoke script currently checks app
+launch, bridge framing, helper presence, and unauthenticated denial; it is not
+a substitute for those native flows.
 
-Generated Apple Silicon files:
+## Apple signing handoff
 
-- `apps/desktop/out/Omen Flow-darwin-arm64/Omen Flow.app`
-- `apps/desktop/out/make/Omen Flow.dmg`
-- `apps/desktop/out/make/zip/darwin/arm64/Omen Flow-darwin-arm64-0.1.0.zip`
-
-Without signing configuration, `pnpm make` produces a local unsigned candidate.
-It must not be represented as a notarized public release. Projects are stored
-outside the application bundle and are not deleted on uninstall.
-
-## Apple account handoff
-
-The application does not need a UI or storage redesign to enable signing. Install
-a **Developer ID Application** certificate with its private key into the build
-machine's login keychain, then use the interactive command to store notarization
-credentials (Apple ID plus app-specific password and team, or an Apple API key):
-
-```sh
-xcrun notarytool store-credentials omenflow-notary
-```
-
-Set the exact identity returned by `security find-identity -v -p codesigning`:
+Install a Developer ID Application certificate in the keychain and store
+notarization credentials with `xcrun notarytool store-credentials`. Set:
 
 ```sh
 export OMENFLOW_SIGNING_IDENTITY='Developer ID Application: YOUR NAME (TEAMID)'
@@ -53,24 +38,18 @@ export OMENFLOW_NOTARIZE_PROFILE='omenflow-notary'
 pnpm release:macos
 ```
 
-The release command requires both inputs. Forge signs with hardened runtime and
-the checked-in JIT entitlement, notarizes and staples the app, then the script
-verifies the signature, ticket and Gatekeeper assessment, runs the packaged
-calculation/CAD smoke, and signs, notarizes, staples and assesses the DMG. Every
-failed step stops the command. Credentials stay in the keychain; no password or
-private key belongs in source control. `OMENFLOW_RELEASE_SIGNED=1 pnpm make`
-also refuses to build if either signing input is absent.
+The release script builds the Rust app, signs it with hardened runtime,
+notarizes and staples the app, verifies its signature and Gatekeeper assessment,
+runs packaged smoke, then creates, signs, notarizes, staples, and assesses the
+DMG. It fails closed when either credential is missing. This path has not been
+run with real Apple credentials. Do not publish solely because a DMG exists.
 
-Signing configuration tests pass without credentials. Actual Apple acceptance
-and clean-machine Gatekeeper installation remain untested until the account is
-available. Before publication, install the resulting DMG on a clean supported
-Mac, exercise terminal, render, review, export and reopen, then test upgrade over
-the previous candidate using a copy of a populated project. Verify project
-identity, selected revisions and attachments survive. Do not publish merely
-because a DMG exists.
+The bundle identifier remains `com.electron.omen-flow` to preserve the previous
+installation identity. Changing it requires an explicit upgrade plan. Projects
+live outside the app bundle and must be backed up before upgrade acceptance.
+The last acceptance run must install the DMG on a clean supported Mac, exercise
+terminal/MCP, OpenSCAD, review, export and reopen, then upgrade a copy of a
+populated Electron project and check its project ID, SQLite integrity, selected
+revisions, object hashes and attachments.
 
-The bundle identifier is preserved as `com.electron.omen-flow` for this release;
-changing it later requires a deliberate identity/upgrade decision.
-
-References: [Electron Forge signing](https://www.electronforge.io/guides/code-signing/code-signing-macos)
-and [Electron notarization](https://github.com/electron/notarize).
+[Official Tauri macOS signing and notarization guidance](https://v2.tauri.app/distribute/sign/macos/).

@@ -2,6 +2,7 @@ use omenflow_agent_host::{wait_proposal, BridgeServer, PtyHost, TerminalEvent};
 use omenflow_contracts::{parse_input, registry, ContractError, ResponseEnvelope};
 use omenflow_core::{CoreApp, Origin};
 use serde_json::Value;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
@@ -10,9 +11,10 @@ use tauri_plugin_opener::OpenerExt;
 struct DesktopState {
     core: Arc<Mutex<CoreApp>>,
     pty: PtyHost,
+    research: Arc<ResearchBrowser>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn omenflow_command(
     app: tauri::AppHandle,
     state: State<'_, DesktopState>,
@@ -35,6 +37,14 @@ fn omenflow_command(
         Ok(value) => value,
         Err(error) => return ResponseEnvelope::failure(request_id, error),
     };
+    if op.starts_with("research.") || op.starts_with("browser.") {
+        let result = with_project(&project_id, |id| {
+            state
+                .research
+                .dispatch(&op, payload, Origin::User, id, idempotency_key.as_deref())
+        });
+        return envelope(request_id, result);
+    }
     let host_result = match op.as_str() {
         "connection.list" => Some(state.pty.connection_list()),
         "connection.configure" => Some(state.pty.connection_configure(&payload)),
@@ -130,13 +140,17 @@ fn envelope(request_id: String, result: Result<Value, ContractError>) -> Respons
 }
 
 #[tauri::command]
-fn toggle_research() -> Result<Value, String> {
-    Err("Research browser is not ported yet".into())
+fn toggle_research(state: State<'_, DesktopState>) -> Result<Value, String> {
+    state.research.toggle().map_err(|e| e.message)
 }
 
 fn cli_path(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir.join("omenflow");
+        let bundled = resource_dir.join(if cfg!(windows) {
+            "omenflow.exe"
+        } else {
+            "omenflow"
+        });
         if bundled.is_file() {
             return bundled;
         }
@@ -145,22 +159,52 @@ fn cli_path(app: &tauri::AppHandle) -> PathBuf {
         .join("../../native/omenflow-bridge/target/release/omenflow")
 }
 
+fn migrate_legacy_settings(app: &tauri::AppHandle, path: &std::path::Path) -> std::io::Result<()> {
+    let base = app.path().data_dir().map_err(std::io::Error::other)?;
+    let legacy = base.join("@omenflow/desktop");
+    fs::create_dir_all(path)?;
+    for name in ["settings.json", "reservations.json"] {
+        let source = legacy.join(name);
+        let target = path.join(name);
+        if source.is_file() && !target.exists() {
+            fs::copy(source, target)?;
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let path = app.path().app_data_dir()?;
+            let override_path = std::env::var_os("OMENFLOW_APP_DATA_DIR").map(PathBuf::from);
+            let path = if let Some(path) = &override_path {
+                path.clone()
+            } else {
+                app.path().app_data_dir()?
+            };
+            if override_path.is_none() {
+                migrate_legacy_settings(app.handle(), &path)?;
+            }
             let core = Arc::new(Mutex::new(
                 CoreApp::new(&path).map_err(|error| std::io::Error::other(error.message))?,
             ));
             let event_handle = app.handle().clone();
-            let bridge = Arc::new(BridgeServer::start_with_events(
+            let research = Arc::new(ResearchBrowser::new(
+                app.handle().clone(),
+                Arc::clone(&core),
+            ));
+            let host_research = Arc::clone(&research);
+            let bridge = Arc::new(BridgeServer::start_with_host(
                 Arc::clone(&core),
                 &path,
                 Arc::new(move |event| {
                     let _ = event_handle.emit("omenflow:event", event);
                 }),
+                Some(Arc::new(move |op, payload, origin, project_id, key| {
+                    host_research.dispatch(&op, payload, origin, &project_id, key.as_deref())
+                })),
             )?);
             let handle = app.handle().clone();
             let notify = Arc::new(move |event: TerminalEvent| match event {
@@ -172,10 +216,16 @@ fn main() {
                 }
             });
             let pty = PtyHost::new(Arc::clone(&core), bridge, cli_path(app.handle()), notify);
-            app.manage(DesktopState { core, pty });
+            app.manage(DesktopState {
+                core,
+                pty,
+                research,
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![omenflow_command, toggle_research])
         .run(tauri::generate_context!())
         .expect("Omen Flow Rust desktop shell failed");
 }
+mod research;
+use research::ResearchBrowser;

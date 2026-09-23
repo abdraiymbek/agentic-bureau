@@ -1,5 +1,11 @@
 # Omen Flow build ledger
 
+> **Historical Electron ledger.** This file records the pre-migration candidate.
+> The production app now builds from `apps/rust-desktop` and the Rust crates;
+> see `README.md`, `docs/release.md`, and `audit/rust-migration/after/README.md`
+> for the current build path and measured Rust candidate. Electron release
+> qualification and ABI notes below do not transfer to that package.
+
 The current v0.1 qualification and its remaining gates are recorded in
 [release evidence](audit/release-v0.1/README.md). The dated results below are
 historical; they do not override the current qualification decision.

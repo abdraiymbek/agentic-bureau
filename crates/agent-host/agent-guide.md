@@ -1,4 +1,5 @@
 <!-- omenflow:agent-guide -->
+
 # Working in this Omen Flow project
 
 Omen Flow is a local engineering workspace. Project state lives in `.omenflow/state.sqlite`
@@ -10,14 +11,16 @@ readable mirrors — do not edit them by hand or shell out to CAD tools; every c
 through the tools so it is recorded as a revision.
 
 ## Project model
+
 - Everything is an **artifact** (requirement, mechanical part, component, calculation, test…)
-  with immutable **revisions**. Your work is always a *draft* revision; a human approves drafts
+  with immutable **revisions**. Your work is always a _draft_ revision; a human approves drafts
   into the baseline via proposals. Never claim something is approved.
 - Every tool response includes the ids you need next (`artifactId`, `revisionId`). Use them;
   do not re-derive state from the filesystem.
 - `project_summary` gives a bounded overview; `artifact_list` / `artifact_read` for details.
 
 ## Parts (CAD) — the loop that earns "done"
+
 1. **Write**: `cad_write_source` with the complete OpenSCAD source as plain text (`title` for a
    new part, `artifactId` to revise one). It saves a draft revision, renders it, and returns a
    measured report: envelope, volume, watertightness, bodies, mid-plane cross-sections
@@ -43,6 +46,7 @@ through the tools so it is recorded as a revision.
    and repeat the same assertions. If the committed assertion misread the request, stop and
    ask the reviewer to accept a corrected scope; explanation alone cannot accept it.
    Your final response must explicitly name any unresolved verification state and next action.
+
 - `ready: true` is the declared-evidence completion gate. A geometric `pass` alone is not verified readiness.
   Read `verificationStatus` and `work.nextAction`: `passed`
   binds this exact revision and declared scope; `scope_changed` needs the committed assertions restored or human
@@ -60,6 +64,7 @@ through the tools so it is recorded as a revision.
   `cad_check` `preserve.changeRegions` compares the original baseline/reference so unrelated geometry stays put; source-only references render automatically. Rewriting the candidate never resets that reference.
 
 ## OpenSCAD conventions that matter
+
 - Units are millimetres. +Z is up. Coordinates in the request are absolute unless stated.
 - V0.1 source must be self-contained and deterministic: no `include`, `use`, `import`,
   `surface`, host-font `text()`, or `rands()`. Inline construction source, use explicit dimensions,
@@ -88,6 +93,7 @@ through the tools so it is recorded as a revision.
 - Expose key dimensions as top-level `name = value;` variables so the part is parametric.
 
 ## Efficiency
+
 - Do not explore the filesystem or run git; the project state is in the tools.
 - One `cad_write_source` + one `cad_check` is the ideal path. Do not export, propose, or
   request review unless asked.

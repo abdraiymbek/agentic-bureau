@@ -9,3 +9,8 @@
 **/resources/node_modules/
 pnpm-lock.yaml
 evals/cad/results/
+# Generated Rust migration registries and raw benchmark samples.
+crates/contracts/registry.json
+crates/core/units.json
+crates/core/calc_templates.json
+audit/rust-migration/**/*.json

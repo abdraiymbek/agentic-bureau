@@ -2,14 +2,14 @@
   "name": "@omenflow/desktop",
   "version": "0.1.0",
   "private": true,
-  "main": ".vite/build/main.js",
   "scripts": {
-    "start": "node scripts/vendor-natives.mjs && concurrently -k \"vite build --watch -c vite.utility.config.ts\" \"electron-forge start\"",
+    "start": "vite --config vite.rust.config.ts",
+    "dev:rust-ui": "vite --config vite.rust.config.ts",
     "build:utility": "vite build -c vite.utility.config.ts",
     "build:rust-ui": "vite build -c vite.rust.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "pnpm run build:utility && electron-forge package",
-    "make": "pnpm run build:utility && electron-forge make"
+    "package": "pnpm -w package",
+    "make": "pnpm -w make"
   },
   "dependencies": {
     "@omenflow/agent-host": "workspace:*",

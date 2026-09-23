@@ -410,7 +410,7 @@ impl PtyHost {
                 self.bridge.revoke(id);
             }
             if state.info["state"] == "running" {
-                state.killer.kill().map_err(failure)?;
+                kill_tree(&mut state);
                 state.info["state"] = json!("exited");
                 state.info["endedAt"] = json!(now());
             }
@@ -468,12 +468,30 @@ impl Drop for PtyHost {
                         self.bridge.revoke(id);
                     }
                     if state.info["state"] == "running" {
-                        let _ = state.killer.kill();
+                        kill_tree(&mut state);
                     }
                 }
             }
         }
     }
+}
+
+fn kill_tree(session: &mut Session) {
+    if let Some(pid) = session.info["pid"].as_u64() {
+        #[cfg(unix)]
+        unsafe {
+            // portable-pty starts the child with setsid(); its PID is the
+            // process-group ID. Terminate commands spawned by the agent too.
+            libc::kill(-(pid as i32), libc::SIGTERM);
+        }
+        #[cfg(windows)]
+        {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .status();
+        }
+    }
+    let _ = session.killer.kill();
 }
 
 fn read_loop(

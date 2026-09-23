@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": {
+      "../../native/omenflow-bridge/target/release/omenflow": null,
+      "../../native/omenflow-bridge/target/release/omenflow.exe": "omenflow.exe"
+    }
+  }
+}

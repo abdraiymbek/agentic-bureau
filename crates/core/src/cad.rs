@@ -2,11 +2,13 @@
 //! object store as the original application; working files remain materialized.
 use super::*;
 use regex::Regex;
-use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+mod checks;
 mod mesh;
+mod section;
+mod verification;
 
 const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad.write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.";
 
@@ -421,11 +423,7 @@ fn render_source(
         "binstl".into(),
     ];
     for (name, value) in params.as_object().into_iter().flat_map(|m| m.iter()) {
-        let formatted = if value.is_string() {
-            value.to_string()
-        } else {
-            value.to_string()
-        };
+        let formatted = value.to_string();
         args.push("-D".into());
         args.push(format!("{name}={formatted}"));
     }
@@ -524,6 +522,31 @@ fn slug(title: &str) -> String {
     }
 }
 
+fn auto_sections(mesh: &mesh::Mesh) -> Vec<Value> {
+    let mut reports = Vec::new();
+    for axis in [2, 1, 0] {
+        let span = mesh.bounds_max[axis] - mesh.bounds_min[axis];
+        if span > 0.0 {
+            reports.push(
+                section::Section::from_mesh(mesh, axis, mesh.bounds_min[axis] + span * 0.5 + 1e-3)
+                    .report(Some("mid")),
+            );
+        }
+    }
+    let span = mesh.bounds_max[2] - mesh.bounds_min[2];
+    if span > 0.0 {
+        reports.push(
+            section::Section::from_mesh(mesh, 2, mesh.bounds_min[2] + span * 0.1 + 1e-3)
+                .report(Some("near bottom")),
+        );
+        reports.push(
+            section::Section::from_mesh(mesh, 2, mesh.bounds_min[2] + span * 0.9 + 1e-3)
+                .report(Some("near top")),
+        );
+    }
+    reports
+}
+
 fn source_path(
     handle: &ProjectHandle,
     title: &str,
@@ -556,6 +579,7 @@ fn source_path(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn commit_cad(
     handle: &mut ProjectHandle,
     artifact_id: &str,
@@ -599,8 +623,8 @@ fn commit_cad(
         }
     }
     let body = parse_artifact_payload("mechanical", body)?;
-    let normalized = normalize_inputs(handle, &artifact_id, inputs)?;
-    graph::validate_revision_inputs(handle, &artifact_id, &normalized)?;
+    let normalized = normalize_inputs(handle, artifact_id, inputs)?;
+    graph::validate_revision_inputs(handle, artifact_id, &normalized)?;
     let digest = models::content_hash(
         &body,
         &files
@@ -643,7 +667,7 @@ fn commit_cad(
     tx.commit().map_err(internal)?;
     materialize_files(handle, &files, parent)?;
     Ok((
-        require_artifact(handle, &artifact_id)?,
+        require_artifact(handle, artifact_id)?,
         require_revision(handle, &revision_id)?,
     ))
 }
@@ -779,7 +803,7 @@ pub(super) fn write_source(
         "next":"Compare these measurements with the request. Then call cad.check with explicit expectations (envelope, hole positions and diameters in cross-sections, solid/empty points) and fix any failure. Report done only when all checks pass."});
     if let Some(mesh) = &render.mesh {
         report["geometry"] = mesh.summary();
-        report["sections"] = json!([]);
+        report["sections"] = json!(auto_sections(mesh));
         report["probes"] = json!([]);
     }
     Ok(report)
@@ -855,6 +879,15 @@ pub(super) fn inspect(handle: &ProjectHandle, input: &Value, origin: &Origin) ->
         .mesh
         .as_ref()
         .ok_or_else(|| ContractError::validation("Cannot inspect: no mesh"))?;
+    let probes_requested = input["probes"].as_array().map(Vec::len).unwrap_or(0);
+    let sections_requested = input["sections"].as_array().map(Vec::len).unwrap_or(0);
+    if probes_requested + sections_requested > 512
+        || mesh.triangles.len() * (probes_requested + (sections_requested + 5) * 2) > 10_000_000
+    {
+        return Err(ContractError::validation(
+            "CAD inspection exceeds the supported V0.1 work limit",
+        ));
+    }
     let mut probes = Vec::new();
     for point in input["probes"].as_array().into_iter().flatten() {
         let xyz = [
@@ -865,16 +898,50 @@ pub(super) fn inspect(handle: &ProjectHandle, input: &Value, origin: &Origin) ->
         probes.push(json!({"point":point,"result":if mesh.contains(xyz){"solid"}else{"empty"}}));
     }
     let sizes = &mesh.summary()["bounds"]["size"].clone();
+    let mut sections = auto_sections(mesh);
+    for request in input["sections"].as_array().into_iter().flatten() {
+        if let (Some(axis), Some(at)) = (request["axis"].as_str(), request["at"].as_f64()) {
+            let index = match axis {
+                "x" => 0,
+                "y" => 1,
+                "z" => 2,
+                _ => return Err(ContractError::validation("Unknown section axis")),
+            };
+            sections.push(section::Section::from_mesh(mesh, index, at).report(None));
+        } else if let (Some(origin), Some(normal)) =
+            (request["origin"].as_array(), request["normal"].as_array())
+        {
+            let point = |values: &[Value]| -> CoreResult<[f64; 3]> {
+                if values.len() != 3 {
+                    return Err(ContractError::validation(
+                        "Section plane needs three coordinates",
+                    ));
+                }
+                Ok([0, 1, 2].map(|i| values[i].as_f64().unwrap_or(f64::NAN)))
+            };
+            let origin = point(origin)?;
+            let normal = point(normal)?;
+            sections.push(
+                section::Section::from_plane(mesh, origin, normal)?.report_plane(origin, normal),
+            );
+        } else {
+            return Err(ContractError::validation(
+                "Section needs axis and at, or origin and normal",
+            ));
+        }
+    }
     let formatted = |v: &Value| format!("{} mm", v.as_f64().unwrap_or(0.0));
     Ok(
         json!({"artifactId":artifact["id"],"revisionId":revision["id"],"title":artifact["title"],
         "sourcePath":source_path,"render":{"ok":true,"tool":render.tool,"ms":render.ms,"warnings":render.warnings,"errors":render.errors},
-        "geometry":mesh.summary(),"sections":[],"probes":probes,"parameters":declared.iter().map(param_json).collect::<Vec<_>>(),"notes":[],
+        "geometry":mesh.summary(),"sections":sections,"probes":probes,"parameters":declared.iter().map(param_json).collect::<Vec<_>>(),"notes":[],
         "next":"Inspect is diagnostic only and does not bind request assertions. Use the sections/probes to confirm each requested feature; then cad.check (exploratory false) with explicit expectations from the request.",
         "inspect":{"plausible":true,"triangles":mesh.triangles.len()},"modelUnit":"mm",
         "dimensions":{"x":formatted(&sizes[0]),"y":formatted(&sizes[1]),"z":formatted(&sizes[2])}}),
     )
 }
+
+pub(super) use verification::{check, latest_verification, validate_scope_accept};
 
 pub(super) fn patch_source(
     handle: &mut ProjectHandle,
@@ -909,11 +976,7 @@ fn set_param_source(source: &str, name: &str, value: &Value) -> CoreResult<Strin
     let mut lines = source.split('\n').map(str::to_owned).collect::<Vec<_>>();
     let pattern =
         Regex::new(&format!(r"({}\s*=\s*)([^;]+)", regex::escape(name))).map_err(internal)?;
-    let replacement = if value.is_string() {
-        value.to_string()
-    } else {
-        value.to_string()
-    };
+    let replacement = value.to_string();
     let line = &mut lines[param.line];
     if !pattern.is_match(line) {
         return Err(ContractError::validation(format!(
@@ -1130,6 +1193,10 @@ mod tests {
             report["geometry"]["bounds"]["size"],
             json!([20.0, 10.0, 2.0])
         );
+        assert!(report["sections"][0]["loops"][0]
+            .as_str()
+            .unwrap()
+            .contains("material rectangle"));
         let source = read_source(&handle, &json!({"artifactId":report["artifactId"]})).unwrap();
         assert_eq!(source["hasRender"], true);
         assert!(source["source"].as_str().unwrap().contains("cube"));
@@ -1148,5 +1215,72 @@ mod tests {
         .unwrap();
         assert_eq!(details["probes"][0]["result"], "solid");
         assert_eq!(details["probes"][1]["result"], "empty");
+        let plane = inspect(
+            &handle,
+            &json!({"artifactId":report["artifactId"],"sections":[{"origin":[10,5,1],"normal":[0,0,1]},{"origin":[10,5,1],"normal":[1,0,1]}]}),
+            &Origin::User,
+        ).unwrap();
+        assert!(plane["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s["plane"].as_str().unwrap_or("").starts_with("origin=(10")));
+        assert!(plane["sections"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|s| s["plane"].as_str().unwrap_or("").starts_with("origin=(10"))
+            .all(|s| !s["loops"].as_array().unwrap().is_empty()));
+        let request = json!({"artifactId":report["artifactId"],"expect":{
+            "bbox":{"min":[0,0,0],"max":[20,10,2]},"volume":{"value":400},
+            "solid":[[10,5,1]],"empty":[[30,5,1]],
+            "maxSelfIntersections":0,
+            "sections":[{"axis":"z","at":1,"outerCount":1,"holeCount":0,"outer":{"size":[20,10]}}]
+        }});
+        let verified = check(&handle, &request, &Origin::User).unwrap();
+        assert_eq!(verified["verificationStatus"], "passed", "{verified}");
+        assert_eq!(
+            latest_verification(&handle, &revision).unwrap()["status"],
+            "passed"
+        );
+        let proposal = proposal_submit(
+            &mut handle,
+            &json!({"changes":[{"artifactId":report["artifactId"],
+            "baseRevisionId":null,"newRevisionId":report["revisionId"],"kind":"new_artifact"}],
+            "reason":"reviewed plate"}),
+            &Origin::User,
+        )
+        .unwrap();
+        let mut evidence = serde_json::Map::new();
+        evidence.insert(
+            report["artifactId"].as_str().unwrap().to_owned(),
+            verified["evidenceHash"].clone(),
+        );
+        let accepted = proposal_resolve(
+            &mut handle,
+            &json!({"proposalId":proposal["id"],
+            "rationale":"dimensions reviewed","verificationEvidence":evidence}),
+            "accepted",
+        )
+        .unwrap();
+        assert_eq!(accepted["state"], "accepted");
+        assert_eq!(
+            latest_verification(&handle, &revision).unwrap()["status"],
+            "passed"
+        );
+        assert_eq!(
+            build::preview(&handle, false).unwrap()["counts"]["ready"],
+            1
+        );
+        let weakened=check(&handle,&json!({"artifactId":report["artifactId"],"expect":{"bbox":{"min":[0,0,0],"max":[20,10,2]}}}),&Origin::User).unwrap();
+        assert_eq!(weakened["verificationStatus"], "scope_changed");
+        let without_reference = check(
+            &handle,
+            &json!({"artifactId":report["artifactId"],
+            "expect":{"preserve":{"changeRegions":[]}}}),
+            &Origin::User,
+        )
+        .unwrap();
+        assert_eq!(without_reference["verificationStatus"], "failed");
     }
 }

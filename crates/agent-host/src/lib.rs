@@ -31,11 +31,18 @@ struct Grant {
     session_id: String,
 }
 
+type HostDispatch = Arc<
+    dyn Fn(String, Value, Origin, String, Option<String>) -> Result<Value, ContractError>
+        + Send
+        + Sync,
+>;
+
 struct Shared {
     core: Arc<Mutex<CoreApp>>,
     grants: Mutex<HashMap<String, Grant>>,
     stopped: AtomicBool,
     on_event: Arc<dyn Fn(Value) + Send + Sync>,
+    host_dispatch: Option<HostDispatch>,
 }
 
 pub struct BridgeServer {
@@ -53,6 +60,15 @@ impl BridgeServer {
         core: Arc<Mutex<CoreApp>>,
         app_data_dir: &Path,
         on_event: Arc<dyn Fn(Value) + Send + Sync>,
+    ) -> io::Result<Self> {
+        Self::start_with_host(core, app_data_dir, on_event, None)
+    }
+
+    pub fn start_with_host(
+        core: Arc<Mutex<CoreApp>>,
+        app_data_dir: &Path,
+        on_event: Arc<dyn Fn(Value) + Send + Sync>,
+        host_dispatch: Option<HostDispatch>,
     ) -> io::Result<Self> {
         let path = socket_path(app_data_dir);
         #[cfg(unix)]
@@ -74,6 +90,7 @@ impl BridgeServer {
             grants: Mutex::new(HashMap::new()),
             stopped: AtomicBool::new(false),
             on_event,
+            host_dispatch,
         });
         let inner = Arc::clone(&shared);
         let thread = thread::spawn(move || {
@@ -140,10 +157,10 @@ impl Drop for BridgeServer {
 fn socket_path(app_data_dir: &Path) -> String {
     #[cfg(unix)]
     {
-        return app_data_dir
+        app_data_dir
             .join("run/bridge.sock")
             .to_string_lossy()
-            .into();
+            .into()
     }
     #[cfg(windows)]
     {
@@ -239,6 +256,21 @@ fn dispatch_agent(
     }
     if op == "proposal.wait" {
         return wait_proposal(&shared.core, &grant.project_id, &payload);
+    }
+    if let Some(host_dispatch) = shared
+        .host_dispatch
+        .as_ref()
+        .filter(|_| op.starts_with("research.") || op.starts_with("browser."))
+    {
+        return host_dispatch(
+            op.to_owned(),
+            payload,
+            Origin::Agent {
+                session_id: grant.session_id,
+            },
+            grant.project_id,
+            idempotency_key.map(str::to_owned),
+        );
     }
     let mut core = shared
         .core
@@ -428,6 +460,52 @@ mod tests {
             .contains("PTY roundtrip"));
         host.stop(&project_id).unwrap();
         assert_eq!(host.state(&project_id)["session"]["state"], "exited");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pty_stop_terminates_child_process_group() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut core = CoreApp::new(temp.path().join("app")).unwrap();
+        let project = core
+            .dispatch(
+                "project.create",
+                json!({"path":temp.path().join("project"),"name":"PTY children","intent":"test"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let project_id = project["projectId"].as_str().unwrap().to_owned();
+        core.configure_adapter("custom", &json!({"executablePath":"/bin/sh"}))
+            .unwrap();
+        let core = Arc::new(Mutex::new(core));
+        let bridge =
+            Arc::new(BridgeServer::start(Arc::clone(&core), &temp.path().join("app")).unwrap());
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let host = PtyHost::new(
+            core,
+            bridge,
+            PathBuf::from("/bin/echo"),
+            Arc::new(move |event| {
+                let _ = sender.send(event);
+            }),
+        );
+        let marker = temp.path().join("child-survived");
+        host.start(&project_id, &json!({"adapterId":"custom","args":["-c","(sleep 1; touch \"$OMENFLOW_TEST_MARKER\") & echo READY; wait"],"env":{"OMENFLOW_TEST_MARKER":marker}})).unwrap();
+        let mut ready = false;
+        for _ in 0..10 {
+            if let Ok(TerminalEvent::Data(data)) = receiver.recv_timeout(Duration::from_millis(200))
+            {
+                if data["chunk"].as_str().unwrap_or("").contains("READY") {
+                    ready = true;
+                    break;
+                }
+            }
+        }
+        assert!(ready, "shell did not launch its background child");
+        host.stop(&project_id).unwrap();
+        thread::sleep(Duration::from_millis(1200));
+        assert!(!marker.exists(), "agent subprocess survived terminal.stop");
     }
 
     #[test]

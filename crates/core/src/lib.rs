@@ -237,13 +237,10 @@ impl CoreApp {
         if !definition.mutating {
             return self.dispatch(op, payload, origin, project_id);
         }
-        let project_id = project_id.ok_or_else(|| {
-            ContractError::new(
-                "INTERNAL",
-                "App-level idempotency reservation has not been ported",
-            )
-        })?;
         let parsed = parse_input(definition, payload)?;
+        let Some(project_id) = project_id else {
+            return self.dispatch_app_idempotent(op, parsed, origin, key);
+        };
         let who = origin.session_id().unwrap_or("user");
         let replay_key = format!("{who}:{op}:{key}");
         let hash = format!(
@@ -327,6 +324,95 @@ impl CoreApp {
                 Err(error)
             }
         }
+    }
+
+    fn dispatch_app_idempotent(
+        &mut self,
+        op: &str,
+        payload: Value,
+        origin: Origin,
+        key: &str,
+    ) -> CoreResult<Value> {
+        if !matches!(op, "project.create" | "project.import_archive") {
+            return self.dispatch(op, payload, origin, None);
+        }
+        let path_key = if op == "project.create" {
+            "path"
+        } else {
+            "destDir"
+        };
+        let path = required_str(&payload, path_key)?.to_owned();
+        let replay_key = format!("{}:{op}:{key}", origin.session_id().unwrap_or("user"));
+        let request_hash = format!(
+            "{:x}",
+            Sha256::digest(json!({"op":op,"payload":payload}).to_string().as_bytes())
+        );
+        let reservations_path = self.app_data_dir.join("reservations.json");
+        let mut table = fs::read(&reservations_path)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .unwrap_or_else(|| json!({"reservations":{}}));
+        if !table["reservations"].is_object() {
+            table["reservations"] = json!({});
+        }
+        let prior = table["reservations"][&replay_key].clone();
+        if !prior.is_null() {
+            if prior["requestHash"] != request_hash {
+                return Err(ContractError::validation(
+                    "Idempotency key reused with different payload",
+                ));
+            }
+            if prior["state"] == "completed" {
+                return Ok(with_replay_marker(prior["result"].clone(), false));
+            }
+            if prior["state"] == "failed" && prior["error"].is_object() {
+                return Err(serde_json::from_value(prior["error"].clone()).map_err(internal)?);
+            }
+        }
+        let timestamp = prior["createdAt"]
+            .as_str()
+            .map(str::to_owned)
+            .unwrap_or_else(now);
+        table["reservations"][&replay_key] = json!({"op":op,"requestHash":request_hash,"state":"reserved","projectPath":path,"createdAt":timestamp});
+        self.save_reservations(&table)?;
+        // A crash can happen after the project files were committed and before
+        // the app-level replay row. Recover the result from the durable marker.
+        let marker = Path::new(&path).join("omenflow.project.json");
+        let recovered = prior["state"] == "reserved" && marker.is_file();
+        let result = if recovered {
+            self.dispatch("project.open", json!({"path":path}), origin.clone(), None)
+        } else {
+            self.dispatch(op, payload, origin, None)
+        };
+        match result {
+            Ok(value) => {
+                table["reservations"][&replay_key]["state"] = json!("completed");
+                table["reservations"][&replay_key]["result"] = value.clone();
+                self.save_reservations(&table)?;
+                Ok(if recovered {
+                    with_replay_marker(value, true)
+                } else {
+                    value
+                })
+            }
+            Err(error) => {
+                if !marker.is_file() {
+                    table["reservations"][&replay_key]["state"] = json!("failed");
+                    table["reservations"][&replay_key]["error"] = json!(error);
+                    self.save_reservations(&table)?;
+                }
+                Err(error)
+            }
+        }
+    }
+
+    fn save_reservations(&self, table: &Value) -> CoreResult<()> {
+        let path = self.app_data_dir.join("reservations.json");
+        let temp = self
+            .app_data_dir
+            .join(format!("reservations-{}.tmp", uuid::Uuid::new_v4()));
+        fs::write(&temp, serde_json::to_vec_pretty(table).map_err(internal)?).map_err(internal)?;
+        fs::rename(&temp, &path).map_err(internal)
     }
 
     pub fn latest_event_seq(&self, project_id: &str) -> CoreResult<i64> {
@@ -541,6 +627,7 @@ fn dispatch_project(
         "cad.validate_source" => cad::validate_source(handle, payload),
         "cad.write_source" => cad::write_source(handle, payload, origin),
         "cad.inspect" => cad::inspect(handle, payload, origin),
+        "cad.check" => cad::check(handle, payload, origin),
         "cad.patch_source" => cad::patch_source(handle, payload, origin),
         "cad.set_param" => cad::set_param(handle, payload, origin),
         "cad.compose" => cad::compose(handle, payload, origin),
@@ -798,11 +885,10 @@ fn diff_payloads(from: Option<&Value>, to: Option<&Value>, path: &str, out: &mut
     }
     let from_object = from.and_then(Value::as_object);
     let to_object = to.and_then(Value::as_object);
-    if from_object.is_some() && to_object.is_some() {
+    if let (Some(from_object), Some(to_object)) = (from_object, to_object) {
         for key in from_object
-            .unwrap()
             .keys()
-            .chain(to_object.unwrap().keys())
+            .chain(to_object.keys())
             .collect::<std::collections::BTreeSet<_>>()
         {
             let nested = if path.is_empty() {
@@ -810,12 +896,7 @@ fn diff_payloads(from: Option<&Value>, to: Option<&Value>, path: &str, out: &mut
             } else {
                 format!("{path}.{key}")
             };
-            diff_payloads(
-                from_object.unwrap().get(key),
-                to_object.unwrap().get(key),
-                &nested,
-                out,
-            );
+            diff_payloads(from_object.get(key), to_object.get(key), &nested, out);
         }
         return;
     }
@@ -1372,12 +1453,9 @@ fn validate_active_candidate(artifact: &Value, revision: &Value) -> CoreResult<(
 }
 
 fn assert_simple_approval(artifact: &Value) -> CoreResult<()> {
-    if artifact["type"] == "mechanical" {
-        return Err(ContractError::new(
-            "TOOL_MISSING",
-            "Mechanical verification approval is not ported yet",
-        ));
-    }
+    // Human selection of a baseline is allowed even when CAD verification is
+    // incomplete. Readiness remains labeled by the verification evidence.
+    let _ = artifact;
     Ok(())
 }
 
@@ -1513,7 +1591,34 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
         )));
     }
     let changes = proposal["changes"].as_array().unwrap();
+    let mut accepted_scopes = Vec::<(String, Value)>::new();
     if state == "accepted" {
+        for (artifact_id, hash) in input["verificationEvidence"]
+            .as_object()
+            .into_iter()
+            .flat_map(|m| m.iter())
+        {
+            let change = changes
+                .iter()
+                .find(|change| {
+                    change["artifactId"].as_str() == Some(artifact_id.as_str())
+                        && change["kind"] != "archive"
+                })
+                .ok_or_else(|| {
+                    ContractError::validation("Verification scope is not part of this proposal")
+                })?;
+            let revision = require_revision(handle, required_str(change, "newRevisionId")?)?;
+            accepted_scopes.push((
+                artifact_id.clone(),
+                cad::validate_scope_accept(
+                    handle,
+                    &revision,
+                    hash.as_str().ok_or_else(|| {
+                        ContractError::validation("Evidence hash must be a string")
+                    })?,
+                )?,
+            ));
+        }
         let mut overrides = Vec::new();
         for change in changes {
             let artifact = require_artifact(handle, required_str(change, "artifactId")?)?;
@@ -1575,6 +1680,17 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
     }
     let rationale = input["rationale"].as_str().unwrap_or("");
     let tx = handle.db.unchecked_transaction().map_err(internal)?;
+    for (artifact_id, scope) in &accepted_scopes {
+        tx.execute("INSERT INTO meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            params![format!("cad.scope.accepted.{artifact_id}"),json!({"evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"expect":scope["expect"],"revisionId":scope["revisionId"]}).to_string()]).map_err(internal)?;
+        tx_event(
+            &tx,
+            "cad.scope.accepted",
+            "user",
+            json!({"artifactId":artifact_id,"revisionId":scope["revisionId"],
+            "evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"scopeChanges":scope["scopeChanges"]}),
+        )?;
+    }
     let mut prior = Vec::new();
     let mut next = Vec::new();
     if state == "accepted" {
@@ -1948,6 +2064,43 @@ fn internal(error: impl std::fmt::Display) -> ContractError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn app_level_create_replays_across_restart_without_second_project() {
+        let temp = tempfile::tempdir().unwrap();
+        let data = temp.path().join("appdata");
+        let input = json!({"name":"Replay","path":temp.path().join("project"),"intent":"test"});
+        let first = CoreApp::new(&data)
+            .unwrap()
+            .dispatch_idempotent(
+                "project.create",
+                input.clone(),
+                Origin::User,
+                None,
+                Some("create-1"),
+            )
+            .unwrap();
+        let second = CoreApp::new(&data)
+            .unwrap()
+            .dispatch_idempotent(
+                "project.create",
+                input.clone(),
+                Origin::User,
+                None,
+                Some("create-1"),
+            )
+            .unwrap();
+        assert_eq!(first["projectId"], second["projectId"]);
+        assert_eq!(second["idempotent"], true);
+        let changed = CoreApp::new(&data).unwrap().dispatch_idempotent(
+            "project.create",
+            json!({"name":"Changed","path":temp.path().join("project"),"intent":"test"}),
+            Origin::User,
+            None,
+            Some("create-1"),
+        );
+        assert_eq!(changed.unwrap_err().code, "VALIDATION");
+    }
 
     #[test]
     fn creates_and_reads_a_draft_without_selecting_it() {

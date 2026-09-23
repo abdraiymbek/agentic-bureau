@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/contracts", "crates/storage", "crates/core", "crates/agent-host", "apps/rust-desktop"]
+exclude = ["native/omenflow-bridge"]
 resolver = "2"
 
 [workspace.package]

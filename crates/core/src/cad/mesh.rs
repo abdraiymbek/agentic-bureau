@@ -40,6 +40,60 @@ fn root(parent: &mut [usize], x: usize) -> usize {
 }
 
 impl Mesh {
+    pub fn count_intersections(&self) -> CoreResult<usize> {
+        let count = self.triangles.len();
+        if count.saturating_mul(count.saturating_sub(1)) / 2 > 8_000_000 {
+            return Err(ContractError::validation(
+                "Self-intersection candidate pairs exceed the supported work limit",
+            ));
+        }
+        let boxes = self
+            .triangles
+            .iter()
+            .map(|t| {
+                let min = std::array::from_fn(|axis| {
+                    t.iter().map(|p| p[axis]).fold(f64::INFINITY, f64::min)
+                });
+                let max = std::array::from_fn(|axis| {
+                    t.iter().map(|p| p[axis]).fold(f64::NEG_INFINITY, f64::max)
+                });
+                (min, max)
+            })
+            .collect::<Vec<(Point, Point)>>();
+        let mut overlaps = 0;
+        let mut hits = 0;
+        for a in 0..count {
+            for b in a + 1..count {
+                if !(0..3).all(|axis| {
+                    boxes[a].0[axis] <= boxes[b].1[axis] + 1e-9
+                        && boxes[a].1[axis] >= boxes[b].0[axis] - 1e-9
+                }) {
+                    continue;
+                }
+                overlaps += 1;
+                if overlaps > 100_000 {
+                    return Err(ContractError::validation(
+                        "Self-intersection overlapping pairs exceed the supported work limit",
+                    ));
+                }
+                let shared = self.triangles[a]
+                    .iter()
+                    .filter(|p| {
+                        self.triangles[b]
+                            .iter()
+                            .any(|q| (0..3).all(|i| (p[i] - q[i]).abs() < 1e-6))
+                    })
+                    .count();
+                if shared >= 2 {
+                    continue;
+                }
+                if triangles_intersect(&self.triangles[a], &self.triangles[b]) {
+                    hits += 1;
+                }
+            }
+        }
+        Ok(hits)
+    }
     pub fn read(bytes: &[u8]) -> CoreResult<Self> {
         if bytes.len() > 6_000_000 {
             return Err(ContractError::validation(
@@ -172,4 +226,35 @@ impl Mesh {
         }
         inside > 2
     }
+}
+
+fn segment_hits_triangle(a: Point, b: Point, triangle: &Triangle) -> bool {
+    let direction = sub(b, a);
+    let edge1 = sub(triangle[1], triangle[0]);
+    let edge2 = sub(triangle[2], triangle[0]);
+    let p = cross(direction, edge2);
+    let det = dot(edge1, p);
+    if det.abs() < 1e-12 {
+        return false;
+    }
+    let inv = 1.0 / det;
+    let t = sub(a, triangle[0]);
+    let u = dot(t, p) * inv;
+    if !(0.0..=1.0).contains(&u) {
+        return false;
+    }
+    let q = cross(t, edge1);
+    let v = dot(direction, q) * inv;
+    if v < 0.0 || u + v > 1.0 {
+        return false;
+    }
+    let distance = dot(edge2, q) * inv;
+    distance > 1e-6 && distance < 1.0 - 1e-6
+}
+
+fn triangles_intersect(a: &Triangle, b: &Triangle) -> bool {
+    (0..3).any(|i| {
+        segment_hits_triangle(a[i], a[(i + 1) % 3], b)
+            || segment_hits_triangle(b[i], b[(i + 1) % 3], a)
+    })
 }

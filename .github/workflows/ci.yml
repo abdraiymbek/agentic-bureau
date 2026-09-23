@@ -31,7 +31,7 @@ jobs:
       - run: pnpm test
 
   package-macos:
-    name: package + packaged smoke (macOS arm64)
+    name: Rust package + packaged smoke (macOS arm64)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -43,18 +43,19 @@ jobs:
           node-version: 24
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-      # The packaged app ships the Rust helper when a release build is present.
-      - run: cargo build --release --locked
-        working-directory: native/omenflow-bridge
+        with:
+          components: rustfmt, clippy
       - run: pnpm install --frozen-lockfile
-      - run: pnpm rebuild:node
-      - run: pnpm package
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: pnpm make
       - run: pnpm smoke:packaged
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
           name: omenflow-macos-arm64
-          path: apps/desktop/out/
+          path: target/release/bundle/
           if-no-files-found: error
 
   real-cad:
@@ -107,7 +108,7 @@ jobs:
           if-no-files-found: error
 
   package-windows:
-    name: experimental package (Windows x64; not a release gate)
+    name: experimental Rust package (Windows x64; not a release gate)
     continue-on-error: true
     runs-on: windows-latest
     steps:
@@ -120,17 +121,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release --locked
-        working-directory: native/omenflow-bridge
       - run: pnpm install --frozen-lockfile
       - run: pnpm package
-      # Keep this platform experimental, but expose a failed smoke as a failed job.
-      - run: pnpm smoke:packaged
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
           name: omenflow-win32-x64
-          path: apps/desktop/out/
+          path: target/release/bundle/
           if-no-files-found: error
 
   rust-bridge:

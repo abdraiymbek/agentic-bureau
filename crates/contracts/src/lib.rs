@@ -217,8 +217,16 @@ pub struct ContractError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repair: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<Value>,
+    pub details: Option<Box<Value>>,
 }
+
+impl std::fmt::Display for ContractError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for ContractError {}
 
 impl ContractError {
     pub fn new(code: &str, message: impl Into<String>) -> Self {

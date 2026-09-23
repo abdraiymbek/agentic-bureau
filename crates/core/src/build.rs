@@ -63,10 +63,13 @@ pub(super) fn preview(handle: &ProjectHandle, include_drafts: bool) -> CoreResul
                 }
             }
             if artifact["type"] == "mechanical" {
-                // The verification data is consumed only after validating its
-                // render identity and checker version in the CAD module.
-                verification = json!({"status": "unverified"});
-                issues.push("CAD verification: unverified".into());
+                verification = cad::latest_verification(handle, revision)?;
+                if verification["status"] != "passed" {
+                    issues.push(format!(
+                        "CAD verification: {}",
+                        verification["status"].as_str().unwrap_or("unverified")
+                    ));
+                }
             }
             if artifact["type"] == "assumption" && revision["payload"]["needsValidation"] == true {
                 issues.push("unresolved assumption".into());

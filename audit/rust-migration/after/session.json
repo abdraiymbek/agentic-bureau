@@ -1,0 +1,11 @@
+{
+  "pid": 57176,
+  "app": "target/release/bundle/macos/Omen Flow.app",
+  "appdata": "/tmp/omen-rust-migration-after-appdata",
+  "fixture": "/private/tmp/omen-rust-migration-after-fixture/project",
+  "initialWebKitPids": [
+    57178,
+    57179,
+    57180
+  ]
+}
