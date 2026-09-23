@@ -1,0 +1,57 @@
+{
+  "method": "Ten sequential packaged app launches with a fresh isolated Chromium/core data directory each time; OS file cache remains warm. Measures spawn-to-bridge readiness via smoke stdout, not first frame or workspace readiness. Every launch completes calculation and bridge smoke.",
+  "p50Ms": 304.5129589999997,
+  "p95Ms": 1921.779583,
+  "samples": [
+    {
+      "run": 1,
+      "bridgeReadyMs": 1921.779583,
+      "smokePassed": true
+    },
+    {
+      "run": 2,
+      "bridgeReadyMs": 304.87591699999984,
+      "smokePassed": true
+    },
+    {
+      "run": 3,
+      "bridgeReadyMs": 304.8425000000002,
+      "smokePassed": true
+    },
+    {
+      "run": 4,
+      "bridgeReadyMs": 303.57458399999996,
+      "smokePassed": true
+    },
+    {
+      "run": 5,
+      "bridgeReadyMs": 303.895708,
+      "smokePassed": true
+    },
+    {
+      "run": 6,
+      "bridgeReadyMs": 304.7095840000002,
+      "smokePassed": true
+    },
+    {
+      "run": 7,
+      "bridgeReadyMs": 304.5129589999997,
+      "smokePassed": true
+    },
+    {
+      "run": 8,
+      "bridgeReadyMs": 303.45408300000054,
+      "smokePassed": true
+    },
+    {
+      "run": 9,
+      "bridgeReadyMs": 304.53241699999944,
+      "smokePassed": true
+    },
+    {
+      "run": 10,
+      "bridgeReadyMs": 304.4549999999999,
+      "smokePassed": true
+    }
+  ]
+}
