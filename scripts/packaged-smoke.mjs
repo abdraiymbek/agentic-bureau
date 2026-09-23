@@ -58,8 +58,15 @@ function findApp() {
 }
 
 const { bin, resources } = findApp();
-const shim = path.join(resources, 'app.asar.unpacked', 'resources', 'core', 'omenflow');
-if (!fs.existsSync(shim)) fail(`omenflow shim not packaged at ${shim}`);
+const coreDir = path.join(resources, 'app.asar.unpacked', 'resources', 'core');
+const shim = ['omenflow.exe', 'omenflow']
+  .map((name) => path.join(coreDir, name))
+  .find((p) => fs.existsSync(p));
+if (!shim) fail(`omenflow helper not packaged in ${coreDir}`);
+// The packaged helper is the Rust binary when a cargo build was present,
+// else the JS shim (run it through Node like a real agent shell would not —
+// keep the launch explicit so both artifacts are exercised correctly).
+const shimIsScript = fs.readFileSync(shim).subarray(0, 2).toString('latin1') === '#!';
 
 const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-smoke-'));
 const env = { ...process.env, OMENFLOW_APP_DATA: appData, OMENFLOW_SMOKE: '1' };
@@ -67,7 +74,7 @@ delete env.ELECTRON_RUN_AS_NODE;
 
 // Exercise the actual standalone worker shipped in the application, not source
 // loaders or a synchronous fallback that could hide a missing build artifact.
-const meshWorker = path.join(path.dirname(shim), 'mesh-worker.mjs');
+const meshWorker = path.join(coreDir, 'mesh-worker.mjs');
 await new Promise((resolve, reject) => {
   const worker = new Worker(meshWorker, {
     workerData: {
@@ -129,17 +136,21 @@ try {
   console.log(`packaged-smoke: bridge at ${smoke.socketPath}`);
   const call = (op, payload) =>
     JSON.parse(
-      execFileSync(process.execPath, [shim, 'call', op, '--input', '-'], {
-        env: {
-          ...process.env,
-          OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
-          OMENFLOW_BRIDGE_TOKEN: smoke.token,
-          OMENFLOW_PROJECT_ID: smoke.projectId,
+      execFileSync(
+        shimIsScript ? process.execPath : shim,
+        shimIsScript ? [shim, 'call', op, '--input', '-'] : ['call', op, '--input', '-'],
+        {
+          env: {
+            ...process.env,
+            OMENFLOW_BRIDGE_SOCK: smoke.socketPath,
+            OMENFLOW_BRIDGE_TOKEN: smoke.token,
+            OMENFLOW_PROJECT_ID: smoke.projectId,
+          },
+          input: JSON.stringify(payload),
+          encoding: 'utf8',
+          timeout: 90_000,
         },
-        input: JSON.stringify(payload),
-        encoding: 'utf8',
-        timeout: 90_000,
-      }),
+      ),
     );
   assert.ok(Array.isArray(call('artifact.list', {}).artifacts));
   assert.equal(call('project.summary', {}).project.name, 'Omen Flow smoke');

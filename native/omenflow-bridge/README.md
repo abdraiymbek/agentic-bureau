@@ -25,8 +25,11 @@ JSON-RPC frames (mcp).
 
 ```
 cargo build --release   # produces target/release/omenflow
+# or from the repo root: pnpm build:bridge
 ```
 
-The release binary is packaged with the app and placed on the agent
-session's PATH. During development, `packages/agent-host/bin/omenflow.mjs`
-(`node bin/omenflow.mjs ...`) is a self-contained equivalent — no build needed.
+When `target/release/omenflow` exists, the desktop build copies it into the
+app bundle as `resources/core/omenflow` and it lands on the agent session's
+PATH. Without a cargo build the packaging falls back to
+`packages/agent-host/bin/omenflow.mjs` (`node bin/omenflow.mjs ...`), a
+self-contained equivalent — same wire protocol.

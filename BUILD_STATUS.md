@@ -116,17 +116,20 @@ state of the repository, not the plan.
   upload.
 - Windows: install + package + artifact upload; smoke step runs but is
   `continue-on-error` until verified on win32.
-- `native/omenflow-bridge`: `cargo fmt --check` + `clippy -D warnings` on
-  stable (toolchain pinned via `rust-toolchain.toml`).
+- `native/omenflow-bridge`: `cargo fmt --check` + `clippy -D warnings` +
+  `cargo test` on stable (toolchain pinned via `rust-toolchain.toml`).
+  The macOS/Windows packaging jobs build `cargo build --release` so the
+  shipped `omenflow` helper is the compiled Rust binary.
 - Node pinned to 24 (`.nvmrc`), pnpm to 9.15.9 (`packageManager`).
 
 ## Unresolved implementation problems
 
-- No Rust toolchain on this machine: `native/omenflow-bridge` source is
-  written per plan; the compiled helper cannot be produced here. The
-  `omenflow` Node shim provides identical `call`/`mcp` commands in dev.
-  Deviation: bridge ships as JS now; Rust helper compiles where cargo
-  exists (CI).
+- Rust toolchain is installed on this machine (stable via
+  `rust-toolchain.toml`): `pnpm build:bridge` produces
+  `native/omenflow-bridge/target/release/omenflow`. Packaging ships the
+  compiled helper when that binary exists and falls back to the `omenflow`
+  Node shim otherwise — same `call`/`mcp`/`--help` surface and wire
+  protocol.
 - No OpenSCAD installed locally: adapter implements the full
   detect/probe/render/inspect contract; real-render e2e gated on
   `OMENFLOW_OPENSCAD_E2E`.
@@ -173,8 +176,9 @@ cad-tools suites run against the installed OpenSCAD.
 
 ## Deviations from Plan.md
 
-1. Rust bridge not compiled in this environment (no cargo). Node shim used
-   for dev/test; Rust source kept under `native/omenflow-bridge`.
+1. The Rust bridge compiles on this machine; packaging prefers
+   `target/release/omenflow` when present (build with `pnpm build:bridge`)
+   and falls back to the Node shim when no cargo build exists.
 2. `torque_load` takes `g` and `accel` as real `m/s^2` inputs (an
    `acceleration` dimension was added to contracts) instead of the
    originally planned formula-with-embedded-g — same physics, better

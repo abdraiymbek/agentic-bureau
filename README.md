@@ -56,7 +56,7 @@ packages/core           Dispatch, artifacts, proposals, graph, BOM, jobs
 packages/engineering    OpenSCAD adapter, mathjs calc engine, wiring analyzer
 packages/agent-host     PTY sessions, adapters, bridge server, CLI shim
 packages/mcp-server     MCP tools riding the bridge
-native/omenflow-bridge     Rust bridge helper (source; Node shim ships for dev)
+native/omenflow-bridge  Rust bridge helper (packaged when built; Node shim is the fallback)
 fixtures/               Rover + drone reference fixtures (see fixtures/README)
 design-system/          Canonical design, tokens, fonts, brand, screen references
 tests/                  Golden-path integration suite
@@ -81,10 +81,15 @@ then restores the Node copies (see `apps/desktop/forge.config.ts`).
 ## Build and verify a package
 
 ```sh
+pnpm build:bridge        # cargo release build of the `omenflow` helper (optional)
 pnpm package             # Electron Forge → out/Omen Flow-<platform>-<arch>/
 pnpm smoke:packaged      # launch it, wait for the bridge, real `omenflow call`
 pnpm make                # installers (DMG on macOS, Squirrel on Windows)
 ```
+
+Packaging ships the compiled Rust `omenflow` helper when
+`native/omenflow-bridge/target/release/` exists (CI builds it); otherwise it
+falls back to the equivalent Node shim.
 
 ## Fixtures
 

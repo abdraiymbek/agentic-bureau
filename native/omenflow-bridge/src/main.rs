@@ -103,6 +103,8 @@ struct Args {
     op: Option<String>,
     input: Option<String>,
     idempotency_key: Option<String>,
+    /// `omenflow call <op> --help`: describe this op instead of calling it.
+    help_for: Option<String>,
 }
 
 fn parse_args(argv: &[String]) -> Result<Args, String> {
@@ -111,6 +113,7 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
         op: None,
         input: None,
         idempotency_key: None,
+        help_for: None,
     };
     let mut it = argv.iter();
     match it.next().map(|s| s.as_str()) {
@@ -121,15 +124,17 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
         Some("call") => out.mode = "call".into(),
         _ => {
             return Err(
-                "usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow mcp"
+                "usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp"
                     .into(),
             )
         }
     }
+    let mut help = false;
     while let Some(a) = it.next() {
         match a.as_str() {
             "--input" => out.input = it.next().cloned(),
             "--idempotency-key" => out.idempotency_key = it.next().cloned(),
+            "--help" | "-h" => help = true,
             s if !s.starts_with('-') && out.op.is_none() => out.op = Some(s.to_string()),
             s => return Err(format!("unexpected argument: {s}")),
         }
@@ -137,8 +142,14 @@ fn parse_args(argv: &[String]) -> Result<Args, String> {
     if out.op.is_none() {
         return Err("missing <op>".into());
     }
+    if help {
+        // `omenflow call <op> --help` → tool.describe <op>: purpose + input JSON schema.
+        out.help_for = out.op.take();
+        out.op = Some("tool.describe".into());
+        return Ok(out);
+    }
     if out.input.is_none() {
-        return Err("missing --input <file|->".into());
+        return Err("missing --input <file|-> (or --help for the schema)".into());
     }
     Ok(out)
 }
@@ -215,26 +226,30 @@ fn run() -> ExitCode {
     }
 
     // --- mode "call" ---
-    let raw = match args.input.as_deref() {
-        Some("-") => {
-            let mut s = String::new();
-            match io::stdin().read_to_string(&mut s) {
-                Ok(_) => s,
-                Err(e) => return fail("VALIDATION", &format!("Cannot read stdin: {e}")),
-            }
-        }
-        Some(p) => match fs::read_to_string(p) {
-            Ok(s) => s,
-            Err(e) => return fail("VALIDATION", &format!("Cannot read --input {p}: {e}")),
-        },
-        None => String::new(),
-    };
-    let payload: Value = if raw.trim().is_empty() {
-        json!({})
+    let payload: Value = if let Some(target) = args.help_for.as_deref() {
+        json!({ "op": target })
     } else {
-        match serde_json::from_str(&raw) {
-            Ok(v) => v,
-            Err(e) => return fail("VALIDATION", &format!("--input is not valid JSON: {e}")),
+        let raw = match args.input.as_deref() {
+            Some("-") => {
+                let mut s = String::new();
+                match io::stdin().read_to_string(&mut s) {
+                    Ok(_) => s,
+                    Err(e) => return fail("VALIDATION", &format!("Cannot read stdin: {e}")),
+                }
+            }
+            Some(p) => match fs::read_to_string(p) {
+                Ok(s) => s,
+                Err(e) => return fail("VALIDATION", &format!("Cannot read --input {p}: {e}")),
+            },
+            None => String::new(),
+        };
+        if raw.trim().is_empty() {
+            json!({})
+        } else {
+            match serde_json::from_str(&raw) {
+                Ok(v) => v,
+                Err(e) => return fail("VALIDATION", &format!("--input is not valid JSON: {e}")),
+            }
         }
     };
 
@@ -285,15 +300,18 @@ fn mcp_pump(stream: LocalStream) -> ExitCode {
     let input_completed = completed.clone();
     thread::spawn(move || {
         let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            let line = match line {
-                Ok(l) => l,
+        // Read raw bytes per line so one malformed line reports VALIDATION and
+        // the pump continues — a bad line must not kill the MCP session.
+        for line in stdin.lock().split(b'\n') {
+            let bytes = match line {
+                Ok(b) => b,
                 Err(_) => {
                     let _ = input_completed.send(2);
                     return;
                 }
             };
-            let trimmed = line.trim();
+            let text = String::from_utf8_lossy(&bytes);
+            let trimmed = text.trim();
             if trimmed.is_empty() {
                 continue;
             }
@@ -304,9 +322,10 @@ fn mcp_pump(stream: LocalStream) -> ExitCode {
                         return;
                     }
                 }
-                Err(e) => {
+                Err(_) => {
+                    let preview: String = trimmed.chars().take(200).collect();
                     eprint_json(&json!({"ok": false, "error": {"code": "VALIDATION",
-                        "message": format!("Bad JSON-RPC line: {e}")}}));
+                        "message": format!("Bad JSON-RPC line: {preview}")}}));
                 }
             }
         }

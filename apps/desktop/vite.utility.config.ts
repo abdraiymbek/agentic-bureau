@@ -7,21 +7,42 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const pkg = (name: string) => path.join(root, '..', '..', 'packages', name, 'src', 'index.ts');
 
 /**
- * Ship the calc worker + omenflow CLI shim next to the bundle under
+ * Ship the calc worker + omenflow bridge helper next to the bundle under
  * resources/core — `new URL('./calc-worker.mjs', import.meta.url)` must
  * resolve at runtime, and `omenflow` must be a real spawnable file.
+ *
+ * The production helper is the compiled Rust binary from
+ * native/omenflow-bridge (`pnpm build:bridge`); when no cargo build is
+ * present the self-contained Node shim is shipped instead — same wire
+ * protocol.
  */
 function copyHelpers(): Plugin {
   return {
     name: 'copy-utility-helpers',
     async writeBundle() {
       const out = path.join(root, 'resources', 'core');
+      const rustBin = path.join(
+        root,
+        '..',
+        '..',
+        'native',
+        'omenflow-bridge',
+        'target',
+        'release',
+        process.platform === 'win32' ? 'omenflow.exe' : 'omenflow',
+      );
+      const rust = fs.existsSync(rustBin);
       const pairs: [string, string][] = [
         [
           path.join(root, '..', '..', 'packages', 'engineering', 'src', 'calc-worker.mjs'),
           'calc-worker.mjs',
         ],
-        [path.join(root, '..', '..', 'packages', 'agent-host', 'bin', 'omenflow.mjs'), 'omenflow'],
+        rust
+          ? [rustBin, process.platform === 'win32' ? 'omenflow.exe' : 'omenflow']
+          : [
+              path.join(root, '..', '..', 'packages', 'agent-host', 'bin', 'omenflow.mjs'),
+              'omenflow',
+            ],
       ];
       for (const [src, name] of pairs) {
         const dest = path.join(out, name);

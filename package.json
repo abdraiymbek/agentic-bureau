@@ -9,6 +9,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "build:bridge": "cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml",
     "dev": "pnpm --filter @omenflow/desktop start",
     "typecheck": "pnpm -r run typecheck && tsc -p evals/tsconfig.json",
     "lint": "eslint .",

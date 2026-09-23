@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   AGENT_OPS,
@@ -27,7 +28,7 @@ export class ConnectionManager implements ConnectionHost {
     opts?: { cliPath?: string },
   ) {
     this.adapters = createAdapterRegistry((id) => app.adapterConfigs[id] ?? {});
-    this.cliPath = opts?.cliPath ?? fileURLToPath(new URL('../bin/omenflow.mjs', import.meta.url));
+    this.cliPath = opts?.cliPath ?? defaultCliPath();
   }
 
   async list(): Promise<AdapterStatus[]> {
@@ -127,7 +128,38 @@ export class ConnectionManager implements ConnectionHost {
   }
 }
 
-/** Spawn `node <cliPath> call <op> --input -` with stdin `{}`; parse result. */
+/**
+ * The `omenflow` helper ships beside the bundled utility (`omenflow` /
+ * `omenflow.exe`); the source tree uses `bin/omenflow.mjs`.
+ */
+function defaultCliPath(): string {
+  for (const name of ['omenflow.exe', 'omenflow']) {
+    const candidate = fileURLToPath(new URL(`./${name}`, import.meta.url));
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return fileURLToPath(new URL('../bin/omenflow.mjs', import.meta.url));
+}
+
+/**
+ * The shipped helper is either the compiled Rust binary (spawned directly)
+ * or the JS shim (spawned through the current runtime — under Electron that
+ * is the app binary with ELECTRON_RUN_AS_NODE=1, under tests it is Node).
+ */
+function cliSpawnTarget(cliPath: string, args: string[]): [string, string[]] {
+  let script = true;
+  try {
+    const fd = fs.openSync(cliPath, 'r');
+    const head = Buffer.alloc(2);
+    fs.readSync(fd, head, 0, 2, 0);
+    fs.closeSync(fd);
+    script = head.toString('latin1') === '#!';
+  } catch {
+    /* unreadable helper: report through the spawn error below */
+  }
+  return script ? [process.execPath, [cliPath, ...args]] : [cliPath, args];
+}
+
+/** Spawn `<cliPath> call <op> --input -` with stdin `{}`; parse result. */
 function runCli(
   cliPath: string,
   verb: 'call',
@@ -135,10 +167,15 @@ function runCli(
   env: Record<string, string>,
 ): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
+    const [file, argv] = cliSpawnTarget(cliPath, [verb, op, '--input', '-']);
     const child = execFile(
-      process.execPath,
-      [cliPath, verb, op, '--input', '-'],
-      { env: { ...process.env, ...env }, timeout: 15_000, windowsHide: true },
+      file,
+      argv,
+      {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...env },
+        timeout: 15_000,
+        windowsHide: true,
+      },
       (error, stdout, stderr) => {
         if (error) {
           // The shim prints a JSON error body on stderr for exit code 2.

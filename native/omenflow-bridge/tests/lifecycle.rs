@@ -15,6 +15,15 @@ fn write_frame(socket: &mut UnixStream, value: Value) {
 }
 
 fn connect(mode: &str) -> (Child, UnixStream, std::path::PathBuf) {
+    let args: &[&str] = if mode == "call" {
+        &["call", "artifact.list", "--input", "-"]
+    } else {
+        &[mode]
+    };
+    connect_args(mode, args)
+}
+
+fn connect_args(mode: &str, args: &[&str]) -> (Child, UnixStream, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!(
         "omen-rust-{}-{:?}",
         std::process::id(),
@@ -24,10 +33,7 @@ fn connect(mode: &str) -> (Child, UnixStream, std::path::PathBuf) {
     let socket_path = dir.join("bridge.sock");
     let listener = UnixListener::bind(&socket_path).unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_omenflow"));
-    command.arg(mode);
-    if mode == "call" {
-        command.args(["artifact.list", "--input", "-"]);
-    }
+    command.args(args);
     let child = command
         .env("OMENFLOW_BRIDGE_SOCK", &socket_path)
         .env("OMENFLOW_BRIDGE_TOKEN", "test-token")
@@ -83,6 +89,37 @@ fn mcp_exits_when_stdin_closes_with_bridge_still_open() {
     let (mut child, _socket, dir) = connect("mcp");
     drop(child.stdin.take());
     assert_exit(&mut child);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn call_help_maps_to_tool_describe() {
+    let (mut child, mut socket, dir) = connect_args("call", &["call", "cad.check", "--help"]);
+    // --help sends a tool.describe request and never reads the stdin payload.
+    let mut header = [0; 4];
+    socket.read_exact(&mut header).unwrap();
+    let mut body = vec![0; u32::from_le_bytes(header) as usize];
+    socket.read_exact(&mut body).unwrap();
+    let request: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(request["op"], "tool.describe");
+    assert_eq!(request["payload"], json!({"op": "cad.check"}));
+    write_frame(
+        &mut socket,
+        json!({"requestId": request["requestId"], "ok": true,
+            "result": {"op": "cad.check", "inputSchema": {}}}),
+    );
+    assert_exit(&mut child);
+    let mut output = String::new();
+    child
+        .stdout
+        .take()
+        .unwrap()
+        .read_to_string(&mut output)
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(&output).unwrap(),
+        json!({"op": "cad.check", "inputSchema": {}})
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }
 

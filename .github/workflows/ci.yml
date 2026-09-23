@@ -42,6 +42,10 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      # The packaged app ships the Rust helper when a release build is present.
+      - run: cargo build --release --locked
+        working-directory: native/omenflow-bridge
       - run: pnpm install --frozen-lockfile
       - run: pnpm rebuild:node
       - run: pnpm package
@@ -115,6 +119,9 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --locked
+        working-directory: native/omenflow-bridge
       - run: pnpm install --frozen-lockfile
       - run: pnpm package
       # Keep this platform experimental, but expose a failed smoke as a failed job.
