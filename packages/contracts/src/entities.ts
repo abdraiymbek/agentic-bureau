@@ -338,7 +338,20 @@ export const artifactPayloadSchemas: Record<ArtifactType, z.ZodTypeAny> = {
 };
 
 export function validatePayload(type: ArtifactType, payload: unknown): unknown {
-  return artifactPayloadSchemas[type].parse(payload);
+  const schema = artifactPayloadSchemas[type] as z.ZodObject<z.ZodRawShape>;
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const keys = Object.keys(payload);
+    if (keys.length && !keys.some((key) => key in schema.shape)) {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.custom,
+          path: [],
+          message: `No recognized ${type} fields. Use tool.describe with artifactType="${type}" for the payload schema. Expected: ${Object.keys(schema.shape).join(', ')}`,
+        },
+      ]);
+    }
+  }
+  return schema.parse(payload);
 }
 
 /* ------------------------------------------------------------------ */

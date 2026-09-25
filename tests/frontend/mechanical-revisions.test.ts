@@ -4,7 +4,7 @@ import {
   displayedMechanicalRevision,
   mechanicalCandidates,
   mechanicalParameterUnit,
-} from '../../apps/desktop/src/renderer/views/mechanical-revisions';
+} from '../../apps/desktop/src/renderer/lib/mechanical-revisions';
 
 function revision(
   id: string,

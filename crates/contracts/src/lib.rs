@@ -96,6 +96,15 @@ pub fn parse_artifact_payload(type_name: &str, input: Value) -> Result<Value, Co
         .artifact_payload_schemas
         .get(type_name)
         .ok_or_else(|| ContractError::validation(format!("Unknown artifact type: {type_name}")))?;
+    if let (Some(fields), Some(properties)) = (input.as_object(), schema["properties"].as_object())
+    {
+        if !fields.is_empty() && !fields.keys().any(|key| properties.contains_key(key)) {
+            return Err(ContractError::validation(format!(
+                "No recognized {type_name} fields. Use tool.describe with artifactType=\"{type_name}\" for the payload schema. Expected: {}",
+                properties.keys().cloned().collect::<Vec<_>>().join(", ")
+            )));
+        }
+    }
     let mut value = input;
     normalize(schema, &mut value);
     let validator = jsonschema::draft7::new(schema)
@@ -311,6 +320,45 @@ mod tests {
             input,
             json!({ "includeArchived": false, "limit": 200, "offset": 0 })
         );
+    }
+
+    #[test]
+    fn every_artifact_payload_retains_authored_content() {
+        let examples: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/artifact-payloads.json"
+        ))
+        .unwrap();
+        assert_eq!(
+            examples.as_object().unwrap().len(),
+            registry().artifact_payload_schemas.len()
+        );
+        for (kind, payload) in examples.as_object().unwrap() {
+            let parsed = parse_artifact_payload(kind, payload.clone()).unwrap();
+            for (key, value) in payload.as_object().unwrap() {
+                // Defaults may be added within nested records; supplied values must remain.
+                fn contains(actual: &Value, expected: &Value) -> bool {
+                    match expected {
+                        Value::Object(fields) => {
+                            fields.iter().all(|(key, v)| contains(&actual[key], v))
+                        }
+                        Value::Array(items) => actual.as_array().is_some_and(|a| {
+                            a.len() == items.len()
+                                && a.iter().zip(items).all(|(a, b)| contains(a, b))
+                        }),
+                        _ => actual == expected,
+                    }
+                }
+                assert!(contains(&parsed[key], value), "{kind}.{key} content lost");
+            }
+        }
+    }
+
+    #[test]
+    fn unrecognized_artifact_content_is_not_silently_discarded() {
+        for kind in ["wiring", "software", "assembly", "test", "subsystem"] {
+            assert!(parse_artifact_payload(kind, json!({"content":"must not disappear"})).is_err());
+            assert!(parse_artifact_payload(kind, json!({})).is_ok());
+        }
     }
 
     #[test]

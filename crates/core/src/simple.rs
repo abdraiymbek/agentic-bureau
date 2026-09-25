@@ -80,9 +80,15 @@ pub(super) fn tool_describe(input: &Value) -> CoreResult<Value> {
         .ok_or_else(|| {
             ContractError::new("NOT_FOUND", format!("Unknown operation: {requested}"))
         })?;
-    Ok(
-        json!({"op": operation.name, "tool": operation.tool_name, "description": operation.description, "mutating": operation.mutating, "inputSchema": operation.input_schema}),
-    )
+    let mut result = json!({"op": operation.name, "tool": operation.tool_name, "description": operation.description, "mutating": operation.mutating, "inputSchema": operation.input_schema});
+    if let Some(kind) = input["artifactType"].as_str() {
+        result["payloadSchema"] = registry()
+            .artifact_payload_schemas
+            .get(kind)
+            .ok_or_else(|| ContractError::validation("Unknown artifact type"))?
+            .clone();
+    }
+    Ok(result)
 }
 
 pub(super) fn tool_doctor(input: &Value) -> CoreResult<Value> {

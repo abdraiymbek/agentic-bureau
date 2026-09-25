@@ -1,14 +1,21 @@
 {
   "name": "Omen Flow",
-  "version": "1.0.0",
-  "updated": "2026-09-19",
-  "direction": "Precision in flow",
+  "system": "Lens",
+  "version": "2.0.0",
+  "updated": "2026-09-23",
+  "direction": "See the whole. Focus on one. Decide.",
   "specification": "design.md",
   "tokens": "tokens.css",
+  "themes": ["Graphite (dark, default)", "Paper (light)"],
   "brand": {
-    "symbol": "brand/omen-symbol.svg",
-    "provenance": "Original vector created for Omen Flow",
-    "usage": "Monochrome, currentColor, preserve geometry"
+    "mark": "brand/omen-mark.svg",
+    "markBlack": ["brand/omen-mark-black.svg", "brand/omen-mark-black.png"],
+    "markWhite": ["brand/omen-mark-white.svg", "brand/omen-mark-white.png"],
+    "appIcon": ["brand/app-icon.svg", "brand/app-icon.png"],
+    "sourceArtwork": ["brand/source-mark-black.png", "brand/source-mark-white.png"],
+    "provenance": "Mark supplied by the product owner as raster artwork; vectorised by hand from measured geometry (about 2 % edge deviation at 500 px)",
+    "usage": "Monochrome only, currentColor in the renderer; never tinted with the signal colour",
+    "desktopIcons": "apps/rust-desktop/icons/ generated with `tauri icon design-system/brand/app-icon.png`"
   },
   "fonts": [
     {
@@ -24,7 +31,7 @@
       "weights": [400, 500],
       "format": "woff2",
       "source": "@fontsource/ibm-plex-mono",
-      "role": "Code, terminal, technical expressions",
+      "role": "Values, identifiers, parameters, source, terminal",
       "license": "fonts/ibm-plex-mono-LICENSE.txt"
     }
   ],
@@ -32,19 +39,18 @@
   "icons": {
     "package": "@phosphor-icons/react",
     "weight": "regular",
-    "sizes": [14, 16, 20, 24],
+    "sizes": [12, 13, 14, 15],
     "license": "MIT",
     "versions": "../pnpm-lock.yaml"
   },
   "libraries": [
-    { "package": "@radix-ui/react-dialog", "role": "Focus-managed dialogs and command palette" },
-    { "package": "@radix-ui/react-dropdown-menu", "role": "Project switcher" },
-    { "package": "react-resizable-panels", "role": "Workspace and side-panel sizing" },
-    { "package": "@tanstack/react-table", "role": "BOM and candidates" },
-    { "package": "@xyflow/react", "role": "Dependency and impact graph" },
-    { "package": "three", "role": "Engineering mesh viewer and illustrative preview geometry" },
+    { "package": "@radix-ui/react-dialog", "role": "Omnibar and settings sheet" },
+    { "package": "@radix-ui/react-dropdown-menu", "role": "Project menu and agent menu" },
+    { "package": "@xyflow/react", "role": "Project flow map" },
+    { "package": "three", "role": "STL viewport and illustrative preview geometry" },
     { "package": "@xterm/xterm", "role": "Real agent PTY terminal" },
-    { "package": "marked", "role": "Engineering text rendering, sanitized with DOMPurify" }
+    { "package": "marked", "role": "Prose rendering, sanitised with DOMPurify" },
+    { "package": "zustand", "role": "Zoom state and project record" }
   ],
   "preview": {
     "command": "pnpm design:preview",
@@ -53,17 +59,17 @@
     "data": "Disposable rover and drone projects created through CoreApp",
     "mesh": "fixtures/preview-mesh.ts",
     "meshStatus": "Illustrative only; not a verified OpenSCAD render or manufacturing model",
-    "agentExecution": "Disabled in browser preview; actual desktop adapter integration retained"
+    "agentExecution": "Disabled in browser preview; the desktop app runs the real adapter"
   },
-  "references": [
-    "https://cursor.com/help/customization/themes",
-    "https://www.autodesk.com/learn/ondemand/tutorial/tour-the-fusion-user-interface"
+  "rasterAssets": "Captured application screenshots and the supplied brand artwork only",
+  "retired": [
+    "Omen symbol (two arcs) and the v1 “Precision in flow” system",
+    "Sidebar navigation, overview dashboard, inspector side panel, status bar",
+    "Michroma lettering, aircraft artwork, ASCII aircraft"
   ],
-  "rasterAssets": "Captured application screenshots only; no stock or generated decorative imagery",
   "legacyCompatibility": [
     "@omenflow package namespace",
     ".omenflow project storage",
-    "omenflow bridge and CLI",
-    "Omen Flow installer packaging"
+    "omenflow bridge and CLI identifiers"
   ]
 }

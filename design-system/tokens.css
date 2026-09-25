@@ -1,88 +1,181 @@
-/* Omen Flow · Canonical tokens. Read design.md before extending. */
+/*
+ * Omen Flow tokens · Lens 2.0
+ * One graphite field, one signal colour, three engineering states.
+ * Every surface, font, radius, and motion value in the renderer comes from here.
+ */
+
+:root {
+  /* Typefaces (vendored in fonts/) */
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Type scale */
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-md: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 19px;
+  --text-2xl: 26px;
+  --text-3xl: 38px;
+  --leading: 1.5;
+  --tracking-tight: -0.018em;
+  --tracking-display: -0.032em;
+
+  /* Space (4-based) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* Geometry */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 11px;
+  --r-lg: 15px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+  --control-sm: 26px;
+  --control: 32px;
+  --control-lg: 38px;
+  --titlebar: 48px;
+  --rail: 248px;
+  --composer: 60px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --t-fast: 120ms;
+  --t: 200ms;
+  --t-slow: 320ms;
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ */
+/* Graphite (dark) — the default                                        */
+/* ------------------------------------------------------------------ */
 :root,
 [data-theme='dark'] {
+  --field: #0b0c0e; /* window, map canvas */
+  --surface: #111214; /* stage */
+  --raised: #17181b; /* islands, menus, cards */
+  --raised-2: #1e1f23; /* hover, pressed, inputs */
+  --inset: #0d0e10; /* code, terminal, viewport wells */
+  --overlay: rgba(6, 7, 8, 0.62);
+
+  --line: rgba(255, 255, 255, 0.065);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --line-control: rgba(255, 255, 255, 0.16);
+
+  --text: #ededee;
+  --text-2: #a4a7ae;
+  --text-3: #6f737b;
+  --text-4: #4c4f56;
+
+  /* Signal: the one chromatic accent. Live agent, focus, the selected thread. */
+  --signal: #cff36e;
+  --signal-ink: #10130a;
+  --signal-text: #d9f68c;
+  --signal-soft: rgba(207, 243, 110, 0.1);
+  --signal-line: rgba(207, 243, 110, 0.42);
+
+  /* Engineering state — always paired with a label */
+  --ok: #8fd6aa;
+  --ok-soft: rgba(143, 214, 170, 0.11);
+  --warn: #f1bb68;
+  --warn-soft: rgba(241, 187, 104, 0.11);
+  --err: #f3928a;
+  --err-soft: rgba(243, 146, 138, 0.11);
+
+  /* Neutral primary action */
+  --primary: #f1f1f2;
+  --primary-hover: #ffffff;
+  --primary-ink: #0b0c0e;
+
+  --focus: var(--signal);
+  --selection: rgba(207, 243, 110, 0.2);
+
+  --shadow-float: 0 18px 48px -18px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--line-strong);
+  --shadow-menu: 0 24px 64px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--line-strong);
+
+  /* Map + 3D */
+  --map-dot: rgba(255, 255, 255, 0.055);
+  --map-edge: rgba(255, 255, 255, 0.16);
+  --canvas-bg: #0d0e10;
+  --canvas-grid: #1d1f23;
+  --canvas-grid-major: #2a2d33;
+  --model-color: #c9ccd2;
+  --model-compare: #8fb6d6;
+
+  --terminal-bg: #0d0e10;
   color-scheme: dark;
-  --bg-app: #161719;
-  --bg-main: #1c1d20;
-  --bg-raised: #25272b;
-  --bg-inset: #131416;
-  --bg-hover: #2b2d32;
-  --text-primary: #eff0f2;
-  --text-secondary: #b2b4bd;
-  --text-faint: #90949f;
-  --accent: #a8bcfa;
-  --accent-soft: #28334c;
-  --accent-ink: #182341;
-  --action-bg: #e9ecf3;
-  --action-ink: #202227;
-  --border: #303237;
-  --border-strong: #4d5059;
-  --ok: #9ac7ac;
-  --warn: #e0bb80;
-  --err: #eea3a6;
-  --shadow-overlay: 0 18px 70px #0006, 0 2px 8px #0003;
-  --canvas-bg: #191b1f;
-  --canvas-grid: #30343b;
-  --model-color: #b3bdce;
-  --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --fs-body: 13px;
-  --fs-secondary: 12px;
-  --fs-title: 20px;
-  --fs-section: 24px;
-  --s1: 4px;
-  --s2: 8px;
-  --s3: 12px;
-  --s4: 16px;
-  --s5: 24px;
-  --s6: 32px;
-  --s7: 48px;
-  --r-control: 6px;
-  --r-menu: 10px;
-  --r-panel: 12px;
-  --row-h: 40px;
-  --control-h: 32px;
-  --t-fast: 120ms;
-  --t-panel: 180ms;
-  --sidebar-w: 218px;
-  --inspector-w: 320px;
-  --titlebar-h: 46px;
 }
+
+/* ------------------------------------------------------------------ */
+/* Paper (light)                                                        */
+/* ------------------------------------------------------------------ */
 [data-theme='light'] {
+  --field: #ebecee;
+  --surface: #f6f6f7;
+  --raised: #ffffff;
+  --raised-2: #f0f1f3;
+  --inset: #f2f3f5;
+  --overlay: rgba(28, 30, 34, 0.28);
+
+  --line: rgba(15, 17, 20, 0.07);
+  --line-strong: rgba(15, 17, 20, 0.12);
+  --line-control: rgba(15, 17, 20, 0.2);
+
+  --text: #141518;
+  --text-2: #50555e;
+  --text-3: #7b808a;
+  --text-4: #a9adb5;
+
+  --signal: #c8ef5a;
+  --signal-ink: #141a05;
+  --signal-text: #4c6700;
+  --signal-soft: rgba(151, 196, 20, 0.14);
+  --signal-line: rgba(106, 142, 0, 0.5);
+
+  --ok: #2b7a4c;
+  --ok-soft: rgba(43, 122, 76, 0.1);
+  --warn: #99620c;
+  --warn-soft: rgba(197, 128, 18, 0.12);
+  --err: #b23a36;
+  --err-soft: rgba(178, 58, 54, 0.09);
+
+  --primary: #141518;
+  --primary-hover: #000000;
+  --primary-ink: #ffffff;
+
+  --focus: #6b8f00;
+  --selection: rgba(151, 196, 20, 0.28);
+
+  --shadow-float: 0 18px 44px -20px rgba(20, 24, 30, 0.28), 0 0 0 1px var(--line-strong);
+  --shadow-menu: 0 22px 56px -18px rgba(20, 24, 30, 0.3), 0 0 0 1px var(--line-strong);
+
+  --map-dot: rgba(15, 17, 20, 0.09);
+  --map-edge: rgba(15, 17, 20, 0.2);
+  --canvas-bg: #eef0f2;
+  --canvas-grid: #dfe2e6;
+  --canvas-grid-major: #cbd0d6;
+  --model-color: #7d838d;
+  --model-compare: #3f7fb0;
+
+  --terminal-bg: #fbfbfc;
   color-scheme: light;
-  --bg-app: #eeeef0;
-  --bg-main: #fafafb;
-  --bg-raised: #ffffff;
-  --bg-inset: #f1f2f4;
-  --bg-hover: #e6e8ed;
-  --text-primary: #25272d;
-  --text-secondary: #575d69;
-  --text-faint: #666d7a;
-  --accent: #355cc7;
-  --accent-soft: #e4eaf9;
-  --accent-ink: #ffffff;
-  --action-bg: #2b2e36;
-  --action-ink: #ffffff;
-  --border: #dbdde3;
-  --border-strong: #aaafba;
-  --ok: #34694d;
-  --warn: #856019;
-  --err: #ad3946;
-  --shadow-overlay: 0 18px 70px #30374422, 0 2px 8px #30374412;
-  --canvas-bg: #e9ecf1;
-  --canvas-grid: #c5cbd5;
-  --model-color: #8497b3;
 }
-[data-density='compact'] {
-  --row-h: 32px;
-  --control-h: 28px;
-}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  :root {
+    --t-fast: 0ms;
+    --t: 0ms;
+    --t-slow: 0ms;
   }
 }

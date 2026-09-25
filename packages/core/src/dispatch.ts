@@ -243,7 +243,7 @@ const H: Record<string, Handler> = {
   'component.compare': (c, i: { artifactIds: string[] }) =>
     components.compareComponents(c, i.artifactIds),
   'component.propose_selection': (c, i: never, o) => components.proposeSelection(c, i as never, o),
-  'component.add_offer': (c, i: never) => components.addOffer(c, i as never),
+  'component.add_offer': (c, i: never, o) => components.addOffer(c, i as never, o),
   'bom.read': (c) => components.readBom(c),
   'bom.propose_edit': (
     c,
@@ -411,8 +411,11 @@ const H: Record<string, Handler> = {
       tools.push({ toolId: 'openscad', kind: 'cad', available: null, version: null });
     return { tools, note: 'Probe individual tools for live availability.' };
   },
-  'tool.describe': (_c, i: { op: string }) => {
-    const d = describeOp(i.op);
+  'tool.describe': (
+    _c,
+    i: { op: string; artifactType?: import('@omenflow/contracts').ArtifactType },
+  ) => {
+    const d = describeOp(i.op, i.artifactType);
     if (!d) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown operation: ${i.op}`);
     return d;
   },

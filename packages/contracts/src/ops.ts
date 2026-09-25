@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   artifactTypeSchema,
+  artifactPayloadSchemas,
+  type ArtifactType,
   connectionSchema,
   evidenceKindSchema,
   pinSchema,
   proposedChangeSchema,
   relationshipSchema,
-  reviewStateSchema,
 } from './entities.js';
 import { idSchema, revisionRefSchema } from './ids.js';
 import { expectationSchema } from './cad.js';
@@ -83,7 +84,11 @@ const artifactCreateDraft = z.object({
   type: artifactTypeSchema,
   title: z.string().min(1),
   subsystem: z.string().nullable().optional(),
-  payload: z.unknown(),
+  payload: z
+    .unknown()
+    .describe(
+      'Structured fields for this artifact type. Call tool.describe with op="artifact.create_draft" and artifactType to get the exact payload schema before authoring. Populate known fields, quantities with units, source references, and wiring pins/connections; prose in an unrecognized field is not rendered.',
+    ),
   files: z
     .array(
       z.object({
@@ -607,6 +612,11 @@ const jobList = z.object({
 const toolList = z.object({});
 const toolDoctor = z.object({ toolId: z.string().optional() });
 const toolDescribe = z.object({
+  artifactType: artifactTypeSchema
+    .optional()
+    .describe(
+      'Include the payload schema for this artifact type when authoring or updating artifacts.',
+    ),
   op: z.string().min(1).describe('Operation name, e.g. "cad.check" (tool names use `_` for `.`).'),
 });
 
@@ -1016,12 +1026,16 @@ export const OPS: OpDef[] = [
 export const OPS_BY_NAME = new Map(OPS.map((op) => [op.name, op]));
 
 /** JSON-schema view of an op's input (for CLI --help and tool.describe). */
-export function describeOp(name: string): {
+export function describeOp(
+  name: string,
+  artifactType?: ArtifactType,
+): {
   op: string;
   tool: string;
   description: string;
   mutating: boolean;
   inputSchema: unknown;
+  payloadSchema?: unknown;
 } | null {
   const op = OPS_BY_NAME.get(name) ?? OPS_BY_NAME.get(name.replace(/_/g, '.'));
   if (!op) return null;
@@ -1031,6 +1045,13 @@ export function describeOp(name: string): {
     description: op.description,
     mutating: op.mutating,
     inputSchema: zodToJsonSchema(op.input, { $refStrategy: 'none' }),
+    ...(artifactType
+      ? {
+          payloadSchema: zodToJsonSchema(artifactPayloadSchemas[artifactType], {
+            $refStrategy: 'none',
+          }),
+        }
+      : {}),
   };
 }
 

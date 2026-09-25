@@ -3,624 +3,277 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Omen Flow — Design review</title>
+    <title>Omen Flow — Lens</title>
+    <link rel="icon" type="image/svg+xml" href="brand/app-icon.svg" />
     <link rel="stylesheet" href="fonts/fonts.css" />
     <link rel="stylesheet" href="tokens.css" />
     <style>
       * {
         box-sizing: border-box;
       }
-      img {
-        height: auto;
-      }
-      html {
-        scroll-behavior: auto;
-      }
       body {
         margin: 0;
-        background: var(--bg-app);
-        color: var(--text-primary);
-        font: 14px/1.6 var(--font-ui);
+        background: var(--field);
+        color: var(--text);
+        font: 400 14px/1.6 var(--font-sans);
         -webkit-font-smoothing: antialiased;
       }
       a {
         color: inherit;
-        text-decoration: none;
-      }
-      a:focus-visible,
-      button:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 5px;
       }
       .wrap {
-        width: min(1320px, calc(100% - 64px));
-        margin: auto;
+        width: min(1240px, calc(100% - 64px));
+        margin: 0 auto;
       }
-      .masthead {
-        min-height: 76px;
+      header.top {
         display: flex;
         align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid var(--border);
-      }
-      .symbol {
-        width: 25px;
-        height: 25px;
-        background: currentColor;
-        mask: url('brand/omen-symbol.svg') center/contain no-repeat;
-      }
-      .wordmark {
-        font-size: 17px;
-        font-weight: 600;
-        letter-spacing: -0.04em;
-      }
-      .wordmark span {
-        font-weight: 400;
-        color: var(--text-secondary);
-      }
-      .edition {
-        margin-left: auto;
-        font-size: 12px;
-        color: var(--text-faint);
-      }
-      .intro {
-        padding: 64px 0 52px;
-        display: grid;
-        grid-template-columns: 1.4fr 1fr;
-        gap: 48px;
-        align-items: end;
-      }
-      .eyebrow {
-        font: 11px var(--font-mono);
-        color: var(--accent);
-        margin-bottom: 16px;
-      }
-      h1 {
-        font-weight: 500;
-        letter-spacing: -0.05em;
-        font-size: clamp(36px, 4.2vw, 58px);
-        line-height: 1.1;
-        margin: 0 0 20px;
-      }
-      .intro p {
-        color: var(--text-secondary);
-        font-size: 15px;
-        max-width: 49ch;
-        margin: 0;
-      }
-      .intro-side {
-        color: var(--text-secondary);
-        font-size: 13px;
-      }
-      .actions {
-        display: flex;
         gap: 10px;
-        margin-top: 24px;
-        flex-wrap: wrap;
+        height: 64px;
+        border-bottom: 1px solid var(--line);
       }
-      .button {
-        display: inline-flex;
-        padding: 8px 15px;
-        background: var(--action-bg);
-        color: var(--action-ink);
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 500;
+      .mark {
+        width: 20px;
+        height: 20px;
+        background: currentColor;
+        mask: url('brand/omen-mark.svg') center / contain no-repeat;
       }
-      .button.secondary {
-        color: var(--text-primary);
-        background: var(--bg-raised);
-        border: 1px solid var(--border);
+      .word {
+        font-weight: 600;
+        letter-spacing: -0.02em;
       }
-      .route-nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 24px;
-        padding: 16px 0;
-        border-block: 1px solid var(--border);
-        font-size: 12px;
-        color: var(--text-secondary);
+      .word span {
+        font-weight: 400;
+        color: var(--text-2);
       }
-      .route-nav a:hover {
-        color: var(--accent);
-      }
-      section.screen {
-        padding-top: 56px;
-        scroll-margin-top: 20px;
-      }
-      .screen-title {
-        display: flex;
-        gap: 20px;
-        align-items: baseline;
-        margin-bottom: 18px;
-      }
-      .number {
-        color: var(--accent);
-        font: 12px var(--font-mono);
-      }
-      h2 {
-        font-size: 24px;
-        font-weight: 500;
-        letter-spacing: -0.03em;
-        margin: 0;
-      }
-      .screen-title a {
+      .top nav {
         margin-left: auto;
-        color: var(--text-secondary);
-        font-size: 12px;
-        white-space: nowrap;
+        display: flex;
+        gap: 18px;
+        font-size: 13px;
+        color: var(--text-2);
       }
-      .screen p {
-        color: var(--text-secondary);
-        max-width: 80ch;
-        margin: 0 0 22px 38px;
+      .hero {
+        padding: 88px 0 56px;
+        max-width: 760px;
       }
-      figure {
+      .hero h1 {
+        font-size: 52px;
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+        margin: 18px 0 16px;
+      }
+      .hero p {
+        color: var(--text-2);
+        font-size: 17px;
         margin: 0;
       }
-      figure img {
-        width: 100%;
-        display: block;
-        border: 1px solid var(--border-strong);
-        border-radius: 9px;
-        background: var(--bg-main);
-      }
-      figcaption {
-        font-size: 11px;
-        color: var(--text-faint);
-        margin: 10px 0 0;
-      }
-      details {
-        margin-top: 22px;
-        border-top: 1px solid var(--border);
-        padding-top: 16px;
-      }
-      summary {
-        cursor: pointer;
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-bottom: 16px;
-      }
-      .pair {
+      .levels {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 72px;
       }
-      .resource-list {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        border-top: 1px solid var(--border);
-        margin: 25px 0;
+      .level {
+        padding: 18px 20px;
+        border-radius: var(--r-lg);
+        background: var(--raised);
+        box-shadow: var(--shadow-float);
       }
-      .resource-list a {
-        padding: 20px 0;
-        border-bottom: 1px solid var(--border);
-      }
-      .resource-list a span {
+      .level b {
         display: block;
-        color: var(--text-faint);
+        font-weight: 500;
+        font-size: 16px;
+        margin: 4px 0 6px;
+      }
+      .level small {
+        color: var(--signal-text);
         font-size: 12px;
+      }
+      .level p {
+        margin: 0;
+        color: var(--text-3);
+        font-size: 13px;
+      }
+      section.shot {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 40px;
+        padding: 40px 0;
+        border-top: 1px solid var(--line);
+      }
+      section.shot h2 {
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: -0.015em;
+        margin: 0 0 8px;
+      }
+      section.shot p {
+        color: var(--text-2);
+        font-size: 14px;
+        margin: 0;
+      }
+      section.shot img {
+        width: 100%;
+        height: auto;
+        border-radius: 14px;
+        box-shadow: var(--shadow-float);
+        display: block;
       }
       footer {
-        padding: 40px 0;
-        color: var(--text-faint);
-        font-size: 12px;
-        border-top: 1px solid var(--border);
-        margin-top: 60px;
+        padding: 48px 0 80px;
+        color: var(--text-3);
+        font-size: 13px;
+        border-top: 1px solid var(--line);
       }
-      @media (max-width: 760px) {
-        .wrap {
-          width: calc(100% - 32px);
-        }
-        .intro {
+      @media (max-width: 900px) {
+        section.shot,
+        .levels {
           grid-template-columns: 1fr;
-          gap: 24px;
-          padding: 36px 0;
-        }
-        .pair,
-        .resource-list {
-          grid-template-columns: 1fr;
-        }
-        .screen-title {
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .screen p {
-          margin-left: 0;
-        }
-        h2 {
-          font-size: 21px;
-        }
-        .edition {
-          font-size: 10px;
         }
       }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <header class="masthead">
-        <span class="symbol" aria-hidden="true"></span
-        ><a class="wordmark" href="#">Omen <span>Flow</span></a
-        ><span class="edition">Design review · 01 / September 2026</span>
+      <header class="top">
+        <span class="mark" aria-hidden="true"></span>
+        <span class="word">Omen <span>Flow</span></span>
+        <nav>
+          <a href="design.md">Specification</a>
+          <a href="tokens.css">Tokens</a>
+          <a href="/?design-preview">Open the workspace</a>
+        </nav>
       </header>
-      <div class="intro">
-        <div>
-          <div class="eyebrow">An engineering workspace, rethought.</div>
-          <h1>Precision in flow.</h1>
-          <p>
-            Your AI, your engineering, and the evidence behind every decision. One continuous
-            workspace for building what comes next.
-          </p>
+
+      <div class="hero">
+        <span class="mark" style="width: 34px; height: 34px" aria-hidden="true"></span>
+        <h1>See the whole. Focus on one. Decide.</h1>
+        <p>
+          Lens is the design language of Omen Flow. Three zoom levels replace pages, space follows
+          causality, the interface takes the shape of the work, and the agent lives in one composer
+          wired to its real terminal.
+        </p>
+      </div>
+
+      <div class="levels">
+        <div class="level">
+          <small>Level 0</small><b>Project</b>
+          <p>The whole system as one causal flow: Intent → Parts → Design → Evidence.</p>
         </div>
-        <div class="intro-side">
-          A complete visual system across project entry, the engineering workbench, object detail,
-          human review, delivery, and configuration. Built into the actual desktop renderer.
-          <div class="actions">
-            <a class="button" href="/?design-preview&amp;theme=dark">Open interactive workspace ↗</a
-            ><a class="button secondary" href="design.md">Read design.md</a>
-          </div>
+        <div class="level">
+          <small>Level 1</small><b>Object</b>
+          <p>One object on the stage between what it depends on and what it affects.</p>
+        </div>
+        <div class="level">
+          <small>Level 2</small><b>Decision</b>
+          <p>One proposal with its evidence, its consequences, and your decision.</p>
         </div>
       </div>
-      <nav class="route-nav" aria-label="Design walkthrough">
-        <a href="#workspace">Workspace</a><a href="#entry">Project entry</a
-        ><a href="#engineering">Engineering</a><a href="#parts">Parts</a><a href="#review">Review</a
-        ><a href="#impact">Impact</a><a href="#delivery">Delivery</a
-        ><a href="#system">Design system</a>
-      </nav>
-      <section class="screen" id="workspace">
-        <div class="screen-title">
-          <span class="number">01</span>
-          <h2>One place to see the whole project.</h2>
-          <a href="/?design-preview&amp;screen=overview&amp;theme=dark">Explore overview ↗</a>
+
+      <section class="shot">
+        <div>
+          <h2>Project flow</h2>
+          <p>Every object in causal columns. Only what waits on a human floats in “Needs you”.</p>
         </div>
-        <p>
-          Quiet navigation, a clear engineering record, and an optional agent panel. Attention goes
-          to the decisions that need you.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            src="screenshots/01-overview-dark.png"
-            alt="Omen Flow project overview in dark theme with project metrics, engineering objects, and agent panel"
-          />
-          <figcaption>Project overview · Graphite theme · Populated reference project</figcaption>
-        </figure>
+        <img src="screenshots/02-flow.png" alt="Project flow" />
       </section>
-      <section class="screen" id="entry">
-        <div class="screen-title">
-          <span class="number">02</span>
-          <h2>From an idea to a workspace.</h2>
-          <a href="/?design-preview&amp;screen=launcher">Explore project entry ↗</a>
+      <section class="shot">
+        <div>
+          <h2>The causal thread</h2>
+          <p>
+            Hover any object and its full upstream and downstream chain lights; the rest steps back.
+          </p>
         </div>
-        <p>
-          A focused entry point for personal builders and repeat professional work. Project
-          ownership and location are clear from the start.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/14-launcher-dark.png"
-            alt="Project launcher with a brief composer and recent project rows"
-          />
-        </figure>
-        <details>
-          <summary>New-project dialog</summary>
-          <img
-            width="65536"
-            height="4292542531"
-            style="width: 100%"
-            loading="lazy"
-            src="screenshots/15-new-project-dark.png"
-            alt="Accessible new-project dialog retaining the entered project brief"
-          />
-        </details>
+        <img src="screenshots/08-flow-thread.png" alt="Hovered causal thread on the flow" />
       </section>
-      <section class="screen" id="engineering">
-        <div class="screen-title">
-          <span class="number">03</span>
-          <h2>Give the engineering room to work.</h2>
-          <a href="/?design-preview&amp;screen=artifacts&amp;object=mechanical&amp;panel=inspector"
-            >Explore the workbench ↗</a
-          >
+      <section class="shot">
+        <div>
+          <h2>Consequence, visible</h2>
+          <p>After a baseline changes, the stale path through the project is marked in place.</p>
         </div>
-        <p>
-          A shared object browser and inspector support models, calculations, wiring, software,
-          assembly, sources, and tests. Each discipline keeps the controls and evidence it needs.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/03-mechanical-dark.png"
-            alt="Mechanical design workspace with a camera tray mesh, parameters, and inspector"
-          />
-          <figcaption>
-            The tray is illustrative preview geometry, not a verified CAD render or manufacturing
-            model.
-          </figcaption>
-        </figure>
-        <details>
-          <summary>Requirements and the minimum desktop window</summary>
-          <div class="pair">
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/02-requirements-dark.png"
-                alt="Requirement detail with target, unit, priority, acceptance criterion, and inspector"
-              />
-              <figcaption>Requirements · Dark theme</figcaption>
-            </figure>
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/11-minimum-window-light.png"
-                alt="Requirements workspace at 1024 by 700 with agent panel open"
-              />
-              <figcaption>Minimum desktop size · Light theme</figcaption>
-            </figure>
-          </div>
-        </details>
+        <img src="screenshots/07-flow-impact.png" alt="Impact path after an approval" />
       </section>
-      <section class="screen" id="details">
-        <div class="screen-title">
-          <span class="number">↳</span>
-          <h2>The details share the same standard.</h2>
+      <section class="shot">
+        <div>
+          <h2>Object focus · mechanical</h2>
+          <p>
+            Inputs on the left rail, consequences and revisions on the right. The stage becomes a 3D
+            workspace; the composer carries the object as context.
+          </p>
         </div>
-        <p>
-          Readable build sequences, explicit evidence, and clear draft boundaries extend the system
-          below the main workspace.
-        </p>
-        <div class="pair">
-          <figure>
-            <img
-              width="65536"
-              height="4292542531"
-              loading="lazy"
-              src="screenshots/18-assembly-dark.png"
-              alt="Assembly instructions and linked engineering components"
-            />
-            <figcaption>Assembly sequence</figcaption>
-          </figure>
-          <figure>
-            <img
-              width="65536"
-              height="4292542531"
-              loading="lazy"
-              src="screenshots/19-source-dark.png"
-              alt="Source publisher, capture details, URL, and recorded excerpt"
-            />
-            <figcaption>Provenance</figcaption>
-          </figure>
-        </div>
-        <details>
-          <summary>Wiring, verification, assumptions, and an empty project</summary>
-          <div class="pair">
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/17-wiring-dark.png"
-                alt="Wiring table with component names, pins, signals, and units"
-              />
-              <figcaption>Electronics</figcaption>
-            </figure>
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/20-tests-dark.png"
-                alt="Test procedure with numbered steps and expected outcomes"
-              />
-              <figcaption>Verification</figcaption>
-            </figure>
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/21-assumption-dark.png"
-                alt="A draft-only assumption with its original statement and reason"
-              />
-              <figcaption>Draft-only reference state</figcaption>
-            </figure>
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/16-empty-project-dark.png"
-                alt="Empty project with a guided first action"
-              />
-              <figcaption>New project state</figcaption>
-            </figure>
-          </div>
-        </details>
+        <img src="screenshots/03-object-mechanical.png" alt="Mechanical object in focus" />
       </section>
-      <section class="screen" id="parts">
-        <div class="screen-title">
-          <span class="number">04</span>
-          <h2>Parts with context, not just rows.</h2>
-          <a href="/?design-preview&amp;screen=components">Explore parts ↗</a>
+      <section class="shot">
+        <div>
+          <h2>Object focus · requirement</h2>
+          <p>A statement you can edit in place, with its target kept as one quantity.</p>
         </div>
-        <p>
-          Align quantity, cost, mass, and selection state. Compare candidates, follow their
-          evidence, and keep unknown values visible.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/04-bom-dark.png"
-            alt="Bill of materials with aligned quantity, cost, mass, and engineering state columns"
-          />
-        </figure>
+        <img src="screenshots/04-object-requirement.png" alt="Requirement in focus" />
       </section>
-      <section class="screen" id="review">
-        <div class="screen-title">
-          <span class="number">05</span>
-          <h2>Make the decision with the evidence.</h2>
-          <a href="/?design-preview&amp;screen=reviews">Explore review ↗</a>
+      <section class="shot">
+        <div>
+          <h2>Object focus · calculation</h2>
+          <p>
+            Result, expression, and every input with its value and source — the evidence as an
+            equation.
+          </p>
         </div>
-        <p>
-          Readable changes, intact units, named downstream impact, and an explicit human decision.
-          The baseline stays distinct from the proposal.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/05-review-dark.png"
-            alt="Proposal review showing payload capacity changing from 0.3 kilograms to 0.5 kilograms with rationale and downstream impact"
-          />
-        </figure>
+        <img src="screenshots/05-object-calculation.png" alt="Calculation in focus" />
       </section>
-      <section class="screen" id="impact">
-        <div class="screen-title">
-          <span class="number">06</span>
-          <h2>Understand what a change touches.</h2>
-          <a href="/?design-preview&amp;screen=history">Explore history ↗</a>
+      <section class="shot">
+        <div>
+          <h2>Decision</h2>
+          <p>Queue, proposal, impact. Quantities change atomically. The decision stays pinned.</p>
         </div>
-        <p>
-          Focus on the affected engineering path, then expand to the project graph. Review state and
-          freshness remain separate.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/06-impact-dark.png"
-            alt="Focused impact graph connecting a changed requirement to mechanical design, calculation, and test objects"
-          />
-          <figcaption>
-            Captured after approving the payload proposal. A fresh preview begins with that proposal
-            pending.
-          </figcaption>
-        </figure>
-        <details>
-          <summary>The same graph in light theme</summary>
-          <figure>
-            <img
-              width="65536"
-              height="4292542531"
-              loading="lazy"
-              src="screenshots/07-impact-light.png"
-              alt="Equivalent dependency graph in the light theme"
-            />
-          </figure>
-        </details>
+        <img src="screenshots/06-decide.png" alt="Decision view" />
       </section>
-      <section class="screen" id="delivery">
-        <div class="screen-title">
-          <span class="number">07</span>
-          <h2>The working record stays accessible.</h2>
-          <a href="/?design-preview&amp;screen=files&amp;theme=light">Explore files ↗</a>
+      <section class="shot">
+        <div>
+          <h2>Agent console</h2>
+          <p>
+            The real PTY, docked wide under the stage. The composer types into it, nothing more.
+          </p>
         </div>
-        <p>
-          Source files, exports, tool setup, and search carry the same visual language. Advanced
-          options appear where they become relevant.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/09-files-light.png"
-            alt="Files and exports workspace in light theme with OpenSCAD source preview"
-          />
-        </figure>
-        <details>
-          <summary>Connections and command search</summary>
-          <div class="pair">
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/08-connections-light.png"
-                alt="Agent connections with truthful availability and setup controls"
-              />
-              <figcaption>
-                Connections · Local agent execution is disabled in this browser preview.
-              </figcaption>
-            </figure>
-            <figure>
-              <img
-                width="65536"
-                height="4292542531"
-                loading="lazy"
-                src="screenshots/10-command-light.png"
-                alt="Command palette searching for the rover mass budget object"
-              />
-              <figcaption>Keyboard-first object search</figcaption>
-            </figure>
-          </div>
-        </details>
+        <img
+          src="screenshots/12-console-wiring.png"
+          alt="Agent console expanded over the wiring stage"
+        />
       </section>
-      <section class="screen" id="system">
-        <div class="screen-title">
-          <span class="number">08</span>
-          <h2>A system the next feature can inherit.</h2>
-          <a href="/?design-preview&amp;screen=design-system&amp;theme=dark"
-            >Open component catalog ↗</a
-          >
+      <section class="shot">
+        <div>
+          <h2>Lenses</h2>
+          <p>Parts and Timeline re-project the same record. Unknown values stay unknown.</p>
         </div>
-        <p>
-          Canonical tokens, original brand geometry, local fonts, reusable components, and written
-          contracts for every product level.
-        </p>
-        <figure>
-          <img
-            width="65536"
-            height="4292542531"
-            loading="lazy"
-            src="screenshots/12-system-dark.png"
-            alt="Live Omen Flow design system with brand principles and semantic color swatches"
-          />
-        </figure>
-        <details>
-          <summary>Components and engineering states</summary>
-          <figure>
-            <img
-              width="65536"
-              height="4292542531"
-              loading="lazy"
-              src="screenshots/13-system-components-dark.png"
-              alt="Live examples of actions, statuses, fields, tables, and density controls"
-            />
-          </figure>
-        </details>
-        <div class="resource-list">
-          <a href="design.md"
-            >Design specification ↗<span
-              >Principles, screen contracts, states, enterprise extensions</span
-            ></a
-          ><a href="tokens.css"
-            >Canonical tokens ↗<span>Dark and light themes, typography, spacing, density</span></a
-          ><a href="resources.json"
-            >Resource manifest ↗<span>Brand, fonts, libraries, provenance, preview</span></a
-          ><a href="verification.md"
-            >Verification record ↗<span>Checks performed and remaining native validation</span></a
-          >
-        </div>
+        <img src="screenshots/09-parts.png" alt="Parts lens" />
       </section>
+      <section class="shot">
+        <div>
+          <h2>Paper</h2>
+          <p>The light theme shares every role with Graphite.</p>
+        </div>
+        <img src="screenshots/10-timeline-paper.png" alt="Timeline in the Paper theme" />
+      </section>
+      <section class="shot">
+        <div>
+          <h2>Go anywhere</h2>
+          <p>⌘K: recent objects, lenses, actions — and “Ask the agent” while a session runs.</p>
+        </div>
+        <img src="screenshots/15-omnibar.png" alt="Omnibar" />
+      </section>
+      <section class="shot">
+        <div>
+          <h2>Launcher</h2>
+          <p>One question, then your recent work.</p>
+        </div>
+        <img src="screenshots/01-launcher.png" alt="Launcher" />
+      </section>
+
       <footer>
-        Omen Flow · Original product design system. Screens show disposable reference projects.
-        Agent execution and native OS interactions require the desktop app. Run
-        <code>pnpm design:preview</code> to reopen this presentation and the interactive workspace.
+        Captured from <code>pnpm design:preview</code> on disposable fixture projects. The preview
+        mesh is illustrative, not a verified render. See
+        <a href="verification.md">verification</a> for limits.
       </footer>
     </div>
   </body>

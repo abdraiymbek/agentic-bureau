@@ -278,7 +278,10 @@ function updateDraftImpl(
       ? ctx.requireRevision(input.baseRevisionId)
       : artifact.selectedRevisionId
         ? ctx.requireRevision(artifact.selectedRevisionId)
-        : null;
+        : (ctx.repo
+            .listRevisions(artifact.id)
+            .filter((r) => ['draft', 'proposed'].includes(r.reviewState))
+            .at(-1) ?? null);
   if (
     input.baseRevisionId &&
     artifact.selectedRevisionId &&

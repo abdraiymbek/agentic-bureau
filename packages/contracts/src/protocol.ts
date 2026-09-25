@@ -137,6 +137,7 @@ export const EVENT_TYPES = {
   STALE_CHANGED: 'stale.changed',
   JOB_UPDATED: 'job.updated',
   BOM_CHANGED: 'bom.changed',
+  COMPONENT_OFFER_ADDED: 'component.offer_added',
   EXTERNAL_EDIT: 'file.external_edit',
   SESSION_STATE: 'session.state',
   SUGGESTED_ACTION: 'ui.suggested_action',

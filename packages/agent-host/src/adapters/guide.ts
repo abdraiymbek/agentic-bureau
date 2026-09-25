@@ -32,6 +32,37 @@ through the tools so it is recorded as a revision.
   do not re-derive state from the filesystem.
 - \`project_summary\` gives a bounded overview; \`artifact_list\` / \`artifact_read\` for details.
 
+## Structured artifacts — visible content, not title-only records
+- Before creating or updating a non-CAD artifact, call \`tool_describe\` with
+  \`op: "artifact.create_draft"\` and \`artifactType\` to read its exact \`payloadSchema\`.
+  Write content into those fields. Read back the returned revision and check the intended
+  content survived. Continue on the same artifact id for updates.
+- Populate all applicable fields from the request and recorded evidence. Preserve units and
+  source references. Record unknown quantities as \`{unknown: true, reason: "..."}\`;
+  explain missing facts rather than inventing numbers, URLs, prices, or test outcomes.
+- Requirements: statement, target, acceptanceCriterion, priority, verification, sourceId.
+  Assumptions: statement, value, reason, uncertainty, owner, needsValidation.
+- Architecture and notes: markdown (architecture can also carry diagramSvg).
+  Concepts: description, systems, approxDimensions, alternatives, uncertainties, visualFile.
+  Subsystems: description. Software: files, language, entryPoint, notes; attach source files
+  in the revision's files as well so they can be opened.
+- Suggested purchased parts: use \`source_capture\` then \`component_add_candidate\` with maker,
+  partNumber, description, sourced properties/attributes, sourceId, and an offer containing
+  seller and the real product URL. Price may be null. Add other sellers with
+  \`component_add_offer\`. Offers are separate records, not fields in a component payload.
+  Do not leave suggested parts or links only in your terminal response.
+- Electrical work uses artifact type \`wiring\` (not "electrical" or "electronics"). Populate
+  pins and connections with exact component artifact/revision ids, pin names, signalRole,
+  known voltage ranges, wire ratings, polarity, notes, and coverageNote. Create component
+  drafts first to obtain ids. Call \`wiring_render\` and \`wiring_validate\` on the exact wiring
+  revision; read findings and state coverage limits. A diagram is not electrical validation.
+- Calculations: use \`calculation_run\` for executable results; otherwise record expression,
+  inputs, assumptions, limitations, and the actual result/evidence kind. Never invent a run.
+  Assembly: ordered steps with componentRefs, tools, calibration. Tests: procedure, expected
+  outcomes, conditions; recorded results require actual observations and evidence.
+- At completion, check each created artifact with \`artifact_read\` using its revisionId.
+  Confirm content, linked sources/offers and files exist. Mention unresolved missing data.
+
 ## Parts (CAD) — the loop that earns "done"
 1. **Write**: \`cad_write_source\` with the complete OpenSCAD source as plain text (\`title\` for a
    new part, \`artifactId\` to revise one). It saves a draft revision, renders it, and returns a

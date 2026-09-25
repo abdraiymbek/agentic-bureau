@@ -1,0 +1,138 @@
+{
+  "requirement": {
+    "statement": "The controller shall operate from a 12 V supply.",
+    "target": { "value": 12, "unit": "V" },
+    "acceptanceCriterion": "Operate throughout the stated supply range.",
+    "priority": "must",
+    "verification": "Bench supply test"
+  },
+  "assumption": {
+    "statement": "Ambient temperature stays below 40 °C.",
+    "value": { "unknown": true, "reason": "Site survey pending" },
+    "reason": "Indoor use",
+    "owner": "Project owner",
+    "uncertainty": "Summer peak unmeasured",
+    "needsValidation": true
+  },
+  "architecture": {
+    "markdown": "## Power distribution\nBattery → regulator → controller",
+    "diagramSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"320\" height=\"80\"><text x=\"10\" y=\"30\">Power distribution</text></svg>"
+  },
+  "concept": {
+    "description": "A modular inspection platform.",
+    "systems": ["Power and sensing"],
+    "approxDimensions": { "length": { "value": 300, "unit": "mm" } },
+    "alternatives": ["Fixed sensor mast"],
+    "uncertainties": ["Payload envelope pending"]
+  },
+  "component": {
+    "manufacturer": "Example manufacturer",
+    "vendor": "Example supplier",
+    "partNumber": "CTRL-12",
+    "description": "Illustrative controller for regression testing",
+    "properties": {
+      "voltage": { "quantity": { "value": 12, "unit": "V" } },
+      "mass": { "quantity": { "unknown": true, "reason": "Not published" } }
+    },
+    "attributes": { "interface": { "value": "UART", "locator": "Pinout section" } },
+    "status": "candidate",
+    "missingFields": ["mass"]
+  },
+  "source": {
+    "kind": "url",
+    "url": "https://example.com/controller",
+    "title": "Illustrative controller data",
+    "publisher": "Example manufacturer",
+    "retrievedAt": "2026-09-24T12:00:00Z",
+    "locator": "Electrical characteristics",
+    "excerpt": "Input rating is 12 V.",
+    "sourceKind": "datasheet"
+  },
+  "mechanical": {
+    "params": { "width": { "value": 50, "unit": "mm" } },
+    "modelUnit": "mm",
+    "material": "PLA",
+    "manufacturing": "Illustrative geometry only"
+  },
+  "wiring": {
+    "pins": [
+      {
+        "componentArtifactId": "00000000-0000-4000-8000-000000000001",
+        "pin": "VIN",
+        "name": "Supply input",
+        "type": "power",
+        "voltageRange": { "min": { "value": 10, "unit": "V" }, "max": { "value": 14, "unit": "V" } }
+      }
+    ],
+    "connections": [
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "from": {
+          "componentArtifactId": "00000000-0000-4000-8000-000000000001",
+          "componentRevisionId": "00000000-0000-4000-8000-000000000002",
+          "pin": "VIN"
+        },
+        "to": {
+          "componentArtifactId": "00000000-0000-4000-8000-000000000004",
+          "componentRevisionId": "00000000-0000-4000-8000-000000000005",
+          "pin": "OUT"
+        },
+        "signalRole": "DC supply",
+        "voltage": { "value": 12, "unit": "V" },
+        "polarity": "+",
+        "wire": { "gauge": "22 AWG", "currentRating": { "value": 2, "unit": "A" } },
+        "notes": "Confirm fuse sizing"
+      }
+    ],
+    "coverageNote": "Logical wiring only; protection design pending."
+  },
+  "calculation": {
+    "expression": "voltage * current",
+    "inputs": [
+      { "name": "voltage", "quantity": { "value": 12, "unit": "V" }, "literal": true },
+      { "name": "current", "quantity": { "value": 2, "unit": "A" }, "literal": true }
+    ],
+    "assumptions": ["Steady state"],
+    "result": { "quantity": { "value": 24, "unit": "W" }, "text": "Nominal input power" },
+    "limitations": ["Startup transient excluded"],
+    "evidenceKind": "calculated"
+  },
+  "software": {
+    "files": [{ "path": "software/controller.py", "role": "source" }],
+    "language": "Python",
+    "entryPoint": "controller.py",
+    "notes": "Poll the controller over UART."
+  },
+  "assembly": {
+    "steps": [
+      {
+        "order": 1,
+        "instruction": "Mount the controller using spacers.",
+        "componentRefs": [],
+        "tools": ["Hex key"],
+        "calibration": "Check alignment before tightening"
+      }
+    ]
+  },
+  "test": {
+    "procedure": [
+      { "step": 1, "instruction": "Set the supply to 12 V.", "expected": "Controller starts" }
+    ],
+    "conditions": "Room temperature",
+    "results": [
+      {
+        "id": "00000000-0000-4000-8000-000000000006",
+        "evidenceKind": "assumed",
+        "observation": "Bench test pending",
+        "result": "not_run",
+        "conditions": "No hardware available",
+        "units": "V",
+        "attachments": [],
+        "recordedBy": "Fixture",
+        "recordedAt": "2026-09-24T12:00:00Z"
+      }
+    ]
+  },
+  "note": { "markdown": "## Open questions\nConfirm connector orientation." },
+  "subsystem": { "description": "Power conversion and distribution." }
+}

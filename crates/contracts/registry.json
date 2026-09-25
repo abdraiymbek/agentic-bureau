@@ -45,6 +45,7 @@
     "stale.changed",
     "job.updated",
     "bom.changed",
+    "component.offer_added",
     "file.external_edit",
     "session.state",
     "ui.suggested_action",
@@ -1920,7 +1921,9 @@
               "null"
             ]
           },
-          "payload": {},
+          "payload": {
+            "description": "Structured fields for this artifact type. Call tool.describe with op=\"artifact.create_draft\" and artifactType to get the exact payload schema before authoring. Populate known fields, quantities with units, source references, and wiring pins/connections; prose in an unrecognized field is not rendered."
+          },
           "files": {
             "type": "array",
             "items": {
@@ -5304,6 +5307,26 @@
       "inputSchema": {
         "type": "object",
         "properties": {
+          "artifactType": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ],
+            "description": "Include the payload schema for this artifact type when authoring or updating artifacts."
+          },
           "op": {
             "type": "string",
             "minLength": 1,

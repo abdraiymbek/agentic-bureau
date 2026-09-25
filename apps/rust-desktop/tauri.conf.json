@@ -16,10 +16,19 @@
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
-        "minHeight": 700
+        "minHeight": 700,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 17
+        },
+        "backgroundColor": "#0b0c0e"
       }
     ],
-    "security": { "capabilities": ["main"] }
+    "security": {
+      "capabilities": ["main"]
+    }
   },
   "bundle": {
     "active": true,

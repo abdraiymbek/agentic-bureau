@@ -1,286 +1,329 @@
-# Omen Flow design system
-
-Version 1.0 · 19 September 2026 · **Precision in flow**
-
-This is the canonical design specification for Omen Flow. It replaces the previous renderer’s visual language. New features must extend this system. The executable references are `tokens.css`, the shared renderer components, and the in-app **Design system** page. The accompanying `index.html` presents the redesign with captured screens.
-
-## 1. Product and design intent
-
-Omen Flow is an AI engineering workspace for builders and engineering teams. It connects intent, constraints, physical and software design, sourced components, calculations, validation, and human decisions in one persistent project. The engineering record lives independently of any agent conversation.
-
-The product must feel calm enough for daily personal work and precise enough for serious engineering review. Its identity comes from continuous context and trustworthy state: a requirement connects to a model, a calculation, a part, a test, and a decision. The name “Omen” suggests seeing what comes next; “Flow” describes how those decisions remain connected. Do not turn that idea into mystical imagery or science-fiction instrumentation.
-
-Three principles govern every screen:
-
-1. **Intent before decoration.** Give the engineer a legible object, its context, and the action they need. Prefer typography, rows, and alignment to ornamental panels.
-2. **Evidence before confidence.** Preserve units, provenance, uncertainty, revisions, and limitations. An approved record can still be out of date. A calculated result is not a measured result.
-3. **One continuous workspace.** Navigation, engineering content, and the agent share a stable shell. Changes of discipline should not feel like changes of product.
-
-The quality benchmarks are the focus of modern developer workspaces, the clarity of conversational tools, and the canvas hierarchy of professional CAD. This is an original Omen Flow system, not a reproduction of another product’s brand or UI.
-
-## 2. Architecture and levels
-
-| Level            | Purpose                             | Surface                                                                             |
-| ---------------- | ----------------------------------- | ----------------------------------------------------------------------------------- |
-| Application      | Find or begin work                  | Project launcher, recent projects, new-project dialog, appearance                   |
-| Project          | Understand intent and health        | Overview, engineering record, attention queue, recent decisions                     |
-| Discipline       | Browse coherent engineering objects | Requirements, Design files, Parts & materials                                       |
-| Object           | Inspect and work on one item        | Type-specific editor or canvas, baseline revision, draft and freshness states       |
-| Evidence         | Explain a value or decision         | Inspector, source record, input binding, calculation assumptions, test observations |
-| Decision         | Review a proposed change            | Review queue, before/after diff, downstream impact, rationale, approval             |
-| System           | See connections through time        | History & impact graph and change log                                               |
-| Delivery         | Move a reproducible record          | Files, source preview, BOM export, build export, project archive                    |
-| Configuration    | Make tools available                | Agent connections, engineering tools, diagnostics, appearance                       |
-| Design reference | Keep extensions consistent          | Live component catalog and this specification                                       |
-
-Internal domain terms remain valid in APIs. Prefer the user-facing names in navigation. “Design files” includes structured objects as well as files; do not silently collapse the engineering record into a filesystem tree.
-
-### Navigation
-
-Primary order: **Overview → Requirements → Design files → Parts & materials → Review queue → History & impact → Files & exports**. Below these routes, **Recent objects** lists the objects the engineer actually opened (newest first, at most six, remembered per project) so the working set is one click away; it is not a copy of the Design files browser. Connections and Design system stay at the bottom. The project switcher opens another active project or the launcher. Long names truncate with their full text available through tooltips or the selected detail.
-
-The breadcrumb answers “where am I”: **Project › Route › Object**. The project crumb returns to Overview; the object crumb appears whenever an object workspace has a selection. Only show counts from actual project state. Pending reviews and out-of-date objects are useful interruptions; decorative activity counters are not.
-
-### Information hierarchy
-
-Every persistent element must earn its place. Use four tiers:
-
-| Tier                 | Examples                                                                                         |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| Always visible       | Navigation, breadcrumb, the current object and its review/freshness state, pending/stale counts  |
-| One interaction away | Inspector, agent terminal, object browser groups, source editor, command palette                 |
-| Contextual           | Actions that belong to the selected object (Render, Validate, Apply parameters, Approve changes) |
-| Deep                 | Adapter arguments, diagnostics, identifiers, tool versions                                       |
-
-Do not duplicate the same count in more than two places. Status colour marks state; it never decorates chrome.
-
-## 3. Brand assets
-
-Use `brand/omen-symbol.svg`. Its two opposing directional arcs form an open O and imply iteration. Render in one color using `currentColor`/CSS mask. Do not redraw, stretch, rotate, animate continuously, add gradients, or place it inside an unrelated icon tile.
-
-- Symbol: 21 px in titlebar, 26 px in ordinary lockups, approximately 36 px at project entry.
-- Wordmark: **Omen Flow** in Geist. Omen is medium/semibold, Flow regular and secondary. Sentence casing is fixed.
-- Maintain at least half a symbol’s width of clear space around standalone marks.
-- Keep the brand present at entry and in global chrome. Do not stamp it on every object or chart.
-- Previous Michroma lettering, aircraft artwork, ASCII aircraft, and Omen Flow display branding are retired from the renderer. Original assets may remain for provenance; they are not design resources for new work.
-
-The display name is Omen Flow. The existing `@omenflow/*` packages, bridge identifiers, `.omenflow` storage, archive compatibility, and installer names are legacy technical contracts. Their migration is a separate release task; do not rename them incidentally while building UI.
-
-## 4. Foundations
-
-### Color
-
-`tokens.css` is the single source of truth. The renderer imports it. Both themes use the same semantic roles; never scatter copied hex values through feature components.
-
-| Role                 | Dark      | Light     | Meaning                                    |
-| -------------------- | --------- | --------- | ------------------------------------------ |
-| Application          | `#161719` | `#eeeef0` | Global chrome and agent surroundings       |
-| Workspace            | `#1c1d20` | `#fafafb` | Main working surface                       |
-| Raised               | `#25272b` | `#ffffff` | Menus, selected navigation, controls       |
-| Inset                | `#131416` | `#f1f2f4` | Editors, search, code regions              |
-| Primary text         | `#eff0f2` | `#25272d` | Content and headings                       |
-| Secondary text       | `#b2b4bd` | `#575d69` | Supporting explanations                    |
-| Muted text           | `#90949f` | `#666d7a` | Metadata, captions, secondary icons        |
-| Accent               | `#a8bcfa` | `#355cc7` | Focus and active selection                 |
-| Selection background | `#28334c` | `#e4eaf9` | Selected engineering object                |
-| Positive state       | `#9ac7ac` | `#34694d` | Approved/current/passed, always labeled    |
-| Attention            | `#e0bb80` | `#856019` | Pending/out of date/needs review           |
-| Error                | `#eea3a6` | `#ad3946` | Missing required input, failure, rejection |
-| Divider              | `#303237` | `#dbdde3` | Passive grouping                           |
-| Control boundary     | `#4d5059` | `#aaafba` | Interactive or elevated boundaries         |
-
-Primary buttons are high-contrast neutrals. Blue is not a fill for every action. Status colors must never be repurposed as category decoration. CAD uses dedicated canvas, grid, and model tokens. Shadows belong on overlays, not every row or section.
-
-### Typography
-
-Fonts are vendored in `fonts/` with licenses and subset declarations in `fonts/fonts.css`. There is no runtime font CDN dependency.
-
-| Role                            | Typeface      | Size / treatment                         |
-| ------------------------------- | ------------- | ---------------------------------------- |
-| Project identity                | Geist         | 24–32 px, medium, tight tracking         |
-| Launcher statement              | Geist         | Up to 38 px, medium, one clear headline  |
-| Page title                      | Geist         | 20 px, medium/semibold                   |
-| Object title                    | Geist         | 18–19 px, medium/semibold                |
-| Section heading                 | Geist         | 13–15 px, medium                         |
-| Working content                 | Geist         | 13 px, regular, 1.5 line height          |
-| Tables, controls, detail labels | Geist         | 12–13 px                                 |
-| Metadata and badges             | Geist         | 11–12 px; 10 px only for tertiary chrome |
-| Source, expressions, terminal   | IBM Plex Mono | 12–13 px; results may use 20 px          |
-
-Use tabular numerals for measurements and monetary values. Do not set whole tables in monospace. Never reduce essential information to tiny text just to fit. Use horizontal table scrolling or collapse optional panels.
-
-### Spacing, geometry, motion
-
-The spacing scale is **4, 8, 12, 16, 24, 32, 48 px**. Standard page padding is 24–30 px; groups have 20–24 px separation; paired controls use 8 px. Small optical offsets are acceptable in chrome, not a reason to create another spacing system.
-
-Controls: 32 px comfortable, 28 px compact. Tables: 40 px minimum row height, 32 px compact, expanding for secondary lines. Compact density changes padding, not font legibility. Icon buttons are approximately 30 px. Desktop interaction targets must stay at least 24 px.
-
-Radii: 6 px controls, 10 px menus, 12 px panels. Capsules are not the default shape. Use 1 px divisions, avoid repeated nested cards. Motion is functional: 120 ms control feedback, up to 180 ms panel movement. Respect `prefers-reduced-motion`. No ambient animation, entrance choreography, animated gradients, or decorative particle effects.
-
-## 5. Workspace composition
-
-The titlebar is 46 px and reserves macOS traffic-light space. The navigation rail is 218 px, reducing to 190 px near the native minimum size. Main content occupies the remaining flexible area. An optional right side panel starts at 29% of the workspace, is resizable, and contains **Agent / Inspector**. The status strip is 26 px.
-
-- Main content gets a restrained top corner radius and one enclosing boundary.
-- Breadcrumbs remain 43 px high above the current workspace.
-- Object browsers are 224 px, reducing to about 184 px when the working surface narrows.
-- The agent, object list, editor, and timeline own their scrolling independently. Keep global navigation and the status strip available.
-- Closing the side panel returns its area to the engineering workspace. Switching to Inspector preserves the terminal session.
-- Dense tables scroll horizontally inside their own container; the entire application must not overflow horizontally.
-- Desktop support baseline: **1024 × 700**, typical **1440 × 900**. Validate both, plus the actual preview viewport. This release is a desktop workbench, not a shipped mobile application.
-
-## 6. Screen contracts
-
-### Project launcher and creation
-
-A personal workspace rail, one deliberate project brief composer, and recent project rows. An idea can become a project without navigating a marketing page. Creation asks for name, optional brief, and a real folder. Keep the typed brief when the dialog opens. Show local ownership and actual paths. Recent project loading, no projects, no search results, and failure/retry are distinct states.
-
-The preview uses disposable projects. Production keeps native folder and archive pickers. Do not fabricate recency timestamps, collaborators, storage quotas, or cloud synchronization.
-
-### Overview
-
-Start with project name and intent. Then show a summary strip whose four counts (requirements, approved, awaiting review, out of date) are entry points into their workspaces, not vanity metrics. Follow with actionable attention items, then **one** engineering record: a row per discipline with its count and state summary (out of date, in review, without baseline) that opens that discipline. Finish with recent decisions naming the object they touched. Attention rows link to review or affected objects. Empty projects explain how an agent begins the record. Avoid a dashboard grid of discipline cards, arbitrary object tables, or any count that cannot be acted on.
-
-### Requirements and assumptions
-
-Use a searchable object list beside a readable form. Every requirement exposes its statement, numeric target and unit, priority, acceptance criterion, review state, revision, and freshness. Keep units adjacent to values. Save only when changed. Preview impact shows named affected objects. Assumptions retain their reason, ownership, and validation need; they must remain distinguishable from requirements and established facts.
-
-### Design files
-
-One grouped browser serves multiple engineering disciplines. Groups fold (`ObjectGroup`); a search or the current selection always keeps its group open. Object workspaces use the compact page header: the route is named once and the object owns the surface. The Inspect action sits in the object heading, not at page level. Object type determines the working surface:
-
-| Type                                | Primary surface                                                             | Evidence/context                                                     |
-| ----------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Mechanical                          | STL canvas, view controls, parameters, source editor, render/export actions | Revision, tool availability, mesh provenance, downstream inputs      |
-| Wiring                              | Pin/connection tables and derived diagram                                   | Validation messages and coverage limits                              |
-| Calculation                         | Expression, recorded inputs, unit-bearing result                            | Source bindings, changed inputs, assumptions, limitations, tool/time |
-| Software                            | Language, entry point, notes and attached files                             | Revision and dependencies                                            |
-| Test                                | Procedure and observations/results                                          | Conditions, measured vs planned evidence, related requirements       |
-| Assembly                            | Numbered instructions, tools, linked components                             | Calibration and sequence                                             |
-| Component                           | Manufacturer/part number, selection, engineering properties                 | A source for each sourced property, unknowns and missing fields      |
-| Source                              | Publisher, URL/location, capture time, excerpt                              | Origin and recorded evidence                                         |
-| Concept/architecture/subsystem/note | Readable structured text and relationships                                  | Alternatives, uncertainties, revision and provenance                 |
-
-The canvas is functional engineering space. Use neutral model material and quiet grid. Never use an attractive placeholder mesh without clearly identifying it. The included preview tray is **illustrative geometry, not a verified OpenSCAD render or manufacturing model**.
-
-A calculation action must describe which inputs it uses. Re-running recorded inputs creates a proposal for the same object; it does not silently rewrite bindings or certify an out-of-date design. Preserve baseline history and show an explicit changed-source notice.
-
-### Parts & materials
-
-BOM and Candidates are adjacent modes. BOM keeps part identity, quantity, cost, mass, subsystem, and engineering state in aligned columns. Known totals are labeled as known totals; absent prices or masses do not become zero. Candidates support deliberate selection and side-by-side property comparison. Export acts on real project data. Keep full part numbers readable through wrapping, tooltips, or scrolling.
-
-### Review queue
-
-The review list stays distinct from the selected proposal. Present a human title, change count, baseline/proposed values, named downstream impact, and decision rationale. Quantities remain atomic in the diff: **0.3 kg → 0.5 kg**, not disconnected value and unit changes.
-
-Approval is the single primary decision action. Request changes and Reject remain distinct, clearly labeled alternatives; Reject is visually demoted and placed apart. The decision area stays pinned to the bottom of the proposal so a long diff never hides it. Pending, approved, rejected, and changes requested have different states. Disable controls during a decision. A successful decision refreshes the project record and its impact state. Human approval never means the model has passed validation or become fit for manufacture.
-
-### History & impact
-
-Provide a dependency graph and a chronological change log. Use horizontal directional links and named object nodes. When inputs have changed, default to the affected path so the engineer can read the consequence. “Entire project” remains available. Nodes navigate to the proper object workspace. Keep the graph functional: zoom, pan, fit, labels, and a legend. A graph is not a decorative hero illustration.
-
-### Files & exports
-
-Use a file table with object and revision context. Text previews preserve source formatting; binary files explain why no text preview exists. Distinguish a complete project archive from a build package. The include-drafts option is explicit and off by default. Do not claim an export is ready before the operation returns successfully.
-
-### Connections and appearance
-
-Show actual agent availability, setup instructions, and test outcomes. Support the existing Codex CLI, Claude Code, and custom CLI adapters, plus engineering tools such as OpenSCAD. Progressive disclosure holds advanced executable arguments and diagnostics. Show the difference between “not detected,” “configured,” and “working.” Theme and density controls share this system.
-
-### Agent and Inspector
-
-Before connection the Agent panel is quiet: the selected provider, whether it is detected, one start action, and the review boundary. It does not restate project counts shown elsewhere and it is not a hero. After connection it provides a real embedded terminal. Keep provider, find, expand, interrupt, stop, and restart discoverable. Display actual session state in words (Starting, Running, Ended, Failed) with the provider name; the Agent tab shows a live mark while a session runs and the status strip reports session and tool-job state. Do not replace the functioning CLI with fabricated conversational bubbles or invented progress.
-
-Inspector explains the selected object without forcing a route change: baseline, review/freshness, properties, sources, inputs, dependents, and stale reasons. When the object’s workspace is not the current route, offer “Open in Design files / Requirements”. Empty selection, loading, and read failures must remain intelligible. Technical identifiers belong in metadata rows, not as the first or only label.
-
-## 7. Component and interaction rules
-
-Shared primitives live in `apps/desktop/src/renderer/components/ui.tsx`:
-
-- `Brand`, `ArtifactIcon`: consistent identity and object language.
-- `IconButton`: accessible name, native hover title, focus ring, forwarded ref for Radix.
-- `PageHeader`, `SectionHeading`: stable heading and action placement. `PageHeader compact` for object workspaces.
-- `StatusBadge`: text plus icon plus semantic color.
-- `ObjectGroup`: foldable discipline group inside an object browser, with count and caret.
-- `ObjectRow`: selected state, name, revision metadata, attention indicator.
-- `InspectButton` (`components/InspectButton.tsx`): opens the Inspector from an object heading.
-- `SearchField`: visible query, accessible label, clear action.
-- `FormField`: connected label, input ID, optional described hint.
-- `EmptyState`: specific explanation and a relevant recovery or first action.
-
-Use native controls and the installed Radix primitives before adding UI libraries. Use Phosphor regular icons: generally 14 px in tight controls, 16 px navigation, 20–24 px major empty states. Category icons remain neutral; active selection can use accent. Do not mix emoji, several icon families, or arbitrary colored tiles.
-
-One primary action per decision area. Button text describes the outcome: “Approve changes”, “Save requirement”, “Export build”. Loading states keep their width and use active verbs. Do not use generic “Submit” when the result has a clear name. Hover must not move layout. Keyboard focus must be visible independently of hover.
-
-### State model
-
-| Dimension    | States                                                  | Display rule                                         |
-| ------------ | ------------------------------------------------------- | ---------------------------------------------------- |
-| Review       | Draft, in review, approved, rejected, changes requested | Persistent labeled badge                             |
-| Freshness    | Current, out of date, missing input                     | Separate from review; explain the changed dependency |
-| Evidence     | Assumed, sourced, calculated, measured, unverified      | Preserve original evidence kind and limitations      |
-| Execution    | Idle, starting, running, complete, failed, cancelled    | Actual tool/session state, actionable errors         |
-| Data loading | Loading, ready, empty, failed                           | Never show “nothing here” while still loading        |
-| Permissions  | Editable, read-only, unavailable capability             | Explain the reason and disable mutation controls     |
-
-Never infer a successful tool run from a rendered UI. Never collapse unknown into zero, missing into false, or approved into validated. Failure text must name what failed and the next useful action. Preserve user input after failures and surface conflicts rather than overwriting another revision.
-
-### Keyboard and accessibility
-
-`⌘/Ctrl K` opens commands; `⌘/Ctrl P` finds objects; `⌘/Ctrl J` toggles Agent; `⌘/Ctrl B` toggles navigation; `⌘/Ctrl Shift I` opens Inspector. The palette supports arrows, Enter, and Escape. Dialogs trap focus and return it on close. Hidden panes must not capture keyboard focus. Inputs have explicit labels; icon-only buttons have names; status is never color-only; toasts use live regions.
-
-Target WCAG AA for essential text and controls, including focus state in both themes. Passive dividers need not be high contrast. Treat the captured checks as implementation verification, not an accessibility certification. Before broad release, test with keyboard-only navigation, VoiceOver/NVDA, scaling, and real long project content.
-
-## 8. Enterprise extension contracts
-
-These are **future feature design contracts**, not claims of implemented organization, SSO, synchronization, billing, or policy features.
-
-- **Workspace/organization:** Extend the launcher’s scope switcher with Personal and named organizations. Each row has a text identity and role. Keep actual project navigation identical after entry.
-- **Members and permissions:** Use a settings table with person, role, scope, status, and last relevant event. Separate invitation drafts from sent invitations. Permission editing belongs in a focused dialog with an explicit affected scope.
-- **Project policy:** Put review rules, allowed tools, and external-data restrictions in Project settings with clear inheritance from organization. Show a policy reason at the blocked action, not only in settings.
-- **Review at scale:** Extend the existing proposal row with author, reviewer, and age. Add filters and assignment without replacing the readable diff. Required reviewer decisions must remain distinct from simulation/test results.
-- **Release/build readiness:** Summarize blocking requirements, stale calculations, missing evidence, unreviewed changes, and the exact artifact revisions included. Offer export only according to actual backend policy. Do not add a cosmetic “ready for production” score.
-- **Parallel agents:** Show an agent/session list with scope, running task, tools, and waiting decisions. Activity feeds link to immutable proposals. Agent identity must never be mistaken for a human reviewer.
-- **Audit:** Extend History with actor, timestamp, operation, object/revision, and rationale. Preserve access to raw identifiers in a details disclosure. No invented audit certificates.
-- **Remote/sync failure:** Show local, syncing, offline, and conflict states only when supported. Conflicts require explicit revision comparison and resolution. The current app is local-first.
-
-New enterprise features should reuse the table, object/detail, review, settings, and dialog patterns. “Enterprise” means reliable behavior, information density, permissions, and traceability—not more chrome.
-
-## 9. Implementation map and resources
-
-| Resource                                      | Source of truth                                        |
-| --------------------------------------------- | ------------------------------------------------------ |
-| Semantic themes, type scale, spacing, density | `design-system/tokens.css`                             |
-| Fonts and licenses                            | `design-system/fonts/`                                 |
-| Brand symbol                                  | `design-system/brand/omen-symbol.svg`                  |
-| Shared primitives                             | `apps/desktop/src/renderer/components/ui.tsx`          |
-| Layout and component styling                  | `apps/desktop/src/renderer/global.css`                 |
-| Launcher styling                              | `apps/desktop/src/renderer/views/welcome.css`          |
-| Shell, keyboard, panel behavior               | `apps/desktop/src/renderer/App.tsx`                    |
-| Preferences and project state                 | `apps/desktop/src/renderer/store.ts`                   |
-| Interactive component catalog                 | `apps/desktop/src/renderer/views/DesignSystemView.tsx` |
-| Screen reference gallery                      | `design-system/index.html` and `screenshots/`          |
-| Disposable preview                            | `scripts/design-preview.ts`, renderer `preview.ts`     |
-| Resource provenance                           | `design-system/resources.json`                         |
-| Verification record                           | `design-system/verification.md`                        |
-
-No stock photography or AI-generated raster imagery is required. Engineering output is the product’s visual content. Font licenses accompany the vendored files. Package libraries retain their own licenses in the dependency tree; versions are pinned by `pnpm-lock.yaml`.
-
-Design references consulted: [Cursor theme customization](https://cursor.com/help/customization/themes) for consistent editor themes, and [Autodesk Fusion UI tour](https://www.autodesk.com/learn/ondemand/tutorial/tour-the-fusion-user-interface) for the separation of navigation, canvas, and contextual work. These are references for design interpretation, not endorsements or resources copied into Omen Flow.
-
-## 10. Extending the system
-
-Before implementation, identify the product level, object type, primary action, evidence requirements, and states. Reuse an existing surface where possible. Read `tokens.css` and the closest view, then add or extend a shared primitive if the need repeats. A new token requires a semantic purpose in both themes. Add a catalog specimen for a new reusable component.
-
-A feature is ready for design review only when:
-
-- It uses the canonical fonts, tokens, icons, spacing, and terminology.
-- Real engineering values retain units, sources, uncertainty, and revision context.
-- Empty, loading, failure, read-only, pending, and success states are considered where applicable.
-- Its controls perform their stated actions and preserve the human review boundary.
-- It works with long names and at the native minimum size; scroll belongs to the right region.
-- Keyboard focus is visible, input and icon labels are present, and dialogs behave correctly.
-- Both themes and density choices remain coherent.
-- Relevant tests and a visual pass succeed; changed reference screens and this specification are updated together.
-
-Do not introduce gradient hero panels, arbitrary purple glow, metric-card grids, fake agent conversations, random charts, gratuitous border boxes, glassmorphism, excessive all-caps labels, or unsupported collaboration controls. The project itself should command attention.
+# Omen Flow design system — Lens
+
+Version 2.0 · 23 September 2026 · **See the whole. Focus on one. Decide.**
+
+Lens is the design language and interaction model of Omen Flow. It replaces the previous
+sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
+compatibility constraint. The executable references are [`tokens.css`](tokens.css), the
+primitives in `apps/desktop/src/renderer/ui/kit.tsx`, the stylesheet
+`apps/desktop/src/renderer/styles/app.css`, and the in-app **Design system** view.
+
+## 1. Why Lens exists
+
+Omen Flow connects intent, parts, design, and evidence in one engineering record, and an agent
+CLI does much of the authoring. The human's job shifts from _producing_ artifacts to _directing
+and deciding_. An interface organised by file type and discipline — nine routes, a dashboard,
+an inspector, a status bar — makes the human do the connecting. Lens organises the interface
+around the three things a person actually does:
+
+1. **See the whole system** and where a change is travelling.
+2. **Focus on one thing** in the context of what it depends on and what depends on it.
+3. **Decide** what the agent proposed, with the evidence and consequences in view.
+
+## 2. Principles
+
+1. **One thing in focus.** Everything else is context or one step away. There are no pages,
+   only zoom levels.
+2. **Space follows causality.** Inputs sit to the left, consequences to the right. Moving
+   through the project means moving along its recorded links.
+3. **The interface takes the shape of the work.** A part becomes a 3D stage, a calculation an
+   equation, a requirement a statement with a target, a proposal a decision.
+4. **Agents propose, people decide.** The agent types into a real terminal. Nothing becomes
+   the baseline until a person approves it. Approval never means validated.
+5. **Calm until it matters.** State appears when it asks something of you. Colour always comes
+   with a word. Empty means genuinely nothing waiting.
+
+## 3. Interaction model: semantic zoom
+
+Omen Flow has three zoom levels and one agent surface. There is no navigation sidebar.
+
+| Level        | What fills the stage                                                            | How you get here                                                 |
+| ------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files      | Open a project, click the mark, `Esc` from anywhere, `⌘1–4`      |
+| 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
+| 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
+
+- `Esc` zooms out one level. `⌘[` goes back along the path you actually took.
+- The titlebar trail names only where you are (`Project › Mechanical › Camera tray`).
+- The launcher is the only screen without a project. It asks one question — _What are you
+  building?_ — and lists recent work.
+- Settings (agents, engineering tools, appearance) is a sheet (`⌘,`), never a destination.
+- The Design system view is reachable from the launcher and `⌘K`.
+
+### Level 0 — Project
+
+The project identity (name and editable one-line intent) floats top-left over the canvas; the
+lens switcher sits top-right.
+
+**Flow** is the primary navigation surface: a deterministic, layered map of every object.
+
+- Columns read causally: **Intent** (requirements, assumptions) → **Parts** (sources, then
+  components, as two sub-columns) → **Design** (concept, architecture, subsystem, mechanical,
+  electronics, software, assembly, notes) → **Evidence** (calculations, tests).
+- Within a column, objects group by type and order by the barycentre of their upstream (or,
+  for pure inputs, downstream) neighbours, so links run as straight as possible. The layout is
+  never hand-arranged and never random.
+- **Hover lights the thread**: the full upstream and downstream causal chain through the
+  object turns signal-coloured; everything else steps back to 28 % opacity.
+- **Impact** is always visible: out-of-date objects carry an amber border and the edges on
+  recorded stale paths turn amber. After an approval, the consequence path is legible at a
+  glance.
+- **Agent touch**: objects the agent changed in the last 15 minutes carry a soft signal ring.
+- Marks on nodes: amber dot = out of date or in review; hollow ring = no approved baseline.
+- A small legend and zoom/fit controls sit on the canvas edges. Nodes open their object.
+
+**Needs you** is a floating island listing only what waits on a human: open proposals, then
+out-of-date objects, then agent suggestions. When nothing waits it collapses to one quiet
+line: “Every baseline is current and reviewed”.
+
+**Parts** is the bill of materials (known cost, known mass, lines; unknowns labelled and
+excluded from totals) with a Candidates mode for side-by-side comparison. **Timeline** is the
+decision record grouped by day, with adjacent revision/baseline events merged. **Files** lists
+working files by owning object and revision, with text preview, the project archive, and the
+build package (drafts off by default).
+
+An empty project shows the four layers as a dashed outline and one action that opens the agent
+with a drafted first prompt.
+
+### Level 1 — Object
+
+A three-part composition: **left rail · stage · right rail**.
+
+- **Left rail — Depends on**: upstream links (graph edges and recorded, pinned inputs) with the
+  relationship in words. Below it, **Record**: origin, recorded time, evidence kind, bounds,
+  identifier, and “Reveal files”.
+- **Right rail — Affects**: downstream links, then **Related** (non-causal relations), then
+  **Revisions** with the baseline marked and each rationale.
+- Short connector lines lead from every rail link toward the stage. Clicking a link moves focus
+  along the graph.
+- **Stage header**: type and subsystem, title, “Ask agent”, then labelled states — review,
+  freshness, “Change in review” (opens its proposal), drafts, revision.
+- If an input changed or is missing, a notice names the path, e.g.
+  `Payload capacity → Rover mass budget → this`, each step clickable.
+
+Every stage resolves recorded revisions, including artifacts with no approved baseline. Latest
+work selects the newest active draft descended from the current baseline (or the baseline when
+there is no candidate). A revision picker can hold an explicit baseline or historical revision;
+rejected work is never selected automatically. Header, record rail, inputs, files, and fields
+must describe the displayed revision. Draft and historical content is labelled and baseline edit
+controls are disabled there. Known fields populate from the payload; unknown quantities retain
+their reasons. New observations, decisions, and messages require intentional input.
+
+The stage takes the shape of the object:
+
+| Type                                                 | Stage                                                                                                                                                                                         |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requirement                                          | Statement as large editable text; target as one quantity field (value + unit); priority; acceptance; trace impact                                                                             |
+| Assumption                                           | “Not an established fact” notice; statement, reason, owner, needs-validation                                                                                                                  |
+| Mechanical                                           | STL viewport first, revision picker and view tools as floating islands; render/accept bar; parameters grid; source                                                                            |
+| Calculation                                          | Result in large mono, expression, inputs as `name = quantity · source` rows, assumptions, limitations, re-run                                                                                 |
+| Test                                                 | Procedure steps, conditions, recorded results, record-a-result form                                                                                                                           |
+| Electronics                                          | Automatically drawn, sanitised diagram for the displayed revision; validate and redraw actions, labelled findings, pins, voltage ranges, connections, ratings, and coverage                   |
+| Component                                            | Part number, maker, selection, sourced properties and attributes; supplier offers with recorded web destinations, quantity basis, observation time, availability, and explicit unknown prices |
+| Source                                               | The excerpt as a quotation, publisher, kind, capture time, URL                                                                                                                                |
+| Assembly                                             | Numbered steps with tools, calibration, and linked components                                                                                                                                 |
+| Concept · architecture · subsystem · software · note | Readable prose with an edit toggle; concept dimensions, systems, alternatives, uncertainties, and saved visuals; software metadata and immutable file previews                                |
+
+Edits appear in a save bar that only becomes prominent when something changed. Saving creates
+a revision; the copy says so.
+
+### Level 2 — Decision
+
+The same three-part grammar: **queue · proposal · impact**.
+
+- Left rail: “Needs you / All” and the queue.
+- Centre: “Proposal n of m” with previous/next, the reason as the title, who proposed it and
+  when, supersede notices, then one section per change with the object (clickable), change
+  kind, and `r1 → r2`. Diffs are field-level rows; quantities change atomically:
+  **0.3 kg → 0.5 kg**. Mechanical changes render the bound meshes with a baseline overlay,
+  verification checks, declared scope, and coverage limits.
+- The decision bar is pinned to the bottom of the stage: rationale, then **Reject** (demoted,
+  far left), **Request changes**, and **Approve changes** (`⌘↵`).
+- Right rail: “Would affect” and a standing note on what approval means.
+- After a decision: a notice with **Resume agent from decision**, which types a precise
+  continuation instruction into the running CLI.
+
+### The agent: composer and console
+
+The agent is docked at the bottom as a floating island, present on every project screen.
+
+- **Collapsed**: agent chip (status light + provider; menu to switch provider or open setup),
+  the composer, and the primary action — **Start {agent}** when idle, **Send** when running.
+  The latest agent-originated change appears as a quiet, clickable line.
+- **Context travels with focus**: on an object, the composer shows a removable `@Object`
+  chip. Sending prefixes the message with the object's type, title, artifact id, and revision
+  so the agent's tools can act on exactly that object.
+- **Expanded** (`⌘J`): the island widens and reveals the real PTY terminal above the composer —
+  resizable, searchable, with interrupt, stop, and restart. The composer writes to the same PTY
+  using bracketed paste; nothing is paraphrased, summarised, or fabricated.
+- `⌘K` offers “Ask {agent}: …” for any sentence typed while a session runs.
+
+## 4. Visual language
+
+### Colour
+
+Two themes share roles: **Graphite** (default) and **Paper**. `tokens.css` is the only source.
+
+| Role      | Token                            | Use                                             |
+| --------- | -------------------------------- | ----------------------------------------------- |
+| Field     | `--field`                        | Window, map canvas, rails                       |
+| Surface   | `--surface`                      | The stage in focus                              |
+| Raised    | `--raised`, `--raised-2`         | Islands, menus, hover, inputs                   |
+| Inset     | `--inset`, `--terminal-bg`       | Code, terminal, viewport wells                  |
+| Text      | `--text`, `--text-2`, `--text-3` | Content, support, metadata                      |
+| Signal    | `--signal`, `--signal-text`      | Live agent, focus ring, the lit thread, context |
+| Positive  | `--ok`                           | Approved, current, passed                       |
+| Attention | `--warn`                         | Needs review, out of date                       |
+| Error     | `--err`                          | Missing input, failure, rejection               |
+| Primary   | `--primary`, `--primary-ink`     | The one decisive action per area                |
+
+- **Signal lime is the only chromatic accent outside state.** It means _alive or selected_:
+  a running agent, keyboard focus, the hovered causal thread, the context chip. It is never a
+  category colour and never decoration.
+- Primary actions are high-contrast neutrals (white on Graphite, black on Paper).
+- State colours always pair with a word (`State` renders a dot plus a label).
+
+### Type
+
+Geist for the interface; IBM Plex Mono for values, identifiers, parameters, source, and the
+terminal. Both are vendored in `fonts/`.
+
+| Token        | Size | Role                                  |
+| ------------ | ---- | ------------------------------------- |
+| `--text-3xl` | 38   | Launcher question, calculation result |
+| `--text-2xl` | 26   | Project and object titles             |
+| `--text-xl`  | 19   | Statements, target values, totals     |
+| `--text-lg`  | 15   | Lede, omnibar input                   |
+| `--text-md`  | 13.5 | Working text                          |
+| `--text-sm`  | 12.5 | Controls, rails, tables               |
+| `--text-xs`  | 11.5 | Metadata                              |
+
+Display sizes use `--tracking-display`. Numbers use tabular figures. Sentence case everywhere;
+no all-caps labels.
+
+### Geometry, depth, motion
+
+- Spacing is 4-based (`--s-1` … `--s-12`). Controls are 26 / 32 / 38 px.
+- Radii: 6 (small controls), 8 (controls), 11 (menus, nodes), 15 (islands), 20 (stage, sheet).
+- Depth has three planes: the **field** (flat), the **stage** (surface, 1 px line, no shadow),
+  and **islands** (raised, `--shadow-float`) that hover over the field or stage: Needs you,
+  composer, viewport tools, map controls, menus, omnibar, sheet.
+- Motion is functional: 120 ms feedback, 200 ms state, 320 ms zoom and sheet. Zooming into an
+  object uses a subtle scale-in. Only live things pulse. `prefers-reduced-motion` removes all
+  of it.
+
+### Brand
+
+The mark is three facets meeting at one point — intent, design, and evidence converging. It is
+vectorised from the supplied artwork (`brand/source-mark-*.png`) as `brand/omen-mark.svg`
+(`currentColor`) and rendered in code by `Mark`.
+
+- Monochrome only: `--text` on Graphite, black on Paper. Never tinted with signal.
+- Sizes: 17 px titlebar button, 18–22 px lockup, 30–34 px launcher and catalogue hero.
+- Wordmark **Omen Flow** in Geist; “Omen” semibold, “Flow” regular and secondary.
+- The app icon (`brand/app-icon.svg` → `apps/rust-desktop/icons/`) places the Paper mark on a
+  graphite squircle with a faint rim.
+- Keep clear space of half the mark's width. Don't stretch, rotate, outline, or animate it.
+
+## 5. Primitives
+
+All live in `ui/kit.tsx` and appear in the Design system view.
+
+| Primitive            | Purpose                                                                      |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `Mark`, `Brand`      | Identity                                                                     |
+| `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types    |
+| `State`, `Pulse`     | Labelled state (review, freshness, execution); live pulse for running things |
+| `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`  |
+| `IconButton`         | Named icon-only action (label doubles as tooltip)                            |
+| `Segmented`          | Lens and mode switching with optional counts                                 |
+| `Field`              | Label + control + hint with connected ids                                    |
+| `Notice`             | Inline, toned explanation with an optional action                            |
+| `Empty`              | Specific empty state with a recovery                                         |
+| `Disclosure`         | Progressive detail with contextual actions                                   |
+| `Block`, `Facts`     | Quiet labelled sections and key/value metadata                               |
+| `Kbd`, `Spinner`     | Shortcuts and active work                                                    |
+
+Composite patterns: map node, rail link node, stage header, save bar, diff row, decision bar,
+composer, island, sheet, omnibar.
+
+## 6. Engineering integrity
+
+These rules outrank aesthetics.
+
+- **Quantities keep their units**, atomically, in values, diffs, and tables.
+- **Unknown stays unknown.** It is never shown as zero, never summed, and is labelled with
+  its reason when one was recorded.
+- **Review, freshness, evidence, and execution are separate dimensions** and are shown
+  separately. Approved ≠ current ≠ validated.
+- **Provenance is one click away**: every sourced property links to its source; every
+  recorded input shows its relationship and whether it is pinned.
+- **Illustrative data is labelled** (e.g. the preview mesh). A calculation marks itself
+  experimental where the engine is.
+- **No fabricated agent activity.** The composer writes to the real PTY; activity lines come
+  from recorded events; running state comes from the session.
+- **Exports report success only after the operation returns.**
+
+## 7. Keyboard and accessibility
+
+| Shortcut    | Action                                |
+| ----------- | ------------------------------------- |
+| `⌘K` / `⌘P` | Omnibar: go to, run, or ask           |
+| `Esc`       | Zoom out one level                    |
+| `⌘[`        | Back                                  |
+| `⌘J`        | Show or hide the agent terminal       |
+| `⌘⇧D`       | Decisions                             |
+| `⌘1`–`⌘4`   | Flow, Parts, Timeline, Files          |
+| `⌘↵`        | Approve (in a decision)               |
+| `⌘,`        | Settings                              |
+| `Enter`     | Send to agent (`⇧Enter` for new line) |
+
+Focus rings use `--focus` in both themes. Icon-only buttons have names. Dialogs (omnibar,
+sheet, menus) trap and return focus via Radix. The map exposes each node with an accessible
+label; the viewport documents its keyboard alternative. Toasts use a live region. Target WCAG
+AA for essential text; verify with VoiceOver before release.
+
+## 8. Layout
+
+- Titlebar 48 px with macOS overlay traffic lights (70 px reserved); the whole bar drags.
+- Rails 248 px, 216 px below 1280, 196 px below 1120. The stage takes the rest.
+- Supported from **1024 × 700**; designed at **1440 × 900**.
+- Scrolling belongs to regions: rails, stage, lens pages, terminal, omnibar list, sheet.
+
+## 9. Extending Lens
+
+Before adding a surface, answer: which zoom level, which object type, what the one decisive
+action is, what evidence must be visible, and which states apply. Then:
+
+1. Prefer a new **stage** for a new object type or a new **lens** for a new projection of the
+   whole project. Don't add pages, sidebars, or dashboards.
+2. Put context on rails, secondary detail in disclosures, and configuration in the sheet.
+3. Use existing primitives; add a primitive only when a need repeats, with a catalogue
+   specimen and both themes.
+4. A new token needs a semantic role in both themes.
+5. Consider empty, loading, failure, read-only, pending, and success states.
+6. Verify at 1024 × 700 and 1440 × 900 in both themes, then update this document,
+   `verification.md`, and the catalogue together.
+
+Never add: metric-card dashboards, decorative charts, gradient heroes, glowing
+purple, fake chat bubbles, unlabelled colour, or collaboration features that don't exist.
+
+## 10. Implementation map
+
+| Concern                           | Source of truth                                          |
+| --------------------------------- | -------------------------------------------------------- |
+| Tokens (both themes)              | `design-system/tokens.css`                               |
+| Fonts and licences                | `design-system/fonts/`                                   |
+| Brand                             | `design-system/brand/`                                   |
+| Primitives                        | `renderer/ui/kit.tsx`                                    |
+| Styling                           | `renderer/styles/app.css`                                |
+| Zoom model, keyboard, events      | `renderer/App.tsx`, `renderer/store.ts`                  |
+| Titlebar, omnibar, console, sheet | `renderer/shell/`                                        |
+| Project lenses and flow map       | `renderer/project/`                                      |
+| Object focus and stages           | `renderer/object/`                                       |
+| Decisions                         | `renderer/decide/`                                       |
+| Launcher                          | `renderer/launcher/`                                     |
+| Catalogue                         | `renderer/system/DesignSystemView.tsx`                   |
+| Lineage and actions               | `renderer/lib/graph.ts`, `renderer/lib/actions.ts`       |
+| Disposable preview                | `scripts/design-preview.ts`, `renderer/preview.ts`       |
+| Screens                           | `design-system/screenshots/`, `design-system/index.html` |

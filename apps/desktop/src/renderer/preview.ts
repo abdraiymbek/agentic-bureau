@@ -1,6 +1,6 @@
 /** Development-only bridge. Uses real core operations on disposable fixture projects. */
 import type { OmenflowApi } from './api';
-import { useStore, type Nav } from './store';
+import { useStore, type Lens } from './store';
 import type { Project } from '@omenflow/contracts';
 export async function installDesignPreview() {
   const bootstrap = (await fetch('/__omen_preview/bootstrap').then((r) => r.json())) as {
@@ -69,36 +69,17 @@ export async function installDesignPreview() {
   if (!result.ok) throw new Error('Could not open preview project');
   const opened = result.result as { project: Project; projectId: string };
   const state = useStore.getState();
-  state.set({ project: opened.project, projectId: opened.projectId, projectPath: bootstrap.path });
-  await api.setActiveProject(opened.projectId);
-  await Promise.all([
-    state.refreshArtifacts(),
-    state.refreshProposals(),
-    state.refreshEvents(),
-    state.refreshAdapters(),
-    state.refreshJobs(),
-  ]);
-  if (
-    screen &&
-    [
-      'overview',
-      'requirements',
-      'artifacts',
-      'components',
-      'reviews',
-      'history',
-      'files',
-      'connections',
-      'design-system',
-    ].includes(screen)
-  )
-    state.navigate(screen as Nav);
-  const type = params.get('object');
-  if (type)
-    state.selectArtifact(
-      useStore.getState().artifacts.find((v) => v.artifact.type === type)?.artifact.id ?? null,
-    );
-  if (params.get('panel') === 'inspector') state.set({ sidecarTab: 'inspector' });
+  state.set({ project: opened.project, projectPath: bootstrap.path });
+  state.setActive(opened.projectId);
+  await useStore.getState().refreshAll();
   if (params.get('theme') === 'light' || params.get('theme') === 'dark')
     state.set({ theme: params.get('theme') as 'light' | 'dark' });
+  if (screen && ['parts', 'timeline', 'files'].includes(screen))
+    state.go({ level: 'project', lens: screen as Lens });
+  if (screen === 'decide') state.decide(null);
+  if (screen === 'system') state.go({ level: 'system' });
+  const type = params.get('object');
+  const target = type ? useStore.getState().artifacts.find((v) => v.artifact.type === type) : null;
+  if (target) state.focus(target.artifact.id);
+  if (params.get('console') === 'open') state.set({ consoleOpen: true });
 }

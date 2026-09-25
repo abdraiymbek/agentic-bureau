@@ -75,7 +75,11 @@ fn insert_offer(handle: &ProjectHandle, artifact_id: &str, input: &Value) -> Cor
     Ok(offer_by_id(handle, &id)?.unwrap())
 }
 
-pub(super) fn add_offer(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
+pub(super) fn add_offer(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
     let id = required_str(input, "artifactId")?;
     let artifact = require_artifact(handle, id)?;
     if artifact["type"] != "component" {
@@ -83,7 +87,14 @@ pub(super) fn add_offer(handle: &ProjectHandle, input: &Value) -> CoreResult<Val
             "Offers attach to component artifacts",
         ));
     }
-    Ok(json!({"offer":insert_offer(handle,id,input)?}))
+    let offer = insert_offer(handle, id, input)?;
+    emit(
+        handle,
+        "component.offer_added",
+        origin,
+        json!({"artifactId":id,"offerId":offer["id"]}),
+    )?;
+    Ok(json!({"offer":offer}))
 }
 
 fn offer_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {

@@ -8,8 +8,9 @@ human reviews and approves baseline changes.
 The production desktop shell, domain dispatch, storage, agent host, MCP server,
 and bridge are Rust. Tauri hosts the existing React renderer in the operating
 system webview. React, Vite, and pnpm are build tools; the packaged app contains
-neither Electron nor a Node runtime. This keeps the established design system,
-STL viewport, and review screens while moving privileged code to Rust.
+neither Electron nor a Node runtime. The renderer implements the Lens design
+system: a project flow, object focus between causal rails, one-at-a-time
+decisions, and an agent composer wired to the real terminal.
 
 Projects retain schema 1 at `.omenflow/state.sqlite` with the same object store
 and bridge protocol v1. Existing `@omenflow` operation names and the
@@ -20,13 +21,13 @@ and bridge protocol v1. Existing `@omenflow` operation names and the
 | Path                         | Role                                                        |
 | ---------------------------- | ----------------------------------------------------------- |
 | `apps/rust-desktop/`         | Tauri shell, commands, isolated research webview            |
-| `apps/desktop/src/renderer/` | React screens, shared UI primitives, Three.js STL viewport  |
+| `apps/desktop/src/renderer/` | Lens renderer: zoom levels, primitives, flow map, viewport  |
 | `crates/contracts/`          | Operation registry, input validation, wire envelopes        |
 | `crates/storage/`            | SQLite schema 1, FTS5, object store, path guards            |
 | `crates/core/`               | Revisions, human review, graph, CAD, calculations, archives |
 | `crates/agent-host/`         | PTY, adapters, local bridge server, MCP dispatch            |
 | `native/omenflow-bridge/`    | Bundled Rust `omenflow` CLI and MCP client                  |
-| `design-system/`             | Canonical tokens, fonts, brand assets, and UI specification |
+| `design-system/`             | Lens tokens, fonts, brand assets, and UI specification      |
 
 The former Electron main/preload/utility and TypeScript domain packages remain
 in the repository as migration references and compatibility test oracles; they

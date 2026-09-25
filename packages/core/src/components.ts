@@ -118,6 +118,7 @@ export function addOffer(
     availabilityText?: string;
     sourceId?: string;
   },
+  origin: Origin = { kind: 'system' },
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'component') {
@@ -134,6 +135,7 @@ export function addOffer(
     sourceId: input.sourceId,
   };
   ctx.repo.insertOffer(offer, artifact.id);
+  ctx.emit('component.offer_added', origin.kind, { artifactId: artifact.id, offerId: offer.id });
   return { offer };
 }
 

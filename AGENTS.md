@@ -2,9 +2,9 @@
 
 ## Product UI and design
 
-Before creating or changing any user-facing surface, read [the Omen Flow design specification](design-system/design.md). Use [the canonical tokens](design-system/tokens.css), vendored fonts, brand symbol, and the shared primitives in `apps/desktop/src/renderer/components/ui.tsx`. The live **Design system** page is the component reference.
+Before creating or changing any user-facing surface, read [the Lens design specification](design-system/design.md). Use [the canonical tokens](design-system/tokens.css), vendored fonts, the brand mark (`Mark` / `design-system/brand/`), and the primitives in `apps/desktop/src/renderer/ui/kit.tsx`. The live **Design system** view is the component reference.
 
-Preserve the Omen Flow visual language across new features: graphite surfaces, Geist interface text, IBM Plex Mono technical text, Phosphor icons, restrained selection accent, labeled engineering state, and the stable project/workspace/agent hierarchy. Follow the specification’s extension checklist and update the catalog for new reusable patterns.
+Preserve the Lens interaction model: three zoom levels (project flow and lenses → one object between its input and consequence rails → one decision), no navigation sidebar or dashboard, causal left-to-right layout, type-shaped stages, and the agent composer wired to the real PTY. Keep the visual language: graphite field, islands for floating controls, Geist interface text, IBM Plex Mono values, Phosphor icons, one signal accent reserved for live and focused things, and labelled engineering state. Add a stage or a lens rather than a page. Follow the specification’s extension checklist and update the catalogue for new reusable patterns.
 
 Preserve quantities and units, unknowns, evidence, revision history, and human review. Do not fabricate tool success, collaboration, production readiness, or data. Keep existing `@omenflow` APIs and `.omenflow` storage compatible unless the task explicitly includes migration.
 

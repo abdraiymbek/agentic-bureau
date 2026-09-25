@@ -2,8 +2,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import '../../../../design-system/fonts/fonts.css';
-import './tokens.css';
-import './global.css';
+import '../../../../design-system/tokens.css';
+import './styles/app.css';
 
 async function mount() {
   if (!window.omenflow && '__TAURI_INTERNALS__' in window) {

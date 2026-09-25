@@ -679,7 +679,7 @@ fn dispatch_project(
         "cad.compose" => cad::compose(handle, payload, origin),
         "cad.render" => cad::render(handle, payload, origin),
         "component.add_candidate" => components::add_candidate(handle, payload, origin),
-        "component.add_offer" => components::add_offer(handle, payload),
+        "component.add_offer" => components::add_offer(handle, payload, origin),
         "component.compare" => components::compare(handle, payload),
         "component.propose_selection" => components::propose_selection(handle, payload, origin),
         "bom.read" => components::bom_read(handle),
@@ -1198,10 +1198,15 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
         .as_str()
         .or(input["baseRevisionId"].as_str())
         .or(artifact["selectedRevisionId"].as_str());
-    let parent = parent_id
-        .map(|id| get_revision(handle, id))
-        .transpose()?
-        .flatten();
+    let parent = if let Some(id) = parent_id {
+        Some(require_revision(handle, id)?)
+    } else {
+        handle.db.query_row(
+            "SELECT * FROM revision WHERE artifact_id=?1 AND review_state IN ('draft','proposed') ORDER BY seq DESC LIMIT 1",
+            [artifact_id], revision_from_row,
+        ).optional().map_err(internal)?
+    };
+    let parent_id = parent.as_ref().and_then(|revision| revision["id"].as_str());
     if let Some(parent) = &parent {
         if parent["artifactId"] != artifact_id {
             return Err(ContractError::validation(
@@ -2225,6 +2230,108 @@ mod tests {
             Some("create-1"),
         );
         assert_eq!(changed.unwrap_err().code, "VALIDATION");
+    }
+
+    #[test]
+    fn structured_drafts_keep_content_files_and_offer_notifications() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("app")).unwrap();
+        let project = app
+            .dispatch(
+                "project.create",
+                json!({"name":"Content","path":temp.path().join("project")}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let pid = project["projectId"].as_str().unwrap();
+        let examples: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/artifact-payloads.json"
+        ))
+        .unwrap();
+        for (kind, payload) in examples.as_object().unwrap() {
+            let first = app.dispatch("artifact.create_draft", json!({"type":kind,"title":kind,"payload":payload,"files":[{"path":format!("{kind}.txt"),"contentBase64":"c2F2ZWQgY29udGVudA=="}]}), Origin::User, Some(pid)).unwrap();
+            let id = first["artifact"]["id"].as_str().unwrap();
+            let second = app
+                .dispatch(
+                    "artifact.update_draft",
+                    json!({"artifactId":id,"title":format!("Updated {kind}")}),
+                    Origin::User,
+                    Some(pid),
+                )
+                .unwrap();
+            assert_eq!(second["revision"]["parentId"], first["revision"]["id"]);
+            assert_eq!(second["revision"]["payload"], first["revision"]["payload"]);
+            assert_eq!(second["revision"]["files"], first["revision"]["files"]);
+            assert!(second["artifact"]["selectedRevisionId"].is_null());
+            let schema = app
+                .dispatch(
+                    "tool.describe",
+                    json!({"op":"artifact.create_draft","artifactType":kind}),
+                    Origin::User,
+                    Some(pid),
+                )
+                .unwrap();
+            assert!(schema["payloadSchema"]["properties"].is_object());
+            if kind == "component" {
+                app.dispatch("component.add_offer", json!({"artifactId":id,"seller":"Example","url":"https://example.com/part","price":null}), Origin::User, Some(pid)).unwrap();
+                let events = app
+                    .dispatch(
+                        "project.changes_since",
+                        json!({"seq":0}),
+                        Origin::User,
+                        Some(pid),
+                    )
+                    .unwrap();
+                assert!(events["events"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|event| event["type"] == "component.offer_added"
+                        && event["data"]["artifactId"] == id));
+            }
+            if kind == "wiring" {
+                let mut body = payload.clone();
+                let first_connection = body["connections"][0].clone();
+                body["connections"] = json!((0..5)
+                    .map(|index| {
+                        let mut c = first_connection.clone();
+                        c["id"] = json!(uuid::Uuid::new_v4().to_string());
+                        c["signalRole"] = json!(format!("Signal <{index}>"));
+                        if index == 3 {
+                            c["to"] = c["from"].clone();
+                        }
+                        if index == 4 {
+                            let from = c["from"].clone();
+                            c["from"] = c["to"].clone();
+                            c["to"] = from;
+                        }
+                        c
+                    })
+                    .collect::<Vec<_>>());
+                let wiring = app
+                    .dispatch(
+                        "artifact.update_draft",
+                        json!({"artifactId":id,"payload":body}),
+                        Origin::User,
+                        Some(pid),
+                    )
+                    .unwrap();
+                let rendered = app
+                    .dispatch(
+                        "wiring.render",
+                        json!({"artifactId":id,"revisionId":wiring["revision"]["id"]}),
+                        Origin::User,
+                        Some(pid),
+                    )
+                    .unwrap();
+                let svg = rendered["diagramSvg"].as_str().unwrap();
+                assert!(svg.contains("VIN") && svg.contains("OUT") && svg.contains("12 V"));
+                assert!(svg.contains("Signal &lt;4&gt;"));
+                assert_eq!(svg.matches("<path ").count(), 5);
+                assert!(svg.contains("244")); // fifth connection gets a separate row, not a recycled lane
+            }
+        }
     }
 
     #[test]

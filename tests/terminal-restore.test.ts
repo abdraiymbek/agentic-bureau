@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTerminalRestore } from '../apps/desktop/src/renderer/components/terminal-restore.js';
+import { createTerminalRestore } from '../apps/desktop/src/renderer/lib/terminal-restore.js';
 import { Scrollback } from '../packages/agent-host/src/pty.js';
 
 function deferred<T>() {

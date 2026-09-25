@@ -242,12 +242,19 @@ pub(super) fn render(handle: &ProjectHandle, input: &Value) -> CoreResult<Value>
     let diagram = if order.is_empty() {
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"60\"><text x=\"20\" y=\"34\" fill=\"#E6E9ED\" font-family=\"monospace\" font-size=\"12\">no connections</text></svg>".into()
     } else {
-        let width = 80 + order.len() * 180 + order.len().saturating_sub(1) * 140;
-        let height = 180;
+        let has_loop = connections
+            .iter()
+            .any(|c| c["from"]["componentArtifactId"] == c["to"]["componentArtifactId"]);
+        let width = 80
+            + order.len() * 180
+            + order.len().saturating_sub(1) * 180
+            + if has_loop { 220 } else { 0 };
+        let box_height = 70.max(50 + connections.len() * 36);
+        let height = box_height + 120;
         let mut parts=vec![format!("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" font-family=\"monospace\" font-size=\"11\">")];
         for (index, id) in order.iter().enumerate() {
-            let x = 40 + index * 320;
-            parts.push(format!("<rect x=\"{x}\" y=\"60\" width=\"180\" height=\"70\" fill=\"none\" stroke=\"#87AFC7\" stroke-width=\"1.2\" rx=\"4\"/><text x=\"{}\" y=\"77\" fill=\"#E6E9ED\" text-anchor=\"middle\">{}</text>",x+90,escape_xml(&title(id))));
+            let x = 40 + index * 360;
+            parts.push(format!("<rect x=\"{x}\" y=\"60\" width=\"180\" height=\"{box_height}\" fill=\"none\" stroke=\"#87AFC7\" stroke-width=\"1.2\" rx=\"4\"/><text x=\"{}\" y=\"77\" fill=\"#E6E9ED\" text-anchor=\"middle\">{}</text>",x+90,escape_xml(&title(id))));
         }
         for (index, c) in connections.iter().enumerate() {
             let from = c["from"]["componentArtifactId"].as_str().unwrap_or("");
@@ -258,10 +265,36 @@ pub(super) fn render(handle: &ProjectHandle, input: &Value) -> CoreResult<Value>
             let Some(ti) = order.iter().position(|id| id == to) else {
                 continue;
             };
-            let y = 100 + (index % 3) * 10;
-            let x1 = 40 + fi * 320 + 180;
-            let x2 = 40 + ti * 320;
-            parts.push(format!("<path d=\"M {x1} {y} C {} {y}, {} {y}, {x2} {y}\" fill=\"none\" stroke=\"#87AFC7\" stroke-width=\"1.2\"/>",(x1+x2)/2,(x1+x2)/2));
+            let y = 100 + index * 36;
+            let same = fi == ti;
+            let forward = fi <= ti;
+            let x1 = 40 + fi * 360 + if forward { 180 } else { 0 };
+            let x2 = 40 + ti * 360 + if same || !forward { 180 } else { 0 };
+            let y2 = if same { y + 16 } else { y };
+            let mid = if same { x1 + 28 } else { (x1 + x2) / 2 };
+            parts.push(format!("<path d=\"M {x1} {y} C {mid} {y}, {mid} {y2}, {x2} {y2}\" fill=\"none\" stroke=\"#87AFC7\" stroke-width=\"1.2\"/>"));
+            let label = format!(
+                "{}{}",
+                c["signalRole"].as_str().unwrap_or(""),
+                c["voltage"]
+                    .as_object()
+                    .map(|_| format!(
+                        " {} {}",
+                        c["voltage"]["value"],
+                        c["voltage"]["unit"].as_str().unwrap_or("")
+                    ))
+                    .unwrap_or_default()
+            );
+            let label_x = if same { mid + 4 } else { mid };
+            let anchor = if same { "start" } else { "middle" };
+            parts.push(format!("<text x=\"{label_x}\" y=\"{}\" fill=\"#E6E9ED\" text-anchor=\"{anchor}\">{}</text>", y - 6, escape_xml(&label)));
+            for (name, x, port_y, right) in
+                [("from", x1, y, forward), ("to", x2, y2, same || !forward)]
+            {
+                let px = if right { x - 8 } else { x + 8 };
+                let align = if right { "end" } else { "start" };
+                parts.push(format!("<circle cx=\"{x}\" cy=\"{port_y}\" r=\"2.5\" fill=\"#87AFC7\"/><text x=\"{px}\" y=\"{}\" fill=\"#E6E9ED\" text-anchor=\"{align}\">{}</text>", port_y - 5, escape_xml(c[name]["pin"].as_str().unwrap_or(""))));
+            }
         }
         parts.push("</svg>".into());
         parts.join("")

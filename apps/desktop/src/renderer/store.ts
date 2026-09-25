@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   AdapterStatus,
   ArtifactView,
+  Edge,
   Job,
   Project,
   ProjectEvent,
@@ -11,16 +12,18 @@ import type {
 } from '@omenflow/contracts';
 import { cmd } from './api';
 
-export type Nav =
-  | 'overview'
-  | 'requirements'
-  | 'components'
-  | 'artifacts'
-  | 'reviews'
-  | 'history'
-  | 'files'
-  | 'connections'
-  | 'design-system';
+/** Projections of the whole project. */
+export type Lens = 'flow' | 'parts' | 'timeline' | 'files';
+
+/**
+ * Where the engineer is. Omen Flow has three zoom levels instead of pages:
+ * the whole project (seen through a lens), one object in focus, and one decision.
+ */
+export type View =
+  | { level: 'project'; lens: Lens }
+  | { level: 'object'; id: string }
+  | { level: 'decide'; proposalId: string | null }
+  | { level: 'system' };
 
 export interface Toast {
   id: number;
@@ -28,46 +31,54 @@ export interface Toast {
   text: string;
 }
 
+export interface ComposerContext {
+  id: string;
+  title: string;
+}
+
 interface State {
   projectId: string | null;
   project: Project | null;
   projectPath: string | null;
   readOnly: boolean;
-  recents: string[];
   artifacts: ArtifactView[];
-  selectedArtifactId: string | null;
-  /** Most recently worked-on objects, newest first. The sidebar shows these as the working set. */
-  recentArtifactIds: string[];
-  nav: Nav;
+  edges: Edge[];
+  stale: Record<string, StaleRecord[]>;
   proposals: Proposal[];
   events: ProjectEvent[];
   session: SessionInfo | null;
   adapters: AdapterStatus[];
-  stale: Record<string, StaleRecord[]>;
   jobs: Job[];
   suggestions: { title: string; detail?: string }[];
-  terminalExpanded: boolean;
-  sidecarOpen: boolean;
-  sidecarTab: 'agent' | 'inspector';
-  sidebarOpen: boolean;
-  theme: 'dark' | 'light';
-  density: 'comfortable' | 'compact';
-  paletteOpen: boolean;
-  quickOpen: boolean;
-  toasts: Toast[];
+  /** Most recently focused objects, newest first; remembered per project. */
+  recentIds: string[];
 
-  setActive: (projectId: string | null) => void;
+  view: View;
+  back: View[];
+  consoleOpen: boolean;
+  omniOpen: boolean;
+  settingsOpen: boolean;
+  theme: 'dark' | 'light';
+  toasts: Toast[];
+  /** A request to put text into the composer (from “Ask about this”). */
+  composerSeed: { text: string; nonce: number } | null;
+
   set: (p: Partial<State>) => void;
+  setActive: (projectId: string | null) => void;
+  go: (view: View) => void;
+  goBack: () => void;
+  zoomOut: () => void;
+  focus: (id: string) => void;
+  decide: (proposalId?: string | null) => void;
+  askAbout: (text?: string) => void;
   refreshArtifacts: () => Promise<void>;
+  refreshGraph: () => Promise<void>;
   refreshProposals: () => Promise<void>;
   refreshEvents: () => Promise<void>;
   refreshJobs: () => Promise<void>;
   refreshAdapters: () => Promise<void>;
   refreshSession: () => Promise<void>;
-  selectArtifact: (id: string | null) => void;
-  /** Select an object and move to the workspace that edits its type. */
-  openArtifact: (id: string, type: string) => void;
-  navigate: (n: Nav) => void;
+  refreshAll: () => Promise<void>;
   toast: (kind: Toast['kind'], text: string) => void;
   pushEvent: (e: ProjectEvent) => void;
 }
@@ -81,15 +92,15 @@ function readPreference(key: string): string | null {
 }
 
 let toastSeq = 0;
+let composerSeq = 0;
 let projectGeneration = 0;
 
-const RECENT_LIMIT = 6;
+const RECENT_LIMIT = 8;
 const recentKey = (projectId: string) => `omen.recent.${projectId}`;
 function readRecents(projectId: string | null): string[] {
   if (!projectId) return [];
   try {
-    const raw = localStorage.getItem(recentKey(projectId));
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const parsed: unknown = JSON.parse(localStorage.getItem(recentKey(projectId)) ?? '[]');
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
   } catch {
     return [];
@@ -100,77 +111,81 @@ function writeRecents(projectId: string | null, ids: string[]) {
   try {
     localStorage.setItem(recentKey(projectId), JSON.stringify(ids));
   } catch {
-    /* the working set is a convenience; storage failure is not an error */
+    /* the working set is a convenience */
   }
 }
 
-/** The workspace that edits an object of this type. */
-export function navForType(type: string): Nav {
-  if (type === 'requirement' || type === 'assumption') return 'requirements';
-  return 'artifacts';
-}
+const sameView = (a: View, b: View) => JSON.stringify(a) === JSON.stringify(b);
+const HOME: View = { level: 'project', lens: 'flow' };
+const emptyProject = {
+  artifacts: [],
+  edges: [],
+  proposals: [],
+  events: [],
+  jobs: [],
+  session: null,
+  stale: {},
+  suggestions: [],
+  back: [],
+};
+
+export const openProposals = (proposals: Proposal[]) =>
+  proposals.filter((p) => p.state === 'pending' || p.state === 'changes_requested');
 
 export const useStore = create<State>((set, get) => ({
   projectId: null,
   project: null,
   projectPath: null,
   readOnly: false,
-  recents: [],
   artifacts: [],
-  selectedArtifactId: null,
-  recentArtifactIds: [],
-  nav: 'overview',
+  edges: [],
+  stale: {},
   proposals: [],
   events: [],
   session: null,
   adapters: [],
-  stale: {},
   jobs: [],
   suggestions: [],
-  terminalExpanded: false,
-  sidecarOpen: true,
-  sidecarTab: 'agent',
-  sidebarOpen: true,
+  recentIds: [],
+  view: HOME,
+  back: [],
+  consoleOpen: false,
+  omniOpen: false,
+  settingsOpen: false,
   theme: readPreference('omen.theme') === 'light' ? 'light' : 'dark',
-  density: readPreference('omen.density') === 'compact' ? 'compact' : 'comfortable',
-  paletteOpen: false,
-  quickOpen: false,
   toasts: [],
+  composerSeed: null,
 
-  set: (p) => {
-    // Opening or switching projects swaps the remembered working set with it.
-    if ('projectId' in p && p.projectId !== get().projectId) {
-      projectGeneration++;
-      set({
-        artifacts: [],
-        proposals: [],
-        events: [],
-        jobs: [],
-        session: null,
-        stale: {},
-        selectedArtifactId: null,
-        ...p,
-        recentArtifactIds: readRecents(p.projectId ?? null),
-      });
-      return;
-    }
-    set(p);
-  },
+  set: (p) => set(p),
   setActive: (projectId) => {
     projectGeneration++;
-    set({
-      projectId,
-      artifacts: [],
-      proposals: [],
-      events: [],
-      jobs: [],
-      session: null,
-      stale: {},
-      selectedArtifactId: null,
-      recentArtifactIds: readRecents(projectId),
-    });
+    set({ projectId, ...emptyProject, view: HOME, recentIds: readRecents(projectId) });
     void window.omenflow.setActiveProject(projectId);
   },
+  go: (view) => {
+    const { view: current, back, projectId, recentIds } = get();
+    if (sameView(view, current)) return;
+    if (view.level === 'object') {
+      const ids = [view.id, ...recentIds.filter((x) => x !== view.id)].slice(0, RECENT_LIMIT);
+      writeRecents(projectId, ids);
+      set({ recentIds: ids });
+    }
+    set({ view, back: [...back.slice(-40), current] });
+  },
+  goBack: () => {
+    const { back } = get();
+    const previous = back[back.length - 1];
+    set({ view: previous ?? HOME, back: back.slice(0, -1) });
+  },
+  zoomOut: () => {
+    const { view, go } = get();
+    if (view.level !== 'project') go(HOME);
+    else if (view.lens !== 'flow') go(HOME);
+  },
+  focus: (id) => get().go({ level: 'object', id }),
+  decide: (proposalId = null) => get().go({ level: 'decide', proposalId }),
+  askAbout: (text = '') => set({ consoleOpen: true, composerSeed: { text, nonce: ++composerSeq } }),
+
   refreshArtifacts: async () => {
     const { projectId } = get();
     const generation = projectGeneration;
@@ -185,13 +200,19 @@ export const useStore = create<State>((set, get) => ({
     for (const v of r.artifacts) stale[v.artifact.id] = v.staleReasons;
     set({ artifacts: r.artifacts, stale });
   },
+  refreshGraph: async () => {
+    const { projectId } = get();
+    const generation = projectGeneration;
+    if (!projectId) return;
+    const r = await cmd<{ edges: Edge[] }>('graph.list', {}, { projectId });
+    if (generation === projectGeneration) set({ edges: r.edges });
+  },
   refreshProposals: async () => {
     const { projectId } = get();
     const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ proposals: Proposal[] }>('proposal.list', {}, { projectId });
-    if (generation !== projectGeneration) return;
-    set({ proposals: r.proposals });
+    if (generation === projectGeneration) set({ proposals: r.proposals });
   },
   refreshEvents: async () => {
     const { projectId } = get();
@@ -208,16 +229,14 @@ export const useStore = create<State>((set, get) => ({
         { seq: Math.max(0, r.highWater - 300) },
         { projectId },
       );
-    if (generation !== projectGeneration) return;
-    set({ events: r.events.slice(-300) });
+    if (generation === projectGeneration) set({ events: r.events.slice(-300) });
   },
   refreshJobs: async () => {
     const { projectId } = get();
     const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ jobs: Job[] }>('job.list', { limit: 50 }, { projectId });
-    if (generation !== projectGeneration) return;
-    set({ jobs: r.jobs });
+    if (generation === projectGeneration) set({ jobs: r.jobs });
   },
   refreshAdapters: async () => {
     const r = await cmd<{ adapters: AdapterStatus[] }>('connection.list', {});
@@ -228,33 +247,28 @@ export const useStore = create<State>((set, get) => ({
     const generation = projectGeneration;
     if (!projectId) return;
     const r = await cmd<{ session: SessionInfo | null }>('terminal.state', {}, { projectId });
-    if (generation !== projectGeneration) return;
-    set({ session: r.session });
+    if (generation === projectGeneration) set({ session: r.session });
   },
-  selectArtifact: (id) => {
-    if (!id) {
-      set({ selectedArtifactId: null });
-      return;
-    }
-    const { projectId, recentArtifactIds } = get();
-    const recentIds = [id, ...recentArtifactIds.filter((x) => x !== id)].slice(0, RECENT_LIMIT);
-    writeRecents(projectId, recentIds);
-    set({ selectedArtifactId: id, recentArtifactIds: recentIds });
+  refreshAll: async () => {
+    const s = get();
+    await Promise.all([
+      s.refreshArtifacts(),
+      s.refreshGraph(),
+      s.refreshProposals(),
+      s.refreshEvents(),
+      s.refreshJobs(),
+      s.refreshSession().catch(() => {}),
+      s.refreshAdapters().catch(() => {}),
+    ]);
   },
-  openArtifact: (id, type) => {
-    get().selectArtifact(id);
-    set({ nav: navForType(type) });
-  },
-  navigate: (nav) => set({ nav }),
   toast: (kind, text) => {
     const id = ++toastSeq;
-    set((s) => ({ toasts: [...s.toasts, { id, kind, text }] }));
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 5000);
+    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 5200);
   },
   pushEvent: (e) => {
     set((s) => ({ events: [...s.events.slice(-299), e] }));
     const s = get();
-    // Refresh derived state on domain events.
     if (
       [
         'revision.committed',
@@ -262,28 +276,41 @@ export const useStore = create<State>((set, get) => ({
         'impact.propagated',
         'file.external_edit',
         'bom.changed',
+        'component.offer_added',
+        'artifact.archived',
       ].includes(e.type)
     ) {
       void s.refreshArtifacts();
+      void s.refreshGraph();
     }
     if (['proposal.submitted', 'proposal.resolved'].includes(e.type)) {
       void s.refreshProposals();
       void s.refreshArtifacts();
+      void s.refreshGraph();
+    }
+    if (e.type === 'project.intent_changed' || e.type === 'project.renamed') {
+      const d = (e.data ?? {}) as { intent?: string; name?: string };
+      if (s.project)
+        set({
+          project: {
+            ...s.project,
+            ...(typeof d.intent === 'string' ? { intent: d.intent } : {}),
+            ...(typeof d.name === 'string' ? { name: d.name } : {}),
+          },
+        });
     }
     if (e.type === 'job.updated') void s.refreshJobs();
     if (e.type === 'ui.suggested_action') {
       const d = e.data as { title: string; detail?: string };
-      set((x) => ({ suggestions: [...x.suggestions.slice(-9), d] }));
+      set((x) => ({ suggestions: [...x.suggestions.slice(-5), d] }));
     }
-    if (e.type === 'ui.open_artifact') {
-      const d = e.data as { artifactId: string };
-      const type = s.artifacts.find((v) => v.artifact.id === d.artifactId)?.artifact.type;
-      s.openArtifact(d.artifactId, type ?? 'note');
-    }
+    if (e.type === 'ui.open_artifact') s.focus((e.data as { artifactId: string }).artifactId);
     if (e.type === 'ui.request_review') {
-      s.navigate('reviews');
+      const d = (e.data ?? {}) as { proposalId?: string };
+      s.decide(d.proposalId ?? null);
     }
     if (e.type === 'ui.focus_terminal') {
+      set({ consoleOpen: true });
       window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
     }
   },

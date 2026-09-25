@@ -1,81 +1,54 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  Panel,
-  PanelGroup,
-  PanelResizeHandle,
-  type ImperativePanelHandle,
-} from 'react-resizable-panels';
-import {
-  CaretRight,
-  Cube,
-  TerminalWindow,
-  SlidersHorizontal,
-  X,
-  CheckCircle,
-  WarningCircle,
-} from '@phosphor-icons/react';
-import { useStore } from './store';
-import { TopBar } from './components/TopBar';
-import { Sidebar, NAV_ITEMS } from './components/Sidebar';
-import { StatusBar } from './components/StatusBar';
-import { Inspector } from './components/Inspector';
-import { TerminalPane } from './components/TerminalPane';
-import { CommandPalette } from './components/CommandPalette';
-import { ArtifactIcon, IconButton } from './components/ui';
-import { WelcomeView } from './views/WelcomeView';
-import { OverviewView } from './views/OverviewView';
-import { RequirementsView } from './views/RequirementsView';
-import { ComponentsView } from './views/ComponentsView';
-import { ArtifactsView } from './views/ArtifactsView';
-import { ReviewsView } from './views/ReviewsView';
-import { HistoryView } from './views/HistoryView';
-import { FilesView } from './views/FilesView';
-import { ConnectionsView } from './views/ConnectionsView';
-import { DesignSystemView } from './views/DesignSystemView';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle, WarningCircle, Info, X } from '@phosphor-icons/react';
 import type { ProjectEvent } from '@omenflow/contracts';
+import { useStore } from './store';
 import { COMMAND_ERROR_EVENT, formatRecoverableError, type RecoverableCommandError } from './api';
+import { IconButton } from './ui/kit';
+import { Titlebar } from './shell/Titlebar';
+import { Omnibar } from './shell/Omnibar';
+import { Console } from './shell/Console';
+import { Settings } from './shell/Settings';
+import { Launcher } from './launcher/Launcher';
+import { ProjectView } from './project/ProjectView';
+import { ObjectView } from './object/ObjectView';
+import { DecideView } from './decide/DecideView';
+import { DesignSystemView } from './system/DesignSystemView';
+
+function isTyping(target: EventTarget | null) {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  return (
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) ||
+    el.isContentEditable ||
+    !!el.closest?.('.xterm')
+  );
+}
 
 export default function App() {
-  const {
-    projectId,
-    project,
-    nav,
-    set,
-    pushEvent,
-    terminalExpanded,
-    toasts,
-    theme,
-    density,
-    sidecarOpen,
-    sidecarTab,
-    sidebarOpen,
-    artifacts,
-    selectedArtifactId,
-    session,
-    navigate,
-  } = useStore();
+  const projectId = useStore((s) => s.projectId);
+  const view = useStore((s) => s.view);
+  const theme = useStore((s) => s.theme);
+  const toasts = useStore((s) => s.toasts);
+  const set = useStore((s) => s.set);
+  const pushEvent = useStore((s) => s.pushEvent);
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [commandError, setCommandError] = useState<RecoverableCommandError | null>(null);
-  const sidePanel = useRef<ImperativePanelHandle>(null);
-  // The breadcrumb names the object being worked on, not just the section.
-  const selected =
-    nav === 'artifacts' || nav === 'requirements'
-      ? artifacts.find((v) => v.artifact.id === selectedArtifactId)
-      : undefined;
-  const agentRunning = session?.state === 'running' || session?.state === 'starting';
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    document.documentElement.dataset.density = density;
     try {
       localStorage.setItem('omen.theme', theme);
-      localStorage.setItem('omen.density', density);
     } catch {
       /* preferences remain usable without storage */
     }
-  }, [theme, density]);
+  }, [theme]);
+
   useEffect(() => {
-    sidePanel.current?.resize(terminalExpanded ? 50 : 29);
-  }, [terminalExpanded]);
+    const native = '__TAURI_INTERNALS__' in window;
+    const mac = /Mac/.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent);
+    if (native && mac) document.documentElement.dataset.chrome = 'mac-overlay';
+  }, []);
+
   useEffect(() => {
     const matches = (e: unknown) =>
       !(e as { projectId?: string })?.projectId ||
@@ -97,210 +70,137 @@ export default function App() {
     const unService = window.omenflow.onServiceState?.((state) =>
       setServiceError(state.available ? null : (state.message ?? 'Workspace service unavailable')),
     );
-    return () => {
-      unService?.();
-      un();
-      unJob();
-      unTerm();
-    };
-  }, [pushEvent, set]);
-  useEffect(() => {
-    const focusAgent = () => set({ sidecarOpen: true, sidecarTab: 'agent' });
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      const key = e.key.toLowerCase();
-      if (key === 'k' || key === 'p') {
-        e.preventDefault();
-        set({ paletteOpen: key === 'k', quickOpen: key === 'p' });
-      }
-      if (key === 'j') {
-        e.preventDefault();
-        set({ sidecarOpen: !useStore.getState().sidecarOpen, sidecarTab: 'agent' });
-      }
-      if (key === 'b') {
-        e.preventDefault();
-        set({ sidebarOpen: !useStore.getState().sidebarOpen });
-      }
-      if (key === 'i' && e.shiftKey) {
-        e.preventDefault();
-        set({ sidecarOpen: true, sidecarTab: 'inspector' });
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('omenflow:focus-terminal', focusAgent);
     const onCommandError = (event: Event) => {
       const detail = (event as CustomEvent<RecoverableCommandError>).detail;
       if (detail?.code && detail.message) setCommandError(detail);
     };
     window.addEventListener(COMMAND_ERROR_EVENT, onCommandError);
     return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('omenflow:focus-terminal', focusAgent);
+      unService?.();
+      un();
+      unJob();
+      unTerm();
       window.removeEventListener(COMMAND_ERROR_EVENT, onCommandError);
     };
+  }, [pushEvent, set]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const s = useStore.getState();
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (mod && (key === 'k' || key === 'p')) {
+        e.preventDefault();
+        set({ omniOpen: !s.omniOpen });
+        return;
+      }
+      if (mod && key === ',') {
+        e.preventDefault();
+        set({ settingsOpen: true });
+        return;
+      }
+      if (!s.projectId) return;
+      if (mod && key === 'j') {
+        e.preventDefault();
+        set({ consoleOpen: !s.consoleOpen });
+        return;
+      }
+      if (mod && key === '[') {
+        e.preventDefault();
+        s.goBack();
+        return;
+      }
+      if (mod && e.shiftKey && key === 'd') {
+        e.preventDefault();
+        s.decide(null);
+        return;
+      }
+      if (mod && ['1', '2', '3', '4'].includes(key)) {
+        e.preventDefault();
+        const lens = (['flow', 'parts', 'timeline', 'files'] as const)[Number(key) - 1]!;
+        s.go({ level: 'project', lens });
+        return;
+      }
+      if (
+        key === 'escape' &&
+        !mod &&
+        !s.omniOpen &&
+        !s.settingsOpen &&
+        !isTyping(e.target) &&
+        !document.querySelector('[role="dialog"]')
+      ) {
+        s.zoomOut();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [set]);
+
   return (
-    <div className="app-shell">
-      <TopBar />
-      {serviceError && (
-        <div role="alert" className="inline-notice warning">
-          {serviceError}
-        </div>
-      )}
-      {commandError && (
-        <div role="alert" className="inline-notice warning">
-          <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
-            <span>
-              {commandError.op}: {formatRecoverableError(commandError)}
-              <span className="mono dim"> {commandError.code}</span>
-            </span>
-            <IconButton label="Dismiss command error" onClick={() => setCommandError(null)}>
-              <X size={14} />
+    <div className="app">
+      <Titlebar />
+      {(serviceError || commandError) && (
+        <div className="system-strip" role="alert">
+          <WarningCircle size={14} />
+          <span className="grow">
+            {serviceError ??
+              (commandError && (
+                <>
+                  {formatRecoverableError(commandError)}
+                  <span className="mono dim"> · {commandError.op}</span>
+                </>
+              ))}
+          </span>
+          {commandError && !serviceError && (
+            <IconButton size="sm" label="Dismiss" onClick={() => setCommandError(null)}>
+              <X size={12} />
             </IconButton>
-          </div>
+          )}
         </div>
       )}
-      {!projectId ? (
-        nav === 'design-system' ? (
-          <div className="page-scroll">
-            <button className="ghost" onClick={() => set({ nav: 'overview' })}>
-              Back to projects
-            </button>
-            <DesignSystemView />
-          </div>
+      <div className="stage-area">
+        {view.level === 'system' ? (
+          <DesignSystemView />
+        ) : !projectId ? (
+          <Launcher />
+        ) : view.level === 'object' ? (
+          <ObjectView key={view.id} id={view.id} />
+        ) : view.level === 'decide' ? (
+          <DecideView />
         ) : (
-          <WelcomeView />
-        )
-      ) : (
-        <>
-          <div className="workspace-shell">
-            {sidebarOpen && <Sidebar />}
-            <div className="workspace-content">
-              <PanelGroup direction="horizontal" autoSaveId="omen-workspace-v1">
-                <Panel minSize={40}>
-                  <main className="main-panel">
-                    <nav className="breadcrumb-bar" aria-label="Location">
-                      <Cube size={14} />
-                      <button
-                        className="crumb truncate"
-                        onClick={() => navigate('overview')}
-                        title={project?.name}
-                      >
-                        {project?.name}
-                      </button>
-                      <CaretRight size={11} />
-                      <span className={selected ? 'crumb' : 'crumb current'}>
-                        {NAV_ITEMS.find((n) => n.id === nav)?.label}
-                      </span>
-                      {selected && (
-                        <>
-                          <CaretRight size={11} />
-                          <span className="crumb current truncate" title={selected.artifact.title}>
-                            <ArtifactIcon type={selected.artifact.type} size={13} />
-                            {selected.artifact.title}
-                          </span>
-                        </>
-                      )}
-                    </nav>
-                    <div className="surface">
-                      <Surface nav={nav} />
-                    </div>
-                  </main>
-                </Panel>
-                <PanelResizeHandle className="resize-handle" hidden={!sidecarOpen} />
-                <Panel
-                  ref={sidePanel}
-                  defaultSize={29}
-                  minSize={22}
-                  maxSize={55}
-                  style={!sidecarOpen ? { display: 'none' } : undefined}
-                >
-                  <aside className="sidecar" aria-label="Agent and inspector">
-                    <div className="sidecar-tabs">
-                      <button
-                        className={`sidecar-tab ${sidecarTab === 'agent' ? 'active' : ''}`}
-                        aria-pressed={sidecarTab === 'agent'}
-                        onClick={() => set({ sidecarTab: 'agent' })}
-                      >
-                        <TerminalWindow size={14} />
-                        Agent
-                        {agentRunning && (
-                          <span className="live-dot" aria-label="Agent session running" />
-                        )}
-                      </button>
-                      <button
-                        className={`sidecar-tab ${sidecarTab === 'inspector' ? 'active' : ''}`}
-                        aria-pressed={sidecarTab === 'inspector'}
-                        onClick={() => set({ sidecarTab: 'inspector' })}
-                      >
-                        <SlidersHorizontal size={14} />
-                        Inspector
-                      </button>
-                      <span className="grow" />
-                      <IconButton
-                        label="Close side panel"
-                        onClick={() => set({ sidecarOpen: false })}
-                      >
-                        <X size={14} />
-                      </IconButton>
-                    </div>
-                    <div className="sidecar-content" hidden={sidecarTab !== 'agent'}>
-                      <TerminalPane key={projectId} />
-                    </div>
-                    <div className="sidecar-content" hidden={sidecarTab !== 'inspector'}>
-                      <Inspector />
-                    </div>
-                  </aside>
-                </Panel>
-              </PanelGroup>
-            </div>
-          </div>
-          <StatusBar />
-        </>
-      )}
-      <CommandPalette />
-      <div className="toast-stack" aria-live="polite">
+          <ProjectView lens={view.lens} />
+        )}
+      </div>
+      {projectId && <Console key={projectId} />}
+      <Omnibar />
+      <Settings />
+      <div className="toasts" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className="toast" role={t.kind === 'error' ? 'alert' : 'status'}>
+          <div
+            key={t.id}
+            className={`toast tone-${t.kind}`}
+            role={t.kind === 'error' ? 'alert' : 'status'}
+          >
             {t.kind === 'error' ? (
-              <WarningCircle size={16} className="err" />
+              <WarningCircle size={15} />
+            ) : t.kind === 'ok' ? (
+              <CheckCircle size={15} />
             ) : (
-              <CheckCircle size={16} className={t.kind === 'ok' ? 'ok' : 'dim'} />
+              <Info size={15} />
             )}
             <span>{t.text}</span>
             <IconButton
+              size="sm"
               label="Dismiss notification"
               onClick={() =>
                 set({ toasts: useStore.getState().toasts.filter((x) => x.id !== t.id) })
               }
             >
-              <X size={13} />
+              <X size={12} />
             </IconButton>
           </div>
         ))}
       </div>
     </div>
   );
-}
-function Surface({ nav }: { nav: string }) {
-  switch (nav) {
-    case 'requirements':
-      return <RequirementsView />;
-    case 'components':
-      return <ComponentsView />;
-    case 'artifacts':
-      return <ArtifactsView />;
-    case 'reviews':
-      return <ReviewsView />;
-    case 'history':
-      return <HistoryView />;
-    case 'files':
-      return <FilesView />;
-    case 'connections':
-      return <ConnectionsView />;
-    case 'design-system':
-      return <DesignSystemView />;
-    default:
-      return <OverviewView />;
-  }
 }
