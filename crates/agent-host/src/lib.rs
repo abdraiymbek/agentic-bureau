@@ -460,6 +460,29 @@ mod tests {
             .contains("PTY roundtrip"));
         host.stop(&project_id).unwrap();
         assert_eq!(host.state(&project_id)["session"]["state"], "exited");
+        assert!(host.write(&project_id, "lost input").is_err());
+        let restarted = host
+            .start(&project_id, &json!({"adapterId":"custom"}))
+            .unwrap();
+        assert_ne!(session["id"], restarted["id"]);
+        thread::sleep(Duration::from_millis(100));
+        let states = receiver
+            .try_iter()
+            .filter_map(|e| match e {
+                TerminalEvent::State(v) => Some(v),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let replacement = states
+            .iter()
+            .position(|v| v["session"]["id"] == restarted["id"])
+            .unwrap();
+        assert!(states[replacement..]
+            .iter()
+            .all(|v| v["session"]["id"] == restarted["id"]));
+        host.close(&project_id).unwrap();
+        assert!(host.state(&project_id)["session"].is_null());
+        assert!(host.write(&project_id, "lost input").is_err());
     }
 
     #[cfg(unix)]
@@ -503,7 +526,8 @@ mod tests {
             }
         }
         assert!(ready, "shell did not launch its background child");
-        host.stop(&project_id).unwrap();
+        host.shutdown();
+        assert!(host.state(&project_id)["session"].is_null());
         thread::sleep(Duration::from_millis(1200));
         assert!(!marker.exists(), "agent subprocess survived terminal.stop");
     }

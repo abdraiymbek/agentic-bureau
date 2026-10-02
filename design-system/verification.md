@@ -114,3 +114,96 @@ The normal window size and Graphite theme were restored after testing.
 
 A live agent authoring session and end-to-end supplier website navigation are not covered by
 this audit.
+
+## Activity-bar layout · 24 September 2026
+
+The workbench was re-laid out like a classic editor: a 48 px activity bar on the left carries
+the Agent tab first, then the lens tabs, Decisions (with an open-proposal count badge), and at
+the bottom the agent-window toggle and Settings. The agent is one xterm/PTY instance that stays
+mounted for the life of the open project and switches presentation — full Agent tab, floating
+bottom-left window (`⌘J`, resizable, persisted), or hidden. The composer, agent chip, context
+chip, docked console, top-right lens switcher, and the titlebar Settings button were removed.
+The agent choice moved to a Settings radio group (`omen.agent` preference) with
+“Restart with {agent}” for a live session on another CLI; “Ask agent” now types into the PTY
+without submitting.
+
+Checks run:
+
+- `pnpm --filter @omenflow/desktop typecheck` — passed.
+- `eslint apps/desktop/src/renderer` — 0 errors, 0 warnings.
+- `prettier --check` on `apps/desktop/src/renderer`, `design-system`, `AGENTS.md` — passed.
+- `pnpm exec vitest run` — 39 files, 340 tests passed, 2 skipped (no renderer test files exist
+  under `apps/desktop`).
+- `pnpm --filter @omenflow/desktop build:rust-ui` — passed (existing large-chunk advisory
+  remains).
+- `pnpm design:preview` walkthrough at ~1440 × 900, Graphite and Paper: activity bar renders
+  with the Agent tab first; the Agent tab fills the main area with the terminal; the agent
+  window opens/closes over Parts and survives tab switches; the Settings agents radio group
+  selects the preferred adapter; the “not detected” overlay offers the Settings shortcut.
+
+Not covered:
+
+- **A live agent session.** The preview cannot start a CLI (`terminal.start` is disabled), so
+  autostart, the live pulse/ring, bracketed-paste typing, scrollback restore, and the
+  ended/restart overlay were verified by code path only.
+- `omen.agentWindow` persisted sizing across relaunch, and native chrome (overlay titlebar,
+  traffic lights) alongside the activity bar.
+
+## Sourced parts · 26 September 2026
+
+Parts now uses a shared shopping-list row in Candidates and the approved BOM: seller product
+photo, name and part number, project-specific selection reason, recorded price/currency and
+pack basis, availability, observation date, and exact external purchase destination. Comparison
+also includes reasons and seller offers. The component stage shares the photo and offer display.
+Candidates is the initial view so proposed purchases are visible before approval. Missing facts
+stay explicit. Placeholder/non-web purchase destinations have no purchase action. Old projects
+remain readable without migration; previously absent photos or reasons need a sourced revision.
+
+Added optional `imageUrl` and `selectionReason` through TypeScript/Rust contracts, candidate
+creation and BOM reads. Enabled only `research.read_page` for agents (other browser operations
+remain gated), exposed photos and structured product metadata, rejected failed navigation before
+reading a stale page, and waited for complete native research documents. Both generated agent
+guides require exact product-page inspection and recorded prices/photos/reasons plus offer IDs.
+HTTPS product images are allowed by the renderer CSP; external scripts remain blocked.
+
+Live evaluation: `pnpm exec tsx scripts/parts-agent-eval.ts out/parts-luna-r2`, pinned to
+**GPT-6 Luna, medium**. Three sourced candidates, three pending quantity-one proposals, no
+self-approval. The test harness then approved these disposable proposals as the reviewer and
+verified a three-line **20.40 USD** BOM. All three exact seller pages and image URLs returned
+HTTP 200. Independently matched saved prices, currencies, SKUs and images against each page's
+Product structured data; summary: [parts-verification.json](parts-verification.json). This is
+observed price/availability evidence, not future stock or price guarantees or engineering approval.
+The first run preceded exposure of the page reader and used the agent's web tool; its test-host
+observation gate failed. The second run used the app's page reader and passed.
+
+Visual validation: `pnpm design:preview` at 1440 × 900 and 1024 × 700; Graphite and Paper;
+part-number filtering; selection and comparison; legacy missing-data fallbacks. `pnpm dev`
+compiled and launched the native macOS application. Opened the live evaluation project in the
+native build and verified candidate and BOM photos, reasons, prices and total. A native seller
+link opened the exact Adafruit product URL in Safari. Native validation caught the initially
+blocked photos; the HTTPS image policy fix was verified visually. Screenshot:
+[sourced parts](screenshots/parts-sourced.png). The installed `scu` CLI still fails with its
+missing Python module, so visual inspection used the available CUA connector.
+
+Checks: workspace typecheck, production renderer build, 20 Rust contracts/core tests and the
+new shopping-flow/render regressions passed. Full JavaScript suite: 39 files passed; two files
+hit the existing calculation-worker 2-second timeout under concurrent load. Both affected files
+passed when rerun with one worker (16 tests), with no calculation code changes. Build retains
+the existing large-chunk advisory. No other agent model was used for live testing.
+
+## First-use hardening · 26 September 2026
+
+The current Lens renderer was checked alongside the packaged Rust app. Project
+close/switch now releases the native project and terminal; agent restart resets
+history per session; startup errors offer a retry; read-only projects explain why
+agent startup is disabled. Existing `Button`, state, and agent empty-state patterns
+are reused; no new navigation, primitive, or visual token was introduced. Settings
+loads the saved OpenSCAD path and permits clearing it to restore detection.
+
+The populated preview covered Parts, Timeline, Files/source preview, and missing
+agents in both themes at 1024 × 700. Native 1440 × 900 acceptance covered launcher
+creation, real PTY/helper calls, a real OpenSCAD mesh, human approval, terminal
+restart, export/import, close/quit cleanup, configured-engine diagnostics, and a
+newer-schema read-only project. Tests and exact limits are recorded in the
+[current readiness audit](../audit/v1-readiness/README.md). The package is unsigned;
+this evidence does not replace signing or clean-machine acceptance.

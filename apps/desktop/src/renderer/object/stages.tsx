@@ -1,3 +1,4 @@
+import { OfferDetails, ProductImage } from '../ui/PartCard';
 import React, { useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -1015,6 +1016,15 @@ function ComponentStage({ view }: { view: ArtifactView }) {
   }, [view.artifact.id, projectId, events]);
   return (
     <div className="doc">
+      <div className="component-product">
+        <ProductImage url={p.imageUrl} name={view.artifact.title} />
+        {p.selectionReason && (
+          <p className="part-reason">
+            <span>Why this part</span>
+            {p.selectionReason}
+          </p>
+        )}
+      </div>
       {p.description && <p className="doc-lede">{p.description}</p>}
       <div className="spec-head">
         <div>
@@ -1113,15 +1123,7 @@ function ComponentStage({ view }: { view: ArtifactView }) {
           <ul className="results">
             {offers.map((offer) => (
               <li key={offer.id}>
-                <ExternalLink url={offer.url}>{offer.seller}</ExternalLink>
-                <p className="num">
-                  {offer.price ? `${offer.price.amount} ${offer.price.currency}` : 'Price unknown'}{' '}
-                  · per {offer.quantityBasis}
-                </p>
-                {offer.availabilityText && <p>{offer.availabilityText}</p>}
-                <small className="dim">
-                  Observed {new Date(offer.observedAt).toLocaleString()}
-                </small>
+                <OfferDetails offer={offer} />
                 {offer.sourceId && (
                   <button
                     type="button"

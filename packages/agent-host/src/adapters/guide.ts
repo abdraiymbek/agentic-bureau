@@ -46,11 +46,27 @@ through the tools so it is recorded as a revision.
   Concepts: description, systems, approxDimensions, alternatives, uncertainties, visualFile.
   Subsystems: description. Software: files, language, entryPoint, notes; attach source files
   in the revision's files as well so they can be opened.
-- Suggested purchased parts: use \`source_capture\` then \`component_add_candidate\` with maker,
-  partNumber, description, sourced properties/attributes, sourceId, and an offer containing
-  seller and the real product URL. Price may be null. Add other sellers with
-  \`component_add_offer\`. Offers are separate records, not fields in a component payload.
-  Do not leave suggested parts or links only in your terminal response.
+- Purchased parts must appear in the Parts list, not only in your terminal response.
+  Open each exact seller product page using \`research_read_page\` (or your available web/browser
+  tools). Check the page matches the part/variant, has a purchase option, and is not a search,
+  category, discontinued listing, CAPTCHA, error, or invented URL. Follow redirects and use
+  the actual product destination. If blocked or unavailable, find another seller; do not
+  claim a link is checked when you could not inspect it.
+  Capture the observed product name, price, currency, pack size, availability and image URL
+  as a \`source_capture\` with sourceKind supplier and a factual excerpt. Then call
+  \`component_add_candidate\` with maker/vendor, partNumber, description, imageUrl (the actual
+  product photo from that page), selectionReason (why this part serves this project's needs),
+  sourced properties/attributes, sourceId, and offer {seller, url, price, quantityBasis,
+  availabilityText, sourceId}. Read the tool schema first. \`price.amount\` is a decimal string;
+  quantityBasis is the number of units covered by that price. Never put prices only in prose.
+  A purchasable recommendation needs a real observed price and image: continue research until
+  found. If none can be obtained, record null price and explicit missing-data reasons rather
+  than inventing a price/photo or calling the shopping list complete. Do not generate images.
+  Add other sellers with \`component_add_offer\`; offers are separate records, not payload fields.
+  Read \`component_compare\` back to check every saved name, imageUrl, selectionReason, offer
+  price/currency/basis and purchase URL. When asked for a BOM, use \`component_propose_selection\`
+  with the actual offerId (from component_compare), quantities and reason in line notes; leave
+  approval to the human. Suggested candidates are visible before approval.
 - Electrical work uses artifact type \`wiring\` (not "electrical" or "electronics"). Populate
   pins and connections with exact component artifact/revision ids, pin names, signalRole,
   known voltage ranges, wire ratings, polarity, notes, and coverageNote. Create component

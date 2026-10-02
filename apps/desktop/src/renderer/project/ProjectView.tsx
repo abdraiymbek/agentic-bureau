@@ -9,18 +9,12 @@ import {
 } from '@phosphor-icons/react';
 import { cmd, errMsg } from '../api';
 import { openProposals, useStore, type Lens } from '../store';
-import { Button, Segmented, TypeGlyph, typeMeta } from '../ui/kit';
+import { showAgent } from '../lib/actions';
+import { Button, TypeGlyph, typeMeta } from '../ui/kit';
 import { FlowMap } from './FlowMap';
 import { PartsLens } from './PartsLens';
 import { TimelineLens } from './TimelineLens';
 import { FilesLens } from './FilesLens';
-
-const LENSES: { value: Lens; label: string }[] = [
-  { value: 'flow', label: 'Flow' },
-  { value: 'parts', label: 'Parts' },
-  { value: 'timeline', label: 'Timeline' },
-  { value: 'files', label: 'Files' },
-];
 
 /** Zoom level 0: the whole project, seen through one lens at a time. */
 export function ProjectView({ lens }: { lens: Lens }) {
@@ -28,7 +22,6 @@ export function ProjectView({ lens }: { lens: Lens }) {
   const proposals = useStore((s) => s.proposals);
   const stale = useStore((s) => s.stale);
   const suggestions = useStore((s) => s.suggestions);
-  const go = useStore((s) => s.go);
   const empty = artifacts.length === 0;
   const busyIsland =
     openProposals(proposals).length > 0 ||
@@ -39,12 +32,6 @@ export function ProjectView({ lens }: { lens: Lens }) {
       {lens === 'flow' && !empty && <FlowMap reserveRight={busyIsland ? 352 : 48} />}
       <header className="project-head">
         <Identity />
-        <Segmented
-          label="Project lens"
-          value={lens}
-          options={LENSES}
-          onChange={(value) => go({ level: 'project', lens: value })}
-        />
       </header>
       {lens === 'flow' && (empty ? <Beginning /> : <NeedsYou />)}
       {lens === 'parts' && <PartsLens />}
@@ -215,7 +202,6 @@ function Beginning() {
   const session = useStore((s) => s.session);
   const project = useStore((s) => s.project);
   const askAbout = useStore((s) => s.askAbout);
-  const set = useStore((s) => s.set);
   const live = session?.state === 'running';
   const prompt = project?.intent
     ? `Read the project intent and draft the first requirements with measurable targets and acceptance criteria. Intent: ${project.intent}`
@@ -250,10 +236,7 @@ function Beginning() {
         <Button
           variant="signal"
           icon={<Play size={13} weight="fill" />}
-          onClick={() => {
-            set({ consoleOpen: true });
-            useStore.getState().askAbout(prompt);
-          }}
+          onClick={() => showAgent()}
         >
           Open the agent
         </Button>

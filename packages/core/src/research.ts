@@ -22,12 +22,22 @@ function assertPublicHttpUrl(url: string): void {
       `Only http(s) research URLs allowed: ${u.protocol}`,
     );
   }
-  const host = u.hostname;
+  if (u.username || u.password)
+    throw new OmenflowError(
+      ErrorCodes.CONNECTION_DENIED,
+      'Credential-bearing research URLs are not allowed',
+    );
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (
     host === 'localhost' ||
-    host === '127.0.0.1' ||
+    /^127\./.test(host) ||
+    /^0\./.test(host) ||
     host === '::1' ||
+    host === '::' ||
+    host.startsWith('::ffff:') ||
+    (host.includes(':') && /^(fc|fd|fe80:)/.test(host)) ||
     host.endsWith('.local') ||
+    host.endsWith('.localhost') ||
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
     /^169\.254\./.test(host) ||
@@ -94,6 +104,8 @@ export async function browserCapture(
 
 export async function researchReadPage(ctx: ProjectContext, url: string) {
   assertPublicHttpUrl(url);
-  await ctx.host.researchOpen(url);
+  const opened = await ctx.host.researchOpen(url);
+  if (!opened.ok)
+    throw new OmenflowError(ErrorCodes.INTERNAL, opened.error ?? 'Research browser failed');
   return ctx.host.researchReadPage();
 }

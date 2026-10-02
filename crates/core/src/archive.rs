@@ -241,6 +241,7 @@ pub(super) fn import_archive(
     archive_path: &str,
     dest_dir: &str,
     new_identity: bool,
+    open_ids: &[String],
 ) -> CoreResult<ProjectHandle> {
     let archive_file = fs::File::open(archive_path).map_err(internal)?;
     if archive_file.metadata().map_err(internal)?.len() > MAX_ZIP {
@@ -317,6 +318,12 @@ pub(super) fn import_archive(
         || !entries.contains_key(".omenflow/state.sqlite")
     {
         return Err(bad("Unsupported or inconsistent project marker"));
+    }
+    if !new_identity && open_ids.iter().any(|id| marker["id"].as_str() == Some(id)) {
+        return Err(ContractError::new(
+            "REVISION_CONFLICT",
+            "Another folder with this project identity is already open",
+        ));
     }
     let dest = PathBuf::from(dest_dir);
     if dest.exists() && (!dest.is_dir() || fs::read_dir(&dest).map_err(internal)?.next().is_some())
@@ -484,6 +491,7 @@ mod tests {
             archive_path.to_str().unwrap(),
             temp.path().join("restored").to_str().unwrap(),
             false,
+            &[],
         )
         .unwrap();
         assert_eq!(
@@ -503,6 +511,7 @@ mod tests {
             archive_path.to_str().unwrap(),
             temp.path().join("copy").to_str().unwrap(),
             true,
+            &[],
         )
         .unwrap();
         assert_ne!(
@@ -518,7 +527,8 @@ mod tests {
             import_archive(
                 temp.path().join("bad.zip").to_str().unwrap(),
                 temp.path().join("bad-dest").to_str().unwrap(),
-                false
+                false,
+                &[],
             )
             .err()
             .unwrap()

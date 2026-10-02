@@ -1,8 +1,8 @@
 export type TerminalSnapshot = {
-  session: { scrollback?: string; scrollbackCursor?: number } | null;
+  session: { id?: string; scrollback?: string; scrollbackCursor?: number } | null;
 };
 
-export type TerminalLiveFrame = { seq?: number; chunk: string };
+export type TerminalLiveFrame = { sessionId?: string; seq?: number; chunk: string };
 
 /**
  * One asynchronous history restore per xterm lifetime, not per React ref.
@@ -13,15 +13,18 @@ export type TerminalLiveFrame = { seq?: number; chunk: string };
 export function createTerminalRestore(
   read: () => Promise<TerminalSnapshot>,
   write: (text: string) => void,
+  reset: () => void = () => {},
 ) {
   let disposed = false;
   let restored = false;
   let pending = false;
   let cursor = 0;
+  let sessionId: string | undefined;
+  let generation = 0;
   const buffered: TerminalLiveFrame[] = [];
 
   function applyFrame(frame: TerminalLiveFrame): void {
-    if (disposed) return;
+    if (disposed || (sessionId && frame.sessionId && frame.sessionId !== sessionId)) return;
     if (typeof frame.seq === 'number') {
       if (frame.seq <= cursor) return;
       write(frame.chunk);
@@ -32,6 +35,19 @@ export function createTerminalRestore(
   }
 
   return {
+    selectSession(id: string): void {
+      if (disposed || id === sessionId) return;
+      const replacing = sessionId !== undefined;
+      sessionId = id;
+      generation++;
+      pending = false;
+      restored = false;
+      cursor = 0;
+      // Early output from this session may have arrived before its state event.
+      const matching = buffered.filter((frame) => !frame.sessionId || frame.sessionId === id);
+      buffered.splice(0, buffered.length, ...matching);
+      if (replacing) reset();
+    },
     acceptLive(frame: TerminalLiveFrame): void {
       if (disposed) return;
       if (!restored) {
@@ -43,9 +59,12 @@ export function createTerminalRestore(
     async restore(): Promise<void> {
       if (disposed || restored || pending) return;
       pending = true;
+      const requestGeneration = generation;
       try {
         const result = await read();
-        if (disposed || !result.session) return;
+        if (disposed || generation !== requestGeneration || !result.session) return;
+        if (sessionId && result.session.id && result.session.id !== sessionId) return;
+        sessionId ??= result.session.id;
         write(result.session.scrollback ?? '');
         cursor = result.session.scrollbackCursor ?? 0;
         restored = true;
@@ -55,7 +74,7 @@ export function createTerminalRestore(
         // Session/service state notifications may retry; never consume history
         // because the core was temporarily unavailable.
       } finally {
-        pending = false;
+        if (generation === requestGeneration) pending = false;
       }
     },
     dispose() {

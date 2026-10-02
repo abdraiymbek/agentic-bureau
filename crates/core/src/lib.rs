@@ -98,6 +98,23 @@ impl CoreApp {
         origin: Origin,
         project_id: Option<&str>,
     ) -> CoreResult<Value> {
+        let path = self.read_settings()["toolPaths"]["openscad"]
+            .as_str()
+            .map(str::trim)
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from);
+        cad::with_executable(path, || {
+            self.dispatch_inner(op, payload, origin, project_id)
+        })
+    }
+
+    fn dispatch_inner(
+        &mut self,
+        op: &str,
+        payload: Value,
+        origin: Origin,
+        project_id: Option<&str>,
+    ) -> CoreResult<Value> {
         let definition = registry()
             .operation(op)
             .ok_or_else(|| ContractError::validation(format!("Unknown operation: {op}")))?;
@@ -111,6 +128,8 @@ impl CoreApp {
         }
         let payload = parse_input(definition, payload)?;
         match op {
+            "tool.doctor" => simple::tool_doctor(&payload),
+            "cad.probe" => cad::probe(),
             "project.create" => {
                 let path = required_str(&payload, "path")?;
                 let name = required_str(&payload, "name")?;
@@ -124,7 +143,7 @@ impl CoreApp {
                 if let Some((id, handle)) = self.projects.iter().find(|(_, h)| h.root == canonical)
                 {
                     return Ok(
-                        json!({"project": handle.project().map_err(storage_error)?, "projectId": id}),
+                        json!({"project": handle.project().map_err(storage_error)?, "projectId": id, "readOnly": handle.read_only}),
                     );
                 }
                 let handle = ProjectHandle::open(canonical).map_err(storage_error)?;
@@ -134,7 +153,8 @@ impl CoreApp {
                 let archive_path = required_str(&payload, "archivePath")?;
                 let dest = required_str(&payload, "destDir")?;
                 let copy = payload["newIdentity"].as_bool().unwrap_or(false);
-                let handle = archive::import_archive(archive_path, dest, copy)?;
+                let open_ids = self.projects.keys().cloned().collect::<Vec<_>>();
+                let handle = archive::import_archive(archive_path, dest, copy, &open_ids)?;
                 let mut result = self.register(handle)?;
                 result["readOnly"] = json!(false);
                 Ok(result)
@@ -229,29 +249,33 @@ impl CoreApp {
                     let job_id = required_str(&queued["job"], "id")?.to_owned();
                     let mut input = payload.clone();
                     input["revisionId"] = queued["job"]["inputs"]["revisionId"].clone();
+                    let executable = cad::configured_executable();
                     std::thread::spawn(move || {
-                        let Ok(mut worker) = ProjectHandle::open_worker(&root) else {
-                            return;
-                        };
-                        let before = worker
-                            .db
-                            .query_row("SELECT COALESCE(MAX(seq),0) FROM event", [], |row| {
-                                row.get::<_, i64>(0)
-                            })
-                            .unwrap_or(0);
-                        let _ = cad::finish_queued_render(&mut worker, &input, &origin, &job_id);
-                        if let Some(hook) = event_hook {
-                            if let Ok(mut stmt) = worker
+                        cad::with_executable(executable, || {
+                            let Ok(mut worker) = ProjectHandle::open_worker(&root) else {
+                                return;
+                            };
+                            let before = worker
                                 .db
-                                .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq")
-                            {
-                                if let Ok(events) = stmt.query_map([before], event_from_row) {
-                                    for event in events.flatten() {
-                                        hook(event);
+                                .query_row("SELECT COALESCE(MAX(seq),0) FROM event", [], |row| {
+                                    row.get::<_, i64>(0)
+                                })
+                                .unwrap_or(0);
+                            let _ =
+                                cad::finish_queued_render(&mut worker, &input, &origin, &job_id);
+                            if let Some(hook) = event_hook {
+                                if let Ok(mut stmt) = worker
+                                    .db
+                                    .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq")
+                                {
+                                    if let Ok(events) = stmt.query_map([before], event_from_row) {
+                                        for event in events.flatten() {
+                                            hook(event);
+                                        }
                                     }
                                 }
                             }
-                        }
+                        })
                     });
                     return Ok(queued);
                 }
@@ -471,6 +495,14 @@ impl CoreApp {
             .map_err(internal)
     }
 
+    pub fn assert_project_writable(&self, project_id: &str) -> CoreResult<()> {
+        self.projects
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project is not open"))?
+            .assert_writable()
+            .map_err(storage_error)
+    }
+
     pub fn project_root(&self, project_id: &str) -> CoreResult<PathBuf> {
         self.projects
             .get(project_id)
@@ -570,14 +602,16 @@ impl CoreApp {
         }
         if !handle.read_only {
             handle.db.execute("UPDATE job SET status='interrupted',finished_at=?1 WHERE status IN ('queued','running')",[now()]).map_err(internal)?;
+            handle.db.execute("UPDATE session SET state='interrupted',ended_at=?1 WHERE state IN ('starting','running')",[now()]).map_err(internal)?;
         }
         let path = handle.root.to_string_lossy().to_string();
         self.recent_projects.retain(|p| p != &path);
         self.recent_projects.insert(0, path);
         self.recent_projects.truncate(20);
         self.save_settings()?;
+        let read_only = handle.read_only;
         self.projects.insert(id.clone(), handle);
-        Ok(json!({"project": project, "projectId": id}))
+        Ok(json!({"project": project, "projectId": id, "readOnly": read_only}))
     }
 
     fn save_settings(&self) -> CoreResult<()> {
@@ -2129,6 +2163,17 @@ mod tests {
         let opened = app
             .dispatch("project.open", json!({"path":root}), Origin::User, None)
             .unwrap();
+        assert_eq!(opened["readOnly"], true);
+        let reopened = app
+            .dispatch("project.open", json!({"path":root}), Origin::User, None)
+            .unwrap();
+        assert_eq!(reopened["readOnly"], true);
+        assert_eq!(
+            app.assert_project_writable(opened["projectId"].as_str().unwrap())
+                .unwrap_err()
+                .code,
+            "READ_ONLY"
+        );
         app.dispatch(
             "project.close",
             json!({}),
@@ -2136,6 +2181,119 @@ mod tests {
             opened["projectId"].as_str(),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn reopening_marks_leftover_sessions_interrupted_without_changing_live_sessions() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("data")).unwrap();
+        let root = temp.path().join("project");
+        let project = app
+            .dispatch(
+                "project.create",
+                json!({"path":root,"name":"Recovery","intent":"test"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let id = project["projectId"].as_str().unwrap();
+        app.upsert_session(
+            id,
+            &json!({"id":"old","adapterId":"custom","executablePath":"/bin/sh","state":"running","startedAt":now(),"pid":123}),
+        )
+        .unwrap();
+        app.dispatch("project.open", json!({"path":root}), Origin::User, None)
+            .unwrap();
+        assert_eq!(
+            app.projects[id]
+                .db
+                .query_row("SELECT state FROM session WHERE id='old'", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            "running"
+        );
+        drop(app);
+        let mut app = CoreApp::new(temp.path().join("data")).unwrap();
+        app.dispatch("project.open", json!({"path":root}), Origin::User, None)
+            .unwrap();
+        let id = project["projectId"].as_str().unwrap();
+        assert_eq!(
+            app.projects[id]
+                .db
+                .query_row("SELECT state FROM session WHERE id='old'", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            "interrupted"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn saved_openscad_path_is_used_by_probe_and_survives_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let data = temp.path().join("data");
+        let mut app = CoreApp::new(&data).unwrap();
+        app.dispatch(
+            "settings.set",
+            json!({"key":"toolPaths.openscad","value":"/usr/bin/false"}),
+            Origin::User,
+            None,
+        )
+        .unwrap();
+        for mut app in [app, CoreApp::new(&data).unwrap()] {
+            let probe = app
+                .dispatch("cad.probe", json!({}), Origin::User, None)
+                .unwrap();
+            assert_eq!(probe["available"], false);
+            assert_eq!(probe["executablePath"], "/usr/bin/false");
+            let doctor = app
+                .dispatch("tool.doctor", json!({}), Origin::User, None)
+                .unwrap();
+            assert_eq!(
+                doctor["results"]["openscad"]["executablePath"],
+                "/usr/bin/false"
+            );
+        }
+        assert!(cad::configured_executable().is_none());
+    }
+
+    #[test]
+    fn archive_identity_conflict_does_not_extract_and_can_retry_as_copy() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("data")).unwrap();
+        let project = app
+            .dispatch(
+                "project.create",
+                json!({"path":temp.path().join("original"),"name":"Original","intent":"test"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        let id = project["projectId"].as_str().unwrap();
+        let archive = temp.path().join("project.zip");
+        app.dispatch(
+            "project.export_archive",
+            json!({"destPath":archive}),
+            Origin::User,
+            Some(id),
+        )
+        .unwrap();
+        let dest = temp.path().join("copy");
+        let input = json!({"archivePath":archive,"destDir":dest});
+        assert_eq!(
+            app.dispatch("project.import_archive", input.clone(), Origin::User, None)
+                .unwrap_err()
+                .code,
+            "REVISION_CONFLICT"
+        );
+        assert!(!dest.exists());
+        let mut copy_input = input;
+        copy_input["newIdentity"] = json!(true);
+        let copy = app
+            .dispatch("project.import_archive", copy_input, Origin::User, None)
+            .unwrap();
+        assert_ne!(copy["projectId"], project["projectId"]);
+        assert!(dest.join("omenflow.project.json").is_file());
     }
 
     #[test]

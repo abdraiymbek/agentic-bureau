@@ -83,6 +83,14 @@ export class ResearchSurface {
       url: location.href,
       title: document.title,
       text: (document.body?.innerText ?? '').slice(0, ${MAX_EXTRACT_CHARS}),
+          readyState: document.readyState,
+          images: [...document.images].filter(i => i.currentSrc || i.src).slice(0,80).map(i => ({
+            url: i.currentSrc || i.src, alt: i.alt, width: i.naturalWidth, height: i.naturalHeight })),
+          metadata: [...document.querySelectorAll('meta[property], meta[name]')]
+            .filter(m => /^(og:|product:|twitter:image)/.test(m.getAttribute('property') || m.name))
+            .slice(0,60).map(m => ({name: m.getAttribute('property') || m.name, content: m.content})),
+          structuredData: [...document.querySelectorAll('script[type="application/ld+json"]')]
+            .slice(0,12).map(s => {try {return JSON.parse(s.textContent.slice(0,60000));} catch {return null;}}),
       links: [...document.querySelectorAll('a[href]')].slice(0, 300).map(a => ({ text: (a.innerText || '').slice(0, 140), url: a.href }))
     }))()`);
   }

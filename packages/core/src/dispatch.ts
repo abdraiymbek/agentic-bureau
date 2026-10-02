@@ -467,7 +467,8 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
   if (!op) throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
   if (
     req.origin.kind === 'agent' &&
-    (op.capability === 'user' || /^(browser|research)\./.test(req.op))
+    (op.capability === 'user' ||
+      (/^(browser|research)\./.test(req.op) && req.op !== 'research.read_page'))
   ) {
     const code =
       req.op === 'artifact.apply_edit'

@@ -86,8 +86,13 @@ describe('PtySessionManager', () => {
       expect(mgr.state(ctx)?.cols).toBe(132);
       expect(mgr.state(ctx)?.rows).toBe(43);
 
-      // ^C — session stays alive.
+      // Wait for the shell to handle ^C before sending the next command. POSIX
+      // terminal signal handling may flush input queued immediately after ^C.
+      // Split the markers so echoed command text cannot satisfy the checks.
+      mgr.write(ctx, `trap 'printf "INTERRUPT_%s\\n" HANDLED' INT\nprintf 'TRAP_%s\\n' READY\n`);
+      await waitFor(() => mgr.getScrollback(ctx).includes('TRAP_READY'));
       mgr.interrupt(ctx);
+      await waitFor(() => mgr.getScrollback(ctx).includes('INTERRUPT_HANDLED'));
       mgr.write(ctx, 'echo after-interrupt\n');
       await waitFor(() => mgr.getScrollback(ctx).includes('after-interrupt'));
       expect(mgr.state(ctx)?.state).toBe('running');

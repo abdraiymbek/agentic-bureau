@@ -4,6 +4,8 @@ The Rust/Tauri migration is qualified locally on macOS Apple Silicon as an
 unsigned candidate. Apple signing, notarization, clean-machine upgrade, and
 Windows/Linux runtime acceptance are still open. The Electron v0.1 release
 record in `audit/release-v0.1/` is historical and does not qualify this build.
+The [26 September first-use audit](../audit/v1-readiness/README.md) records the
+current Lens candidate, native acceptance, and remaining distribution gates.
 
 ## Local candidate
 
@@ -13,6 +15,9 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 pnpm typecheck
+pnpm lint
+pnpm format:check
+OMENFLOW_OPENSCAD_E2E=1 pnpm test
 pnpm make
 pnpm smoke:packaged
 ```

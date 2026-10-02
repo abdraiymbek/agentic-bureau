@@ -14,12 +14,13 @@ import {
   Package,
   Palette,
   Files,
+  Robot,
   TerminalWindow,
   MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { openProposals, useStore } from '../store';
 import { Kbd, State, TypeGlyph, typeMeta } from '../ui/kit';
-import { exportProject, openProjectAt, sendToAgent } from '../lib/actions';
+import { exportProject, openProjectAt, sendToAgent, showAgent } from '../lib/actions';
 import { errMsg } from '../api';
 
 interface Item {
@@ -107,6 +108,14 @@ export function Omnibar() {
       const pending = openProposals(proposals).length;
       all.push(
         {
+          id: 'agent-tab',
+          group: 'Go to',
+          label: 'Agent',
+          icon: <Robot size={15} />,
+          keywords: 'terminal cli codex claude session',
+          run: () => go({ level: 'agent' }),
+        },
+        {
           id: 'lens:flow',
           group: 'Go to',
           label: 'Project flow',
@@ -159,11 +168,8 @@ export function Omnibar() {
           label: 'Show agent terminal',
           icon: <TerminalWindow size={15} />,
           hint: <Kbd>⌘J</Kbd>,
-          keywords: 'codex claude console',
-          run: () => {
-            set({ consoleOpen: true });
-            window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
-          },
+          keywords: 'codex claude console window',
+          run: showAgent,
         },
         {
           id: 'export-build',
@@ -233,7 +239,7 @@ export function Omnibar() {
         hint: <span>Types into the terminal</span>,
         run: () =>
           void sendToAgent(query)
-            .then(() => set({ consoleOpen: true }))
+            .then(showAgent)
             .catch((e) => toast('error', errMsg(e))),
       };
       const sentence = query.split(/\s+/).length >= 3;

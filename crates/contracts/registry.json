@@ -329,6 +329,14 @@
         "description": {
           "type": "string"
         },
+        "imageUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?:\\/\\/"
+        },
+        "selectionReason": {
+          "type": "string"
+        },
         "properties": {
           "type": "object",
           "additionalProperties": {
@@ -2704,12 +2712,12 @@
     {
       "name": "research.read_page",
       "toolName": "research_read_page",
-      "description": "Read current research page text/links",
+      "description": "Read an exact public product/source URL. Returns page text, links, images and structured product pricing. Inspect identity, price, currency, pack size and availability before recording an offer.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
-      "agentAllowed": false,
-      "agentTool": false,
+      "agentAllowed": true,
+      "agentTool": true,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2856,6 +2864,14 @@
           "description": {
             "type": "string"
           },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?:\\/\\/"
+          },
+          "selectionReason": {
+            "type": "string"
+          },
           "properties": {
             "type": "object",
             "additionalProperties": {
@@ -2953,7 +2969,9 @@
                 "type": "string"
               },
               "url": {
-                "type": "string"
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?:\\/\\/"
               },
               "price": {
                 "anyOf": [
@@ -3156,7 +3174,9 @@
             "type": "string"
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?:\\/\\/"
           },
           "price": {
             "anyOf": [

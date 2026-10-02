@@ -3,7 +3,7 @@ import { ArrowRight, CaretLeft, CaretRight, CheckCircle, GitBranch } from '@phos
 import type { Artifact, Proposal, ProposedChange, Revision } from '@omenflow/contracts';
 import { cmd, errMsg } from '../api';
 import { openProposals, useStore } from '../store';
-import { sendToAgent } from '../lib/actions';
+import { sendToAgent, showAgent } from '../lib/actions';
 import {
   Button,
   Empty,
@@ -39,7 +39,7 @@ export function DecideView() {
   const readOnly = useStore((s) => s.readOnly);
   const projectId = useStore((s) => s.projectId);
   const session = useStore((s) => s.session);
-  const { set, toast, refreshProposals, refreshArtifacts, focus } = useStore.getState();
+  const { toast, refreshProposals, refreshArtifacts, focus } = useStore.getState();
   const [filter, setFilter] = useState<'open' | 'all'>('open');
   const [detail, setDetail] = useState<ProposalDetail | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -143,7 +143,7 @@ export function DecideView() {
         `Read proposal ${lastDecision.id} and its saved review decision using proposal.read. Continue the engineering task from that decision; preserve the accepted baseline and verify any new candidate. If changes were requested, submit the corrected candidate as a replacement proposal for review.`,
       );
       setLastDecision(null);
-      set({ consoleOpen: true });
+      showAgent();
     } catch (e) {
       toast('error', errMsg(e));
     }

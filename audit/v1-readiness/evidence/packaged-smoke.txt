@@ -1,0 +1,7 @@
+
+> omenflow@0.1.0 smoke:packaged /Users/abraiymbek/Projects/Omen Flow
+> node scripts/rust-packaged-smoke.mjs
+
+rust-packaged-smoke: launching
+rust-packaged-smoke: bridge at /var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-rust-smoke-2mcLQt/run/bridge.sock
+Rust bundle smoke passed: /Users/abraiymbek/Projects/Omen Flow/target/release/bundle/macos/Omen Flow.app

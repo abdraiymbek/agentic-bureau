@@ -30,6 +30,8 @@ export function addCandidate(
     vendor?: string;
     partNumber: string;
     description?: string;
+    imageUrl?: string;
+    selectionReason?: string;
     properties: ComponentPayload['properties'];
     attributes: ComponentPayload['attributes'];
     offer?: {
@@ -69,6 +71,8 @@ export function addCandidate(
     vendor: input.vendor,
     partNumber: input.partNumber,
     description: input.description,
+    imageUrl: input.imageUrl,
+    selectionReason: input.selectionReason,
     properties: input.properties,
     attributes: input.attributes,
     status: 'candidate',
@@ -262,6 +266,9 @@ export function readBom(ctx: ProjectContext) {
       componentTitle: component?.title ?? l.componentArtifactId,
       partNumber: payload?.partNumber ?? '',
       manufacturer: payload?.manufacturer ?? payload?.vendor ?? '',
+      imageUrl: payload?.imageUrl,
+      selectionReason: payload?.selectionReason,
+      description: payload?.description,
       offer,
       unitMass,
       lineMassKnown: unitMass !== null,

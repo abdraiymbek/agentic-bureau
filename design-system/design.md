@@ -1,6 +1,6 @@
 # Omen Flow design system — Lens
 
-Version 2.0 · 23 September 2026 · **See the whole. Focus on one. Decide.**
+Version 2.1 · 24 September 2026 · **See the whole. Focus on one. Decide.**
 
 Lens is the design language and interaction model of Omen Flow. It replaces the previous
 sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
@@ -35,11 +35,13 @@ around the three things a person actually does:
 
 ## 3. Interaction model: semantic zoom
 
-Omen Flow has three zoom levels and one agent surface. There is no navigation sidebar.
+Omen Flow has three zoom levels plus the agent. Navigation is a 48 px **activity bar** on the
+left edge: the Agent tab first, then the lens tabs and Decisions. There is no dashboard.
 
 | Level        | What fills the stage                                                            | How you get here                                                 |
 | ------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files      | Open a project, click the mark, `Esc` from anywhere, `⌘1–4`      |
+| Agent        | The real agent terminal (PTY), filling the whole main area                      | The first activity-bar tab, “Agent” in `⌘K`                      |
+| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files      | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–4`           |
 | 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
 | 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
 
@@ -53,7 +55,7 @@ Omen Flow has three zoom levels and one agent surface. There is no navigation si
 ### Level 0 — Project
 
 The project identity (name and editable one-line intent) floats top-left over the canvas; the
-lens switcher sits top-right.
+lenses are tabs on the activity bar.
 
 **Flow** is the primary navigation surface: a deterministic, layered map of every object.
 
@@ -77,13 +79,17 @@ out-of-date objects, then agent suggestions. When nothing waits it collapses to 
 line: “Every baseline is current and reviewed”.
 
 **Parts** is the bill of materials (known cost, known mass, lines; unknowns labelled and
-excluded from totals) with a Candidates mode for side-by-side comparison. **Timeline** is the
+excluded from totals) with a Candidates mode for side-by-side comparison. Both modes use sourced shopping lines: a real
+product image, name and part number, project-specific selection reason, seller price with pack
+basis, observation date, availability and the exact purchase destination. Candidates are the
+default so agent suggestions are visible before human selection. Missing or failed photos,
+unknown prices and unusable links remain labelled; placeholder domains are never purchase actions. **Timeline** is the
 decision record grouped by day, with adjacent revision/baseline events merged. **Files** lists
 working files by owning object and revision, with text preview, the project archive, and the
 build package (drafts off by default).
 
-An empty project shows the four layers as a dashed outline and one action that opens the agent
-with a drafted first prompt.
+An empty project shows the four layers as a dashed outline and one action that opens the Agent
+tab with a drafted first prompt.
 
 ### Level 1 — Object
 
@@ -143,19 +149,25 @@ The same three-part grammar: **queue · proposal · impact**.
 - After a decision: a notice with **Resume agent from decision**, which types a precise
   continuation instruction into the running CLI.
 
-### The agent: composer and console
+### The agent
 
-The agent is docked at the bottom as a floating island, present on every project screen.
+The agent is one real PTY terminal with two presentations, mounted for the life of the open
+project so the session, scrollback, and running CLI survive navigation.
 
-- **Collapsed**: agent chip (status light + provider; menu to switch provider or open setup),
-  the composer, and the primary action — **Start {agent}** when idle, **Send** when running.
-  The latest agent-originated change appears as a quiet, clickable line.
-- **Context travels with focus**: on an object, the composer shows a removable `@Object`
-  chip. Sending prefixes the message with the object's type, title, artifact id, and revision
-  so the agent's tools can act on exactly that object.
-- **Expanded** (`⌘J`): the island widens and reveals the real PTY terminal above the composer —
-  resizable, searchable, with interrupt, stop, and restart. The composer writes to the same PTY
-  using bracketed paste; nothing is paraphrased, summarised, or fabricated.
+- **Agent tab**: the first activity-bar tab. The terminal fills the whole main area — no
+  composer, no chrome. You type into the CLI exactly as in your own terminal.
+- **Agent window** (`⌘J`): a floating island anchored bottom-left over any other tab — the same
+  terminal, so you keep working while navigating. It carries a slim header (status light,
+  agent, session state), resizes from its top-right corner, and remembers its size. A signal
+  ring marks a live session.
+- **Autostart**: the first time the surface becomes visible with no session, the chosen agent
+  starts itself in the project folder. It never restarts on its own after a session ends; an
+  ended session offers “Start again” over the visible scrollback.
+- **The choice lives in Settings**: a radio group of detected (and undetected) agent CLIs picks
+  the agent; a running session on a different CLI can be restarted onto the new choice.
+- “Ask agent” entry points type into the running PTY using bracketed paste — object references
+  arrive as `{type} {title} (artifact {id}, revision {n})` prefixes you can edit before Enter.
+  Nothing is paraphrased, summarised, or fabricated.
 - `⌘K` offers “Ask {agent}: …” for any sentence typed while a session runs.
 
 ## 4. Visual language
@@ -207,7 +219,7 @@ no all-caps labels.
 - Radii: 6 (small controls), 8 (controls), 11 (menus, nodes), 15 (islands), 20 (stage, sheet).
 - Depth has three planes: the **field** (flat), the **stage** (surface, 1 px line, no shadow),
   and **islands** (raised, `--shadow-float`) that hover over the field or stage: Needs you,
-  composer, viewport tools, map controls, menus, omnibar, sheet.
+  the agent window, viewport tools, map controls, menus, omnibar, sheet.
 - Motion is functional: 120 ms feedback, 200 ms state, 320 ms zoom and sheet. Zooming into an
   object uses a subtle scale-in. Only live things pulse. `prefers-reduced-motion` removes all
   of it.
@@ -245,7 +257,7 @@ All live in `ui/kit.tsx` and appear in the Design system view.
 | `Kbd`, `Spinner`     | Shortcuts and active work                                                    |
 
 Composite patterns: map node, rail link node, stage header, save bar, diff row, decision bar,
-composer, island, sheet, omnibar.
+activity bar, agent window, island, sheet, omnibar.
 
 ## 6. Engineering integrity
 
@@ -260,23 +272,22 @@ These rules outrank aesthetics.
   recorded input shows its relationship and whether it is pinned.
 - **Illustrative data is labelled** (e.g. the preview mesh). A calculation marks itself
   experimental where the engine is.
-- **No fabricated agent activity.** The composer writes to the real PTY; activity lines come
-  from recorded events; running state comes from the session.
+- **No fabricated agent activity.** The agent surface is the real PTY; “Ask” writes to it with
+  bracketed paste; running state comes from the session.
 - **Exports report success only after the operation returns.**
 
 ## 7. Keyboard and accessibility
 
-| Shortcut    | Action                                |
-| ----------- | ------------------------------------- |
-| `⌘K` / `⌘P` | Omnibar: go to, run, or ask           |
-| `Esc`       | Zoom out one level                    |
-| `⌘[`        | Back                                  |
-| `⌘J`        | Show or hide the agent terminal       |
-| `⌘⇧D`       | Decisions                             |
-| `⌘1`–`⌘4`   | Flow, Parts, Timeline, Files          |
-| `⌘↵`        | Approve (in a decision)               |
-| `⌘,`        | Settings                              |
-| `Enter`     | Send to agent (`⇧Enter` for new line) |
+| Shortcut    | Action                        |
+| ----------- | ----------------------------- |
+| `⌘K` / `⌘P` | Omnibar: go to, run, or ask   |
+| `Esc`       | Zoom out one level            |
+| `⌘[`        | Back                          |
+| `⌘J`        | Show or hide the agent window |
+| `⌘⇧D`       | Decisions                     |
+| `⌘1`–`⌘4`   | Flow, Parts, Timeline, Files  |
+| `⌘↵`        | Approve (in a decision)       |
+| `⌘,`        | Settings                      |
 
 Focus rings use `--focus` in both themes. Icon-only buttons have names. Dialogs (omnibar,
 sheet, menus) trap and return focus via Radix. The map exposes each node with an accessible
@@ -286,6 +297,8 @@ AA for essential text; verify with VoiceOver before release.
 ## 8. Layout
 
 - Titlebar 48 px with macOS overlay traffic lights (70 px reserved); the whole bar drags.
+- Activity bar 48 px on the left edge, below the titlebar: icon tabs, the agent window toggle,
+  and Settings at the bottom.
 - Rails 248 px, 216 px below 1280, 196 px below 1120. The stage takes the rest.
 - Supported from **1024 × 700**; designed at **1440 × 900**.
 - Scrolling belongs to regions: rails, stage, lens pages, terminal, omnibar list, sheet.
@@ -310,20 +323,20 @@ purple, fake chat bubbles, unlabelled colour, or collaboration features that don
 
 ## 10. Implementation map
 
-| Concern                           | Source of truth                                          |
-| --------------------------------- | -------------------------------------------------------- |
-| Tokens (both themes)              | `design-system/tokens.css`                               |
-| Fonts and licences                | `design-system/fonts/`                                   |
-| Brand                             | `design-system/brand/`                                   |
-| Primitives                        | `renderer/ui/kit.tsx`                                    |
-| Styling                           | `renderer/styles/app.css`                                |
-| Zoom model, keyboard, events      | `renderer/App.tsx`, `renderer/store.ts`                  |
-| Titlebar, omnibar, console, sheet | `renderer/shell/`                                        |
-| Project lenses and flow map       | `renderer/project/`                                      |
-| Object focus and stages           | `renderer/object/`                                       |
-| Decisions                         | `renderer/decide/`                                       |
-| Launcher                          | `renderer/launcher/`                                     |
-| Catalogue                         | `renderer/system/DesignSystemView.tsx`                   |
-| Lineage and actions               | `renderer/lib/graph.ts`, `renderer/lib/actions.ts`       |
-| Disposable preview                | `scripts/design-preview.ts`, `renderer/preview.ts`       |
-| Screens                           | `design-system/screenshots/`, `design-system/index.html` |
+| Concern                                               | Source of truth                                          |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| Tokens (both themes)                                  | `design-system/tokens.css`                               |
+| Fonts and licences                                    | `design-system/fonts/`                                   |
+| Brand                                                 | `design-system/brand/`                                   |
+| Primitives                                            | `renderer/ui/kit.tsx`                                    |
+| Styling                                               | `renderer/styles/app.css`                                |
+| Zoom model, keyboard, events                          | `renderer/App.tsx`, `renderer/store.ts`                  |
+| Titlebar, activity bar, agent surface, omnibar, sheet | `renderer/shell/`                                        |
+| Project lenses and flow map                           | `renderer/project/`                                      |
+| Object focus and stages                               | `renderer/object/`                                       |
+| Decisions                                             | `renderer/decide/`                                       |
+| Launcher                                              | `renderer/launcher/`                                     |
+| Catalogue                                             | `renderer/system/DesignSystemView.tsx`                   |
+| Lineage and actions                                   | `renderer/lib/graph.ts`, `renderer/lib/actions.ts`       |
+| Disposable preview                                    | `scripts/design-preview.ts`, `renderer/preview.ts`       |
+| Screens                                               | `design-system/screenshots/`, `design-system/index.html` |

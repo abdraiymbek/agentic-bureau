@@ -95,15 +95,8 @@ pub(super) fn tool_doctor(input: &Value) -> CoreResult<Value> {
     if input["toolId"].as_str().is_some_and(|id| id != "openscad") {
         return Ok(json!({"results": {}}));
     }
-    let result = std::process::Command::new("openscad")
-        .arg("--version")
-        .output();
-    let probe = match result {
-        Ok(output) => {
-            json!({"available": output.status.success(), "version": String::from_utf8_lossy(if output.stdout.is_empty() { &output.stderr } else { &output.stdout }).trim(), "path": "openscad"})
-        }
-        Err(error) => json!({"available": false, "error": error.to_string()}),
-    };
+    let probe =
+        cad::probe().unwrap_or_else(|error| json!({"available":false,"error":error.message}));
     Ok(json!({"results": {"openscad": probe}}))
 }
 

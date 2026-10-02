@@ -323,7 +323,7 @@ function FlowCanvas({ reserveRight }: { reserveRight: number }) {
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{
-          padding: { top: '150px', bottom: '64px', left: '48px', right: `${reserveRight}px` },
+          padding: { top: '150px', bottom: '32px', left: '48px', right: `${reserveRight}px` },
           maxZoom: 1.05,
         }}
         minZoom={0.2}
@@ -366,7 +366,7 @@ function FlowCanvas({ reserveRight }: { reserveRight: number }) {
           onClick={() =>
             void flow.fitView({
               duration: 240,
-              padding: { top: '150px', bottom: '64px', left: '48px', right: `${reserveRight}px` },
+              padding: { top: '150px', bottom: '32px', left: '48px', right: `${reserveRight}px` },
             })
           }
         >

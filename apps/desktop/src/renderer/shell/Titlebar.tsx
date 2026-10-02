@@ -5,7 +5,6 @@ import {
   CaretDown,
   CaretRight,
   FolderOpen,
-  GearSix,
   MagnifyingGlass,
   Export,
   Archive,
@@ -74,6 +73,12 @@ export function Titlebar() {
             </span>
           </>
         )}
+        {view.level === 'agent' && (
+          <>
+            <CaretRight size={11} className="trail-sep" />
+            <span className="trail-current">Agent</span>
+          </>
+        )}
         {view.level === 'decide' && (
           <>
             <CaretRight size={11} className="trail-sep" />
@@ -108,9 +113,6 @@ export function Titlebar() {
           <span>{project ? 'Go to or ask' : 'Search'}</span>
           <Kbd>⌘K</Kbd>
         </button>
-        <IconButton label="Settings (⌘,)" onClick={() => set({ settingsOpen: true })}>
-          <GearSix size={15} />
-        </IconButton>
       </div>
     </header>
   );
@@ -158,7 +160,10 @@ function ProjectMenu({ name, readOnly }: { name: string; readOnly: boolean }) {
           >
             <FolderOpen size={14} /> Open another project…
           </Menu.Item>
-          <Menu.Item className="menu-item" onSelect={closeProject}>
+          <Menu.Item
+            className="menu-item"
+            onSelect={() => void closeProject().catch((e) => toast('error', errMsg(e)))}
+          >
             <SignOut size={14} /> Close project
           </Menu.Item>
         </Menu.Content>

@@ -252,6 +252,12 @@ const componentAddCandidate = z.object({
   vendor: z.string().optional(),
   partNumber: z.string().min(1),
   description: z.string().optional(),
+  imageUrl: z
+    .string()
+    .url()
+    .regex(/^https?:\/\//)
+    .optional(),
+  selectionReason: z.string().optional(),
   properties: z
     .record(
       z.string(),
@@ -276,7 +282,11 @@ const componentAddCandidate = z.object({
   offer: z
     .object({
       seller: z.string(),
-      url: z.string().optional(),
+      url: z
+        .string()
+        .url()
+        .regex(/^https?:\/\//)
+        .optional(),
       price: moneySchema.nullable().default(null),
       quantityBasis: z.number().positive().default(1),
       availabilityText: z.string().optional(),
@@ -309,7 +319,11 @@ const componentProposeSelection = z.object({
 const componentAddOffer = z.object({
   artifactId: idSchema,
   seller: z.string(),
-  url: z.string().optional(),
+  url: z
+    .string()
+    .url()
+    .regex(/^https?:\/\//)
+    .optional(),
   price: moneySchema.nullable().default(null),
   quantityBasis: z.number().positive().default(1),
   availabilityText: z.string().optional(),
@@ -832,7 +846,7 @@ export const OPS: OpDef[] = [
     researchReadPage,
     'both',
     false,
-    'Read current research page text/links',
+    'Read an exact public product/source URL. Returns page text, links, images and structured product pricing. Inspect identity, price, currency, pack size and availability before recording an offer.',
   ),
   def('browser.open', browserOpen, 'both', false, 'Open URL in the isolated research browser'),
   def('browser.read', browserRead, 'both', false, 'Read current page text'),
@@ -1057,20 +1071,29 @@ export function describeOp(
 
 /** Operations an agent session may call. Everything else is user-only. */
 export const AGENT_OPS = new Set(
-  OPS.filter((op) => op.capability === 'both' && !/^(browser|research)\./.test(op.name)).map(
-    (op) => op.name,
-  ),
+  OPS.filter(
+    (op) =>
+      op.capability === 'both' &&
+      (!/^(browser|research)\./.test(op.name) || op.name === 'research.read_page'),
+  ).map((op) => op.name),
 );
 
 /** Subset of AGENT_OPS listed as tools (MCP). Hidden ops stay callable via `omenflow call`. */
 export const AGENT_TOOL_OPS = new Set(
   OPS.filter(
-    (op) => op.capability === 'both' && op.agentVisible && !/^(browser|research)\./.test(op.name),
+    (op) =>
+      op.capability === 'both' &&
+      op.agentVisible &&
+      (!/^(browser|research)\./.test(op.name) || op.name === 'research.read_page'),
   ).map((op) => op.name),
 );
 
 export function opAllowed(name: string, capability: 'user' | 'agent'): boolean {
   const op = OPS_BY_NAME.get(name);
   if (!op) return false;
-  return capability === 'user' || (op.capability === 'both' && !/^(browser|research)\./.test(name));
+  return (
+    capability === 'user' ||
+    (op.capability === 'both' &&
+      (!/^(browser|research)\./.test(name) || name === 'research.read_page'))
+  );
 }

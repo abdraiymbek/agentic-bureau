@@ -27,6 +27,8 @@ pub(super) fn add_candidate(
         "vendor",
         "partNumber",
         "description",
+        "imageUrl",
+        "selectionReason",
         "properties",
         "attributes",
     ] {
@@ -290,7 +292,7 @@ pub(super) fn bom_read(handle: &ProjectHandle) -> CoreResult<Value> {
         } else {
             missing_mass += 1;
         }
-        rows.push(json!({"line":line,"componentTitle":artifact["title"],"partNumber":body["partNumber"],"manufacturer":body["manufacturer"].as_str().or(body["vendor"].as_str()).unwrap_or(""),"offer":offer,"unitMass":unit_mass,"lineMassKnown":unit_mass.is_some(),"lineTotal":line_total}));
+        rows.push(json!({"line":line,"componentTitle":artifact["title"],"partNumber":body["partNumber"],"manufacturer":body["manufacturer"].as_str().or(body["vendor"].as_str()).unwrap_or(""),"imageUrl":body["imageUrl"],"selectionReason":body["selectionReason"],"description":body["description"],"offer":offer,"unitMass":unit_mass,"lineMassKnown":unit_mass.is_some(),"lineTotal":line_total}));
     }
     let totals = json!({"cost":cost.iter().map(|(currency,amount)|json!({"amount":format!("{amount:.2}"),"currency":currency})).collect::<Vec<_>>(),"missingPriceCount":missing_price,"knownMass":known_mass.map(|(value,unit)|json!({"value":value,"unit":unit})),"missingMassCount":missing_mass,"lineCount":rows.len()});
     Ok(json!({"lines":rows,"totals":totals}))
@@ -500,8 +502,17 @@ mod tests {
             .unwrap();
         let project_id = project["projectId"].as_str().unwrap();
         let source = app.dispatch("source.capture",json!({"title":"Datasheet","url":"https://example.test/datasheet","sourceKind":"datasheet"}),Origin::User,Some(project_id)).unwrap();
-        let component = app.dispatch("component.add_candidate",json!({"title":"Motor","manufacturer":"Acme","partNumber":"M1","sourceId":source["artifact"]["id"],"properties":{"mass":{"quantity":{"value":0.2,"unit":"kg"}}}}),Origin::Agent{session_id:uuid::Uuid::new_v4().to_string()},Some(project_id)).unwrap();
-        let selected = app.dispatch("component.propose_selection",json!({"artifactId":component["artifact"]["id"],"revisionId":component["revision"]["id"],"bomLines":[{"quantity":2}],"reason":"Choose motor"}),Origin::Agent{session_id:uuid::Uuid::new_v4().to_string()},Some(project_id)).unwrap();
+        let component = app.dispatch("component.add_candidate",json!({"title":"Motor","manufacturer":"Acme","partNumber":"M1","imageUrl":"https://shop.example.test/motor.jpg","selectionReason":"Drives the wheels at the required torque.","offer":{"seller":"Acme","url":"https://shop.example.test/motor","price":{"amount":"12.50","currency":"USD"}},"sourceId":source["artifact"]["id"],"properties":{"mass":{"quantity":{"value":0.2,"unit":"kg"}}}}),Origin::Agent{session_id:uuid::Uuid::new_v4().to_string()},Some(project_id)).unwrap();
+        let comparison = app
+            .dispatch(
+                "component.compare",
+                json!({"artifactIds":[component["artifact"]["id"]]}),
+                Origin::User,
+                Some(project_id),
+            )
+            .unwrap();
+        let offer_id = &comparison["components"][0]["offers"][0]["id"];
+        let selected = app.dispatch("component.propose_selection",json!({"artifactId":component["artifact"]["id"],"revisionId":component["revision"]["id"],"bomLines":[{"quantity":2,"offerId":offer_id}],"reason":"Choose motor"}),Origin::Agent{session_id:uuid::Uuid::new_v4().to_string()},Some(project_id)).unwrap();
         assert_eq!(
             app.dispatch("bom.read", json!({}), Origin::User, Some(project_id))
                 .unwrap()["totals"]["lineCount"],
@@ -523,5 +534,15 @@ mod tests {
         assert_eq!(bom["totals"]["lineCount"], 1);
         assert_eq!(bom["lines"][0]["componentTitle"], "Motor");
         assert_eq!(bom["lines"][0]["line"]["quantity"], 2.0);
+        assert_eq!(
+            bom["lines"][0]["imageUrl"],
+            "https://shop.example.test/motor.jpg"
+        );
+        assert_eq!(
+            bom["lines"][0]["selectionReason"],
+            "Drives the wheels at the required torque."
+        );
+        assert_eq!(bom["lines"][0]["offer"]["price"]["amount"], "12.50");
+        assert_eq!(bom["lines"][0]["lineTotal"]["amount"], "25.00");
     }
 }

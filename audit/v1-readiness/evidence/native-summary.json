@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-26",
+  "platform": "macOS arm64",
+  "signed": false,
+  "providerEvaluation": false,
+  "testAdapter": "/bin/sh -i",
+  "cad": {
+    "bounds": {
+      "max": [20.0, 20.0, 20.0],
+      "min": [0.0, 0.0, 0.0],
+      "size": [20.0, 20.0, 20.0]
+    },
+    "shells": 1,
+    "surfaceArea": 2400.0,
+    "triangles": 12,
+    "unit": "mm",
+    "volume": 8000.0,
+    "watertight": true
+  },
+  "render": {
+    "errors": [],
+    "ms": 49,
+    "ok": true,
+    "tool": "openscad 2026.09.18",
+    "warnings": []
+  },
+  "projects": {
+    "project": {
+      "integrity": "ok",
+      "baselines": [
+        ["439a4030-d5c0-41be-b2c3-2b7a00ada0c7", "4f8e6874-7e80-45b6-b58b-84fa6dda5f4f"],
+        ["e4dee888-36ae-4265-bd5e-ec8d53dc2f64", "92f7af9a-8693-4e68-bd33-cc7413d2a144"]
+      ],
+      "objectHashesValid": true
+    },
+    "import": {
+      "integrity": "ok",
+      "baselines": [
+        ["439a4030-d5c0-41be-b2c3-2b7a00ada0c7", "4f8e6874-7e80-45b6-b58b-84fa6dda5f4f"],
+        ["e4dee888-36ae-4265-bd5e-ec8d53dc2f64", "92f7af9a-8693-4e68-bd33-cc7413d2a144"]
+      ],
+      "objectHashesValid": true
+    }
+  },
+  "installer": {
+    "path": "target/release/bundle/dmg/Omen Flow_0.1.0_aarch64.dmg",
+    "bytes": 7864528,
+    "sha256": "52c225f4e06b4f2e94f7ccc6fc3364f0d1652f7fa0d2a95f07ea1810e90f5ae3"
+  }
+}

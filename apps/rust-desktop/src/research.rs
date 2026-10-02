@@ -118,6 +118,14 @@ impl ResearchBrowser {
             .ok_or_else(|| invalid("No research page loaded"))?;
         let script = r#"(() => ({ url: location.href, title: document.title,
           text: (document.body?.innerText ?? '').slice(0, 204800),
+          readyState: document.readyState,
+          images: [...document.images].filter(i => i.currentSrc || i.src).slice(0,80).map(i => ({
+            url: i.currentSrc || i.src, alt: i.alt, width: i.naturalWidth, height: i.naturalHeight })),
+          metadata: [...document.querySelectorAll('meta[property], meta[name]')]
+            .filter(m => /^(og:|product:|twitter:image)/.test(m.getAttribute('property') || m.name))
+            .slice(0,60).map(m => ({name: m.getAttribute('property') || m.name, content: m.content})),
+          structuredData: [...document.querySelectorAll('script[type="application/ld+json"]')]
+            .slice(0,12).map(s => {try {return JSON.parse(s.textContent.slice(0,60000));} catch {return null;}}),
           links: [...document.querySelectorAll('a[href]')].slice(0,300).map(a => ({
             text: (a.innerText || '').slice(0,140), url: a.href })) }))()"#;
         let (sender, receiver) = mpsc::channel();
@@ -152,9 +160,13 @@ impl ResearchBrowser {
                 // match the webview's current URL.
                 if public_url(&current)
                     && (previous.as_ref() != Some(&current) || current == url)
-                    && self
-                        .read()
-                        .is_ok_and(|page| page["url"].as_str() == Some(current.as_str()))
+                    && self.read().is_ok_and(|page| {
+                        page["url"].as_str() == Some(current.as_str())
+                            && page["readyState"] == "complete"
+                            && page["text"]
+                                .as_str()
+                                .is_some_and(|text| !text.trim().is_empty())
+                    })
                 {
                     return Ok(json!({"url":current}));
                 }

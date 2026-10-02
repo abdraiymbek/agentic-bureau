@@ -77,9 +77,10 @@ export async function installDesignPreview() {
   if (screen && ['parts', 'timeline', 'files'].includes(screen))
     state.go({ level: 'project', lens: screen as Lens });
   if (screen === 'decide') state.decide(null);
+  if (screen === 'agent') state.go({ level: 'agent' });
   if (screen === 'system') state.go({ level: 'system' });
   const type = params.get('object');
   const target = type ? useStore.getState().artifacts.find((v) => v.artifact.type === type) : null;
   if (target) state.focus(target.artifact.id);
-  if (params.get('console') === 'open') state.set({ consoleOpen: true });
+  if (params.get('console') === 'open') state.set({ agentWindowOpen: true });
 }

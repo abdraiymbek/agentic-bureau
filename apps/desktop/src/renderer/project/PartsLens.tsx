@@ -8,8 +8,8 @@ import {
 } from '@omenflow/contracts';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
-import { ExternalLink } from '../ui/ExternalLink';
-import { Button, Empty, IconButton, Segmented, State } from '../ui/kit';
+import { OfferDetails, PartCard } from '../ui/PartCard';
+import { Button, Empty, IconButton, Segmented } from '../ui/kit';
 
 interface BomLineView {
   line: {
@@ -22,12 +22,16 @@ interface BomLineView {
   componentTitle: string;
   partNumber: string;
   manufacturer: string;
+  imageUrl?: string;
+  selectionReason?: string;
+  description?: string;
   offer: {
     price: { amount: string; currency: string } | null;
     observedAt: string;
     seller: string;
     url?: string;
     quantityBasis: number;
+    availabilityText?: string;
   } | null;
   unitMass: { value: number; unit: string } | null;
   lineTotal: { amount: string; currency: string } | null;
@@ -55,7 +59,7 @@ interface Comparison {
 export function PartsLens() {
   const artifacts = useStore((s) => s.artifacts);
   const { toast, focus, decide } = useStore.getState();
-  const [mode, setMode] = useState<'bom' | 'candidates'>('bom');
+  const [mode, setMode] = useState<'bom' | 'candidates'>('candidates');
   const [query, setQuery] = useState('');
   const [bom, setBom] = useState<Bom | null>(null);
   const [bomError, setBomError] = useState('');
@@ -113,6 +117,13 @@ export function PartsLens() {
       ),
     [bom, query],
   );
+
+  const visibleCandidates = components.filter((v) => {
+    const p = candidateDetails.find((c) => c.artifact.id === v.artifact.id)?.payload;
+    return `${v.artifact.title} ${p?.partNumber ?? ''} ${p?.manufacturer ?? p?.vendor ?? ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase());
+  });
 
   const exportBom = async (format: 'csv' | 'markdown') => {
     try {
@@ -199,6 +210,29 @@ export function PartsLens() {
                 </tr>
               </thead>
               <tbody>
+                <tr>
+                  <td className="dim">Why this part</td>
+                  {comparison.components.map((c) => (
+                    <td key={c.artifact.id}>
+                      {c.payload?.selectionReason || (
+                        <span className="unknown">Reason not recorded</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+                <tr>
+                  <td className="dim">Seller offers</td>
+                  {comparison.components.map((c) => (
+                    <td key={c.artifact.id}>
+                      {c.offers.length ? (
+                        c.offers.map((o) => <OfferDetails key={o.id} offer={o} />)
+                      ) : (
+                        <span className="unknown">No offer recorded</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+
                 {comparison.matrix.map((m) => (
                   <tr key={m.criterion}>
                     <td className="dim">{m.criterion.replaceAll('_', ' ')}</td>
@@ -259,73 +293,54 @@ export function PartsLens() {
               action={<Button onClick={() => decide(null)}>Open decisions</Button>}
             />
           ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Part</th>
-                    <th>Part number</th>
-                    <th>Maker</th>
-                    <th>Subsystem</th>
-                    <th className="num">Qty</th>
-                    <th className="num">Unit price</th>
-                    <th className="num">Line total</th>
-                    <th className="num">Mass</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l) => (
-                    <tr key={l.line.id}>
-                      <td>
-                        <button
-                          type="button"
-                          className="cell-link"
-                          onClick={() => focus(l.line.componentArtifactId)}
-                        >
-                          {l.componentTitle}
-                        </button>
-                        {l.offer && (
-                          <small className="cell-sub">
-                            Observed {l.offer.observedAt.slice(0, 10)} ·{' '}
-                            <ExternalLink url={l.offer.url}>{l.offer.seller}</ExternalLink> · per{' '}
-                            {l.offer.quantityBasis}
-                          </small>
-                        )}
-                      </td>
-                      <td className="mono">{l.partNumber}</td>
-                      <td className="dim">{l.manufacturer}</td>
-                      <td className="dim">{l.line.subsystem ?? '—'}</td>
-                      <td className="num">{l.line.quantity}</td>
-                      <td className="num">
-                        {l.offer?.price ? (
-                          `${l.offer.price.amount} ${l.offer.price.currency}`
-                        ) : (
-                          <span className="unknown">Unknown</span>
-                        )}
-                      </td>
-                      <td className="num">
-                        {l.lineTotal ? (
-                          `${l.lineTotal.amount} ${l.lineTotal.currency}`
-                        ) : (
-                          <span className="unknown">Unknown</span>
-                        )}
-                      </td>
-                      <td className="num">
-                        {l.unitMass ? (
-                          formatQty({
-                            value: l.unitMass.value * l.line.quantity,
-                            unit: l.unitMass.unit,
-                          })
-                        ) : (
-                          <span className="unknown">Unknown</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <>
+              <ul className="parts-list" aria-label="Bill of materials">
+                {lines.map((l) => (
+                  <PartCard
+                    key={l.line.id}
+                    title={l.componentTitle}
+                    payload={{
+                      partNumber: l.partNumber,
+                      manufacturer: l.manufacturer,
+                      imageUrl: l.imageUrl,
+                      selectionReason: l.selectionReason,
+                      description: l.description,
+                      status: 'selected',
+                    }}
+                    offers={l.offer ? [l.offer] : []}
+                    reason={l.selectionReason || l.line.notes}
+                    onFocus={() => focus(l.line.componentArtifactId)}
+                  >
+                    <div className="part-quantities">
+                      <span>
+                        Quantity <strong className="num">{l.line.quantity}</strong>
+                      </span>
+                      {l.line.subsystem && <span>{l.line.subsystem}</span>}
+                      <span>
+                        Extended cost{' '}
+                        <strong className="num">
+                          {l.lineTotal
+                            ? `${l.lineTotal.amount} ${l.lineTotal.currency}`
+                            : 'Unknown'}
+                        </strong>
+                      </span>
+                      <span>
+                        Mass{' '}
+                        <strong className="num">
+                          {l.unitMass
+                            ? formatQty({
+                                value: l.unitMass.value * l.line.quantity,
+                                unit: l.unitMass.unit,
+                              })
+                            : 'Unknown'}
+                        </strong>
+                      </span>
+                    </div>
+                  </PartCard>
+                ))}
+              </ul>
               {!lines.length && <p className="lens-muted">No line matches “{query}”.</p>}
-            </div>
+            </>
           )}
           {bom && bom.lines.length > 0 && (
             <p className="footnote">
@@ -339,81 +354,54 @@ export function PartsLens() {
           body="Ask your agent to research parts with sources. Candidates gather here for comparison before a selection."
         />
       ) : (
-        <div className="table-wrap">
+        <>
+          <div className="parts-intro">
+            <div>
+              <h2>Parts to source</h2>
+              <p>Product offers and the reasons behind each choice. Select parts to compare.</p>
+            </div>
+            <span className="dim">{components.length} parts · human review before selection</span>
+          </div>
           {candidateError && (
             <p className="tone-warn-text">Candidate details didn’t load: {candidateError}</p>
           )}
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 36 }} aria-label="Compare" />
-                <th>Component</th>
-                <th>Part number</th>
-                <th>Maker</th>
-                <th>Selection</th>
-                <th>Supplier links</th>
-                <th>Missing</th>
-              </tr>
-            </thead>
-            <tbody>
-              {components
-                .filter((v) => v.artifact.title.toLowerCase().includes(query.toLowerCase()))
-                .map((v) => {
-                  const detail = candidateDetails.find((c) => c.artifact.id === v.artifact.id);
-                  const p = (v.revision?.payload ??
-                    detail?.payload ??
-                    {}) as Partial<ComponentPayload>;
-                  return (
-                    <tr key={v.artifact.id} className={picked.has(v.artifact.id) ? 'picked' : ''}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          aria-label={`Compare ${v.artifact.title}`}
-                          checked={picked.has(v.artifact.id)}
-                          onChange={(e) => {
-                            const next = new Set(picked);
-                            if (e.target.checked) next.add(v.artifact.id);
-                            else next.delete(v.artifact.id);
-                            setPicked(next);
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="cell-link"
-                          onClick={() => focus(v.artifact.id)}
-                        >
-                          {v.artifact.title}
-                        </button>
-                      </td>
-                      <td className="mono">
-                        {p.partNumber ?? <span className="unknown">Unknown</span>}
-                      </td>
-                      <td className="dim">{p.manufacturer ?? p.vendor ?? 'Unknown'}</td>
-                      <td>
-                        <State state={p.status ?? 'candidate'} quiet />
-                      </td>
-                      <td>
-                        {detail?.offers.length ? (
-                          detail.offers.map((o) => (
-                            <div key={o.id}>
-                              <ExternalLink url={o.url}>{o.seller}</ExternalLink>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="unknown">No offer recorded</span>
-                        )}
-                      </td>
-                      <td className="dim">
-                        {p.missingFields?.length ? p.missingFields.join(', ') : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
+          <ul className="parts-list" aria-label="Part candidates">
+            {visibleCandidates.map((v) => {
+              const detail = candidateDetails.find((c) => c.artifact.id === v.artifact.id);
+              const p = (detail?.payload ?? v.revision?.payload ?? {}) as Partial<ComponentPayload>;
+              return (
+                <PartCard
+                  key={v.artifact.id}
+                  title={v.artifact.title}
+                  payload={p}
+                  offers={detail?.offers ?? []}
+                  onFocus={() => focus(v.artifact.id)}
+                  selection={
+                    <input
+                      type="checkbox"
+                      aria-label={`Compare ${v.artifact.title}`}
+                      checked={picked.has(v.artifact.id)}
+                      onChange={(e) => {
+                        const next = new Set(picked);
+                        if (e.target.checked) next.add(v.artifact.id);
+                        else next.delete(v.artifact.id);
+                        setPicked(next);
+                      }}
+                    />
+                  }
+                />
+              );
+            })}
+          </ul>
+          {query && !visibleCandidates.length && (
+            <p className="lens-muted">No part matches “{query}”.</p>
+          )}
+
+          <p className="footnote">
+            Recorded seller prices; shipping and tax may be additional. Prices and availability can
+            change.
+          </p>
+        </>
       )}
     </div>
   );

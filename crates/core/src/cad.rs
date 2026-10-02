@@ -12,7 +12,33 @@ mod verification;
 
 const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad.write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.";
 
+thread_local! {
+    static CONFIGURED_EXECUTABLE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+// Each app dispatch (including its render worker) uses its own saved tool path.
+// Keep the override scoped so concurrent apps/tests cannot change one another's engine.
+pub(super) fn with_executable<T>(path: Option<PathBuf>, work: impl FnOnce() -> T) -> T {
+    struct Restore(Option<PathBuf>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            CONFIGURED_EXECUTABLE.with(|value| {
+                value.replace(self.0.take());
+            });
+        }
+    }
+    let _restore = Restore(CONFIGURED_EXECUTABLE.with(|value| value.replace(path)));
+    work()
+}
+
+pub(super) fn configured_executable() -> Option<PathBuf> {
+    CONFIGURED_EXECUTABLE.with(|value| value.borrow().clone())
+}
+
 fn executable() -> Option<PathBuf> {
+    if let Some(path) = configured_executable() {
+        return Some(path);
+    }
     if let Ok(path) = std::env::var("OPENSCAD_PATH") {
         if Path::new(&path).is_file() {
             return Some(PathBuf::from(path));

@@ -1,5 +1,18 @@
+import { PartCard } from '../ui/PartCard';
 import React, { useState } from 'react';
-import { ArrowRight, At, ArrowUp, CaretUp, GearSix, Plus } from '@phosphor-icons/react';
+import {
+  ArrowRight,
+  ArrowsOut,
+  ClockCounterClockwise,
+  Files,
+  GearSix,
+  GitBranch,
+  Graph,
+  Minus,
+  Package,
+  Plus,
+  Robot,
+} from '@phosphor-icons/react';
 import appIcon from '../../../../../design-system/brand/app-icon.png';
 import { ExternalLink } from '../ui/ExternalLink';
 import { useStore } from '../store';
@@ -153,7 +166,7 @@ export function DesignSystemView() {
               <Kbd>⌘[</Kbd> back
             </span>
             <span>
-              <Kbd>⌘J</Kbd> agent terminal
+              <Kbd>⌘J</Kbd> agent window
             </span>
             <span>
               <Kbd>⌘⇧D</Kbd> decisions
@@ -416,6 +429,33 @@ export function DesignSystemView() {
           </div>
         </Section>
 
+        <Section
+          title="Sourced parts"
+          note="One product per line: product photo, identity, engineering reason, price and quantity basis, and the recorded seller destination. Missing data stays explicit; sample offers below are illustrative."
+        >
+          <ul className="parts-list">
+            <PartCard
+              title="Controller board · illustrative"
+              payload={{
+                manufacturer: 'Example maker',
+                partNumber: 'CTRL-01',
+                selectionReason: 'Provides the digital inputs needed by the sensor assembly.',
+                status: 'candidate',
+              }}
+              offers={[
+                {
+                  seller: 'Example seller',
+                  url: 'https://example.com/product',
+                  price: { amount: '12.50', currency: 'USD' },
+                  quantityBasis: 1,
+                  observedAt: '2026-09-26',
+                },
+              ]}
+              onFocus={() => {}}
+            />
+          </ul>
+        </Section>
+
         <Section title="Surfaces">
           <div className="specimen-grid">
             <Notice tone="warn">
@@ -461,33 +501,107 @@ export function DesignSystemView() {
         </Section>
 
         <Section
-          title="Composer"
-          note="The agent’s only surface besides its real terminal. It types exactly what you send; focused objects travel as context."
+          title="Workbench"
+          note="A 48 px activity bar on the left: the Agent tab first, then the lenses and decisions. The agent window floats over any other tab."
         >
-          <div className="console specimen-console">
-            <div className="composer">
-              <button type="button" className="agent-chip">
-                <span className="agent-light live" />
-                <span className="agent-chip-name">Codex</span>
+          <div className="specimen-grid">
+            <nav className="activity-bar specimen-activity" aria-label="Activity bar specimen">
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Agent"
+                title="Agent"
+                aria-current="page"
+              >
+                <Robot size={22} />
+                <Pulse />
               </button>
-              <div className="composer-field">
-                <span className="context-chip">
-                  <At size={12} />
-                  <span>Camera tray</span>
-                </span>
-                <textarea
-                  rows={1}
-                  readOnly
-                  aria-label="Composer specimen"
-                  placeholder="Ask Codex about Camera tray…"
-                />
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Flow (⌘1)"
+                title="Flow (⌘1)"
+              >
+                <Graph size={22} />
+              </button>
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Parts (⌘2)"
+                title="Parts (⌘2)"
+              >
+                <Package size={22} />
+              </button>
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Timeline (⌘3)"
+                title="Timeline (⌘3)"
+              >
+                <ClockCounterClockwise size={22} />
+              </button>
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Files (⌘4)"
+                title="Files (⌘4)"
+              >
+                <Files size={22} />
+              </button>
+              <button
+                type="button"
+                className="activity-btn"
+                aria-label="Decisions (⌘⇧D)"
+                title="Decisions (⌘⇧D)"
+              >
+                <GitBranch size={22} />
+                <span className="activity-badge">1</span>
+              </button>
+              <div className="activity-bottom">
+                <button
+                  type="button"
+                  className="activity-btn"
+                  aria-label="Agent window (⌘J)"
+                  title="Agent window (⌘J)"
+                  aria-pressed="true"
+                >
+                  <Robot size={22} />
+                </button>
+                <button
+                  type="button"
+                  className="activity-btn"
+                  aria-label="Settings (⌘,)"
+                  title="Settings (⌘,)"
+                >
+                  <GearSix size={22} />
+                </button>
               </div>
-              <button type="button" className="composer-send" aria-label="Send">
-                <ArrowUp size={15} weight="bold" />
-              </button>
-              <IconButton label="Show terminal">
-                <CaretUp size={14} />
-              </IconButton>
+            </nav>
+            <div
+              className="agent-surface mode-window live specimen-agent"
+              aria-label="Agent window specimen"
+            >
+              <header className="agent-head">
+                <span className="agent-light live" />
+                <span className="agent-name truncate">Codex CLI</span>
+                <span className="agent-status">Running</span>
+                <span className="grow" />
+                <IconButton size="sm" label="Open agent tab">
+                  <ArrowsOut size={13} />
+                </IconButton>
+                <IconButton size="sm" label="Close agent window (⌘J)">
+                  <Minus size={13} />
+                </IconButton>
+              </header>
+              <div className="agent-screen">
+                <pre className="specimen-term">
+                  <span className="dim">$ codex</span>
+                  {'\n'}Reading project intent… drafting requirements with measurable targets.
+                  {'\n'}
+                  <span className="dim">proposal submitted · waiting for your review</span>
+                </pre>
+              </div>
+              <div className="agent-resize" aria-hidden="true" />
             </div>
           </div>
         </Section>

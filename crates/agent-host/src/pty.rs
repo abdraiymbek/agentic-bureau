@@ -36,7 +36,8 @@ pub struct PtyHost {
     core: Arc<Mutex<CoreApp>>,
     bridge: Arc<BridgeServer>,
     cli_path: PathBuf,
-    sessions: Mutex<HashMap<String, Arc<Mutex<Session>>>>,
+    sessions: Arc<Mutex<HashMap<String, Arc<Mutex<Session>>>>>,
+    lifecycle: Mutex<()>,
     notify: Arc<dyn Fn(TerminalEvent) + Send + Sync>,
 }
 
@@ -51,13 +52,17 @@ impl PtyHost {
             core,
             bridge,
             cli_path,
-            sessions: Mutex::new(HashMap::new()),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            lifecycle: Mutex::new(()),
             notify,
         }
     }
 
     pub fn start(&self, project_id: &str, input: &Value) -> Result<Value, ContractError> {
-        self.stop(project_id)?;
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| failure("Session lifecycle unavailable"))?;
         let adapter_id = input["adapterId"]
             .as_str()
             .ok_or_else(|| ContractError::validation("Missing adapterId"))?;
@@ -66,6 +71,7 @@ impl PtyHost {
                 .core
                 .lock()
                 .map_err(|_| failure("Application state unavailable"))?;
+            core.assert_project_writable(project_id)?;
             let root = core.project_root(project_id)?;
             let config = core.adapter_config(adapter_id);
             let summary = core.dispatch(
@@ -79,6 +85,7 @@ impl PtyHost {
         let session_id = Uuid::new_v4().to_string();
         let opts = merge_config(config, input);
         let path = executable_for(adapter_id, &opts)?;
+        self.stop_inner(project_id)?;
         let work = root.join(".omenflow/work").join(&session_id);
         fs::create_dir_all(&work).map_err(failure)?;
         let bootstrap = work.join("bootstrap.md");
@@ -203,6 +210,7 @@ impl PtyHost {
         let core = Arc::clone(&self.core);
         let notify = Arc::clone(&self.notify);
         let project_for_exit = project_id.to_owned();
+        let sessions = Arc::clone(&self.sessions);
         thread::spawn(move || {
             let status = child.wait();
             bridge.revoke(&session_id);
@@ -215,9 +223,17 @@ impl PtyHost {
                 if let Ok(core) = core.lock() {
                     let _ = core.upsert_session(&project_for_exit, &info);
                 }
-                notify(TerminalEvent::State(
-                    json!({"projectId": project_for_exit, "session": info}),
-                ));
+                // An old child's exit must not overwrite the replacement session in the UI.
+                if let Ok(current) = sessions.lock() {
+                    if current
+                        .get(&project_for_exit)
+                        .is_some_and(|active| Arc::ptr_eq(active, &session))
+                    {
+                        notify(TerminalEvent::State(
+                            json!({"projectId": project_for_exit, "session": info}),
+                        ));
+                    }
+                }
             }
         });
         Ok(info)
@@ -228,6 +244,11 @@ impl PtyHost {
             .core
             .lock()
             .map_err(|_| failure("Application state unavailable"))?;
+        let configs = ["codex", "claude-code", "custom"]
+            .into_iter()
+            .map(|id| (id, core.adapter_config(id)))
+            .collect::<HashMap<_, _>>();
+        drop(core); // Never hold the workspace lock while probing an external executable.
         let mut adapters = Vec::new();
         for (id, label, executable, mcp, cli, resume, ranges, hint) in [
             (
@@ -261,30 +282,17 @@ impl PtyHost {
                 "Set an executable path via connection.configure.",
             ),
         ] {
-            let config = core.adapter_config(id);
+            let config = &configs[id];
             let configured = config["executablePath"].as_str().filter(|s| !s.is_empty());
             let found = configured
                 .map(PathBuf::from)
                 .or_else(|| find_executable(executable));
             let available = found.as_ref().is_some_and(|path| path.is_file());
-            let version = found.as_ref().filter(|_| available).and_then(|path| {
-                let out = std::process::Command::new(path)
-                    .arg("--version")
-                    .output()
-                    .ok()?;
-                if !out.status.success() {
-                    return None;
-                }
-                Some(
-                    String::from_utf8_lossy(if out.stdout.is_empty() {
-                        &out.stderr
-                    } else {
-                        &out.stdout
-                    })
-                    .trim()
-                    .to_owned(),
-                )
-            });
+            // A custom CLI may ignore --version and wait for input forever.
+            let version = found
+                .as_ref()
+                .filter(|_| available)
+                .and_then(|path| probe_version(path, std::time::Duration::from_secs(2)));
             adapters.push(json!({
                 "adapterId":id,"label":label,"available":available,
                 "executablePath":found,"version":version,"testedVersionRange":if ranges.is_empty(){None}else{Some(ranges)},
@@ -370,14 +378,14 @@ impl PtyHost {
     }
 
     pub fn write(&self, project_id: &str, data: &str) -> Result<Value, ContractError> {
-        if let Some(session) = self.session(project_id) {
-            session
-                .lock()
-                .map_err(|_| failure("Session unavailable"))?
-                .writer
-                .write_all(data.as_bytes())
-                .map_err(failure)?;
+        let session = self
+            .session(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "No running agent session"))?;
+        let mut session = session.lock().map_err(|_| failure("Session unavailable"))?;
+        if session.info["state"] != "running" {
+            return Err(ContractError::new("NOT_FOUND", "Agent session has ended"));
         }
+        session.writer.write_all(data.as_bytes()).map_err(failure)?;
         Ok(json!({"ok":true}))
     }
 
@@ -404,6 +412,38 @@ impl PtyHost {
     }
 
     pub fn stop(&self, project_id: &str) -> Result<Value, ContractError> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| failure("Session lifecycle unavailable"))?;
+        self.stop_inner(project_id)
+    }
+
+    pub fn close(&self, project_id: &str) -> Result<Value, ContractError> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| failure("Session lifecycle unavailable"))?;
+        self.stop_inner(project_id)?;
+        self.sessions
+            .lock()
+            .map_err(|_| failure("Sessions unavailable"))?
+            .remove(project_id);
+        Ok(json!({"ok": true}))
+    }
+
+    pub fn shutdown(&self) {
+        let ids = self
+            .sessions
+            .lock()
+            .map(|s| s.keys().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        for id in ids {
+            let _ = self.close(&id);
+        }
+    }
+
+    fn stop_inner(&self, project_id: &str) -> Result<Value, ContractError> {
         if let Some(session) = self.session(project_id) {
             let mut state = session.lock().map_err(|_| failure("Session unavailable"))?;
             if let Some(id) = state.info["id"].as_str() {
@@ -526,6 +566,61 @@ fn read_loop(
     }
 }
 
+fn probe_version(path: &Path, timeout: std::time::Duration) -> Option<String> {
+    use std::process::{Command, Stdio};
+    let mut command = Command::new(path);
+    command
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command.spawn().ok()?;
+    let stdout = child.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stdout.take(4096).read_to_end(&mut bytes);
+        let _ = tx.send(bytes);
+    });
+    let deadline = std::time::Instant::now() + timeout;
+    let output = loop {
+        if let Ok(bytes) = rx.try_recv() {
+            break Some(bytes);
+        }
+        if std::time::Instant::now() >= deadline {
+            break None;
+        }
+        thread::sleep(std::time::Duration::from_millis(10));
+    };
+    let success = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                thread::sleep(std::time::Duration::from_millis(10))
+            }
+            _ => break false,
+        }
+    };
+    #[cfg(unix)]
+    unsafe {
+        libc::kill(-(child.id() as i32), libc::SIGKILL);
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    if !success {
+        return None;
+    }
+    let text = String::from_utf8_lossy(output.as_deref()?)
+        .trim()
+        .to_owned();
+    (!text.is_empty()).then_some(text)
+}
+
 fn merge_config(mut config: Value, input: &Value) -> Value {
     if !config.is_object() {
         config = json!({});
@@ -605,4 +700,27 @@ fn write_agent_guide(root: &Path) -> Result<(), ContractError> {
 }
 fn failure(error: impl std::fmt::Display) -> ContractError {
     ContractError::new("INTERNAL", error.to_string())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn version_probe_is_bounded_and_accepts_normal_output() {
+        let temp = tempfile::tempdir().unwrap();
+        let cli = temp.path().join("agent");
+        fs::write(&cli, "#!/bin/sh\necho 'agent 1.2.3'\n").unwrap();
+        fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(
+            probe_version(&cli, Duration::from_secs(1)).as_deref(),
+            Some("agent 1.2.3")
+        );
+        fs::write(&cli, "#!/bin/sh\nsleep 30\n").unwrap();
+        let start = Instant::now();
+        assert!(probe_version(&cli, Duration::from_millis(100)).is_none());
+        assert!(start.elapsed() < Duration::from_secs(2));
+    }
 }

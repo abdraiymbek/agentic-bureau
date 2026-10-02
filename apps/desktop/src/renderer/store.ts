@@ -10,7 +10,8 @@ import type {
   SessionInfo,
   StaleRecord,
 } from '@omenflow/contracts';
-import { cmd } from './api';
+import { cmd, errMsg } from './api';
+import { showAgent, typeIntoAgent } from './lib/actions';
 
 /** Projections of the whole project. */
 export type Lens = 'flow' | 'parts' | 'timeline' | 'files';
@@ -18,8 +19,10 @@ export type Lens = 'flow' | 'parts' | 'timeline' | 'files';
 /**
  * Where the engineer is. Omen Flow has three zoom levels instead of pages:
  * the whole project (seen through a lens), one object in focus, and one decision.
+ * The agent is its own tab on the activity bar, beside the zoom levels.
  */
 export type View =
+  | { level: 'agent' }
   | { level: 'project'; lens: Lens }
   | { level: 'object'; id: string }
   | { level: 'decide'; proposalId: string | null }
@@ -31,9 +34,21 @@ export interface Toast {
   text: string;
 }
 
-export interface ComposerContext {
-  id: string;
-  title: string;
+/** Listed until `connection.list` answers, so the agent choice survives a slow detection. */
+export const FALLBACK_ADAPTERS = [
+  { adapterId: 'codex', label: 'Codex CLI', available: false },
+  { adapterId: 'claude-code', label: 'Claude Code', available: false },
+  { adapterId: 'custom', label: 'Custom CLI', available: false },
+] as AdapterStatus[];
+
+/** The adapter that should run: the chosen one, else the first detected, else the first row. */
+export function preferredAdapter(
+  adapters: AdapterStatus[],
+  agentId: string | null,
+): AdapterStatus | undefined {
+  if (!adapters.length) return undefined;
+  const chosen = agentId ? adapters.find((a) => a.adapterId === agentId) : undefined;
+  return chosen ?? adapters.find((a) => a.available) ?? adapters[0];
 }
 
 interface State {
@@ -55,13 +70,14 @@ interface State {
 
   view: View;
   back: View[];
-  consoleOpen: boolean;
+  /** The floating agent window is open (on any tab except the Agent tab itself). */
+  agentWindowOpen: boolean;
   omniOpen: boolean;
   settingsOpen: boolean;
   theme: 'dark' | 'light';
+  /** The adapter the user picked in Settings; persisted as `omen.agent`. */
+  agentId: string | null;
   toasts: Toast[];
-  /** A request to put text into the composer (from “Ask about this”). */
-  composerSeed: { text: string; nonce: number } | null;
 
   set: (p: Partial<State>) => void;
   setActive: (projectId: string | null) => void;
@@ -71,6 +87,7 @@ interface State {
   focus: (id: string) => void;
   decide: (proposalId?: string | null) => void;
   askAbout: (text?: string) => void;
+  setAgent: (adapterId: string) => void;
   refreshArtifacts: () => Promise<void>;
   refreshGraph: () => Promise<void>;
   refreshProposals: () => Promise<void>;
@@ -92,7 +109,6 @@ function readPreference(key: string): string | null {
 }
 
 let toastSeq = 0;
-let composerSeq = 0;
 let projectGeneration = 0;
 
 const RECENT_LIMIT = 8;
@@ -149,12 +165,12 @@ export const useStore = create<State>((set, get) => ({
   recentIds: [],
   view: HOME,
   back: [],
-  consoleOpen: false,
+  agentWindowOpen: false,
   omniOpen: false,
   settingsOpen: false,
   theme: readPreference('omen.theme') === 'light' ? 'light' : 'dark',
+  agentId: readPreference('omen.agent'),
   toasts: [],
-  composerSeed: null,
 
   set: (p) => set(p),
   setActive: (projectId) => {
@@ -184,7 +200,20 @@ export const useStore = create<State>((set, get) => ({
   },
   focus: (id) => get().go({ level: 'object', id }),
   decide: (proposalId = null) => get().go({ level: 'decide', proposalId }),
-  askAbout: (text = '') => set({ consoleOpen: true, composerSeed: { text, nonce: ++composerSeq } }),
+  askAbout: (text = '') => {
+    showAgent();
+    const { session } = get();
+    if (text && session?.state === 'running')
+      void typeIntoAgent(text).catch((e) => get().toast('error', errMsg(e)));
+  },
+  setAgent: (adapterId) => {
+    try {
+      localStorage.setItem('omen.agent', adapterId);
+    } catch {
+      /* preferences remain usable without storage */
+    }
+    set({ agentId: adapterId });
+  },
 
   refreshArtifacts: async () => {
     const { projectId } = get();
@@ -309,9 +338,6 @@ export const useStore = create<State>((set, get) => ({
       const d = (e.data ?? {}) as { proposalId?: string };
       s.decide(d.proposalId ?? null);
     }
-    if (e.type === 'ui.focus_terminal') {
-      set({ consoleOpen: true });
-      window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
-    }
+    if (e.type === 'ui.focus_terminal') showAgent();
   },
 }));

@@ -78,7 +78,9 @@ fn omenflow_command(
     }
     if op == "project.close" {
         if let Some(id) = project_id.as_deref() {
-            let _ = state.pty.stop(id);
+            if let Err(error) = state.pty.close(id) {
+                return ResponseEnvelope::failure(request_id, error);
+            }
         }
     }
     let mut core = match state.core.lock() {
@@ -234,8 +236,14 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![omenflow_command, toggle_research])
-        .run(tauri::generate_context!())
-        .expect("Omen Flow Rust desktop shell failed");
+        .build(tauri::generate_context!())
+        .expect("Omen Flow Rust desktop shell failed")
+        .run(|app, event| {
+            // Tauri exits the process after RunEvent::Exit; managed-state Drop is not a quit hook.
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<DesktopState>().pty.shutdown();
+            }
+        });
 }
 mod research;
 use research::ResearchBrowser;

@@ -8,6 +8,9 @@ export async function enterProject(
   path: string,
 ) {
   const s = useStore.getState();
+  if (s.projectId && s.projectId !== r.projectId) {
+    await cmd('project.close', {}, { projectId: s.projectId });
+  }
   s.set({ project: r.project, projectPath: path, readOnly: !!r.readOnly });
   s.setActive(r.projectId);
   await useStore.getState().refreshAll();
@@ -48,24 +51,36 @@ export async function importArchive() {
   try {
     r = await cmd('project.import_archive', input);
   } catch (e) {
-    if (!(e instanceof CommandError) || e.code !== 'VALIDATION') throw e;
+    if (!(e instanceof CommandError) || e.code !== 'REVISION_CONFLICT') throw e;
     r = await cmd('project.import_archive', { ...input, newIdentity: true });
   }
   await enterProject(r, destDir);
   return true;
 }
 
-export function closeProject() {
+let closing: Promise<void> | null = null;
+export function closeProject(): Promise<void> {
+  if (closing) return closing;
+  closing = closeActiveProject().finally(() => {
+    closing = null;
+  });
+  return closing;
+}
+
+async function closeActiveProject() {
   const s = useStore.getState();
-  s.set({ project: null, projectPath: null, readOnly: false, consoleOpen: false });
+  if (!s.projectId) return;
+  await cmd('project.close', {}, { projectId: s.projectId });
+  if (useStore.getState().projectId !== s.projectId) return;
+  s.set({ project: null, projectPath: null, readOnly: false, agentWindowOpen: false });
   s.setActive(null);
 }
 
 let exporting = false;
 /** Returns only after the export operation itself reports success. */
 export async function exportProject(kind: 'archive' | 'build', includeDrafts = false) {
-  const { toast } = useStore.getState();
-  if (exporting) return;
+  const { toast, projectId } = useStore.getState();
+  if (exporting || !projectId) return;
   exporting = true;
   try {
     const dest = await window.omenflow.saveFile({
@@ -75,6 +90,7 @@ export async function exportProject(kind: 'archive' | 'build', includeDrafts = f
     const result = await cmd<{ path: string; files: number; issues?: number }>(
       kind === 'archive' ? 'project.export_archive' : 'build.export',
       kind === 'archive' ? { destPath: dest } : { destPath: dest, includeDrafts },
+      { projectId },
     );
     toast(
       'ok',
@@ -95,4 +111,27 @@ export async function sendToAgent(text: string) {
   if (!projectId || session?.state !== 'running') throw new Error('No running agent session');
   await cmd('terminal.write', { data: `\x1b[200~${text}\x1b[201~` }, { projectId });
   await cmd('terminal.write', { data: '\r' }, { projectId });
+}
+
+/** Paste text into the running agent CLI without submitting, so the user can finish it. */
+export async function typeIntoAgent(text: string) {
+  const { projectId, session } = useStore.getState();
+  if (!projectId || session?.state !== 'running') throw new Error('No running agent session');
+  await cmd('terminal.write', { data: `\x1b[200~${text}\x1b[201~` }, { projectId });
+}
+
+/** Reveal the one agent terminal: its tab when already there, else the floating window. */
+export function showAgent() {
+  const s = useStore.getState();
+  if (s.view.level !== 'agent') s.set({ agentWindowOpen: true });
+  window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
+}
+
+/** Start the agent CLI in this project; the caller presents failures and retry. */
+export async function startAgent(adapterId: string) {
+  const { projectId, readOnly, refreshSession } = useStore.getState();
+  if (!projectId) throw new Error('Open a project before starting an agent');
+  if (readOnly) throw new Error('Agent sessions are disabled for read-only projects');
+  await cmd('terminal.start', { adapterId }, { projectId });
+  if (useStore.getState().projectId === projectId) await refreshSession();
 }

@@ -89,3 +89,47 @@ describe('session scrollback sequence', () => {
     expect(buf.snapshot()).toEqual({ text: 'ccccdd', cursor: 4 });
   });
 });
+
+describe('terminal session replacement', () => {
+  it('restarts the output cursor and ignores retired frames after restart', async () => {
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        session: { id: 'old', scrollback: 'old output', scrollbackCursor: 900 },
+      })
+      .mockResolvedValueOnce({
+        session: { id: 'new', scrollback: 'new output', scrollbackCursor: 1 },
+      });
+    const write = vi.fn();
+    const reset = vi.fn();
+    const history = createTerminalRestore(read, write, reset);
+    await history.restore();
+    history.selectSession('new');
+    history.acceptLive({ sessionId: 'new', seq: 2, chunk: 'new live' });
+    history.acceptLive({ sessionId: 'old', seq: 901, chunk: 'old late output' });
+    await history.restore();
+    history.acceptLive({ sessionId: 'new', seq: 3, chunk: 'still live' });
+    expect(reset).toHaveBeenCalledOnce();
+    expect(write.mock.calls.flat()).toEqual(['old output', 'new output', 'new live', 'still live']);
+  });
+
+  it('cannot apply an old in-flight snapshot to a replacement session', async () => {
+    const stale = deferred<{ session: { id: string; scrollback: string } }>();
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce({
+        session: { id: 'new', scrollback: 'replacement', scrollbackCursor: 1 },
+      });
+    const write = vi.fn();
+    const history = createTerminalRestore(read, write);
+    history.selectSession('old');
+    const pending = history.restore();
+    history.selectSession('new');
+    await history.restore();
+    stale.resolve({ session: { id: 'old', scrollback: 'stale' } });
+    await pending;
+    history.acceptLive({ sessionId: 'new', seq: 2, chunk: 'live' });
+    expect(write.mock.calls.flat()).toEqual(['replacement', 'live']);
+  });
+});

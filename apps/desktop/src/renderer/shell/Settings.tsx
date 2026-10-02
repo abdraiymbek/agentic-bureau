@@ -3,7 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { ArrowClockwise, X, Cube, TerminalWindow } from '@phosphor-icons/react';
 import type { AdapterStatus } from '@omenflow/contracts';
 import { cmd, errMsg } from '../api';
-import { useStore } from '../store';
+import { preferredAdapter, useStore } from '../store';
+import { startAgent } from '../lib/actions';
 import { Button, Disclosure, Field, IconButton, Mark, Segmented, State } from '../ui/kit';
 
 /** Agents, engineering tools, and appearance. One sheet, never a destination. */
@@ -34,7 +35,9 @@ function SettingsBody() {
   const adapters = useStore((s) => s.adapters);
   const session = useStore((s) => s.session);
   const theme = useStore((s) => s.theme);
-  const { set, toast, refreshAdapters } = useStore.getState();
+  const agentId = useStore((s) => s.agentId);
+  const projectId = useStore((s) => s.projectId);
+  const { set, setAgent, toast, refreshAdapters } = useStore.getState();
   const [testing, setTesting] = useState<string | null>(null);
   const [results, setResults] = useState<
     Record<string, { ok: boolean; error?: string; detail?: string }>
@@ -46,6 +49,9 @@ function SettingsBody() {
   const [doctorOpen, setDoctorOpen] = useState(false);
 
   useEffect(() => {
+    void cmd<{ value: unknown }>('settings.get', { key: 'toolPaths.openscad' })
+      .then((r) => setScadPath(typeof r.value === 'string' ? r.value : ''))
+      .catch(() => {});
     void refreshAdapters().catch(() => {});
     void cmd<{ results: Record<string, unknown> }>('tool.doctor', {})
       .then((r) => setDoctor(r.results))
@@ -95,8 +101,23 @@ function SettingsBody() {
 
   const saveScad = async () => {
     try {
-      await cmd('settings.set', { key: 'toolPaths.openscad', value: scadPath });
+      await cmd('settings.set', { key: 'toolPaths.openscad', value: scadPath.trim() });
       toast('ok', 'OpenSCAD path saved. It is checked on the next render.');
+    } catch (e) {
+      toast('error', errMsg(e));
+    }
+  };
+
+  const chosen = preferredAdapter(adapters, agentId);
+  const runningAdapter =
+    session && (session.state === 'running' || session.state === 'starting')
+      ? session.adapterId
+      : null;
+  const runningLabel =
+    adapters.find((a) => a.adapterId === runningAdapter)?.label ?? runningAdapter;
+  const restartWith = async (adapterId: string) => {
+    try {
+      await startAgent(adapterId);
     } catch (e) {
       toast('error', errMsg(e));
     }
@@ -117,21 +138,39 @@ function SettingsBody() {
           </Button>
         </div>
         <p className="sheet-lede">
-          Bring the agent CLI you already use. It runs in this project’s folder; its structured
-          changes arrive as proposals for you to decide.
+          Bring the agent CLI you already use. The chosen agent runs in the Agent tab in this
+          project’s folder; its structured changes arrive as proposals for you to decide.
         </p>
-        <div className="adapter-list">
+        <div className="adapter-list" role="radiogroup" aria-label="Agent">
           {adapters.map((a) => (
             <AdapterRow
               key={a.adapterId}
               a={a}
+              checked={chosen?.adapterId === a.adapterId}
+              onChoose={() => setAgent(a.adapterId)}
               testing={testing === a.adapterId}
               result={results[a.adapterId]}
+              testDisabled={!projectId || useStore.getState().readOnly}
               onTest={() => void test(a.adapterId)}
             />
           ))}
           {!adapters.length && <p className="dim">Detecting installed agents…</p>}
         </div>
+        {runningAdapter && chosen && runningAdapter !== chosen.adapterId && (
+          <p className="sheet-note">
+            <TerminalWindow size={13} />
+            <span className="grow">
+              {runningLabel} is running now. {chosen.label} starts the next time the agent starts.
+            </span>
+            <Button
+              size="sm"
+              disabled={!chosen.available}
+              onClick={() => void restartWith(chosen.adapterId)}
+            >
+              Restart with {chosen.label}
+            </Button>
+          </p>
+        )}
         <Disclosure
           label="Custom agent"
           open={customOpen}
@@ -197,9 +236,7 @@ function SettingsBody() {
           />
         </Field>
         <div className="row">
-          <Button onClick={() => void saveScad()} disabled={!scadPath.trim()}>
-            Save path
-          </Button>
+          <Button onClick={() => void saveScad()}>Save path</Button>
           <Button
             variant="ghost"
             onClick={async () => {
@@ -252,15 +289,25 @@ function SettingsBody() {
 
 function AdapterRow(props: {
   a: AdapterStatus;
+  checked: boolean;
+  onChoose: () => void;
   testing: boolean;
   result?: { ok: boolean; error?: string; detail?: string };
+  testDisabled: boolean;
   onTest: () => void;
 }) {
   const { a, result } = props;
   const state = result ? (result.ok ? 'working' : 'failed') : a.available ? 'detected' : 'missing';
   return (
-    <div className="adapter-row">
+    <label className="adapter-row">
       <div className="adapter-main">
+        <input
+          type="radio"
+          name="agent"
+          checked={props.checked}
+          onChange={props.onChoose}
+          aria-label={`Use ${a.label}`}
+        />
         <div className="grow">
           <strong>{a.label}</strong>
           <small>
@@ -284,7 +331,12 @@ function AdapterRow(props: {
                   : 'Not detected'
           }
         />
-        <Button size="sm" disabled={!a.available || props.testing} onClick={props.onTest}>
+        <Button
+          size="sm"
+          disabled={!a.available || props.testing || props.testDisabled}
+          title={props.testDisabled ? 'Open a writable project to test the bridge' : undefined}
+          onClick={props.onTest}
+        >
           {props.testing ? 'Testing…' : 'Test'}
         </Button>
       </div>
@@ -299,6 +351,6 @@ function AdapterRow(props: {
         </p>
       )}
       {result?.ok && result.detail && <p className="adapter-note">{result.detail}</p>}
-    </div>
+    </label>
   );
 }

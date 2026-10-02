@@ -1,0 +1,19 @@
+
+> omenflow@0.1.0 typecheck /Users/abraiymbek/Projects/Omen Flow
+> pnpm -r run typecheck && tsc -p evals/tsconfig.json
+
+Scope: 7 of 8 workspace projects
+packages/contracts typecheck$ tsc -p tsconfig.json --noEmit
+packages/contracts typecheck: Done
+packages/storage typecheck$ tsc -p tsconfig.json --noEmit
+packages/storage typecheck: Done
+packages/core typecheck$ tsc -p tsconfig.json --noEmit
+packages/core typecheck: Done
+packages/mcp-server typecheck$ tsc -p tsconfig.json --noEmit
+packages/engineering typecheck$ tsc -p tsconfig.json --noEmit
+packages/agent-host typecheck$ tsc -p tsconfig.json --noEmit
+packages/engineering typecheck: Done
+packages/agent-host typecheck: Done
+packages/mcp-server typecheck: Done
+apps/desktop typecheck$ tsc -p tsconfig.json --noEmit
+apps/desktop typecheck: Done

@@ -5,8 +5,9 @@ import { useStore } from './store';
 import { COMMAND_ERROR_EVENT, formatRecoverableError, type RecoverableCommandError } from './api';
 import { IconButton } from './ui/kit';
 import { Titlebar } from './shell/Titlebar';
+import { ActivityBar } from './shell/ActivityBar';
 import { Omnibar } from './shell/Omnibar';
-import { Console } from './shell/Console';
+import { AgentSurface } from './shell/Agent';
 import { Settings } from './shell/Settings';
 import { Launcher } from './launcher/Launcher';
 import { ProjectView } from './project/ProjectView';
@@ -102,7 +103,7 @@ export default function App() {
       if (!s.projectId) return;
       if (mod && key === 'j') {
         e.preventDefault();
-        set({ consoleOpen: !s.consoleOpen });
+        if (s.view.level !== 'agent') set({ agentWindowOpen: !s.agentWindowOpen });
         return;
       }
       if (mod && key === '[') {
@@ -158,20 +159,25 @@ export default function App() {
           )}
         </div>
       )}
-      <div className="stage-area">
-        {view.level === 'system' ? (
-          <DesignSystemView />
-        ) : !projectId ? (
-          <Launcher />
-        ) : view.level === 'object' ? (
-          <ObjectView key={view.id} id={view.id} />
-        ) : view.level === 'decide' ? (
-          <DecideView />
-        ) : (
-          <ProjectView lens={view.lens} />
-        )}
+      <div className="workbench">
+        {projectId && <ActivityBar />}
+        <div className="workbench-main">
+          <div className="stage-area">
+            {view.level === 'agent' ? null : view.level === 'system' ? (
+              <DesignSystemView />
+            ) : !projectId ? (
+              <Launcher />
+            ) : view.level === 'object' ? (
+              <ObjectView key={view.id} id={view.id} />
+            ) : view.level === 'decide' ? (
+              <DecideView />
+            ) : (
+              <ProjectView lens={view.lens} />
+            )}
+          </div>
+          {projectId && <AgentSurface key={projectId} />}
+        </div>
       </div>
-      {projectId && <Console key={projectId} />}
       <Omnibar />
       <Settings />
       <div className="toasts" aria-live="polite">

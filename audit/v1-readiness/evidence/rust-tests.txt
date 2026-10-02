@@ -1,0 +1,96 @@
+   Compiling omenflow-core v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/crates/core)
+   Compiling omenflow-agent-host v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/crates/agent-host)
+   Compiling omenflow-rust-desktop v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/apps/rust-desktop)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.33s
+     Running unittests src/lib.rs (target/debug/deps/omenflow_agent_host-7a1bf5d2d8fa19f2)
+
+running 6 tests
+test tests::bridge_call_round_trip_and_revocation ... ok
+test tests::mcp_tools_are_scoped_and_call_through_the_same_bridge ... ok
+test tests::proposal_wait_releases_core_lock_for_human_resolution ... ok
+test tests::pty_custom_process_streams_output_and_stops ... ok
+test pty::tests::version_probe_is_bounded_and_accepts_normal_output ... ok
+test tests::pty_stop_terminates_child_process_group ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+
+     Running unittests src/lib.rs (target/debug/deps/omenflow_contracts-945985adbe38e395)
+
+running 5 tests
+test tests::registry_retains_protocol_and_capability_split ... ok
+test tests::framing_is_little_endian_json ... ok
+test tests::input_defaults_and_unknown_keys_match_zod_object_behavior ... ok
+test tests::unrecognized_artifact_content_is_not_silently_discarded ... ok
+test tests::every_artifact_payload_retains_authored_content ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/lib.rs (target/debug/deps/omenflow_core-68deeac24ce73007)
+
+running 18 tests
+test tests::app_level_create_replays_across_restart_without_second_project ... ok
+test calculation::tests::templates_keep_dimensions_and_human_review_boundary ... ok
+test tests::agent_cannot_skip_human_approval_and_bad_payload_leaves_no_artifact ... ok
+test components::tests::component_selection_requires_human_approval_before_bom_changes ... ok
+test tests::baseline_change_marks_recorded_downstream_input_stale ... ok
+test tests::archive_identity_conflict_does_not_extract_and_can_retry_as_copy ... ok
+test tests::creates_and_reads_a_draft_without_selecting_it ... ok
+test tests::idempotent_project_mutation_replays_without_duplicating_revision ... ok
+test tests::newer_read_only_project_can_close_without_writing_its_snapshot ... ok
+test tests::draft_review_approval_and_stale_base_guard ... ok
+test tests::reopening_marks_leftover_sessions_interrupted_without_changing_live_sessions ... ok
+test archive::tests::archive_round_trip_preserves_schema_and_blocks_corrupt_objects ... ok
+test wiring::tests::wiring_validation_labels_unverified_connections_and_keeps_revisions ... ok
+test tests::saved_openscad_path_is_used_by_probe_and_survives_restart ... ok
+test cad::tests::openscad_render_keeps_source_and_mesh_in_schema_one_project ... ok
+test tests::structured_drafts_keep_content_files_and_offer_notifications ... ok
+test tests::cad_render_returns_a_queued_job_and_commits_a_new_draft_in_background ... ok
+test cad::tests::cancelled_openscad_process_group_cannot_leave_a_child_running ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+
+     Running unittests src/main.rs (target/debug/deps/omenflow_rust_desktop-58af97ed847c8d9a)
+
+running 1 test
+test research::tests::research_urls_block_local_and_non_http ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/omenflow_storage-ace46bd00eac7767)
+
+running 8 tests
+test db::tests::opens_existing_typescript_fixture_without_mutating_it ... ok
+test paths::tests::guarded_paths_reject_escape_and_reserved_state ... ok
+test paths::tests::guarded_paths_reject_symlink_escape ... ok
+test objects::tests::immutable_objects_round_trip_and_detect_corruption ... ok
+test db::tests::worker_reads_live_wal_and_rejects_newer_marker ... ok
+test db::tests::rust_project_keeps_schema_one_and_fts5 ... ok
+test db::tests::newer_marker_opens_without_writing_source_bytes ... ok
+test db::tests::rename_recovery_keeps_database_and_marker_in_sync ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests omenflow_agent_host
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests omenflow_contracts
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests omenflow_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests omenflow_storage
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

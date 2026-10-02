@@ -1,0 +1,74 @@
+
+> omenflow@0.1.0 make /Users/abraiymbek/Projects/Omen Flow
+> pnpm build:rust
+
+
+> omenflow@0.1.0 build:rust /Users/abraiymbek/Projects/Omen Flow
+> node scripts/rust-app.mjs build
+
+
+> omenflow@0.1.0 build:bridge /Users/abraiymbek/Projects/Omen Flow
+> cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml
+
+    Finished `release` profile [optimized] target(s) in 0.02s
+
+> @omenflow/desktop@0.1.0 build:rust-ui /Users/abraiymbek/Projects/Omen Flow/apps/desktop
+> vite build -c vite.rust.config.ts
+
+vite v6.4.3 building for production...
+transforming...
+✓ 4907 modules transformed.
+rendering chunks...
+computing gzip size...
+rust-dist/index.html                                                       0.91 kB │ gzip:   0.46 kB
+rust-dist/assets/favicon-CWNi_-KJ.png                                      2.27 kB
+rust-dist/assets/geist-cyrillic-ext-400-normal-9PYOMWMR.woff2              3.16 kB
+rust-dist/assets/geist-cyrillic-ext-600-normal-Cr7e20Aw.woff2              3.27 kB
+rust-dist/assets/geist-cyrillic-ext-500-normal-UpgxCE-h.woff2              3.28 kB
+rust-dist/assets/geist-vietnamese-400-normal-C4gMWAkH.woff2                3.98 kB
+rust-dist/assets/geist-vietnamese-500-normal-DEhtl5QD.woff2                4.08 kB
+rust-dist/assets/geist-vietnamese-600-normal-BFUgqsz8.woff2                4.16 kB
+rust-dist/assets/ibm-plex-mono-vietnamese-400-normal-BulugwFq.woff2        5.87 kB
+rust-dist/assets/ibm-plex-mono-vietnamese-500-normal-DZ4AoWbu.woff2        6.04 kB
+rust-dist/assets/geist-cyrillic-400-normal-DXusLSnH.woff2                  6.12 kB
+rust-dist/assets/geist-cyrillic-500-normal-NWpm63d5.woff2                  6.33 kB
+rust-dist/assets/geist-cyrillic-600-normal-BeW5VFD_.woff2                  6.36 kB
+rust-dist/assets/ibm-plex-mono-cyrillic-ext-400-normal-xuaO2J-f.woff2      6.91 kB
+rust-dist/assets/ibm-plex-mono-cyrillic-ext-500-normal-BqneJy0T.woff2      6.97 kB
+rust-dist/assets/geist-latin-ext-400-normal-CND6cjiG.woff2                 7.83 kB
+rust-dist/assets/geist-latin-ext-500-normal-BovoTgeE.woff2                 7.94 kB
+rust-dist/assets/geist-latin-ext-600-normal-CVFbg5dS.woff2                 8.00 kB
+rust-dist/assets/ibm-plex-mono-cyrillic-400-normal-BSMlKf0J.woff2          8.36 kB
+rust-dist/assets/ibm-plex-mono-cyrillic-500-normal-Bq9vWWag.woff2          8.46 kB
+rust-dist/assets/geist-latin-400-normal-B40WzpMT.woff2                    12.96 kB
+rust-dist/assets/geist-latin-500-normal-CTWBw9NS.woff2                    13.30 kB
+rust-dist/assets/ibm-plex-mono-latin-ext-400-normal-BmRBH3aV.woff2        13.35 kB
+rust-dist/assets/geist-latin-600-normal-CSETrqM2.woff2                    13.37 kB
+rust-dist/assets/ibm-plex-mono-latin-ext-500-normal-CAhNIIs5.woff2        13.43 kB
+rust-dist/assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2            14.71 kB
+rust-dist/assets/ibm-plex-mono-latin-500-normal-DSY6xOcd.woff2            14.89 kB
+rust-dist/assets/app-icon-D_2VqGyE.png                                    42.81 kB
+rust-dist/assets/index-CPluYJyu.css                                       95.29 kB │ gzip:  17.65 kB
+rust-dist/assets/tauri-api-CE4GA8bH.js                                     2.46 kB │ gzip:   1.12 kB
+rust-dist/assets/index-Dbkca_Am.js                                     1,729.87 kB │ gzip: 478.01 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.12s
+        Warn --no-sign flag detected: Signing will be skipped.
+        Info Looking up installed tauri packages to check mismatched versions...
+   Compiling omenflow-core v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/crates/core)
+   Compiling omenflow-agent-host v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/crates/agent-host)
+   Compiling omenflow-rust-desktop v0.1.0 (/Users/abraiymbek/Projects/Omen Flow/apps/rust-desktop)
+    Finished `release` profile [optimized] target(s) in 27.58s
+       Built application at: /Users/abraiymbek/Projects/Omen Flow/target/release/omenflow-rust-desktop
+    Bundling Omen Flow.app (/Users/abraiymbek/Projects/Omen Flow/target/release/bundle/macos/Omen Flow.app)
+        Warn Skipping signing due to --no-sign flag.
+    Bundling Omen Flow_0.1.0_aarch64.dmg (/Users/abraiymbek/Projects/Omen Flow/target/release/bundle/dmg/Omen Flow_0.1.0_aarch64.dmg)
+     Running bundle_dmg.sh
+    Finished 2 bundles at:
+        /Users/abraiymbek/Projects/Omen Flow/target/release/bundle/macos/Omen Flow.app
+        /Users/abraiymbek/Projects/Omen Flow/target/release/bundle/dmg/Omen Flow_0.1.0_aarch64.dmg
+

@@ -10,7 +10,7 @@ and bridge are Rust. Tauri hosts the existing React renderer in the operating
 system webview. React, Vite, and pnpm are build tools; the packaged app contains
 neither Electron nor a Node runtime. The renderer implements the Lens design
 system: a project flow, object focus between causal rails, one-at-a-time
-decisions, and an agent composer wired to the real terminal.
+decisions, and an Agent tab wired to the real terminal.
 
 Projects retain schema 1 at `.omenflow/state.sqlite` with the same object store
 and bridge protocol v1. Existing `@omenflow` operation names and the
@@ -54,6 +54,25 @@ installed for source rendering. The engine is not bundled.
 `pnpm design:preview` still serves a disposable populated UI for design review.
 It is a preview, not a native agent execution test. `pnpm fixture:rover` and
 `pnpm fixture:drone` build reference projects.
+
+## First use
+
+Use the macOS Apple Silicon candidate on the supported test platform. Install and
+sign in to your preferred agent CLI before starting its Agent tab. OpenSCAD is
+needed for CAD rendering; other project records remain usable without it.
+
+Create a project in a new or empty folder, then choose your agent in Settings
+(`⌘,`). The Agent tab starts the selected CLI. Review proposals in Decisions;
+approval changes the baseline but does not establish engineering validity. Export
+a project archive from the project menu to preserve history; export a build
+package for approved deliverables. Closing a project stops its running agent.
+
+If an agent is missing, use **Detect again** after installing it. If OpenSCAD is
+installed outside a detected location, set its executable in Settings; clear the
+field and save to return to automatic detection.
+
+See the [current first-use audit](audit/v1-readiness/README.md) for tested flows,
+fixes, and remaining distribution checks.
 
 ## Migration evidence and limits
 

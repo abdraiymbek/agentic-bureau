@@ -207,7 +207,16 @@ function StageHeader({ view }: { view: ArtifactView }) {
       </div>
       <div className="stage-title-row">
         <h1>{view.artifact.title}</h1>
-        <Button size="sm" variant="ghost" icon={<At size={13} />} onClick={() => askAbout('')}>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<At size={13} />}
+          onClick={() =>
+            askAbout(
+              `About the Omen Flow ${meta.label.toLowerCase()} "${view.artifact.title}" (artifact ${view.artifact.id}${rev ? `, revision ${rev.seq}` : ''}): `,
+            )
+          }
+        >
           Ask agent
         </Button>
       </div>

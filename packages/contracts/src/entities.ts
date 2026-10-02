@@ -122,6 +122,12 @@ export const componentPayload = z.object({
   vendor: z.string().optional(),
   partNumber: z.string(),
   description: z.string().optional(),
+  imageUrl: z
+    .string()
+    .url()
+    .regex(/^https?:\/\//)
+    .optional(),
+  selectionReason: z.string().optional(),
   /** Engineering properties keyed by name; each carries provenance. */
   properties: z.record(z.string(), sourcedQuantity).default({}),
   /** Free-form sourced facts (interface, protocol, mounting pattern…). */
