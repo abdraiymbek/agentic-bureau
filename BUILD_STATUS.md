@@ -1,201 +1,41 @@
-# Omen Flow build ledger
+# Build status
 
-> **Historical Electron ledger.** This file records the pre-migration candidate.
-> The production app now builds from `apps/rust-desktop` and the Rust crates;
-> see `README.md`, `docs/release.md`, and `audit/rust-migration/after/README.md`
-> for the current build path and measured Rust candidate. Electron release
-> qualification and ABI notes below do not transfer to that package.
+This file used to be the running ledger of the Electron build. That ledger described packages,
+packaging and test counts that no longer exist in this tree, so it has been replaced by this
+pointer. Its last text is in git history (`git show 4f8afe2:BUILD_STATUS.md`).
 
-The current v0.1 qualification and its remaining gates are recorded in
-[release evidence](audit/release-v0.1/README.md). The dated results below are
-historical; they do not override the current qualification decision.
+## Current
 
-Updated continuously during implementation. This file reflects the actual
-state of the repository, not the plan.
+**V1, 14 October 2026: an unsigned, locally verified working tree; not a release.**
 
-## Completed systems
+- What V1 is, how to build it and its limits: [README](README.md).
+- What was verified for V1, with the commands and counts: [V1 readiness record](audit/v1/README.md),
+  and for the interface [design verification](design-system/verification.md).
+- How to qualify a release, and what is still open: [release](docs/release.md).
 
-- Repository skeleton: pnpm workspace (hoisted linker), TypeScript strict,
-  ESLint/Prettier, vitest root config, Apache-2.0 + community docs.
-- `packages/contracts`: entity schemas, operation registry with capability
-  split (agent vs user ops), stable error codes, units/quantities (incl.
-  acceleration dim), bridge protocol (frames, hello/welcome, env keys,
-  IPC channel names), session/adapter status types.
-- `packages/storage`: SQLite schema + migrations (better-sqlite3), typed
-  Repo, content-addressed object store, project create/open/reopen,
-  `omenflow.project.json` marker, event log, idempotency table, stale records,
-  materialization, backup, path-safety (PATH_OUTSIDE_PROJECT, symlink
-  resolution), session rows. 6 tests pass.
-- `packages/core`: single `dispatch()` for GUI/MCP/CLI (zod validation,
-  capability enforcement, idempotency, REVISION_CONFLICT), revision
-  lifecycle (immutable history, draft/approved/superseded), proposals +
-  decisions + human-only resolution, eval-graph (depends_on/derived_from/
-  validates acyclic, cycle path reporting) with stale propagation +
-  explanation paths + recorded inputs, components/offers/BOM with
-  provenance + unknown-stays-unknown totals, CAD job pipeline (adapter
-  injected, INPUT_CHANGED commit check, job.cancel → adapter), calculations,
-  wiring, sources/research via host interface, build preview + ZIP export,
-  project archive export/import (traversal-guarded), external-edit watcher
-  → drafts, bounded project.summary, FTS5 search. 10 domain tests pass,
-  incl. 300 g → 500 g propagation and reopen persistence.
-- `packages/engineering`: OpenScadAdapter (discovery: app bundle, brew,
-  login-shell PATH, Windows paths, flatpak; probe does a real cube render;
-  `-D` params; SIGTERM→SIGKILL cancel; STL inspect ascii+binary+bounds),
-  MathJsCalcEngine (worker_threads isolation, restricted mathjs, unit-aware
-  scope, 4 templates), WiringAnalyzer (voltage/ground/exclusive-pin/
-  unknown-pin/moved-component + SVG diagram). 29 tests pass.
+## Open gates
 
-- `packages/agent-host`: real PTY via node-pty (bounded scrollback,
-  session persistence), adapter registry (codex/claude/custom with
-  launchSpec env + OMENFLOW_* scrubbing), framed-JSON bridge server over
-  unix socket (named pipe on Windows), grant/token auth, `omenflow` Node
-  CLI shim (`call`, `mcp`, `cap` commands).
-- `packages/mcp-server`: MCP SDK server riding bridge frames — tools/list
-  - tools/call mapped onto core ops with capability checks.
-- `apps/desktop`: Electron Forge + Vite; main process (windows, window-state
-  persistence, IPC relay, research WebContentsView, security policy,
-  single-instance lock), preload (narrow contextBridge, typed API),
-  utility process hosting CoreApp + bridge + PTY + MCP, renderer
-  (welcome/create/open, overview, requirements, components+BOM, reviews,
-  artifacts, history/graph, files, connections, terminal w/ xterm+PTY,
-  STL viewport w/ three.js, inspector, command palette, status bar).
+- The native macOS app was not walked through during V1 work. The last native walkthrough is
+  the [26 September audit](audit/v1-readiness/README.md), which predates V1.
+- The macOS bundle and DMG in `target/release/bundle/` predate 1.0.0: their `Info.plist` says
+  version 0.1.0 and identifier `com.electron.omen-flow`. Rebuild them from the current tree.
+- Apple signing and notarization have never run with real credentials; clean-machine install
+  and upgrade of a populated project are untested.
+- Windows: CI defines an experimental package job; not a verified platform.
+- Linux: the `.deb`, `.rpm` and AppImage (1.0.0) are built by `node scripts/linux-package.mjs`
+  on Ubuntu 22.04, and both packages declare its glibc 2.35 as their floor. For arm64 they
+  were built and smoke-tested in containers under a virtual X display: the `.deb` on Ubuntu
+  22.04, Ubuntu 24.04 and Debian 12, the AppImage on Ubuntu 22.04, the `.rpm` on Fedora 42.
+  x86_64 packages come from the CI `package-linux` job, which has not run. No real Linux desktop
+  (Wayland, a GPU, HiDPI, a person) has been used, and nothing is signed. See
+  [release](docs/release.md#linux-packages).
+- VoiceOver and the operating system's reduced-motion setting have not been checked.
 
-## CAD agent capability (2026-09-19)
+## Earlier records
 
-- Agent-facing CAD vocabulary in core: `cad.write_source` (plain-text
-  OpenSCAD → draft revision, synchronous render, measured geometry report),
-  `cad.read_source`, `cad.inspect` (sections/probes/param variants),
-  `cad.check` (PASS/FAIL per explicit expectation; recorded as `cad_check`
-  job). Legacy `cad.render`/`cad.probe`/`cad.validate_source`/`job.*` remain
-  callable but are `agentVisible: false`. `tool.describe` + `omenflow call
-<op> --help` expose op schemas.
-- Deterministic mesh layer (`packages/core/src/mesh.ts`): bounds, signed
-  volume, area, manifold check, shells, ray-parity containment, planar
-  sections with loop nesting and circle/rectangle/polygon recognition.
-  Validated against OpenSCAD renders of closed-form shapes.
-- MCP tools now carry annotations (`readOnlyHint`, `destructiveHint:false`),
-  field descriptions, and no tuple schemas (tuples made the model drop tools).
-  Codex adapter pre-approves Omen Flow tools. `AGENTS.md` agent guide is
-  written into the project at session start.
-- Fixes found by the evaluation: watcher re-imported tool-written files as
-  phantom revisions (materialization hook + newest-revision owner);
-  `.omenflow-conflict-*` litter from generated views; `cad.render` did not
-  unwrap quantity params; raw zod payload errors surfaced as `INTERNAL`.
-- Evaluation (`pnpm eval:cad`, GPT-5.6 Luna high, 15 tasks × 3 runs):
-  baseline 41/45 runs correct, 0/45 verified, 12.4 tool calls, 1.2 tool
-  errors, 4.3 shell commands, 125 s, 477k input tokens per run → improved
-  45/45 correct, 45/45 verified by `cad_check`, 2.9 tool calls, 0 errors,
-  0 shell, 87 s, 110k input tokens. Holdout (5 unseen tasks × 3): 15/15 both,
-  verified 0/15 → 15/15, 10.7 → 3.2 tool calls, 446k → 117k input tokens.
-  Summaries in `evals/cad/results/`.
-- Requires OpenSCAD locally (2026.09.18 snapshot verified on darwin-arm64;
-  the `openscad` cask is disabled, use `openscad@snapshot`) and a logged-in
-  Codex CLI. Not run in CI.
-
-## Packaging (verified on this machine)
-
-- `pnpm --filter @omenflow/desktop package` → `out/Omen Flow-darwin-arm64/Omen Flow.app`.
-- `pnpm --filter @omenflow/desktop make` → `out/make/Omen Flow.dmg` +
-  `out/make/zip/darwin/arm64/Omen Flow-darwin-arm64-0.1.0.zip`.
-- Utility bundle lives at `resources/core/utility.js` (asar-unpacked —
-  `utilityProcess.fork` cannot run inside asar); `calc-worker.mjs` and the
-  `omenflow` shim ship beside it; `mathjs` + runtime dep closure vendored to
-  `resources/node_modules` by `scripts/vendor-natives.mjs`, which also
-  rebuilds better-sqlite3/node-pty for the Electron ABI.
-- Boot smoke: packaged app launches, utility forks, better-sqlite3 loads
-  (Electron ABI), bridge socket binds, `ready` reaches main.
-  Evidence: `boot.log` under userData + `[core] ready` on stdout.
-- Packaged smoke (`scripts/packaged-smoke.mjs`, `pnpm smoke:packaged`):
-  launches the packaged app with `OMENFLOW_APP_DATA` + `OMENFLOW_SMOKE=1`,
-  waits for `run/bridge.sock` + the gated `run/smoke.json` grant, runs a
-  real `omenflow call artifact.list` and `project.summary` roundtrip through
-  the packaged shim, and exits deterministically. Verified locally on
-  darwin-arm64.
-
-## CI
-
-`.github/workflows/ci.yml`:
-
-- Ubuntu: install, `pnpm rebuild:node`, typecheck, eslint, prettier check,
-  vitest.
-- macOS 14 (arm64): install, package, `pnpm smoke:packaged`, artifact
-  upload.
-- Windows: install + package + artifact upload; smoke step runs but is
-  `continue-on-error` until verified on win32.
-- `native/omenflow-bridge`: `cargo fmt --check` + `clippy -D warnings` +
-  `cargo test` on stable (toolchain pinned via `rust-toolchain.toml`).
-  The macOS/Windows packaging jobs build `cargo build --release` so the
-  shipped `omenflow` helper is the compiled Rust binary.
-- Node pinned to 24 (`.nvmrc`), pnpm to 9.15.9 (`packageManager`).
-
-## Unresolved implementation problems
-
-- Rust toolchain is installed on this machine (stable via
-  `rust-toolchain.toml`): `pnpm build:bridge` produces
-  `native/omenflow-bridge/target/release/omenflow`. Packaging ships the
-  compiled helper when that binary exists and falls back to the `omenflow`
-  Node shim otherwise — same `call`/`mcp`/`--help` surface and wire
-  protocol.
-- No OpenSCAD installed locally: adapter implements the full
-  detect/probe/render/inspect contract; real-render e2e gated on
-  `OMENFLOW_OPENSCAD_E2E`.
-- No Windows machine: `Setup.exe` build + verification deferred to CI;
-  paths are written cross-platform.
-- No Claude Code installed locally: adapter + missing-exe path implemented;
-  live launch unverified here.
-- `calc-worker.mjs` is copied beside the utility bundle at
-  `resources/core/` and resolves `mathjs` from `resources/node_modules`
-  (vendored closure; unpacked from asar).
-- better-sqlite3 pinned to `^13` (napi): v12.x crashed Node 24 during
-  env teardown (`Assertion failed: (env) != nullptr` in `~Statement`).
-  Forge's "Preparing native dependencies" rebuilds the hoisted copy to
-  Electron ABI, so `postPackage` runs `scripts/rebuild-natives.mjs node`
-  to restore the workspace copies — `pnpm test` needs Node ABI,
-  the app needs Electron ABI, both live under different roots.
-
-## Golden-path status
-
-Domain level proven and now exercised end-to-end via fixtures:
-`tests/golden-path.test.ts` builds the rover fixture through
-`CoreApp.dispatch` (requirements → sources → component candidates +
-compare → proposal-approved selections → BOM → mechanical artifact with
-real `.scad` → mathjs calculations with recorded inputs → wiring →
-test procedure → assembly), then changes the payload requirement
-300 g → 500 g and asserts stale propagation to the mass/torque calcs,
-CAD artifact, and test — with prior results preserved. Covers agent
-proposal gating (agent drafts do not touch baseline until a human
-approves), reopen persistence, and archive export→import roundtrip
-including the `.scad` file payload. `fixtures/drone-dependencies` adds
-the payload→propulsion→endurance impact chain. Not yet exercised with a
-live agent CLI inside the running Electron app.
-
-## Failing tests
-
-None. `pnpm test`: 15 files, 107 passed, 1 skipped (OpenSCAD e2e); mesh and
-cad-tools suites run against the installed OpenSCAD.
-
-## Platform verification
-
-- macOS arm64 (dev): storage/core/engineering/agent-host/mcp suites pass;
-  desktop `package` + `make` verified; packaged app boot-smoked.
-- Windows x64: not verifiable on this machine.
-
-## Deviations from Plan.md
-
-1. The Rust bridge compiles on this machine; packaging prefers
-   `target/release/omenflow` when present (build with `pnpm build:bridge`)
-   and falls back to the Node shim when no cargo build exists.
-2. `torque_load` takes `g` and `accel` as real `m/s^2` inputs (an
-   `acceleration` dimension was added to contracts) instead of the
-   originally planned formula-with-embedded-g — same physics, better
-   provenance.
-
-## Next highest-leverage work
-
-- Live agent-CLI golden path in the packaged app (Codex/Claude installed
-  and credentialed): adapter launch → PTY → bridge call → proposal →
-  human approve.
-- Real OpenSCAD render e2e where the tool is installed
-  (`OMENFLOW_OPENSCAD_E2E`); tray STL bound to the mechanical artifact.
-- Windows smoke verification (drop `continue-on-error` once green).
-- Playwright Electron UI coverage for the review queue and terminal.
+| Record                                                          | Covers                                            |
+| --------------------------------------------------------------- | ------------------------------------------------- |
+| [`audit/v1-readiness/`](audit/v1-readiness/README.md)           | First-use hardening of the Rust app, 26 September |
+| [`audit/rust-migration/`](audit/rust-migration/after/README.md) | Electron baseline and Rust after measurements     |
+| [`audit/release-v0.1/`](audit/release-v0.1/README.md)           | The Electron v0.1 candidate; does not transfer    |
+| [`evals/cad/results/`](evals/cad/results/)                      | CAD evaluations on the legacy TypeScript stack    |

@@ -9,6 +9,15 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@omenflow/contracts/format': path.join(
+        root,
+        '..',
+        '..',
+        'packages',
+        'contracts',
+        'src',
+        'format.ts',
+      ),
       '@omenflow/contracts': path.join(
         root,
         '..',

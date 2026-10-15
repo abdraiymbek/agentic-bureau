@@ -508,5 +508,161 @@
     "dim": "dimensionless",
     "scale": 0.01,
     "offset": 0
+  },
+  "um": {
+    "name": "um",
+    "dim": "length",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "µm": {
+    "name": "um",
+    "dim": "length",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "us": {
+    "name": "us",
+    "dim": "time",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "µs": {
+    "name": "us",
+    "dim": "time",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "Hz": {
+    "name": "Hz",
+    "dim": "frequency",
+    "scale": 1,
+    "offset": 0
+  },
+  "kHz": {
+    "name": "kHz",
+    "dim": "frequency",
+    "scale": 1000,
+    "offset": 0
+  },
+  "MHz": {
+    "name": "MHz",
+    "dim": "frequency",
+    "scale": 1000000,
+    "offset": 0
+  },
+  "Pa": {
+    "name": "Pa",
+    "dim": "pressure",
+    "scale": 1,
+    "offset": 0
+  },
+  "kPa": {
+    "name": "kPa",
+    "dim": "pressure",
+    "scale": 1000,
+    "offset": 0
+  },
+  "MPa": {
+    "name": "MPa",
+    "dim": "pressure",
+    "scale": 1000000,
+    "offset": 0
+  },
+  "GPa": {
+    "name": "GPa",
+    "dim": "pressure",
+    "scale": 1000000000,
+    "offset": 0
+  },
+  "bar": {
+    "name": "bar",
+    "dim": "pressure",
+    "scale": 100000,
+    "offset": 0
+  },
+  "psi": {
+    "name": "psi",
+    "dim": "pressure",
+    "scale": 6894.757293168361,
+    "offset": 0
+  },
+  "ohm": {
+    "name": "ohm",
+    "dim": "resistance",
+    "scale": 1,
+    "offset": 0
+  },
+  "Ω": {
+    "name": "ohm",
+    "dim": "resistance",
+    "scale": 1,
+    "offset": 0
+  },
+  "Ohm": {
+    "name": "ohm",
+    "dim": "resistance",
+    "scale": 1,
+    "offset": 0
+  },
+  "mohm": {
+    "name": "mohm",
+    "dim": "resistance",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "mΩ": {
+    "name": "mohm",
+    "dim": "resistance",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "kohm": {
+    "name": "kohm",
+    "dim": "resistance",
+    "scale": 1000,
+    "offset": 0
+  },
+  "kΩ": {
+    "name": "kohm",
+    "dim": "resistance",
+    "scale": 1000,
+    "offset": 0
+  },
+  "Mohm": {
+    "name": "Mohm",
+    "dim": "resistance",
+    "scale": 1000000,
+    "offset": 0
+  },
+  "MΩ": {
+    "name": "Mohm",
+    "dim": "resistance",
+    "scale": 1000000,
+    "offset": 0
+  },
+  "L": {
+    "name": "L",
+    "dim": "volume",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "l": {
+    "name": "L",
+    "dim": "volume",
+    "scale": 0.001,
+    "offset": 0
+  },
+  "mL": {
+    "name": "mL",
+    "dim": "volume",
+    "scale": 0.000001,
+    "offset": 0
+  },
+  "ml": {
+    "name": "mL",
+    "dim": "volume",
+    "scale": 0.000001,
+    "offset": 0
   }
 }

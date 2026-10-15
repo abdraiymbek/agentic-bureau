@@ -1,7 +1,8 @@
 /*
- * Omen Flow tokens · Lens 2.0
+ * Omen Flow tokens · Lens 2.2
  * One graphite field, one signal colour, three engineering states.
- * Every surface, font, radius, and motion value in the renderer comes from here.
+ * Every colour, font, radius, shadow, layer and duration in the renderer comes from here.
+ * Text roles meet WCAG AA (4.5:1) on every surface they sit on; line and dot roles meet 3:1.
  */
 
 :root {
@@ -18,9 +19,13 @@
   --text-xl: 19px;
   --text-2xl: 26px;
   --text-3xl: 38px;
-  --leading: 1.5;
-  --tracking-tight: -0.018em;
-  --tracking-display: -0.032em;
+  --text-mono: 12px; /* code editors and source */
+  --leading-display: 1.15; /* titles at xl and above */
+  --leading-tight: 1.35; /* rows, labels, two-line metadata */
+  --leading: 1.5; /* working text */
+  --leading-prose: 1.65; /* long prose and source */
+  --tracking-tight: -0.018em; /* lg and xl */
+  --tracking-display: -0.032em; /* 2xl and 3xl */
 
   /* Space (4-based) */
   --s-1: 4px;
@@ -45,14 +50,39 @@
   --control-lg: 38px;
   --titlebar: 48px;
   --rail: 248px;
+  --rail-folded: 40px; /* a folded object rail: the strip that holds its unfold button */
   --activity-bar: 48px;
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --disabled-opacity: 0.5;
+  --press-scale: 0.97;
+
+  /* Layers, lowest first; values match the ladder the surfaces already use. Menus sit above the
+     sheet so a menu can open inside it. */
+  --z-raised: 1; /* sticky table heads, timeline dots */
+  --z-stage-tools: 2; /* islands inside a stage: viewport revision picker, resize handles */
+  --z-sticky: 3; /* save bar */
+  --z-canvas-tools: 4; /* map legend and controls */
+  --z-project-head: 5;
+  --z-island: 6; /* Needs you */
+  --z-agent-tab: 8;
+  --z-agent-window: 12;
+  --z-titlebar: 20;
+  --z-overlay: 50;
+  --z-dialog: 51; /* omnibar, sheet */
+  --z-menu: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
 
   /* Motion */
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --t-fast: 120ms;
-  --t: 200ms;
-  --t-slow: 320ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1); /* enter and state change */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* exit */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* loops */
+  --t-fast: 120ms; /* feedback: hover, press, exit */
+  --t: 200ms; /* state, enter */
+  --t-slow: 320ms; /* zoom, sheet */
+  --t-spin: 800ms;
+  --t-pulse: 1800ms;
 
   color-scheme: dark;
 }
@@ -65,23 +95,31 @@
   --field: #0b0c0e; /* window, map canvas */
   --surface: #111214; /* stage */
   --raised: #17181b; /* islands, menus, cards */
-  --raised-2: #1e1f23; /* hover, pressed, inputs */
+  --raised-2: #1e1f23; /* hover, inputs */
+  --pressed: #25272c; /* a control while it is held down */
+  --press-filter: brightness(1.18); /* pressed fallback for controls without their own fill */
+  --control-bg: #1e1f23; /* secondary buttons */
   --inset: #0d0e10; /* code, terminal, viewport wells */
-  --overlay: rgba(6, 7, 8, 0.62);
+  --overlay: rgba(6, 7, 8, 0.62); /* scrim behind dialogs */
+  --photo-bg: #f3f4f6; /* product photography well */
 
-  --line: rgba(255, 255, 255, 0.065);
+  --line: rgba(255, 255, 255, 0.07);
   --line-strong: rgba(255, 255, 255, 0.12);
-  --line-control: rgba(255, 255, 255, 0.16);
+  --line-control: rgba(255, 255, 255, 0.17);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
 
-  --text: #ededee;
-  --text-2: #a4a7ae;
-  --text-3: #6f737b;
-  --text-4: #4c4f56;
+  --text: #ededee; /* content */
+  --text-2: #a4a7ae; /* support */
+  --text-3: #848890; /* metadata, labels, units: AA on every surface */
+  --text-4: #64676f; /* separators and idle marks: 3:1, never sole carrier of meaning */
 
   /* Signal: the one chromatic accent. Live agent, focus, the selected thread. */
-  --signal: #cff36e;
-  --signal-ink: #10130a;
-  --signal-text: #d9f68c;
+  --signal: #cff36e; /* fills: the signal button, live dots on dark */
+  --signal-hover: #daf68d;
+  --signal-ink: #10130a; /* text on a signal fill */
+  --signal-text: #d9f68c; /* signal as text */
+  --signal-stroke: #cff36e; /* signal as a line, ring, dot or border */
   --signal-soft: rgba(207, 243, 110, 0.1);
   --signal-line: rgba(207, 243, 110, 0.42);
 
@@ -98,11 +136,18 @@
   --primary-hover: #ffffff;
   --primary-ink: #0b0c0e;
 
-  --focus: var(--signal);
+  --focus: var(--signal-stroke);
+  --halo: 0 0 0 3px var(--signal-soft); /* focused text field */
   --selection: rgba(207, 243, 110, 0.2);
 
-  --shadow-float: 0 18px 48px -18px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--line-strong);
-  --shadow-menu: 0 24px 64px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--line-strong);
+  /* Depth: islands are lit from above and cast a contact shadow and a soft drop. */
+  --shadow-float:
+    0 0 0 1px var(--line-strong), inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 18px 48px -18px rgba(0, 0, 0, 0.75);
+  --shadow-menu:
+    0 0 0 1px var(--line-strong), inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 10px -4px rgba(0, 0, 0, 0.55), 0 24px 64px -20px rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
 
   /* Map + 3D */
   --map-dot: rgba(255, 255, 255, 0.055);
@@ -113,7 +158,28 @@
   --model-color: #c9ccd2;
   --model-compare: #8fb6d6;
 
+  /* Terminal: every colour except black is 4.5:1 or better on the terminal background. */
   --terminal-bg: #0d0e10;
+  --terminal-fg: #ededee;
+  --terminal-cursor: #cff36e;
+  --terminal-selection: rgba(207, 243, 110, 0.24);
+  --ansi-black: #565a62;
+  --ansi-red: #f3928a;
+  --ansi-green: #8fd6aa;
+  --ansi-yellow: #f1bb68;
+  --ansi-blue: #8ab4f0;
+  --ansi-magenta: #c3a6e3;
+  --ansi-cyan: #8fcfd6;
+  --ansi-white: #c5c8ce;
+  --ansi-bright-black: #848890;
+  --ansi-bright-red: #ffb4ad;
+  --ansi-bright-green: #b4ebc9;
+  --ansi-bright-yellow: #ffd596;
+  --ansi-bright-blue: #b3cff7;
+  --ansi-bright-magenta: #dcc6f0;
+  --ansi-bright-cyan: #b3e3e8;
+  --ansi-bright-white: #f4f4f5;
+
   color-scheme: dark;
 }
 
@@ -125,40 +191,54 @@
   --surface: #f6f6f7;
   --raised: #ffffff;
   --raised-2: #f0f1f3;
+  --pressed: #e5e6e9;
+  --press-filter: brightness(0.93);
+  --control-bg: #ffffff;
   --inset: #f2f3f5;
   --overlay: rgba(28, 30, 34, 0.28);
+  --photo-bg: #f3f4f6;
 
-  --line: rgba(15, 17, 20, 0.07);
-  --line-strong: rgba(15, 17, 20, 0.12);
-  --line-control: rgba(15, 17, 20, 0.2);
+  --line: rgba(15, 17, 20, 0.08);
+  --line-strong: rgba(15, 17, 20, 0.13);
+  --line-control: rgba(15, 17, 20, 0.21);
+  --scrollbar-thumb: rgba(15, 17, 20, 0.2);
+  --scrollbar-thumb-hover: rgba(15, 17, 20, 0.34);
 
   --text: #141518;
-  --text-2: #50555e;
-  --text-3: #7b808a;
-  --text-4: #a9adb5;
+  --text-2: #474b53;
+  --text-3: #656972;
+  --text-4: #80858f;
 
   --signal: #c8ef5a;
+  --signal-hover: #bde64a;
   --signal-ink: #141a05;
   --signal-text: #4c6700;
+  --signal-stroke: #5a7d00; /* lime would vanish on paper: a dark olive keeps the line readable */
   --signal-soft: rgba(151, 196, 20, 0.14);
   --signal-line: rgba(106, 142, 0, 0.5);
 
-  --ok: #2b7a4c;
+  --ok: #276e44;
   --ok-soft: rgba(43, 122, 76, 0.1);
-  --warn: #99620c;
+  --warn: #88570b;
   --warn-soft: rgba(197, 128, 18, 0.12);
-  --err: #b23a36;
+  --err: #ad3835;
   --err-soft: rgba(178, 58, 54, 0.09);
 
   --primary: #141518;
   --primary-hover: #000000;
   --primary-ink: #ffffff;
 
-  --focus: #6b8f00;
+  --focus: var(--signal-stroke);
+  --halo: 0 0 0 3px var(--signal-soft);
   --selection: rgba(151, 196, 20, 0.28);
 
-  --shadow-float: 0 18px 44px -20px rgba(20, 24, 30, 0.28), 0 0 0 1px var(--line-strong);
-  --shadow-menu: 0 22px 56px -18px rgba(20, 24, 30, 0.3), 0 0 0 1px var(--line-strong);
+  --shadow-float:
+    0 0 0 1px var(--line-strong), 0 1px 2px rgba(20, 24, 30, 0.06),
+    0 4px 12px -4px rgba(20, 24, 30, 0.08), 0 18px 44px -20px rgba(20, 24, 30, 0.24);
+  --shadow-menu:
+    0 0 0 1px var(--line-strong), 0 2px 4px rgba(20, 24, 30, 0.06),
+    0 8px 20px -8px rgba(20, 24, 30, 0.12), 0 22px 56px -18px rgba(20, 24, 30, 0.28);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 6px 16px -6px rgba(20, 24, 30, 0.18);
 
   --map-dot: rgba(15, 17, 20, 0.09);
   --map-edge: rgba(15, 17, 20, 0.2);
@@ -169,6 +249,26 @@
   --model-compare: #3f7fb0;
 
   --terminal-bg: #fbfbfc;
+  --terminal-fg: #141518;
+  --terminal-cursor: #5a7d00;
+  --terminal-selection: rgba(151, 196, 20, 0.3);
+  --ansi-black: #1d1f23;
+  --ansi-red: #b23a36;
+  --ansi-green: #256b42;
+  --ansi-yellow: #875509;
+  --ansi-blue: #2f64b3;
+  --ansi-magenta: #8a4fb0;
+  --ansi-cyan: #1b6f78;
+  --ansi-white: #686d76; /* programs print "white" for emphasis on dark: keep it readable */
+  --ansi-bright-black: #575c65;
+  --ansi-bright-red: #c0332d;
+  --ansi-bright-green: #2b7a4c;
+  --ansi-bright-yellow: #965f0b;
+  --ansi-bright-blue: #2a5ea9;
+  --ansi-bright-magenta: #9a45b8;
+  --ansi-bright-cyan: #16757f;
+  --ansi-bright-white: #6d727b;
+
   color-scheme: light;
 }
 
@@ -177,5 +277,6 @@
     --t-fast: 0ms;
     --t: 0ms;
     --t-slow: 0ms;
+    --press-scale: 1;
   }
 }

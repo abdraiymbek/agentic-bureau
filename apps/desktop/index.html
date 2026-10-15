@@ -5,9 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' omenflow-app:; script-src 'self' omenflow-app:; style-src 'self' 'unsafe-inline' omenflow-app:; img-src 'self' omenflow-app: data: blob: https:; font-src 'self' omenflow-app:; connect-src 'self' omenflow-app: ws://localhost:* http://localhost:*; worker-src 'self' omenflow-app: blob:"
+      content="default-src 'self'; script-src 'self' 'sha256-JAhKTeCkt4cHufq05GcG7R/kwv6VEvB/I+p0bLKn5R4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* http://localhost:*; worker-src 'self' blob:"
     />
     <meta name="color-scheme" content="dark light" />
+    <!-- Theme before first paint: the stored preference, read the way store.ts reads it. Allowed
+         by its hash in the policy above; tests/frontend/first-paint.test.ts keeps them in step. -->
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('omen.theme') === 'light' ? 'light' : 'dark';
+      } catch {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
     <link rel="icon" type="image/png" href="/src/renderer/assets/favicon.png" />
     <title>Omen Flow</title>
   </head>

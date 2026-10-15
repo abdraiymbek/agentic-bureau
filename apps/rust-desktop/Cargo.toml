@@ -6,7 +6,6 @@ license.workspace = true
 build = "build.rs"
 
 [dependencies]
-omenflow-core = { path = "../../crates/core" }
 omenflow-contracts = { path = "../../crates/contracts" }
 omenflow-agent-host = { path = "../../crates/agent-host" }
 serde_json.workspace = true
@@ -16,8 +15,32 @@ tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
-xcap = "0.9.8"
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Window pictures for the research screenshot (src/capture.rs). On Linux WebKitGTK
+# renders them itself: xcap sees only X11 windows there and links PipeWire, EGL, GBM
+# and Wayland, and its PipeWire bindings do not build against Ubuntu 22.04's 0.3.48.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+xcap = "0.9.8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The versions Tauri's own webview uses.
+webkit2gtk = "2.0.2"
+cairo-rs = "0.18.5"
+
+# Whether the bundled helper carries macOS's quarantine flag (src/helper.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+# SIGTERM, SIGINT and SIGHUP quit through the normal exit path (src/signals.rs).
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.4.5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }

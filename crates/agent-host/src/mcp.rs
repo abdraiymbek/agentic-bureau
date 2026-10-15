@@ -1,90 +1,199 @@
-use super::{current_grant, dispatch_agent, Shared};
+//! The MCP server an agent CLI talks to through `omenflow mcp`: one JSON-RPC
+//! message per bridge frame. What it lists and how it words results follows
+//! the session's capability profile; what it runs goes through
+//! `dispatch_agent` like every other agent call.
+
+use super::{current_grant, dispatch_agent, guide, present, AgentCall, Shared, Via};
 use interprocess::local_socket::Stream;
-use omenflow_contracts::{read_frame, registry, write_frame};
+use omenflow_contracts::{read_frame, write_frame};
 use serde_json::{json, Value};
+
+/// Protocol revisions this server implements, newest first. A client that
+/// asks for one of them gets it; any other request is answered with the
+/// newest, and the client decides whether it can continue.
+const SUPPORTED_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
+
+const INVALID_REQUEST: i64 = -32600;
+const METHOD_NOT_FOUND: i64 = -32601;
+const INVALID_PARAMS: i64 = -32602;
+const SERVER_ERROR: i64 = -32000;
 
 pub(super) fn serve(stream: &mut Stream, shared: &Shared, token: &str) {
     while let Ok(Some(message)) = read_frame(stream) {
-        let Some(id) = message.get("id").cloned() else {
-            continue; // JSON-RPC notification
+        let Some(response) = respond(shared, token, &message) else {
+            continue;
         };
-        let result = handle_message(shared, token, &message);
-        let response = match result {
-            Ok(value) => json!({"jsonrpc":"2.0", "id":id, "result":value}),
-            Err((code, text)) => {
-                json!({"jsonrpc":"2.0", "id":id, "error":{"code":code, "message":text}})
-            }
-        };
-        if write_frame(stream, &response).is_err() {
+        if write_frame(stream, &response).is_ok() {
+            continue;
+        }
+        // A reply too large for one frame must not end the session: the
+        // agent would lose every tool. Say so instead.
+        let oversized = reply(
+            &message["id"],
+            Err((
+                SERVER_ERROR,
+                "The result is too large to send. Ask for less at once.".to_owned(),
+            )),
+        );
+        if write_frame(stream, &oversized).is_err() {
             return;
         }
     }
 }
 
-fn handle_message(shared: &Shared, token: &str, message: &Value) -> Result<Value, (i64, String)> {
-    if current_grant(shared, token).is_none() {
-        return Err((-32000, "Agent session grant was revoked".into()));
-    }
-    let params = &message["params"];
-    match message["method"].as_str().unwrap_or("") {
-        "initialize" => Ok(json!({
-            "protocolVersion": params["protocolVersion"].as_str().unwrap_or("2024-11-05"),
-            "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false}},
-            "serverInfo": {"name":"omenflow", "version": env!("CARGO_PKG_VERSION")}
-        })),
-        "ping" => Ok(json!({})),
-        "tools/list" => {
-            let tools = registry().agent_tools().map(|op| json!({
-                "name": op.tool_name,
-                "description": format!("{}{}", op.description, if op.mutating { " (mutating)" } else { "" }),
-                "inputSchema": op.input_schema,
-                "annotations": {"readOnlyHint": !op.mutating, "destructiveHint": false, "idempotentHint": !op.mutating, "openWorldHint": false}
-            })).collect::<Vec<_>>();
-            Ok(json!({"tools": tools}))
+/// The reply to one incoming message, or `None` when it needs none:
+/// notifications are accepted silently, and a response to a request this
+/// server never sent is ignored.
+fn respond(shared: &Shared, token: &str, message: &Value) -> Option<Value> {
+    let id = message.get("id").filter(|id| !id.is_null());
+    let method = message.get("method").and_then(Value::as_str);
+    match (id, method) {
+        (Some(id), Some(method)) => {
+            Some(reply(id, handle(shared, token, method, &message["params"])))
         }
+        (Some(id), None) if message.get("result").is_none() && message.get("error").is_none() => {
+            Some(reply(
+                id,
+                Err((INVALID_REQUEST, "A request needs a method".to_owned())),
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn reply(id: &Value, outcome: Result<Value, (i64, String)>) -> Value {
+    match outcome {
+        Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
+        Err((code, message)) => {
+            json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
+        }
+    }
+}
+
+fn handle(
+    shared: &Shared,
+    token: &str,
+    method: &str,
+    params: &Value,
+) -> Result<Value, (i64, String)> {
+    let Some(grant) = current_grant(shared, token) else {
+        return Err((SERVER_ERROR, "Agent session grant was revoked".into()));
+    };
+    match method {
+        "initialize" => {
+            let requested = params["protocolVersion"].as_str().unwrap_or_default();
+            let version = SUPPORTED_VERSIONS
+                .into_iter()
+                .find(|version| *version == requested)
+                .unwrap_or(SUPPORTED_VERSIONS[0]);
+            Ok(json!({
+                "protocolVersion": version,
+                "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false}},
+                "serverInfo": {"name": "omenflow", "title": "Omen Flow", "version": env!("CARGO_PKG_VERSION")},
+                "instructions": guide::instructions(grant.profile),
+            }))
+        }
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({"tools": present::tool_listing(grant.profile)})),
         "tools/call" => {
             let name = params["name"]
                 .as_str()
-                .ok_or((-32602, "Missing tool name".into()))?;
-            let op = registry()
-                .agent_tools()
-                .find(|op| op.tool_name == name)
-                .ok_or((-32602, format!("Unknown tool: {name}")))?;
-            let arguments = params.get("arguments").cloned().unwrap_or(json!({}));
-            let idempotency_key = arguments["idempotencyKey"].as_str().map(str::to_owned);
-            let (body, is_error) = match dispatch_agent(
-                shared,
-                token,
-                &op.name,
-                arguments,
-                idempotency_key.as_deref(),
-            ) {
-                Ok(value) => (value, false),
-                Err(error) => (
-                    serde_json::to_value(error).unwrap_or(json!({"code":"INTERNAL"})),
-                    true,
-                ),
+                .filter(|name| !name.trim().is_empty())
+                .ok_or((INVALID_PARAMS, "Missing tool name".to_owned()))?;
+            let call = AgentCall {
+                name,
+                payload: params.get("arguments").cloned().unwrap_or(json!({})),
+                idempotency_key: None,
+                via: Via::Mcp,
             };
-            let text = serde_json::to_string_pretty(&body).unwrap_or_else(|_| "null".into());
-            Ok(json!({"content":[{"type":"text", "text":text}], "isError":is_error}))
+            // Everything past this point is a tool result, never a protocol
+            // error: a model can read and act on a result.
+            let reply = dispatch_agent(shared, token, call)
+                .map_err(|error| (SERVER_ERROR, error.message))?;
+            Ok(match reply.result {
+                Ok(value) => tool_result(value, false),
+                Err(error) => tool_result(present::error_body(&error, reply.profile), true),
+            })
         }
         "resources/list" => Ok(
-            json!({"resources":[{"name":"project_summary", "uri":"omenflow://project/summary", "description":"Bounded structured project summary", "mimeType":"application/json"}]}),
+            json!({"resources":[{"name":"project_summary", "uri":SUMMARY_URI, "description":"Bounded structured project summary", "mimeType":"application/json"}]}),
         ),
         "resources/read" => {
             let uri = params["uri"]
                 .as_str()
-                .ok_or((-32602, "Missing URI".into()))?;
-            if uri != "omenflow://project/summary" {
-                return Err((-32602, format!("Unknown resource: {uri}")));
+                .ok_or((INVALID_PARAMS, "Missing URI".to_owned()))?;
+            if uri != SUMMARY_URI {
+                return Err((INVALID_PARAMS, format!("Unknown resource: {uri}")));
             }
-            let body = dispatch_agent(shared, token, "project.summary", json!({}), None)
-                .map_err(|error| (-32000, error.message))?;
+            let call = AgentCall {
+                name: "project_summary",
+                payload: json!({}),
+                idempotency_key: None,
+                via: Via::Mcp,
+            };
+            let body = dispatch_agent(shared, token, call)
+                .and_then(|reply| reply.result)
+                .map_err(|error| (SERVER_ERROR, error.message))?;
             Ok(
-                json!({"contents":[{"uri":uri,"mimeType":"application/json","text":serde_json::to_string_pretty(&body).unwrap_or_default()}]}),
+                json!({"contents":[{"uri":uri,"mimeType":"application/json","text":compact(&body)}]}),
             )
         }
         "resources/templates/list" => Ok(json!({"resourceTemplates":[]})),
-        method => Err((-32601, format!("Method not found: {method}"))),
+        method => Err((METHOD_NOT_FOUND, format!("Method not found: {method}"))),
+    }
+}
+
+const SUMMARY_URI: &str = "omenflow://project/summary";
+
+/// A tool result: the body as compact JSON text for the model, and the same
+/// body as structured content for clients that prefer it.
+fn tool_result(body: Value, is_error: bool) -> Value {
+    // Structured content must be an object.
+    let body = if body.is_object() {
+        body
+    } else {
+        json!({"result": body})
+    };
+    json!({
+        "content": [{"type": "text", "text": compact(&body)}],
+        "structuredContent": body,
+        "isError": is_error,
+    })
+}
+
+fn compact(value: &Value) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "null".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omenflow_contracts::registry;
+
+    #[test]
+    fn results_are_compact_text_and_structured_content() {
+        let result = tool_result(
+            json!({"ready": true, "summary": "Nothing outstanding."}),
+            false,
+        );
+        assert_eq!(
+            result,
+            json!({
+                "content": [{"type": "text", "text": "{\"ready\":true,\"summary\":\"Nothing outstanding.\"}"}],
+                "structuredContent": {"ready": true, "summary": "Nothing outstanding."},
+                "isError": false
+            })
+        );
+        let wrapped = tool_result(json!([1, 2]), true);
+        assert_eq!(wrapped["structuredContent"], json!({"result": [1, 2]}));
+        assert_eq!(wrapped["content"][0]["text"], "{\"result\":[1,2]}");
+        assert_eq!(wrapped["isError"], true);
+    }
+
+    #[test]
+    fn the_summary_resource_reads_a_tool_agents_may_call() {
+        assert!(registry()
+            .resolve("project_summary")
+            .is_some_and(|op| op.agent_allowed));
     }
 }

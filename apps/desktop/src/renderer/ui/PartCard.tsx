@@ -4,28 +4,71 @@ import type { ComponentPayload, Offer } from '@omenflow/contracts';
 import { ExternalLink, webUrl } from './ExternalLink';
 import { State } from './kit';
 
-export function ProductImage({ url, name }: { url?: string | null; name: string }) {
+/**
+ * Where a product image may be loaded from. The application only loads images over https, so an
+ * http address is reported as such rather than shown as a broken image.
+ */
+export function imageSource(url?: string | null): { src: string } | { refused: string } | null {
+  const href = webUrl(url ?? undefined);
+  if (!href) return null;
+  return new URL(href).protocol === 'https:'
+    ? { src: href }
+    : { refused: 'Image not loaded: insecure address' };
+}
+
+/**
+ * A product photo in a box of fixed size. The placeholder holds the space until the image has
+ * loaded, so nothing moves when it arrives; a missing, refused or failed image stays labelled.
+ */
+export function ProductImage({
+  url,
+  name,
+  size = 'card',
+}: {
+  url?: string | null;
+  name: string;
+  size?: 'card' | 'thumb';
+}) {
+  const [loaded, setLoaded] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const src = webUrl(url ?? undefined);
+  const source = imageSource(url);
+  const src = source && 'src' in source && failed !== source.src ? source.src : null;
+  const note = !source
+    ? 'Image not recorded'
+    : 'refused' in source
+      ? source.refused
+      : failed === source.src
+        ? 'Image unavailable'
+        : null;
   return (
-    <div className="part-photo">
-      {src && failed !== src ? (
+    <div
+      className={`part-photo ${size === 'thumb' ? 'part-photo-thumb' : ''} ${src && loaded === src ? 'loaded' : ''}`}
+      title={size === 'thumb' && note ? note : undefined}
+    >
+      <span className="part-photo-placeholder" aria-hidden={!!src}>
+        <ImageSquare size={size === 'thumb' ? 16 : 24} weight="light" aria-hidden="true" />
+        {note &&
+          (size === 'thumb' ? <span className="sr-only">{note}</span> : <small>{note}</small>)}
+      </span>
+      {src && (
         <img
           src={src}
           alt={name}
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(src)}
           onError={() => setFailed(src)}
         />
-      ) : (
-        <span>
-          <ImageSquare size={24} weight="light" />
-          <small>{src ? 'Image unavailable' : 'Image not recorded'}</small>
-        </span>
       )}
     </div>
   );
 }
+
+/** Hosts that cannot be a seller's page: placeholders, local names and bare addresses. */
+const NOT_A_STORE =
+  /(^|\.)(example\.(com|org|net)|localhost)$|\.(test|invalid|example|local|localhost|internal)$/;
+const IP_LITERAL = /^(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\])$/i;
 
 export function purchaseUrl(value?: string): string | null {
   const href = webUrl(value);
@@ -34,10 +77,20 @@ export function purchaseUrl(value?: string): string | null {
   if (
     u.username ||
     u.password ||
-    /(^|\.)(example\.(com|org|net)|localhost)$|\.(test|invalid|example|local)$/.test(u.hostname)
+    NOT_A_STORE.test(u.hostname) ||
+    IP_LITERAL.test(u.hostname) ||
+    !u.hostname.includes('.')
   )
     return null;
   return href;
+}
+
+/** The local calendar date of an observation; the recorded text when it is not a date. */
+export function observedDate(iso: string): string {
+  const t = new Date(iso);
+  return Number.isFinite(t.getTime())
+    ? t.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : iso;
 }
 
 export function OfferDetails({
@@ -72,7 +125,9 @@ export function OfferDetails({
           {new URL(href).hostname.replace(/^www\./, '')}
         </span>
       )}
-      <small className="part-observed">Observed {offer.observedAt.slice(0, 10)}</small>
+      <small className="part-observed">
+        Observed <time dateTime={offer.observedAt}>{observedDate(offer.observedAt)}</time>
+      </small>
     </div>
   );
 }
@@ -105,7 +160,7 @@ export function PartCard({
       <div className="part-content">
         <div className="part-eyebrow">
           <Package size={13} />
-          <span>{payload.manufacturer ?? payload.vendor ?? 'Maker unknown'}</span>
+          <span>{payload.manufacturer || payload.vendor || 'Maker unknown'}</span>
           <State state={payload.status ?? 'candidate'} quiet />
         </div>
         <button type="button" className="part-title cell-link" onClick={onFocus}>

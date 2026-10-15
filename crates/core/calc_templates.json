@@ -59,8 +59,9 @@
       {
         "name": "margin",
         "unit": "1",
-        "required": true,
-        "description": "Dimensionless headroom factor applied to average load (e.g. 1.25)"
+        "required": false,
+        "default": 1,
+        "description": "Dimensionless headroom factor applied to the average load. Give it only when the request states one; left out, 1 (no headroom) is used and recorded as an assumption."
       }
     ],
     "outputUnit": "W",
@@ -92,8 +93,9 @@
       {
         "name": "usable_fraction",
         "unit": "1",
-        "required": true,
-        "description": "Usable fraction of nameplate (0–1), e.g. 0.8 for 80% DoD"
+        "required": false,
+        "default": 1,
+        "description": "Usable fraction of the nameplate capacity (0–1). Give it only when the request states one; left out, 1 (the whole nameplate capacity) is used and recorded as an assumption."
       }
     ],
     "outputUnit": "Wh",

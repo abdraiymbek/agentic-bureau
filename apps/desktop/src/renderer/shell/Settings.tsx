@@ -1,356 +1,668 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowClockwise, X, Cube, TerminalWindow } from '@phosphor-icons/react';
-import type { AdapterStatus } from '@omenflow/contracts';
-import { cmd, errMsg } from '../api';
+import { ArrowClockwise, Cube, FolderOpen, TerminalWindow, X } from '@phosphor-icons/react';
+import type { AdapterStatus, ProfileSetting } from '@omenflow/contracts';
 import { preferredAdapter, useStore } from '../store';
-import { startAgent } from '../lib/actions';
-import { Button, Disclosure, Field, IconButton, Mark, Segmented, State } from '../ui/kit';
+import { restartAgent, startAgent } from '../lib/actions';
+import {
+  Button,
+  Disclosure,
+  Field,
+  IconButton,
+  Mark,
+  Notice,
+  Segmented,
+  Skeleton,
+  Spinner,
+  State,
+} from '../ui/kit';
+import { ExternalLink } from '../ui/ExternalLink';
+import {
+  adapterRowView,
+  argsHint,
+  needsRestart,
+  openscadProbe,
+  parseArgs,
+  parseEnv,
+  PROFILE_CHOICES,
+  resolvedProfileText,
+  testSteps,
+  type TestStep,
+  type ToolProbe,
+} from './agent/adapter-view';
+import { SETTINGS_SECTIONS, useAgentUi, type SettingsSection } from './agent/agent-store';
+import { detectAgents } from './agent/feed';
+import { errorText, quiet } from './agent/quiet';
+import { adapterLabel, profileLabel, sessionStatus } from './agent/session-view';
 
 /** Agents, engineering tools, and appearance. One sheet, never a destination. */
 export function Settings() {
   const open = useStore((s) => s.settingsOpen);
   const set = useStore((s) => s.set);
+  const section = useAgentUi((s) => s.settingsSection);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+  const choose = (next: SettingsSection) => useAgentUi.getState().setSettingsSection(next);
   return (
     <Dialog.Root open={open} onOpenChange={(v) => set({ settingsOpen: v })}>
       <Dialog.Portal>
-        <Dialog.Overlay className="overlay" />
-        <Dialog.Content className="sheet" aria-describedby={undefined}>
+        <Dialog.Overlay className="overlay motion-fade" />
+        <Dialog.Content className="sheet motion-sheet" aria-describedby={undefined}>
           <header className="sheet-head">
             <Dialog.Title>Settings</Dialog.Title>
             <Dialog.Close asChild>
-              <IconButton label="Close settings">
+              <IconButton label="Close settings (esc)">
                 <X size={15} />
               </IconButton>
             </Dialog.Close>
           </header>
-          {open && <SettingsBody />}
+          <div className="sheet-tabs" role="tablist" aria-label="Settings sections">
+            {SETTINGS_SECTIONS.map((s, i) => (
+              <button
+                key={s.id}
+                ref={(el) => {
+                  tabs.current[i] = el;
+                }}
+                type="button"
+                role="tab"
+                id={`settings-tab-${s.id}`}
+                aria-selected={section === s.id}
+                aria-controls="settings-panel"
+                tabIndex={section === s.id ? 0 : -1}
+                onClick={() => choose(s.id)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                  e.preventDefault();
+                  const n = SETTINGS_SECTIONS.length;
+                  const next = (i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n;
+                  choose(SETTINGS_SECTIONS[next]!.id);
+                  tabs.current[next]?.focus();
+                }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {open && (
+            <div
+              className="sheet-body"
+              role="tabpanel"
+              id="settings-panel"
+              aria-labelledby={`settings-tab-${section}`}
+            >
+              {section === 'agents' && <AgentsSection />}
+              {section === 'tools' && <ToolsSection />}
+              {section === 'appearance' && <AppearanceSection />}
+              <footer className="sheet-foot">
+                <Mark size={14} />
+                <span>Omen Flow · local by design. Your record lives in the project folder.</span>
+              </footer>
+            </div>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
   );
 }
 
-function SettingsBody() {
+/* ------------------------------------------------------------------ */
+/* Agents                                                               */
+/* ------------------------------------------------------------------ */
+
+function AgentsSection() {
   const adapters = useStore((s) => s.adapters);
   const session = useStore((s) => s.session);
-  const theme = useStore((s) => s.theme);
   const agentId = useStore((s) => s.agentId);
-  const projectId = useStore((s) => s.projectId);
-  const { set, setAgent, toast, refreshAdapters } = useStore.getState();
-  const [testing, setTesting] = useState<string | null>(null);
-  const [results, setResults] = useState<
-    Record<string, { ok: boolean; error?: string; detail?: string }>
-  >({});
-  const [custom, setCustom] = useState({ path: '', args: '', env: '' });
-  const [customOpen, setCustomOpen] = useState(false);
-  const [scadPath, setScadPath] = useState('');
-  const [doctor, setDoctor] = useState<Record<string, unknown> | null>(null);
-  const [doctorOpen, setDoctorOpen] = useState(false);
+  const setAgent = useStore((s) => s.setAgent);
+  const detection = useAgentUi((s) => s.detection);
+  const chosen = preferredAdapter(adapters, agentId);
+  const status = sessionStatus(session);
+  const running = status.live || session?.state === 'starting' ? session : null;
 
   useEffect(() => {
-    void cmd<{ value: unknown }>('settings.get', { key: 'toolPaths.openscad' })
-      .then((r) => setScadPath(typeof r.value === 'string' ? r.value : ''))
-      .catch(() => {});
-    void refreshAdapters().catch(() => {});
-    void cmd<{ results: Record<string, unknown> }>('tool.doctor', {})
-      .then((r) => setDoctor(r.results))
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void detectAgents();
   }, []);
 
-  const test = async (adapterId: string) => {
-    setTesting(adapterId);
-    try {
-      const r = await cmd<{ ok: boolean; error?: string; detail?: string }>('connection.test', {
-        adapterId,
-      });
-      setResults((s) => ({ ...s, [adapterId]: r }));
-    } catch (e) {
-      setResults((s) => ({ ...s, [adapterId]: { ok: false, error: errMsg(e) } }));
-    } finally {
-      setTesting(null);
-      void refreshAdapters().catch(() => {});
-    }
-  };
-
-  const saveCustom = async () => {
-    try {
-      await cmd('connection.configure', {
-        adapterId: 'custom',
-        executablePath: custom.path,
-        args: custom.args ? custom.args.split(' ').filter(Boolean) : undefined,
-        env: custom.env
-          ? Object.fromEntries(
-              custom.env
-                .split('\n')
-                .filter((l) => l.includes('='))
-                .map((l) => {
-                  const at = l.indexOf('=');
-                  return [l.slice(0, at).trim(), l.slice(at + 1)] as [string, string];
-                }),
-            )
-          : undefined,
-      });
-      toast('ok', 'Custom agent saved');
-      void refreshAdapters();
-    } catch (e) {
-      toast('error', errMsg(e));
-    }
-  };
-
-  const saveScad = async () => {
-    try {
-      await cmd('settings.set', { key: 'toolPaths.openscad', value: scadPath.trim() });
-      toast('ok', 'OpenSCAD path saved. It is checked on the next render.');
-    } catch (e) {
-      toast('error', errMsg(e));
-    }
-  };
-
-  const chosen = preferredAdapter(adapters, agentId);
-  const runningAdapter =
-    session && (session.state === 'running' || session.state === 'starting')
-      ? session.adapterId
-      : null;
-  const runningLabel =
-    adapters.find((a) => a.adapterId === runningAdapter)?.label ?? runningAdapter;
-  const restartWith = async (adapterId: string) => {
-    try {
-      await startAgent(adapterId);
-    } catch (e) {
-      toast('error', errMsg(e));
-    }
-  };
-
   return (
-    <div className="sheet-body">
-      <section className="sheet-section">
-        <div className="sheet-section-head">
-          <h3>Agents</h3>
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<ArrowClockwise size={13} />}
-            onClick={() => void refreshAdapters().catch((e) => toast('error', errMsg(e)))}
-          >
-            Detect again
-          </Button>
+    <section className="sheet-section">
+      <div className="sheet-section-head">
+        <h3>Agents</h3>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<ArrowClockwise size={13} />}
+          busy={detection.status === 'detecting'}
+          onClick={() => void detectAgents()}
+        >
+          Detect again
+        </Button>
+      </div>
+      <p className="sheet-lede">
+        Bring the agent CLI you already use. The chosen agent runs in the Agent tab in this
+        project’s folder; its structured changes arrive as proposals for you to decide.
+      </p>
+      {detection.status === 'failed' && (
+        <Notice tone="err" role="alert">
+          Could not check for agent CLIs: {detection.error}
+        </Notice>
+      )}
+      {!adapters.length && detection.status === 'detecting' && (
+        <div className="adapter-list adapter-loading" role="status">
+          <span className="row">
+            <Spinner /> Looking for agent CLIs…
+          </span>
+          <Skeleton lines={3} />
         </div>
-        <p className="sheet-lede">
-          Bring the agent CLI you already use. The chosen agent runs in the Agent tab in this
-          project’s folder; its structured changes arrive as proposals for you to decide.
-        </p>
+      )}
+      {adapters.length > 0 && (
         <div className="adapter-list" role="radiogroup" aria-label="Agent">
           {adapters.map((a) => (
             <AdapterRow
               key={a.adapterId}
-              a={a}
+              adapter={a}
               checked={chosen?.adapterId === a.adapterId}
               onChoose={() => setAgent(a.adapterId)}
-              testing={testing === a.adapterId}
-              result={results[a.adapterId]}
-              testDisabled={!projectId || useStore.getState().readOnly}
-              onTest={() => void test(a.adapterId)}
             />
           ))}
-          {!adapters.length && <p className="dim">Detecting installed agents…</p>}
         </div>
-        {runningAdapter && chosen && runningAdapter !== chosen.adapterId && (
-          <p className="sheet-note">
-            <TerminalWindow size={13} />
-            <span className="grow">
-              {runningLabel} is running now. {chosen.label} starts the next time the agent starts.
-            </span>
-            <Button
-              size="sm"
-              disabled={!chosen.available}
-              onClick={() => void restartWith(chosen.adapterId)}
-            >
-              Restart with {chosen.label}
-            </Button>
-          </p>
-        )}
-        <Disclosure
-          label="Custom agent"
-          open={customOpen}
-          onToggle={() => setCustomOpen((v) => !v)}
-        >
-          <div className="stack">
-            <Field label="Executable path">
-              <input
-                value={custom.path}
-                onChange={(e) => setCustom((s) => ({ ...s, path: e.target.value }))}
-                placeholder="/usr/local/bin/my-agent"
-              />
-            </Field>
-            <Field label="Arguments">
-              <input
-                value={custom.args}
-                onChange={(e) => setCustom((s) => ({ ...s, args: e.target.value }))}
-                placeholder="--flag value"
-              />
-            </Field>
-            <Field label="Environment" hint="KEY=VALUE, one per line.">
-              <textarea
-                rows={3}
-                value={custom.env}
-                onChange={(e) => setCustom((s) => ({ ...s, env: e.target.value }))}
-              />
-            </Field>
-            <div>
-              <Button onClick={() => void saveCustom()} disabled={!custom.path.trim()}>
-                Save custom agent
-              </Button>
-            </div>
-          </div>
-        </Disclosure>
-        <p className="sheet-note">
-          <TerminalWindow size={13} />
-          {session
-            ? `${session.adapterId} session: ${session.state}`
-            : 'No agent session in this project'}
-        </p>
-      </section>
+      )}
+      {running && chosen && running.adapterId !== chosen.adapterId && (
+        <RestartNote
+          text={`${adapterLabel(adapters, running.adapterId)} is running now. ${chosen.label} starts the next time the agent starts.`}
+          action={`Restart with ${chosen.label}`}
+          disabled={!chosen.available}
+          adapterId={chosen.adapterId}
+        />
+      )}
+      <p className="sheet-note">
+        <TerminalWindow size={13} />
+        {session
+          ? `${adapterLabel(adapters, session.adapterId)} · ${status.word}${
+              profileLabel(session.profile, session.profileSource)
+                ? ` · ${profileLabel(session.profile, session.profileSource)}`
+                : ''
+            }`
+          : 'No agent session in this project'}
+      </p>
+    </section>
+  );
+}
 
-      <section className="sheet-section">
-        <div className="sheet-section-head">
-          <h3>Engineering tools</h3>
-        </div>
-        <div className="tool-row">
-          <span className="tool-icon">
-            <Cube size={18} />
-          </span>
-          <div className="grow">
-            <strong>OpenSCAD</strong>
-            <small>
-              Parametric source and STL rendering. Not bundled; uses your installed copy.
-            </small>
-          </div>
-        </div>
-        <Field label="OpenSCAD executable" hint="Leave empty to use the detected copy.">
-          <input
-            value={scadPath}
-            onChange={(e) => setScadPath(e.target.value)}
-            placeholder="/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD"
-          />
-        </Field>
-        <div className="row">
-          <Button onClick={() => void saveScad()}>Save path</Button>
-          <Button
-            variant="ghost"
-            onClick={async () => {
-              const path = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
-              if (path) setScadPath(path);
-            }}
-          >
-            Browse…
-          </Button>
-        </div>
-        {doctor && (
-          <Disclosure
-            label="Diagnostics"
-            open={doctorOpen}
-            onToggle={() => setDoctorOpen((v) => !v)}
-          >
-            <pre className="code-block">{JSON.stringify(doctor, null, 2)}</pre>
-          </Disclosure>
-        )}
-      </section>
-
-      <section className="sheet-section">
-        <div className="sheet-section-head">
-          <h3>Appearance</h3>
-        </div>
-        <div className="setting-row">
-          <div>
-            <strong>Theme</strong>
-            <small>Graphite for long sessions, Paper for bright rooms.</small>
-          </div>
-          <Segmented
-            label="Theme"
-            value={theme}
-            onChange={(v) => set({ theme: v })}
-            options={[
-              { value: 'dark', label: 'Graphite' },
-              { value: 'light', label: 'Paper' },
-            ]}
-          />
-        </div>
-      </section>
-
-      <footer className="sheet-foot">
-        <Mark size={14} />
-        <span>Omen Flow · local by design. Your record lives in the project folder.</span>
-      </footer>
+function RestartNote({
+  text,
+  action,
+  disabled,
+  adapterId,
+}: {
+  text: string;
+  action: string;
+  disabled?: boolean;
+  adapterId?: string;
+}) {
+  const start = useAgentUi((s) => s.start);
+  const [error, setError] = useState<string | null>(null);
+  const restart = async () => {
+    setError(null);
+    try {
+      if (adapterId) await startAgent(adapterId);
+      else await restartAgent();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="sheet-note restart-note" role="status">
+      <TerminalWindow size={13} />
+      <span className="grow">{text}</span>
+      <Button
+        size="sm"
+        disabled={disabled}
+        busy={start.status === 'starting'}
+        onClick={() => void restart()}
+      >
+        {action}
+      </Button>
+      {error && <span className="adapter-note tone-err">{error}</span>}
     </div>
   );
 }
 
-function AdapterRow(props: {
-  a: AdapterStatus;
+/** Select value for "another model id"; not a value any CLI accepts as a model. */
+const OTHER_MODEL = '\u0000other';
+
+function AdapterRow({
+  adapter,
+  checked,
+  onChoose,
+}: {
+  adapter: AdapterStatus;
   checked: boolean;
   onChoose: () => void;
-  testing: boolean;
-  result?: { ok: boolean; error?: string; detail?: string };
-  testDisabled: boolean;
-  onTest: () => void;
 }) {
-  const { a, result } = props;
-  const state = result ? (result.ok ? 'working' : 'failed') : a.available ? 'detected' : 'missing';
+  const v = adapterRowView(adapter);
+  const session = useStore((s) => s.session);
+  const projectId = useStore((s) => s.projectId);
+  const readOnly = useStore((s) => s.readOnly);
+  const [open, setOpen] = useState(checked);
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState<{ ok: boolean; steps: TestStep[] } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedChange, setSavedChange] = useState(false);
+  const knowsProfiles = v.profile !== null;
+  const listed = v.models.some((m) => m.id === v.model);
+  const [model, setModel] = useState<string>(
+    v.model === null ? '' : listed ? v.model : OTHER_MODEL,
+  );
+  const [customModel, setCustomModel] = useState(v.model !== null && !listed ? v.model : '');
+  const [profile, setProfile] = useState<ProfileSetting>(v.profile ?? 'auto');
+  const [path, setPath] = useState('');
+  const [args, setArgs] = useState('');
+  const [env, setEnv] = useState('');
+  const custom = v.id === 'custom';
+
+  const draftModel = model === OTHER_MODEL ? customModel.trim() || null : model || null;
+  const parsedArgs = args.trim() ? parseArgs(args) : [];
+  const parsedEnv = env.trim() ? parseEnv(env) : { env: {} };
+  const invalid =
+    parsedArgs === null
+      ? 'An argument has an unclosed quote.'
+      : 'error' in parsedEnv
+        ? parsedEnv.error
+        : custom && !path.trim() && !v.path
+          ? 'A custom agent needs an executable path.'
+          : null;
+  const dirty =
+    (knowsProfiles && (draftModel !== v.model || profile !== (v.profile ?? 'auto'))) ||
+    !!path.trim() ||
+    !!args.trim() ||
+    !!env.trim();
+
+  const save = async () => {
+    if (invalid) return;
+    setSaving(true);
+    setSaveError(null);
+    const r = await quiet('connection.configure', {
+      adapterId: v.id,
+      ...(knowsProfiles ? { model: draftModel, profile } : {}),
+      ...(path.trim() ? { executablePath: path.trim() } : {}),
+      ...(args.trim() && parsedArgs ? { args: parsedArgs } : {}),
+      ...(env.trim() && 'env' in parsedEnv ? { env: parsedEnv.env } : {}),
+    });
+    setSaving(false);
+    if (!r.ok) {
+      setSaveError(errorText(r.error));
+      return;
+    }
+    setPath('');
+    setArgs('');
+    setEnv('');
+    await detectAgents();
+    setSavedChange(true);
+  };
+
+  const runTest = async () => {
+    setTesting(true);
+    const r = await quiet(
+      'connection.test',
+      { adapterId: v.id },
+      { projectId: projectId ?? undefined },
+    );
+    setTest(
+      r.ok
+        ? testSteps(r.result)
+        : {
+            ok: false,
+            steps: [{ label: 'Connection test', ok: false, detail: errorText(r.error) }],
+          },
+    );
+    setTesting(false);
+    void detectAgents();
+  };
+
+  const restart =
+    savedChange &&
+    needsRestart(session, v.id, { model: v.model, resolvedProfile: adapter.resolvedProfile });
+
   return (
-    <label className="adapter-row">
-      <div className="adapter-main">
+    <div className={`adapter-row ${checked ? 'chosen' : ''}`}>
+      <label className="adapter-main">
         <input
           type="radio"
           name="agent"
-          checked={props.checked}
-          onChange={props.onChoose}
-          aria-label={`Use ${a.label}`}
+          checked={checked}
+          onChange={onChoose}
+          aria-label={`Use ${v.label}`}
         />
         <div className="grow">
-          <strong>{a.label}</strong>
+          <strong>{v.label}</strong>
           <small>
-            {a.available
-              ? a.version
-                ? `Version ${a.version}`
-                : 'Detected on this device'
-              : (a.installHint ?? 'Not installed on this device')}
+            {v.available
+              ? v.version
+                ? `Version ${v.version}`
+                : 'Detected on this machine'
+              : (v.installHint ?? 'Not installed on this machine')}
           </small>
         </div>
         <State
-          state={state}
-          tone={state === 'working' ? 'ok' : state === 'failed' ? 'err' : 'neutral'}
-          label={
-            state === 'working'
-              ? 'Working'
-              : state === 'failed'
-                ? 'Test failed'
-                : state === 'detected'
-                  ? 'Detected'
-                  : 'Not detected'
-          }
+          state={v.available ? 'current' : 'not_run'}
+          tone={v.availability.tone}
+          label={v.availability.word}
         />
-        <Button
-          size="sm"
-          disabled={!a.available || props.testing || props.testDisabled}
-          title={props.testDisabled ? 'Open a writable project to test the bridge' : undefined}
-          onClick={props.onTest}
-        >
-          {props.testing ? 'Testing…' : 'Test'}
-        </Button>
+      </label>
+      <div className="adapter-facts">
+        {v.verification && (
+          <span className={`adapter-verified ${v.verification.verified ? 'yes' : ''}`}>
+            {v.verification.word}
+          </span>
+        )}
+        {knowsProfiles && (
+          <span>
+            {resolvedProfileText(adapter, { model: v.model, profile: v.profile ?? 'auto' })}
+          </span>
+        )}
+        {v.lastTest && (
+          <span className={v.lastTest.ok ? 'tone-ok' : 'tone-err'}>
+            Last test {v.lastTest.ok ? 'passed' : 'failed'}
+          </span>
+        )}
+        {v.docsUrl && <ExternalLink url={v.docsUrl}>Docs</ExternalLink>}
       </div>
-      {a.available && a.recognizedVersion === false && (
-        <p className="adapter-note tone-warn">This version hasn’t been tested with Omen Flow.</p>
+      {v.path && <p className="adapter-path mono">{v.path}</p>}
+      {v.versionUnrecognised && (
+        <p className="adapter-note tone-warn">This version has not been tested with this build.</p>
       )}
-      {a.executablePath && <p className="adapter-path mono">{a.executablePath}</p>}
-      {a.lastError && <p className="adapter-note tone-err">{a.lastError}</p>}
-      {result && !result.ok && (
-        <p className="adapter-note tone-err">
-          {result.error} {result.detail}
+      {v.lastError && (
+        // For a CLI that is not installed this is what the search found, not a failure.
+        <p className={`adapter-note ${v.available ? 'tone-err' : ''}`}>{v.lastError}</p>
+      )}
+      <Disclosure label="Configure" open={open} onToggle={() => setOpen((x) => !x)}>
+        <div className="stack adapter-config">
+          {knowsProfiles ? (
+            <>
+              <Field label="Model" hint="Passed to the CLI when a session starts.">
+                <select value={model} onChange={(e) => setModel(e.target.value)}>
+                  <option value="">CLI default</option>
+                  {v.models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} · {m.tier}
+                    </option>
+                  ))}
+                  <option value={OTHER_MODEL}>Another model id…</option>
+                </select>
+              </Field>
+              {model === OTHER_MODEL && (
+                <Field label="Model id" hint="Exactly as the CLI’s model flag expects it.">
+                  <input
+                    className="mono"
+                    value={customModel}
+                    spellCheck={false}
+                    onChange={(e) => setCustomModel(e.target.value)}
+                  />
+                </Field>
+              )}
+              <fieldset className="profile-choice">
+                <legend>Tool profile</legend>
+                {PROFILE_CHOICES.map((c) => (
+                  <label key={c.value} className="profile-option">
+                    <input
+                      type="radio"
+                      name={`profile-${v.id}`}
+                      checked={profile === c.value}
+                      onChange={() => setProfile(c.value)}
+                    />
+                    <span>
+                      <strong>{c.label}</strong>
+                      <small>{c.explain}</small>
+                    </span>
+                  </label>
+                ))}
+                <p className="profile-resolved" role="status">
+                  {resolvedProfileText(adapter, { model: draftModel, profile })}
+                </p>
+                <p className="profile-note">Verification rules are the same in every profile.</p>
+              </fieldset>
+            </>
+          ) : (
+            <p className="adapter-note">This host does not report models or tool profiles.</p>
+          )}
+          <Field
+            label="Executable path"
+            hint={v.path ? `Leave empty to keep ${v.path}.` : 'Where the CLI is installed.'}
+          >
+            <input
+              className="mono"
+              value={path}
+              spellCheck={false}
+              placeholder={v.path ?? '/usr/local/bin/agent'}
+              onChange={(e) => setPath(e.target.value)}
+            />
+          </Field>
+          <div className="row">
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<FolderOpen size={12} />}
+              onClick={async () => {
+                const picked = await window.omenflow.pickFile({ title: `Locate ${v.label}` });
+                if (picked) setPath(picked);
+              }}
+            >
+              Browse…
+            </Button>
+          </div>
+          {custom && (
+            <>
+              <Field label="Arguments" hint={argsHint(v)}>
+                <input
+                  className="mono"
+                  value={args}
+                  spellCheck={false}
+                  placeholder={v.savedArgs || undefined}
+                  onChange={(e) => setArgs(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Environment"
+                hint="KEY=VALUE, one per line. Saved values are not shown again."
+              >
+                <textarea
+                  className="mono"
+                  rows={3}
+                  value={env}
+                  spellCheck={false}
+                  onChange={(e) => setEnv(e.target.value)}
+                />
+              </Field>
+            </>
+          )}
+          {invalid && dirty && <p className="adapter-note tone-err">{invalid}</p>}
+          {saveError && <p className="adapter-note tone-err">{saveError}</p>}
+          <div className="row">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!dirty || !!invalid}
+              busy={saving}
+              onClick={() => void save()}
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              disabled={!v.available || !projectId || readOnly}
+              busy={testing}
+              onClick={() => void runTest()}
+            >
+              Test connection
+            </Button>
+            {(!projectId || readOnly) && (
+              <span className="adapter-note">Open a writable project to test.</span>
+            )}
+          </div>
+          {test && (
+            <ol className="test-steps" aria-label="Connection test">
+              {test.steps.map((step, i) => (
+                <li key={i}>
+                  <State
+                    state={step.ok === null ? 'not_run' : step.ok ? 'passed' : 'failed'}
+                    label={step.label}
+                    tone={step.ok === null ? 'neutral' : step.ok ? 'ok' : 'err'}
+                  />
+                  {step.detail && <span className="test-detail">{step.detail}</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+          {restart && (
+            <RestartNote
+              text={`The running session started with the previous settings.`}
+              action="Restart to apply"
+            />
+          )}
+        </div>
+      </Disclosure>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Engineering tools                                                    */
+/* ------------------------------------------------------------------ */
+
+function ToolsSection() {
+  const toast = useStore((s) => s.toast);
+  const [scadPath, setScadPath] = useState('');
+  const [probe, setProbe] = useState<ToolProbe | null>(null);
+  const [raw, setRaw] = useState<unknown>(null);
+  const [checking, setChecking] = useState(true);
+  const [rawOpen, setRawOpen] = useState(false);
+
+  const check = async () => {
+    setChecking(true);
+    const r = await quiet<{ results: Record<string, unknown> }>('tool.doctor', {});
+    setChecking(false);
+    if (r.ok) {
+      setRaw(r.result.results);
+      setProbe(openscadProbe(r.result.results));
+    } else setRaw({ error: errorText(r.error) });
+  };
+
+  useEffect(() => {
+    void quiet<{ value: unknown }>('settings.get', { key: 'toolPaths.openscad' }).then((r) => {
+      if (r.ok) setScadPath(typeof r.result.value === 'string' ? r.result.value : '');
+    });
+    void check();
+  }, []);
+
+  const save = async () => {
+    const r = await quiet('settings.set', { key: 'toolPaths.openscad', value: scadPath.trim() });
+    if (!r.ok) {
+      toast('error', errorText(r.error));
+      return;
+    }
+    await check();
+  };
+
+  return (
+    <section className="sheet-section">
+      <div className="sheet-section-head">
+        <h3>Engineering tools</h3>
+      </div>
+      <div className="tool-row">
+        <span className="tool-icon">
+          <Cube size={18} />
+        </span>
+        <div className="grow">
+          <strong>OpenSCAD</strong>
+          <small>Parametric source and STL rendering. Not bundled; uses your installed copy.</small>
+        </div>
+        {checking ? (
+          <Spinner />
+        ) : probe ? (
+          <State
+            state={probe.available ? 'current' : 'failed'}
+            tone={probe.available ? 'ok' : 'err'}
+            label={probe.available ? 'Working' : 'Not working'}
+          />
+        ) : (
+          <State state="not_run" tone="neutral" label="Not checked" />
+        )}
+      </div>
+      {probe && !checking && (
+        <p className="adapter-note">
+          {probe.available
+            ? `Rendered a test part${probe.version ? ` with version ${probe.version}` : ''}.`
+            : (probe.error ?? 'The probe did not render a test part.')}
+          {probe.path && <span className="adapter-path mono"> {probe.path}</span>}
         </p>
       )}
-      {result?.ok && result.detail && <p className="adapter-note">{result.detail}</p>}
-    </label>
+      <Field
+        label="OpenSCAD executable"
+        hint="Leave empty to use the detected copy. On macOS, choose the program inside the app."
+      >
+        <input
+          className="mono"
+          value={scadPath}
+          spellCheck={false}
+          onChange={(e) => setScadPath(e.target.value)}
+          placeholder="/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD"
+        />
+      </Field>
+      <div className="row">
+        <Button onClick={() => void save()} busy={checking}>
+          Save and check
+        </Button>
+        <Button
+          variant="ghost"
+          icon={<FolderOpen size={13} />}
+          onClick={async () => {
+            const path = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
+            if (path) setScadPath(path);
+          }}
+        >
+          Browse…
+        </Button>
+      </div>
+      {raw !== null && (
+        <Disclosure
+          label="Diagnostics as reported"
+          open={rawOpen}
+          onToggle={() => setRawOpen((v) => !v)}
+        >
+          <pre className="code-block">{JSON.stringify(raw, null, 2)}</pre>
+        </Disclosure>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Appearance                                                           */
+/* ------------------------------------------------------------------ */
+
+function AppearanceSection() {
+  const theme = useStore((s) => s.theme);
+  const set = useStore((s) => s.set);
+  return (
+    <section className="sheet-section">
+      <div className="sheet-section-head">
+        <h3>Appearance</h3>
+      </div>
+      <div className="setting-row">
+        <div>
+          <strong>Theme</strong>
+          <small>Graphite for long sessions, Paper for bright rooms.</small>
+        </div>
+        <Segmented
+          label="Theme"
+          value={theme}
+          onChange={(v) => set({ theme: v })}
+          options={[
+            { value: 'dark', label: 'Graphite' },
+            { value: 'light', label: 'Paper' },
+          ]}
+        />
+      </div>
+    </section>
   );
 }

@@ -27,6 +27,4 @@ export const originSchema = z.discriminatedUnion('kind', [
 ]);
 export type Origin = z.infer<typeof originSchema>;
 
-export function originLabel(origin: Origin): string {
-  return origin.kind === 'agent' ? `agent:${origin.sessionId.slice(0, 8)}` : origin.kind;
-}
+export { originLabel } from './format.js';

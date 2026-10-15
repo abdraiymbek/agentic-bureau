@@ -1,0 +1,989 @@
+/* Object level: the three-part grid, rails and stage shell (shared with Decide), then stages. */
+.object-view,
+.decide {
+  display: grid;
+  grid-template-columns: var(--rail-in, var(--rail)) minmax(0, 1fr) var(--rail-out, var(--rail));
+  gap: 0;
+  padding: 0 0 var(--s-2);
+}
+/* A folded rail keeps a strip at its edge with the button that unfolds it. */
+.object-view:has(> .rail-up.folded) {
+  --rail-in: var(--rail-folded);
+}
+.object-view:has(> .rail-down.folded) {
+  --rail-out: var(--rail-folded);
+}
+.focus-missing {
+  display: flex;
+}
+.rail {
+  position: relative;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-4) var(--s-4) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+.rail-fold {
+  position: absolute;
+  top: var(--s-3);
+  z-index: var(--z-raised);
+  color: var(--text-3);
+}
+.rail-up .rail-fold {
+  right: var(--s-2);
+}
+.rail-down .rail-fold {
+  left: var(--s-2);
+}
+.rail.folded {
+  overflow: hidden;
+  padding: 0;
+}
+.rail.folded .rail-fold {
+  left: 50%;
+  right: auto;
+  translate: -50% 0;
+}
+/* Headings give way to the fold button on the stage side. */
+.rail-up:has(> .rail-fold) > :first-of-type h2,
+.rail-up:has(> .rail-fold) > section:first-of-type > h2 {
+  padding-right: var(--s-8);
+}
+.rail-down:has(> .rail-fold) > section:first-of-type > h2 {
+  padding-left: var(--s-8);
+}
+.rail h2 {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-3);
+  margin-bottom: var(--s-2);
+  padding: 0 var(--s-2);
+}
+.rail-empty,
+.rail-note {
+  padding: 0 var(--s-2);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.links ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+}
+.links li {
+  position: relative;
+}
+/* Connectors: every link leads toward the stage. */
+.links-up li::after,
+.links-down li::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: var(--s-4);
+  height: 1px;
+  background: var(--line-strong);
+}
+.links-up li::after {
+  right: calc(-1 * var(--s-4));
+}
+.links-down li::before {
+  left: calc(-1 * var(--s-4));
+}
+.link-node {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px var(--s-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+  border: 1px solid transparent;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.link-node .type-glyph {
+  color: var(--text-3);
+  flex: none;
+}
+.link-node:hover:not(:disabled) {
+  background: var(--raised);
+  border-color: var(--line);
+}
+.link-node:hover:not(:disabled) .type-glyph {
+  color: var(--signal-text);
+}
+.link-node:disabled {
+  opacity: var(--disabled-opacity);
+}
+.link-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.link-title {
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-copy small {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+}
+.record .facts {
+  padding: 0 var(--s-2);
+  font-size: var(--text-xs);
+  grid-template-columns: 72px 1fr;
+}
+.rail-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: var(--s-3) var(--s-2) 0;
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.rail-action:hover {
+  color: var(--text);
+}
+.link-state {
+  color: var(--text-2);
+}
+/* The revisions rail is the revision picker: one row per revision, one of them on screen. */
+.history ol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rev-follow,
+.rev-row {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  padding: 6px var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-size: var(--text-xs);
+  text-align: left;
+  align-items: start;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+}
+.rev-follow {
+  grid-template-columns: 1fr;
+  gap: 1px;
+  margin-bottom: var(--s-2);
+  color: var(--text-2);
+}
+.rev-follow small {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+}
+.rev-row {
+  grid-template-columns: 26px 1fr;
+}
+.rev-follow:hover,
+.rev-row:hover {
+  background: var(--raised);
+  border-color: var(--line);
+}
+.rev-follow[aria-pressed='true'],
+.rev-row[aria-current='true'] {
+  background: var(--raised);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.history-seq {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+.rev-row.baseline .history-seq,
+.rev-row[aria-current='true'] .history-seq {
+  color: var(--text);
+}
+.history-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.history-copy small {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+}
+.rev-shown {
+  color: var(--signal-text);
+}
+.rev-rationale {
+  color: var(--text-2);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.rev-row[aria-current='true'] .rev-rationale {
+  -webkit-line-clamp: unset;
+}
+
+.focus-stage,
+.decide-stage {
+  min-height: 0;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.focus-scroll,
+.decide-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-6) var(--s-8) var(--s-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.stage-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stage-kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.stage-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+.stage-title-row h1,
+.decide-head h1 {
+  flex: 1;
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+.stage-states {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stage-rev {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  margin-left: 4px;
+}
+.stale-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.impact-path {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.impact-path button {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--line-control);
+  text-underline-offset: 3px;
+}
+.impact-self {
+  color: var(--text-3);
+}
+
+/* ---------------- stages ---------------- */
+/* A stage and the banner above it share one column, so their edges line up. */
+.stage-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.stage-doc > .notice {
+  max-width: 760px;
+}
+.stage-calc > .notice {
+  max-width: 820px;
+}
+.doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 760px;
+}
+.doc.wide {
+  max-width: none;
+}
+.doc-lede {
+  color: var(--text-2);
+  font-size: var(--text-lg);
+}
+.doc-statement textarea {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--text-xl);
+  line-height: 1.45;
+  letter-spacing: var(--tracking-tight);
+  resize: none;
+  min-height: 0;
+  field-sizing: content;
+}
+.doc-statement textarea:focus {
+  box-shadow: none;
+}
+/* No border to light up, so focus shows as a bar beside the statement. */
+.doc-statement textarea:focus-visible {
+  border-radius: 0;
+  box-shadow:
+    calc(-1 * var(--s-3)) 0 0 var(--surface),
+    calc(-1 * var(--s-3) - 2px) 0 0 var(--focus);
+}
+.doc-statement textarea:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--raised) 60%, transparent);
+}
+.target,
+.spec-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-8);
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.target-value,
+.target-priority,
+.spec-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.target-label {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.spec-head strong {
+  font-weight: 500;
+}
+/* Editable fields share the stage rhythm; where they cannot be edited they stay legible. */
+fieldset.stage-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+fieldset.stage-fields:disabled input:not([type='checkbox'], [type='radio']),
+fieldset.stage-fields:disabled select,
+fieldset.stage-fields:disabled textarea {
+  opacity: 1;
+  color: var(--text);
+}
+fieldset.stage-fields:disabled .doc-statement textarea:hover {
+  background: transparent;
+}
+.target .field {
+  width: 220px;
+}
+.target .quantity input.quantity-value {
+  font-size: var(--text-xl);
+  min-height: 42px;
+}
+.target-band {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+}
+.target-band input:not([type='checkbox']) {
+  width: 72px;
+  min-height: var(--control-sm);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.target-value > .field:last-child {
+  width: min(320px, 100%);
+}
+.save-bar {
+  position: sticky;
+  bottom: calc(-1 * var(--s-8));
+  margin: 0 calc(-1 * var(--s-3));
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  z-index: var(--z-sticky);
+  transition:
+    background var(--t) var(--ease),
+    box-shadow var(--t) var(--ease);
+}
+.save-bar.dirty {
+  background: var(--raised);
+  box-shadow: var(--shadow-float);
+}
+.save-bar-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+.save-bar-state {
+  color: var(--text-3);
+}
+.save-bar.dirty .save-bar-state {
+  color: var(--text);
+  font-weight: 500;
+}
+.save-bar-note {
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.save-bar-error {
+  color: var(--err);
+  line-height: 1.45;
+}
+.save-bar .btn {
+  flex: none;
+}
+/* What moved underneath unsaved edits, and the choice that settles it. */
+.underneath {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.underneath-changes {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.underneath-changes li {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.7fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: var(--s-3);
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.underneath-field {
+  color: var(--text);
+}
+.underneath-actions,
+.banner-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.underneath-actions {
+  font-size: var(--text-xs);
+}
+.banner-actions {
+  flex: none;
+  align-self: center;
+}
+.banner-error {
+  color: var(--err);
+}
+.stage-toolbar-note {
+  align-self: center;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.impact-list {
+  display: flex;
+  flex-direction: column;
+}
+.impact-list li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.impact-list button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+}
+.impact-list button:hover {
+  text-decoration: underline;
+}
+
+.calc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 820px;
+}
+.calc-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-5) 0 var(--s-4);
+  border-bottom: 1px solid var(--line);
+}
+.calc-label {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.calc-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.calc-meta {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.calc-expr {
+  display: block;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.calc-inputs {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.calc-input {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) 16px minmax(120px, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.calc-input:last-child {
+  border-bottom: 0;
+}
+.calc-input.moved {
+  background: var(--warn-soft);
+}
+.calc-name {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.calc-eq {
+  color: var(--text-4);
+  text-align: center;
+}
+.calc-q {
+  font-family: var(--font-mono);
+}
+.calc-src {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
+}
+.calc-src-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.calc-pin {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+}
+.stage-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.stage-actions p {
+  font-size: var(--text-xs);
+  max-width: 440px;
+}
+.stage-toolbar {
+  display: flex;
+  gap: 6px;
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.steps li:last-child {
+  border-bottom: 0;
+}
+.step-n {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.steps li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.steps small {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.results li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.record-result {
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+.findings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--text-sm);
+}
+.findings li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: baseline;
+}
+.findings li .cell-link {
+  flex: none;
+}
+.findings li .cell-link[aria-pressed='true'] {
+  color: var(--signal-text);
+}
+.table tr.marked td {
+  background: var(--warn-soft);
+}
+.table td.nowrap,
+.nowrap {
+  white-space: nowrap;
+}
+.row-flag {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  vertical-align: middle;
+}
+.offers td {
+  vertical-align: top;
+}
+.diagram {
+  padding: var(--s-4);
+  overflow: auto;
+  background: var(--raised);
+}
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+/* A drawing at a stated scale: it scrolls inside its own frame instead of shrinking to fit. */
+.diagram-viewer {
+  margin: 0;
+  border-radius: var(--r-lg);
+  background: var(--raised);
+  box-shadow: var(--shadow-float);
+  overflow: hidden;
+}
+.diagram-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: var(--s-1) var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.diagram-scale {
+  min-width: 48px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.diagram-scale:hover {
+  background: var(--raised-2);
+  color: var(--text);
+}
+.diagram-tools .icon-btn[aria-pressed='true'] {
+  background: var(--raised-2);
+  color: var(--text);
+}
+.diagram-frame {
+  overflow: auto;
+  max-height: min(70vh, 640px);
+  padding: var(--s-4);
+}
+.diagram-frame:focus-visible {
+  outline-offset: -3px;
+}
+.diagram-sheet {
+  margin: 0 auto;
+}
+.diagram-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.excerpt {
+  margin: 0;
+  padding: var(--s-2) 0 var(--s-2) var(--s-5);
+  border-left: 2px solid var(--line-control);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+  color: var(--text);
+  position: relative;
+}
+.excerpt svg {
+  display: block;
+  color: var(--text-4);
+  margin-bottom: 6px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.chip:hover {
+  color: var(--text);
+  border-color: var(--line-control);
+}
+.prose {
+  font-size: var(--text-md);
+  line-height: 1.7;
+  color: var(--text);
+  max-width: 70ch;
+}
+.prose h1,
+.prose h2,
+.prose h3 {
+  font-weight: 500;
+  letter-spacing: var(--tracking-tight);
+  margin: 1.4em 0 0.5em;
+}
+.prose h1 {
+  font-size: var(--text-xl);
+}
+.prose h2 {
+  font-size: var(--text-lg);
+}
+.prose h3 {
+  font-size: var(--text-md);
+}
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 0.9em;
+}
+.prose ul,
+.prose ol {
+  padding-left: 1.3em;
+  list-style: revert;
+}
+.prose code {
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--raised-2);
+}
+.prose pre {
+  padding: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  overflow: auto;
+}
+.prose a {
+  color: var(--text);
+  text-decoration-color: var(--line-control);
+}
+.prose table {
+  border-collapse: collapse;
+  margin: 0 0 1em;
+}
+.prose td,
+.prose th {
+  border: 1px solid var(--line);
+  padding: 5px 9px;
+}
+.prose-editor {
+  min-height: 360px;
+  flex: 1;
+}
+.prose-editor,
+.doc-preview .prose {
+  max-width: none;
+}
+/* Writing and what will be saved, side by side where there is room. */
+.doc-edit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--s-4);
+  align-items: stretch;
+}
+.doc-edit-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.doc-preview {
+  flex: 1;
+  min-height: 360px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+}
+.doc-unsaved {
+  color: var(--warn);
+  font-size: var(--text-xs);
+}
+.prose a[href] {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose img {
+  max-width: 100%;
+}
+.record-result > .footnote {
+  color: var(--text-2);
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --rail: 216px;
+  }
+  .focus-scroll,
+  .decide-scroll {
+    padding-left: var(--s-6);
+    padding-right: var(--s-6);
+  }
+}
+@media (max-width: 1120px) {
+  :root {
+    --rail: 196px;
+  }
+}
+
+/* Immutable artifact file previews share the stage's bounded scroll region. */
+.artifact-image {
+  display: block;
+  max-width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+}
+.artifact-file-text {
+  max-height: 480px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--inset);
+  padding: var(--s-4);
+  border-radius: var(--r-sm);
+}
+
+/* Derived wiring uses the current theme; imported artwork keeps its own colours. */
+.wiring-diagram svg {
+  max-width: none;
+}
+.wiring-diagram svg text {
+  fill: var(--text);
+  font-family: var(--font-mono);
+}
+.wiring-diagram svg rect,
+.wiring-diagram svg path {
+  stroke: var(--text-2);
+}
+.wiring-diagram svg circle {
+  fill: var(--text-2);
+}
+
+.component-product {
+  display: flex;
+  gap: var(--s-6);
+  align-items: center;
+  margin-bottom: var(--s-6);
+}
+.component-product .part-photo {
+  flex-shrink: 0;
+}

@@ -1,8 +1,11 @@
-use crate::{internal, models, now, require_artifact, require_revision, CoreResult};
+use crate::{
+    emit, internal, models, now, record_event, require_artifact, require_revision, txn, CoreResult,
+    Origin,
+};
 use omenflow_contracts::ContractError;
 use omenflow_storage::ProjectHandle;
-use rusqlite::{params, OptionalExtension, Transaction};
-use serde_json::{json, Value};
+use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -15,6 +18,9 @@ pub struct GraphSnapshot {
     pub artifacts: HashMap<String, Value>,
     pub selected: HashMap<String, Value>,
     pub edges: Vec<Value>,
+    /// Artifact ids in creation order, so everything derived from the
+    /// snapshot comes out the same way on every call.
+    order: Vec<String>,
     outgoing: HashMap<String, Vec<usize>>,
     incoming: HashMap<String, Vec<usize>>,
 }
@@ -24,16 +30,16 @@ impl GraphSnapshot {
         let mut graph = Self::default();
         let mut stmt = handle
             .db
-            .prepare("SELECT * FROM artifact")
+            .prepare("SELECT * FROM artifact ORDER BY created_at, rowid")
             .map_err(internal)?;
         for artifact in stmt
             .query_map([], models::artifact_from_row)
             .map_err(internal)?
         {
             let artifact = artifact.map_err(internal)?;
-            graph
-                .artifacts
-                .insert(artifact["id"].as_str().unwrap().to_owned(), artifact);
+            let id = artifact["id"].as_str().unwrap_or_default().to_owned();
+            graph.order.push(id.clone());
+            graph.artifacts.insert(id, artifact);
         }
         let mut stmt = handle.db.prepare("SELECT r.* FROM artifact a JOIN revision r ON r.id=a.selected_revision_id AND r.artifact_id=a.id").map_err(internal)?;
         for revision in stmt
@@ -42,34 +48,39 @@ impl GraphSnapshot {
         {
             let revision = revision.map_err(internal)?;
             graph.selected.insert(
-                revision["artifactId"].as_str().unwrap().to_owned(),
+                revision["artifactId"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_owned(),
                 revision,
             );
         }
         for (id, revision) in overrides {
             graph.selected.insert(id.clone(), revision.clone());
         }
-        let selected = graph
-            .selected
-            .iter()
-            .map(|(id, revision)| (id.clone(), revision.clone()))
-            .collect::<Vec<_>>();
-        for (id, revision) in selected {
-            if let Some(artifact) = graph.artifacts.get(&id) {
-                let artifact = artifact.clone();
+        let mut recorded = Vec::new();
+        for id in &graph.order {
+            if let (Some(artifact), Some(revision)) =
+                (graph.artifacts.get(id), graph.selected.get(id))
+            {
                 for (index, input) in revision["inputs"]
                     .as_array()
                     .into_iter()
                     .flatten()
                     .enumerate()
                 {
-                    graph.add_edge(input_edge(&artifact, &revision, input, index));
+                    recorded.push(input_edge(artifact, revision, input, index));
                 }
             }
         }
+        for edge in recorded {
+            graph.add_edge(edge);
+        }
         let mut stmt = handle
             .db
-            .prepare("SELECT * FROM edge WHERE required_upstream_revision_id IS NULL")
+            .prepare(
+                "SELECT * FROM edge WHERE required_upstream_revision_id IS NULL ORDER BY created_at, id",
+            )
             .map_err(internal)?;
         for edge in stmt
             .query_map([], models::edge_from_row)
@@ -188,7 +199,9 @@ impl GraphSnapshot {
         while let Some(id) = queue.pop_front() {
             let artifact = &self.artifacts[&id];
             let revision = self.selected.get(&id);
-            let mut by_cause = HashMap::<String, Value>::new();
+            // Causes keep the order of the recorded inputs, so the reason shown
+            // first is the same on every evaluation.
+            let mut by_cause = Map::new();
             if !artifact["selectedRevisionId"].is_null() && revision.is_none() {
                 by_cause.insert(id.clone(), json!({"artifactId": id, "upstreamArtifactId": id, "expectedRevisionId": artifact["selectedRevisionId"], "actualRevisionId": null, "path": [id], "reason": "missing_input", "sinceEventSeq": event_seq}));
             }
@@ -214,7 +227,11 @@ impl GraphSnapshot {
                     } else {
                         "input_changed"
                     };
-                    by_cause.insert(upstream_id.to_owned(), json!({"artifactId": id, "upstreamArtifactId": upstream_id, "expectedRevisionId": input["revisionId"], "actualRevisionId": actual, "path": [upstream_id, id], "reason": reason, "sinceEventSeq": event_seq}));
+                    // One upstream can be recorded at several revisions: the
+                    // first outdated one stands unless a later one is missing.
+                    if missing || !by_cause.contains_key(upstream_id) {
+                        by_cause.insert(upstream_id.to_owned(), json!({"artifactId": id, "upstreamArtifactId": upstream_id, "expectedRevisionId": input["revisionId"], "actualRevisionId": actual, "path": [upstream_id, id], "reason": reason, "sinceEventSeq": event_seq}));
+                    }
                 }
                 for cause in findings.get(upstream_id).into_iter().flatten() {
                     let cause_id = cause["upstreamArtifactId"].as_str().unwrap_or("");
@@ -228,7 +245,10 @@ impl GraphSnapshot {
                     }
                 }
             }
-            findings.insert(id.clone(), by_cause.into_values().collect());
+            findings.insert(
+                id.clone(),
+                by_cause.into_iter().map(|(_, cause)| cause).collect(),
+            );
             for &index in self.outgoing.get(&id).into_iter().flatten() {
                 let edge = &self.edges[index];
                 if !evaluating(edge["relationship"].as_str().unwrap_or("")) {
@@ -248,7 +268,7 @@ impl GraphSnapshot {
     }
 }
 
-fn input_edge(artifact: &Value, revision: &Value, input: &Value, index: usize) -> Value {
+pub(crate) fn input_edge(artifact: &Value, revision: &Value, input: &Value, index: usize) -> Value {
     let revision_id = revision["id"].as_str().unwrap_or("");
     let hash = format!(
         "{:x}",
@@ -310,13 +330,11 @@ pub fn validate_revision_inputs(
     graph.assert_no_cycles()
 }
 
-pub fn sync_selected_inputs(
-    tx: &Transaction<'_>,
-    artifact: &Value,
-    revision: &Value,
-) -> CoreResult<()> {
-    let artifact_id = artifact["id"].as_str().unwrap();
-    tx.execute("DELETE FROM edge WHERE downstream_artifact_id=?1 AND required_upstream_revision_id IS NOT NULL", [artifact_id]).map_err(internal)?;
+pub fn sync_selected_inputs(db: &Connection, artifact: &Value, revision: &Value) -> CoreResult<()> {
+    let artifact_id = artifact["id"]
+        .as_str()
+        .ok_or_else(|| ContractError::new("INTERNAL", "Artifact row has no id"))?;
+    db.execute("DELETE FROM edge WHERE downstream_artifact_id=?1 AND required_upstream_revision_id IS NOT NULL", [artifact_id]).map_err(internal)?;
     for (index, input) in revision["inputs"]
         .as_array()
         .into_iter()
@@ -324,75 +342,276 @@ pub fn sync_selected_inputs(
         .enumerate()
     {
         let edge = input_edge(artifact, revision, input, index);
-        tx.execute("INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?1,?2,?3,?4,?5,?6,'system',?7)", params![edge["id"].as_str(), edge["upstreamArtifactId"].as_str(), artifact_id, edge["relationship"].as_str(), edge["requiredUpstreamRevisionId"].as_str(), edge["label"].as_str(), artifact["createdAt"].as_str()]).map_err(internal)?;
+        db.execute("INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?1,?2,?3,?4,?5,?6,'system',?7)", params![edge["id"].as_str(), edge["upstreamArtifactId"].as_str(), artifact_id, edge["relationship"].as_str(), edge["requiredUpstreamRevisionId"].as_str(), edge["label"].as_str(), artifact["createdAt"].as_str()]).map_err(internal)?;
     }
     Ok(())
 }
 
+/// The stale rows recorded for one artifact, oldest first.
+fn stale_rows(db: &Connection, artifact_id: &str) -> CoreResult<Vec<Value>> {
+    let mut stmt = db
+        .prepare(
+            "SELECT upstream_artifact_id,expected_revision_id,actual_revision_id,path,reason,since_event_seq
+             FROM stale WHERE artifact_id=?1 ORDER BY rowid",
+        )
+        .map_err(internal)?;
+    let rows = stmt
+        .query_map([artifact_id], |row| {
+            Ok(json!({
+                "upstreamArtifactId": row.get::<_, String>(0)?,
+                "expectedRevisionId": row.get::<_, Option<String>>(1)?,
+                "actualRevisionId": row.get::<_, Option<String>>(2)?,
+                "path": serde_json::from_str::<Value>(&row.get::<_, String>(3)?).unwrap_or(json!([])),
+                "reason": row.get::<_, String>(4)?,
+                "sinceEventSeq": row.get::<_, i64>(5)?,
+            }))
+        })
+        .map_err(internal)?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(internal)?;
+    Ok(rows)
+}
+
+const CAUSE_FIELDS: [&str; 5] = [
+    "upstreamArtifactId",
+    "expectedRevisionId",
+    "actualRevisionId",
+    "path",
+    "reason",
+];
+
+fn same_cause(recorded: &Value, current: &Value) -> bool {
+    CAUSE_FIELDS
+        .iter()
+        .all(|field| recorded[*field] == current[*field])
+}
+
+/// An artifact has one row per upstream cause, so the two lists agree when
+/// they are the same size and every recorded row has its match.
+fn same_causes(recorded: &[Value], current: &[Value]) -> bool {
+    recorded.len() == current.len()
+        && recorded
+            .iter()
+            .all(|row| current.iter().any(|cause| same_cause(row, cause)))
+}
+
+/// Makes the stale rows of one artifact say what `current` found. Rows that
+/// already say it are left alone, and a cause that persists keeps the event it
+/// was first recorded at; only a new cause is dated `event_seq`.
+fn store_findings(
+    db: &Connection,
+    artifact_id: &str,
+    recorded: &[Value],
+    current: &[Value],
+    event_seq: i64,
+) -> CoreResult<()> {
+    if same_causes(recorded, current) {
+        return Ok(());
+    }
+    db.execute("DELETE FROM stale WHERE artifact_id=?1", [artifact_id])
+        .map_err(internal)?;
+    for cause in current {
+        let since = recorded
+            .iter()
+            .find(|prior| same_cause(prior, cause))
+            .and_then(|prior| prior["sinceEventSeq"].as_i64())
+            .unwrap_or(event_seq);
+        db.execute("INSERT INTO stale(artifact_id,upstream_artifact_id,expected_revision_id,actual_revision_id,path,reason,since_event_seq) VALUES(?1,?2,?3,?4,?5,?6,?7)", params![artifact_id, cause["upstreamArtifactId"].as_str(), cause["expectedRevisionId"].as_str(), cause["actualRevisionId"].as_str(), cause["path"].to_string(), cause["reason"].as_str(), since]).map_err(internal)?;
+    }
+    Ok(())
+}
+
+fn affected_entry(id: &str, current: &[Value], had_stale: bool, path: &[String]) -> Option<Value> {
+    if let Some(first) = current.first() {
+        Some(
+            json!({"artifactId": id, "reason": if first["reason"] == "missing_input" { "missing input" } else { "input changed" }, "path": first["path"]}),
+        )
+    } else if had_stale {
+        Some(json!({"artifactId": id, "reason": "inputs restored", "path": path}))
+    } else {
+        None
+    }
+}
+
+/// Re-evaluates freshness for the changed artifacts and everything downstream
+/// of them, and returns what is now out of date or restored. It writes inside
+/// the caller's transaction when there is one, so a baseline never moves
+/// without the stale records that follow from it.
 pub fn propagate_from(
     handle: &ProjectHandle,
     changed_ids: &[String],
     event_seq: i64,
 ) -> CoreResult<Vec<Value>> {
-    let graph = GraphSnapshot::load(handle, &[])?;
-    let findings = graph.findings(event_seq)?;
-    let mut affected = Vec::new();
-    let mut ids = changed_ids.to_vec();
-    ids.extend(graph.downstream(changed_ids));
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    for id in ids {
-        let had_stale: i64 = tx
-            .query_row(
-                "SELECT COUNT(*) FROM stale WHERE artifact_id=?1",
-                [&id],
-                |r| r.get(0),
-            )
-            .map_err(internal)?;
-        let current = findings.get(&id).cloned().unwrap_or_default();
-        tx.execute("DELETE FROM stale WHERE artifact_id=?1", [&id])
-            .map_err(internal)?;
-        for record in &current {
-            tx.execute("INSERT INTO stale(artifact_id,upstream_artifact_id,expected_revision_id,actual_revision_id,path,reason,since_event_seq) VALUES(?1,?2,?3,?4,?5,?6,?7)", params![id, record["upstreamArtifactId"].as_str(), record["expectedRevisionId"].as_str(), record["actualRevisionId"].as_str(), record["path"].to_string(), record["reason"].as_str(), event_seq]).map_err(internal)?;
+    txn::atomically(handle, || {
+        let graph = GraphSnapshot::load(handle, &[])?;
+        let findings = graph.findings(event_seq)?;
+        let mut affected = Vec::new();
+        let mut visited = changed_ids.iter().cloned().collect::<HashSet<_>>();
+        let mut queue = changed_ids
+            .iter()
+            .map(|id| (id.clone(), vec![id.clone()]))
+            .collect::<VecDeque<_>>();
+        while let Some((id, path)) = queue.pop_front() {
+            let recorded = stale_rows(&handle.db, &id)?;
+            let current = findings.get(&id).map(Vec::as_slice).unwrap_or(&[]);
+            store_findings(&handle.db, &id, &recorded, current, event_seq)?;
+            affected.extend(affected_entry(&id, current, !recorded.is_empty(), &path));
+            for &index in graph.outgoing.get(&id).into_iter().flatten() {
+                let edge = &graph.edges[index];
+                if !evaluating(edge["relationship"].as_str().unwrap_or("")) {
+                    continue;
+                }
+                if let Some(next) = edge["downstreamArtifactId"].as_str() {
+                    if visited.insert(next.to_owned()) {
+                        let mut next_path = path.clone();
+                        next_path.push(next.to_owned());
+                        queue.push_back((next.to_owned(), next_path));
+                    }
+                }
+            }
         }
-        if let Some(first) = current.first() {
-            affected.push(json!({"artifactId": id, "reason": if first["reason"] == "missing_input" { "missing input" } else { "input changed" }, "path": first["path"]}));
-        } else if had_stale > 0 {
-            affected.push(json!({"artifactId": id, "reason": "inputs restored", "path": [id]}));
-        }
-    }
-    tx.commit().map_err(internal)?;
-    Ok(affected)
+        Ok(affected)
+    })
 }
 
+/// Repairs stale records that no longer match the baselines: the state a
+/// crash between a baseline change and its propagation, or a build that
+/// propagated outside the transaction, leaves behind. Nothing is written when
+/// the records are already right. Returns the artifacts whose freshness was
+/// corrected, and records them in one `impact.propagated` event.
+pub fn reconcile(handle: &ProjectHandle) -> CoreResult<Vec<Value>> {
+    txn::atomically(handle, || {
+        let graph = GraphSnapshot::load(handle, &[])?;
+        let findings = graph.findings(0)?;
+        let mut repairs = Vec::new();
+        for id in &graph.order {
+            let recorded = stale_rows(&handle.db, id)?;
+            let current = findings.get(id).cloned().unwrap_or_default();
+            if !same_causes(&recorded, &current) {
+                repairs.push((id.clone(), recorded, current));
+            }
+        }
+        if repairs.is_empty() {
+            return Ok(Vec::new());
+        }
+        let affected = repairs
+            .iter()
+            .filter_map(|(id, recorded, current)| {
+                affected_entry(id, current, !recorded.is_empty(), std::slice::from_ref(id))
+            })
+            .collect::<Vec<_>>();
+        let seq = emit(
+            handle,
+            "impact.propagated",
+            &Origin::System,
+            json!({"changed": [], "affected": affected, "reconciled": true}),
+        )?;
+        for (id, recorded, current) in &repairs {
+            store_findings(&handle.db, id, recorded, current, seq)?;
+        }
+        Ok(affected)
+    })
+}
+
+/// Adds manual links between artifacts. They take effect without review, so
+/// each batch is recorded with who added it: the edge rows carry the origin
+/// and the `graph.changed` event the agent session. `remove_edges` undoes
+/// them.
 pub fn propose_edges(handle: &ProjectHandle, input: &Value, origin: &str) -> CoreResult<Value> {
     let entries = input["edges"]
         .as_array()
         .ok_or_else(|| ContractError::validation("Missing edges"))?;
-    let mut graph = GraphSnapshot::load(handle, &[])?;
-    let mut added = Vec::new();
-    for entry in entries {
-        let up = entry["upstreamArtifactId"]
-            .as_str()
-            .ok_or_else(|| ContractError::validation("Missing upstreamArtifactId"))?;
-        let down = entry["downstreamArtifactId"]
-            .as_str()
-            .ok_or_else(|| ContractError::validation("Missing downstreamArtifactId"))?;
-        require_artifact(handle, up)?;
-        require_artifact(handle, down)?;
-        if up == down {
-            return Err(ContractError::validation("Self-edge not allowed"));
+    txn::atomically(handle, || {
+        let mut graph = GraphSnapshot::load(handle, &[])?;
+        let mut added = Vec::new();
+        for entry in entries {
+            let up = entry["upstreamArtifactId"]
+                .as_str()
+                .ok_or_else(|| ContractError::validation("Missing upstreamArtifactId"))?;
+            let down = entry["downstreamArtifactId"]
+                .as_str()
+                .ok_or_else(|| ContractError::validation("Missing downstreamArtifactId"))?;
+            require_artifact(handle, up)?;
+            require_artifact(handle, down)?;
+            if up == down {
+                return Err(ContractError::validation("Self-edge not allowed"));
+            }
+            let edge = json!({"id": uuid::Uuid::new_v4().to_string(), "upstreamArtifactId": up, "downstreamArtifactId": down, "relationship": entry["relationship"], "requiredUpstreamRevisionId": null, "label": entry["label"].as_str().unwrap_or(""), "createdBy": origin, "createdAt": now()});
+            graph.add_edge(edge.clone());
+            added.push(edge);
         }
-        let edge = json!({"id": uuid::Uuid::new_v4().to_string(), "upstreamArtifactId": up, "downstreamArtifactId": down, "relationship": entry["relationship"], "requiredUpstreamRevisionId": null, "label": entry["label"].as_str().unwrap_or(""), "createdBy": origin, "createdAt": now()});
-        graph.add_edge(edge.clone());
-        added.push(edge);
-    }
-    graph.assert_no_cycles()?;
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    for edge in &added {
-        tx.execute("INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?1,?2,?3,?4,NULL,?5,?6,?7)", params![edge["id"].as_str(), edge["upstreamArtifactId"].as_str(), edge["downstreamArtifactId"].as_str(), edge["relationship"].as_str(), edge["label"].as_str(), origin, edge["createdAt"].as_str()]).map_err(internal)?;
-    }
-    tx.commit().map_err(internal)?;
-    Ok(json!({"edges": added}))
+        graph.assert_no_cycles()?;
+        for edge in &added {
+            handle.db.execute("INSERT INTO edge(id,upstream_artifact_id,downstream_artifact_id,relationship,required_upstream_revision_id,label,created_by,created_at) VALUES(?1,?2,?3,?4,NULL,?5,?6,?7)", params![edge["id"].as_str(), edge["upstreamArtifactId"].as_str(), edge["downstreamArtifactId"].as_str(), edge["relationship"].as_str(), edge["label"].as_str(), origin, edge["createdAt"].as_str()]).map_err(internal)?;
+        }
+        record_event(
+            &handle.db,
+            "graph.changed",
+            origin,
+            None,
+            json!({"added": added, "removed": []}),
+        )?;
+        let ids = added
+            .iter()
+            .map(|edge| edge["id"].clone())
+            .collect::<Vec<_>>();
+        Ok(json!({"edges": added, "undo": {
+            "tool": "graph_remove_edges",
+            "args": {"edgeIds": ids},
+            "why": "Removes these links again. It is not a listed tool: call it through tool_call.",
+        }}))
+    })
+}
+
+/// Removes manual links. A link derived from a revision's recorded inputs is
+/// part of that revision and is not removed here; an agent removes only links
+/// an agent added, so it cannot quietly undo what a person recorded.
+pub fn remove_edges(handle: &ProjectHandle, input: &Value, origin: &str) -> CoreResult<Value> {
+    let ids = input["edgeIds"]
+        .as_array()
+        .ok_or_else(|| ContractError::validation("Missing edgeIds"))?;
+    txn::atomically(handle, || {
+        let mut removed = Vec::new();
+        for id in ids.iter().filter_map(Value::as_str) {
+            let edge = handle
+                .db
+                .query_row(
+                    "SELECT * FROM edge WHERE id=?1",
+                    [id],
+                    models::edge_from_row,
+                )
+                .optional()
+                .map_err(internal)?
+                .ok_or_else(|| ContractError::not_found("edge", id, "graph_list"))?;
+            if !edge["requiredUpstreamRevisionId"].is_null() {
+                return Err(ContractError::validation(format!(
+                    "Edge {id} comes from an artifact's recorded inputs and cannot be removed on its own"
+                ))
+                .with_repair(
+                    "Save a draft of the downstream artifact with the inputs it should have (artifact_update_draft); the link follows the approved inputs.",
+                ));
+            }
+            if origin == "agent" && edge["createdBy"] != "agent" {
+                return Err(ContractError::capability_denied(
+                    "graph.remove_edges",
+                    format!("Edge {id} was added by a person. Ask them to remove it."),
+                ));
+            }
+            handle
+                .db
+                .execute("DELETE FROM edge WHERE id=?1", [id])
+                .map_err(internal)?;
+            removed.push(edge);
+        }
+        record_event(
+            &handle.db,
+            "graph.changed",
+            origin,
+            None,
+            json!({"added": [], "removed": removed}),
+        )?;
+        Ok(json!({"removed": removed}))
+    })
 }
 
 pub fn neighbors(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
@@ -404,8 +623,10 @@ pub fn neighbors(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
     let max_depth = input["depth"].as_u64().unwrap_or(1) as usize;
     let relationship = input["relationship"].as_str();
     let mut seen = HashMap::<String, usize>::from([(id.to_owned(), 0)]);
+    let mut reached = vec![id.to_owned()];
     let mut queue = VecDeque::from([(id.to_owned(), 0)]);
-    let mut edges = HashMap::<String, Value>::new();
+    let mut edge_ids = HashSet::new();
+    let mut edges = Vec::new();
     while let Some((current, depth)) = queue.pop_front() {
         if depth >= max_depth {
             continue;
@@ -422,8 +643,9 @@ pub fn neighbors(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
             if relationship.is_some_and(|r| edge["relationship"] != r) {
                 continue;
             }
-            let edge_id = edge["id"].as_str().unwrap_or("").to_owned();
-            edges.insert(edge_id, edge.clone());
+            if edge_ids.insert(edge["id"].as_str().unwrap_or("").to_owned()) {
+                edges.push(edge.clone());
+            }
             let next = if edge["upstreamArtifactId"] == current {
                 edge["downstreamArtifactId"].as_str()
             } else {
@@ -432,13 +654,15 @@ pub fn neighbors(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
             if let Some(next) = next {
                 if !seen.contains_key(next) {
                     seen.insert(next.to_owned(), depth + 1);
+                    reached.push(next.to_owned());
                     queue.push_back((next.to_owned(), depth + 1));
                 }
             }
         }
     }
     let mut artifacts = Vec::new();
-    for (id, depth) in seen {
+    for id in reached {
+        let depth = seen[&id];
         if let Some(artifact) = graph.artifacts.get(&id) {
             let stale: Option<String> = handle
                 .db
@@ -457,7 +681,7 @@ pub fn neighbors(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
             artifacts.push(json!({"id": id, "title": artifact["title"], "type": artifact["type"], "depth": depth, "freshness": freshness}));
         }
     }
-    Ok(json!({"artifacts": artifacts, "edges": edges.into_values().collect::<Vec<_>>()}))
+    Ok(json!({"artifacts": artifacts, "edges": edges}))
 }
 
 pub fn impact(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {

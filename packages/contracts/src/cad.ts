@@ -18,6 +18,17 @@ export const holeSpecSchema = z.object({
   tol: z.number().positive().optional().describe('Linear tolerance (default 0.1 mm).'),
 });
 
+/**
+ * Short-form hole: a point on the hole axis instead of a cutting plane and a
+ * two-dimensional centre. The core expands it into a section, a centre and
+ * diameter assertion and an empty-space probe before anything is measured.
+ */
+export const flatHoleSchema = z.object({
+  at: vec3.describe('Point on the hole axis inside the material, e.g. at mid-thickness.'),
+  d: z.number().positive().describe('Diameter, mm.'),
+  axis: axis.optional().describe('Hole direction (default z).'),
+});
+
 export const sectionSpecSchema = z.object({
   axis: axis.describe('Axis normal to the cutting plane.'),
   at: z
@@ -74,6 +85,17 @@ export const sectionSpecSchema = z.object({
 });
 
 export const expectationSchema = z.object({
+  size: vec3.optional().describe('Overall size [x, y, z] in mm, wherever the part sits.'),
+  holes: z
+    .array(flatHoleSchema)
+    .optional()
+    .describe('Round holes by a point on the axis and a diameter (short form of sections).'),
+  bodies: z.number().int().positive().optional().describe('Separate bodies; same as shells.'),
+  tol: z
+    .number()
+    .positive()
+    .optional()
+    .describe('Linear tolerance in mm where an assertion gives none (default 0.1).'),
   bbox: z
     .object({ min: vec3, max: vec3, tol: z.number().positive().optional() })
     .optional()
@@ -138,5 +160,12 @@ export const expectationSchema = z.object({
 });
 
 export type HoleSpec = z.infer<typeof holeSpecSchema>;
+export type FlatHole = z.infer<typeof flatHoleSchema>;
+
+/**
+ * Keys of the short form. The core normalises them into the canonical
+ * assertions; evidence never contains `holes` or `bodies`.
+ */
+export const EXPECTATION_SHORT_FORM_KEYS = ['size', 'holes', 'bodies', 'tol'] as const;
 export type SectionSpec = z.infer<typeof sectionSpecSchema>;
 export type Expectation = z.infer<typeof expectationSchema>;

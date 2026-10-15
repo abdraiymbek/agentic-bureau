@@ -2,31 +2,128 @@
 
 ## Requirements
 
-- Node ≥ 20, pnpm 9
-- For packaging: platform build tools (Xcode CLT on macOS, MSVC on Windows)
-- Optional: OpenSCAD (real CAD path), Codex CLI / Claude Code (agents), Rust
-  (native bridge helper)
+- Node 24 (`.nvmrc`; `package.json` accepts 20 and later) and pnpm 9.15.9 (`packageManager`).
+- The stable Rust toolchain with rustfmt and clippy (`rust-toolchain.toml`).
+- OpenSCAD for the CAD engine. `cargo test --workspace` runs real renders and **fails** when
+  OpenSCAD is missing, unless `OMENFLOW_ALLOW_MISSING_OPENSCAD=1` says to skip those tests.
+  `OPENSCAD_PATH` names a specific executable. On macOS use the snapshot cask
+  (`brew install --cask openscad@snapshot`); the Rust engine tests have been run with 2026.09.18
+  only.
+- macOS: Xcode command line tools (Tauri and the node-pty build). Linux (Debian, Ubuntu):
+  `sudo sh scripts/linux/build-deps.sh` installs WebKitGTK and the other Tauri and node-pty
+  requirements (on Linux the research screenshot comes from WebKitGTK, so no screen-capture
+  libraries are needed); `node scripts/linux-package.mjs` builds, tests and runs the Linux
+  packages in containers instead ([release](release.md#linux-packages)).
+- Optional: a signed-in Codex CLI or Claude Code for real agent sessions.
+
+After a clean install on macOS run `pnpm rebuild:node`: node-pty's prebuilt `spawn-helper` is
+unpacked without its executable bit, and the legacy PTY tests fail with `posix_spawnp failed`
+until it is built from source.
 
 ## Commands
 
-| Command                        | Purpose                                                        |
-| ------------------------------ | -------------------------------------------------------------- |
-| `pnpm install`                 | Install workspace deps (hoisted linker for Electron packaging) |
-| `pnpm test`                    | Domain tests under Node ABI (`vitest run`)                     |
-| `pnpm rebuild:node`            | Rebuild better-sqlite3/node-pty for Node ABI                   |
-| `pnpm rebuild:electron`        | Rebuild natives for the Electron ABI                           |
-| `pnpm dev`                     | Run the desktop app (Electron Forge + Vite)                    |
-| `pnpm package`                 | Unsigned packaged app under `apps/desktop/out`                 |
-| `pnpm make`                    | Platform installers (dmg on macOS, Squirrel on Windows)        |
-| `pnpm typecheck` / `pnpm lint` | Static checks                                                  |
+| Command                                                                                        | What it does                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm install --frozen-lockfile`                                                               | Installs the workspace (hoisted linker)                                                                                                          |
+| `pnpm rebuild:node`                                                                            | Rebuilds node-pty from source (`scripts/rebuild-natives.mjs`)                                                                                    |
+| `pnpm contracts:check`                                                                         | Fails when `crates/contracts/registry.json` differs from what `packages/contracts` exports                                                       |
+| `pnpm contracts:export`                                                                        | Rewrites the registry and prints the compact, standard and full tool-listing sizes                                                               |
+| `cargo test --workspace`                                                                       | Rust tests for contracts, storage, core, agent host, headless host and the desktop shell                                                         |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo fmt --all -- --check` | Rust lint and format, as CI runs them                                                                                                            |
+| `pnpm build:bridge`                                                                            | Release build of the `omenflow` helper (`native/omenflow-bridge`, its own Cargo workspace)                                                       |
+| `cargo test -p omenflow-agent-host -- --ignored`                                               | The real-helper round trip (needs `pnpm build:bridge` first)                                                                                     |
+| `pnpm test`                                                                                    | Vitest: the legacy TypeScript oracle (`packages/*`), `tests/*.test.ts`, the renderer tests in `tests/frontend/`, fixtures                        |
+| `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts`                           | Only the renderer tests                                                                                                                          |
+| `pnpm test:conformance`                                                                        | Type-checks `tests/conformance/`, builds `omenflow-host`, and runs the corpus against it                                                         |
+| `pnpm typecheck`                                                                               | Every workspace package (renderer included) and `evals/`                                                                                         |
+| `pnpm lint`, `pnpm format:check`                                                               | ESLint and Prettier over the repository                                                                                                          |
+| `pnpm --filter @omenflow/desktop build:rust-ui`                                                | The static renderer the Tauri bundle embeds (`apps/desktop/rust-dist/`)                                                                          |
+| `pnpm smoke:headless`                                                                          | Starts `omenflow-host`, then drives the helper with a real grant: usage, a refused token, a read, an agent draft, a refused approval, clean exit |
+| `pnpm design:preview`                                                                          | The renderer on the Rust headless host with disposable fixture projects (below)                                                                  |
+| `pnpm fixture:rover <dir>`, `pnpm fixture:drone <dir>`                                         | Builds a reference project into an empty or new folder through the Rust host                                                                     |
+| `pnpm dev`                                                                                     | `pnpm build:bridge`, then `tauri dev` (which starts the renderer's Vite server on 127.0.0.1:5174)                                                |
+| `pnpm make`, `pnpm package`                                                                    | `pnpm build:bridge`, `build:rust-ui`, then `tauri build --no-sign`                                                                               |
+| `pnpm smoke:packaged`                                                                          | Launches the built bundle with disposable state and runs the same helper checks against it                                                       |
+| `pnpm release:macos`                                                                           | Signs, notarizes and staples the app and DMG; refuses without Apple credentials ([release](release.md))                                          |
 
-## Native module ABI
+`pnpm dev`, `pnpm make` and `pnpm smoke:packaged` open or build the native app; everything else
+runs without a window.
 
-`better-sqlite3` and `node-pty` are compiled for one ABI at a time. Domain
-tests run under Node (`pnpm rebuild:node`); the desktop app needs the Electron
-ABI (`pnpm rebuild:electron`). Switch when changing contexts.
+## Running the headless host
 
-## Layout
+```sh
+cargo run -p omenflow-headless --bin omenflow-host -- --app-data "$(mktemp -d)"
+```
 
-See `docs/architecture.md`. Domain logic lives in `packages/`; the Electron
-app is a thin host over `@omenflow/core`.
+It prints one line, `{"port", "token", "socketPath"}`, and serves until SIGINT, SIGTERM,
+`POST /api/shutdown`, or (with `--exit-on-stdin-close`) the end of standard input. Every request
+needs `Authorization: Bearer <token>` and a `Host` of `127.0.0.1:<port>` or `localhost:<port>`;
+a request with an `Origin` header is refused. `--port` and `--token` fix them, `--cli` names the
+helper (by default the one beside the binary, else the repository's release build).
+
+The bridge socket is `<app-data>/run/bridge.sock`, and a socket path has a system length limit
+of about 104 bytes, so keep the app-data path short (the system temporary folder works; a deep
+scratch folder may not). The conformance client `tests/conformance/rust-core.ts` is the
+reference for driving the host from TypeScript (`OMENFLOW_HOST_BIN` overrides the binary it
+starts).
+
+## Design preview
+
+`pnpm design:preview` builds the host and the helper, starts the host on a temporary folder,
+builds the rover and drone fixtures through it, and serves the renderer with Vite on
+`http://127.0.0.1:5173`. It prints the address to open, `/?design-preview&key=<key>`, and the
+disposable data folder (under the system temporary folder). The key is good for this run only:
+the page trades it (a 303 redirect that drops it from the address) for an HttpOnly, same-site
+cookie named for the port, and every preview endpoint answers 403 without that cookie or from
+another origin. The page talks only to the preview server, which forwards to the host; the
+host's token never reaches the page. Ctrl-C or SIGTERM stops the host and its terminals, and
+the data folder is removed when the preview process exits, including after a failed start (a
+process killed with SIGKILL cannot clean up).
+
+- `OMEN_PREVIEW_PORT` picks another port (useful when several previews run; each has its own
+  cookie).
+- Parameters: `screen=launcher|flow|parts|timeline|files|evidence|decide|agent|system`,
+  `object=<artifact type>`, `theme=light|dark`, `console=open` (the agent window).
+- Projects are created and opened only inside the preview folder; archive import is refused;
+  exports land in the preview folder.
+- Terminals and agent settings are off by default: `terminal.start`, `terminal.restart`,
+  `connection.configure` and `connection.test` are refused with `PREVIEW`, because a Custom
+  CLI runs any executable and Codex CLI and Claude Code spend model credits and may update
+  themselves on first start. Start the preview with `OMEN_PREVIEW_AGENTS=1` to run any of them
+  in a real PTY from the Agent tab.
+- Research browsing is not available (the headless host has no webview).
+
+It is a design and behaviour preview on the real host, not a native acceptance test.
+
+## Evaluations
+
+- `pnpm eval:agent -- --out <dir>` ([`evals/agent/`](../evals/agent/README.md)) runs real agent
+  CLIs against the release Rust headless host and judges the result from recorded project
+  state, never from the model's account of it. It **spends model credits**: Claude Code cells
+  are capped at 2 USD and 40 turns, every cell at 10 minutes; Codex has no spend flag. `--out`
+  must be outside the repository. `--reference good` / `--reference bad` run scripted sessions
+  with no model to check the judges.
+- `pnpm eval:cad` and `pnpm eval:workflows` drive the legacy TypeScript stack with Codex CLI;
+  their recorded results are in `evals/cad/results/`.
+
+## Where things go
+
+See [architecture](architecture.md) and [contributing](../CONTRIBUTING.md). Tests sit beside
+the Rust code (`#[cfg(test)]` modules, `crates/*/tests`, `apps/headless/tests`), in
+`tests/conformance/` for host-level behaviour, in `tests/frontend/` for the renderer, and in
+`packages/*/src/*.test.ts` for the legacy oracle.
+
+## Environment variables
+
+| Variable                                   | Effect                                                                                            |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `OMENFLOW_APP_DATA_DIR`                    | The desktop app uses this data folder instead of the system one (isolated run, own instance lock) |
+| `OMENFLOW_SMOKE_PROJECT`                   | With `OMENFLOW_APP_DATA_DIR`: create this project and write the agent grant for the smoke test    |
+| `OMENFLOW_SMOKE_AGENT`                     | With `OMENFLOW_SMOKE_PROJECT`: start this executable as a Custom CLI session for the smoke test   |
+| `OMENFLOW_SMOKE_SNAPSHOT`                  | With `OMENFLOW_SMOKE_PROJECT`: write a picture of the page when the smoke asks for one            |
+| `OMENFLOW_ALLOW_MISSING_OPENSCAD=1`        | Rust engine tests skip instead of failing when OpenSCAD is absent                                 |
+| `OPENSCAD_PATH`                            | The OpenSCAD executable to use when none is configured in Settings                                |
+| `OMENFLOW_OPENSCAD_E2E=1`                  | Runs the legacy TypeScript real-engine tests (`pnpm test`)                                        |
+| `OMENFLOW_HOST_BIN`                        | The `omenflow-host` binary the conformance client and fixtures start                              |
+| `OMEN_PREVIEW_PORT`, `OMEN_PREVIEW_AGENTS` | Design preview port; `1` allows terminals and agent settings (any CLI) in it                      |
+| `OMENFLOW_AGENTS_MD=off`                   | In a Custom CLI's environment: no Omen Flow block in the project's `AGENTS.md`                    |

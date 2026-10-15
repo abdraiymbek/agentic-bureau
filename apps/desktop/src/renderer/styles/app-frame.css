@@ -1,0 +1,65 @@
+/*
+ * App frame: what the frame itself draws in the stage and over it. The unsaved-work prompt,
+ * the stage while a project's record loads, and the wait for a code-split view.
+ */
+
+/* The stage takes focus only when focus is handed back from the agent window. */
+.stage-area:focus {
+  outline: none;
+}
+
+/* ---------------- loading ---------------- */
+.frame-stage-wait {
+  display: flex;
+  padding: var(--s-6) var(--s-8);
+}
+.frame-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 640px;
+  padding: var(--s-2) var(--s-8) var(--s-8);
+}
+
+/* ---------------- unsaved-work prompt ---------------- */
+.frame-prompt {
+  position: fixed;
+  top: 22vh;
+  left: 50%;
+  width: min(440px, calc(100vw - 48px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-5) var(--s-6);
+  background: var(--raised);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-menu);
+  /* Above the omnibar and the sheet: it can be asked while either is open. */
+  z-index: calc(var(--z-dialog) + 1);
+}
+.frame-prompt-title {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+.frame-prompt-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1.5;
+}
+.frame-prompt-body ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-left: var(--s-5);
+  list-style: disc;
+  color: var(--text);
+}
+.frame-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}

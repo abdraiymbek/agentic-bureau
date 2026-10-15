@@ -5,16 +5,43 @@ mod archive;
 mod build;
 mod cad;
 mod calculation;
+/// The environment of processes started for the person (agent CLIs, shells,
+/// OpenSCAD), cleaned of an AppImage launcher's changes.
+pub mod child_env;
 mod components;
 mod graph;
 mod models;
+mod shared;
 mod simple;
 mod test_results;
+#[cfg(test)]
+mod testkit;
+mod units;
 mod wiring;
+
+mod events;
+mod idempotency;
+mod mechanical;
+mod review;
+mod txn;
+
+#[cfg(test)]
+mod lifecycle_tests;
+
+// The read side: artifact views and lists, search, the completion gate and
+// requirement coverage.
+mod coverage;
+mod gate;
+mod reads;
+mod search;
+
+use reads::artifact_view;
 
 use base64::Engine;
 use chrono::{SecondsFormat, Utc};
-use omenflow_contracts::{parse_artifact_payload, parse_input, registry, ContractError};
+use omenflow_contracts::{
+    parse_agent_artifact_payload, parse_artifact_payload, parse_input, registry, ContractError,
+};
 use omenflow_storage::{
     resolve_materialization_path, write_materialized_file, ProjectHandle, StorageError,
 };
@@ -26,7 +53,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+pub use cad::{brief as cad_brief, readiness as cad_readiness, stop_engines};
 pub use models::{artifact_from_row, event_from_row, revision_from_row};
+pub use shared::{dispatch_shared, dispatch_shared_with_events};
+
+/// Whether the core keeps a quantity an agent writes in `unit`: a unit it
+/// converts, or a unit name it saves as that unit's symbol. The core's own
+/// reading, for every caller that has to tell.
+pub fn accepts_unit(unit: &str) -> bool {
+    units::accepts(unit)
+}
 
 pub type CoreResult<T> = Result<T, ContractError>;
 
@@ -54,11 +90,18 @@ impl Origin {
     }
 }
 
+/// Create and import reservations are kept this long, then forgotten.
+const RESERVATION_RETENTION_DAYS: i64 = 7;
+
 pub struct CoreApp {
     app_data_dir: PathBuf,
     projects: HashMap<String, ProjectHandle>,
     recent_projects: Vec<String>,
     event_hook: Option<Arc<dyn Fn(Value) + Send + Sync>>,
+    /// Identifies this process in idempotency reservations.
+    instance: String,
+    /// Event delivery cursor of each open project.
+    delivery: HashMap<String, events::Delivery>,
 }
 
 impl CoreApp {
@@ -84,6 +127,8 @@ impl CoreApp {
             projects: HashMap::new(),
             recent_projects,
             event_hook: None,
+            instance: uuid::Uuid::new_v4().to_string(),
+            delivery: HashMap::new(),
         })
     }
 
@@ -103,8 +148,11 @@ impl CoreApp {
             .map(str::trim)
             .filter(|path| !path.is_empty())
             .map(PathBuf::from);
-        cad::with_executable(path, || {
-            self.dispatch_inner(op, payload, origin, project_id)
+        let session = origin.session_id().map(str::to_owned);
+        events::with_session(session.as_deref(), || {
+            cad::with_executable(path, || {
+                self.dispatch_inner(op, payload, origin, project_id)
+            })
         })
     }
 
@@ -119,12 +167,7 @@ impl CoreApp {
             .operation(op)
             .ok_or_else(|| ContractError::validation(format!("Unknown operation: {op}")))?;
         if matches!(origin, Origin::Agent { .. }) && !definition.agent_allowed {
-            let code = if op == "artifact.apply_edit" {
-                "APPROVAL_REQUIRED"
-            } else {
-                "CAPABILITY_DENIED"
-            };
-            return Err(ContractError::new(code, format!("Agents cannot call {op}")));
+            return Err(simple::human_only(op));
         }
         let payload = parse_input(definition, payload)?;
         match op {
@@ -175,6 +218,7 @@ impl CoreApp {
                         format!("Project not open: {id}"),
                     ));
                 }
+                self.delivery.remove(id);
                 Ok(json!({"ok": true}))
             }
             "app.recent_projects" => {
@@ -245,36 +289,36 @@ impl CoreApp {
                 }
                 if op == "cad.render" {
                     let queued = cad::queue_render(handle, &payload, &origin)?;
+                    if cad::queued_render_is_staged() {
+                        return Ok(queued);
+                    }
                     let root = handle.root.clone();
                     let job_id = required_str(&queued["job"], "id")?.to_owned();
                     let mut input = payload.clone();
                     input["revisionId"] = queued["job"]["inputs"]["revisionId"].clone();
                     let executable = cad::configured_executable();
+                    let delivery = self.delivery.get(id).cloned();
+                    let project = id.to_owned();
                     std::thread::spawn(move || {
-                        cad::with_executable(executable, || {
-                            let Ok(mut worker) = ProjectHandle::open_worker(&root) else {
-                                return;
-                            };
-                            let before = worker
-                                .db
-                                .query_row("SELECT COALESCE(MAX(seq),0) FROM event", [], |row| {
-                                    row.get::<_, i64>(0)
-                                })
-                                .unwrap_or(0);
-                            let _ =
-                                cad::finish_queued_render(&mut worker, &input, &origin, &job_id);
-                            if let Some(hook) = event_hook {
-                                if let Ok(mut stmt) = worker
-                                    .db
-                                    .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq")
-                                {
-                                    if let Ok(events) = stmt.query_map([before], event_from_row) {
-                                        for event in events.flatten() {
-                                            hook(event);
-                                        }
-                                    }
+                        let session = origin.session_id().map(str::to_owned);
+                        events::with_session(session.as_deref(), || {
+                            cad::with_executable(executable, || {
+                                let Ok(mut worker) = ProjectHandle::open_worker(&root) else {
+                                    return;
+                                };
+                                let _ = cad::finish_queued_render(
+                                    &mut worker,
+                                    &input,
+                                    &origin,
+                                    &job_id,
+                                );
+                                // Forwarding goes through the project's delivery cursor: the
+                                // worker hands over what no dispatch has delivered, and nothing
+                                // a dispatch already did.
+                                if let (Some(hook), Some(delivery)) = (event_hook, delivery) {
+                                    let _ = delivery.forward(&worker.db, &project, hook.as_ref());
                                 }
-                            }
+                            })
                         })
                     });
                     return Ok(queued);
@@ -284,9 +328,11 @@ impl CoreApp {
         }
     }
 
-    /// Durable at-most-once dispatch for project mutations. A committed result
-    /// is journaled before the SQLite replay row is completed; an interrupted
-    /// pending attempt cannot silently execute twice.
+    /// Durable at-most-once dispatch for project mutations. A successful result
+    /// is journaled before the SQLite replay row is completed and answers every
+    /// retry of the same call. A failure is never kept: the key is released and
+    /// the retry runs. An attempt a previous process left unfinished is
+    /// reported once, explicitly, and then the key is free again.
     pub fn dispatch_idempotent(
         &mut self,
         op: &str,
@@ -310,87 +356,21 @@ impl CoreApp {
         };
         let who = origin.session_id().unwrap_or("user");
         let replay_key = format!("{who}:{op}:{key}");
-        let hash = format!(
-            "{:x}",
-            Sha256::digest(json!({"op":op,"payload":parsed}).to_string().as_bytes())
-        );
-        let root = self.project_root(project_id)?;
+        let hash = idempotency::request_hash(op, &parsed);
         let handle = self
             .projects
             .get(project_id)
             .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
-        if let Some((prior_hash, response)) = handle
-            .db
-            .query_row(
-                "SELECT request_hash,response FROM idempotency WHERE key=?1",
-                [&replay_key],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            )
-            .optional()
-            .map_err(internal)?
-        {
-            if prior_hash != hash {
-                return Err(ContractError::validation(
-                    "Idempotency key reused with different payload",
-                ));
-            }
-            let prior: Value = serde_json::from_str(&response).map_err(internal)?;
-            if prior["operationPending"] == true {
-                if let Some(journal) = read_result_journal(&root, &replay_key, &hash) {
-                    handle
-                        .db
-                        .execute(
-                            "UPDATE idempotency SET response=?1 WHERE key=?2",
-                            params![journal.to_string(), replay_key],
-                        )
-                        .map_err(internal)?;
-                    clear_result_journal(&root, &replay_key);
-                    return Ok(with_replay_marker(journal, true));
-                }
-                return Err(ContractError::new("REVISION_CONFLICT", "Previous attempt was interrupted; inspect its jobs/revisions before retrying with a new key"));
-            }
-            if let Some(error) = prior.get("operationFailure") {
-                return Err(serde_json::from_value(error.clone()).map_err(internal)?);
-            }
-            return Ok(with_replay_marker(prior, false));
+        if let Some(prior) = idempotency::replay(handle, &replay_key, &hash, &self.instance)? {
+            return Ok(prior);
         }
-        handle
-            .db
-            .execute(
-                "INSERT INTO idempotency(key,request_hash,response,created_at) VALUES(?1,?2,?3,?4)",
-                params![
-                    replay_key,
-                    hash,
-                    json!({"operationPending":true}).to_string(),
-                    now()
-                ],
-            )
-            .map_err(internal)?;
-        match self.dispatch(op, parsed, origin, Some(project_id)) {
-            Ok(result) => {
-                write_result_journal(&root, &replay_key, &hash, &result)?;
-                self.projects
-                    .get(project_id)
-                    .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?
-                    .db
-                    .execute(
-                        "UPDATE idempotency SET response=?1 WHERE key=?2",
-                        params![result.to_string(), replay_key],
-                    )
-                    .map_err(internal)?;
-                clear_result_journal(&root, &replay_key);
-                Ok(result)
-            }
-            Err(error) => {
-                if let Some(handle) = self.projects.get(project_id) {
-                    let _ = handle.db.execute(
-                        "UPDATE idempotency SET response=?1 WHERE key=?2",
-                        params![json!({"operationFailure":error}).to_string(), replay_key],
-                    );
-                }
-                Err(error)
-            }
-        }
+        idempotency::reserve(handle, &replay_key, &hash, &self.instance)?;
+        // A panic must not leave the key reserved: the caller would be told
+        // the call is still running for as long as the process lives.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.dispatch(op, parsed, origin, Some(project_id))
+        }));
+        idempotency::settle(self.projects.get(project_id), &replay_key, &hash, outcome)
     }
 
     fn dispatch_app_idempotent(
@@ -432,9 +412,6 @@ impl CoreApp {
             if prior["state"] == "completed" {
                 return Ok(with_replay_marker(prior["result"].clone(), false));
             }
-            if prior["state"] == "failed" && prior["error"].is_object() {
-                return Err(serde_json::from_value(prior["error"].clone()).map_err(internal)?);
-            }
         }
         let timestamp = prior["createdAt"]
             .as_str()
@@ -464,8 +441,11 @@ impl CoreApp {
             }
             Err(error) => {
                 if !marker.is_file() {
-                    table["reservations"][&replay_key]["state"] = json!("failed");
-                    table["reservations"][&replay_key]["error"] = json!(error);
+                    // Nothing was created, so the failure is not a result: free
+                    // the key and let the corrected or repeated call run.
+                    if let Some(reservations) = table["reservations"].as_object_mut() {
+                        reservations.shift_remove(&replay_key);
+                    }
                     self.save_reservations(&table)?;
                 }
                 Err(error)
@@ -474,11 +454,18 @@ impl CoreApp {
     }
 
     fn save_reservations(&self, table: &Value) -> CoreResult<()> {
+        let cutoff = (Utc::now() - chrono::TimeDelta::days(RESERVATION_RETENTION_DAYS))
+            .to_rfc3339_opts(SecondsFormat::Millis, true);
+        let mut kept = table.clone();
+        if let Some(reservations) = kept["reservations"].as_object_mut() {
+            reservations
+                .retain(|_, entry| entry["createdAt"].as_str().unwrap_or("") >= cutoff.as_str());
+        }
         let path = self.app_data_dir.join("reservations.json");
         let temp = self
             .app_data_dir
             .join(format!("reservations-{}.tmp", uuid::Uuid::new_v4()));
-        fs::write(&temp, serde_json::to_vec_pretty(table).map_err(internal)?).map_err(internal)?;
+        fs::write(&temp, serde_json::to_vec_pretty(&kept).map_err(internal)?).map_err(internal)?;
         fs::rename(&temp, &path).map_err(internal)
     }
 
@@ -524,9 +511,7 @@ impl CoreApp {
             )
             .optional()
             .map_err(internal)?
-            .ok_or_else(|| {
-                ContractError::new("NOT_FOUND", format!("Proposal not found: {proposal_id}"))
-            })?;
+            .ok_or_else(|| ContractError::not_found("proposal", proposal_id, "proposal_list"))?;
         Ok(json!({"state":state,"cursor":self.latest_event_seq(project_id)?}))
     }
 
@@ -555,6 +540,12 @@ impl CoreApp {
                 current[key] = value.clone();
             }
         }
+        if let Some(model) = simple::adapter_model(input)? {
+            current["model"] = model;
+        }
+        if let Some(profile) = simple::adapter_profile(input)? {
+            current["profile"] = profile;
+        }
         settings["adapters"][adapter_id] = current;
         self.write_settings(&settings)
     }
@@ -564,26 +555,29 @@ impl CoreApp {
             .projects
             .get(project_id)
             .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
-        handle.db.execute("INSERT INTO session(id,adapter_id,executable_path,state,pid,exit_code,started_at,ended_at,last_error) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9) ON CONFLICT(id) DO UPDATE SET adapter_id=excluded.adapter_id,executable_path=excluded.executable_path,state=excluded.state,pid=excluded.pid,exit_code=excluded.exit_code,started_at=excluded.started_at,ended_at=excluded.ended_at,last_error=excluded.last_error", params![info["id"].as_str(), info["adapterId"].as_str(), info["executablePath"].as_str(), info["state"].as_str(), info["pid"].as_i64(), info["exitCode"].as_i64(), info["startedAt"].as_str(), info["endedAt"].as_str(), info["lastError"].as_str()]).map_err(internal)?;
-        emit(handle, "session.state", &Origin::System, info.clone())?;
-        Ok(())
+        txn::atomically(handle, || {
+            handle.db.execute("INSERT INTO session(id,adapter_id,executable_path,state,pid,exit_code,started_at,ended_at,last_error) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9) ON CONFLICT(id) DO UPDATE SET adapter_id=excluded.adapter_id,executable_path=excluded.executable_path,state=excluded.state,pid=excluded.pid,exit_code=excluded.exit_code,started_at=excluded.started_at,ended_at=excluded.ended_at,last_error=excluded.last_error", params![info["id"].as_str(), info["adapterId"].as_str(), info["executablePath"].as_str(), info["state"].as_str(), info["pid"].as_i64(), info["exitCode"].as_i64(), info["startedAt"].as_str(), info["endedAt"].as_str(), info["lastError"].as_str()]).map_err(internal)?;
+            emit(handle, "session.state", &Origin::System, info.clone())?;
+            Ok(())
+        })
     }
 
-    pub fn events_since(&self, project_id: &str, seq: i64) -> CoreResult<Vec<Value>> {
+    /// The project's events that no caller has been handed yet, oldest first,
+    /// each carrying `projectId`. Delivery is tracked per open project and
+    /// shared with background workers, so however the callers' windows overlap
+    /// an event is returned once and never again. `_after` is kept for source
+    /// compatibility: the cursor, not the caller, decides where delivery
+    /// resumes. `project.changes_since` remains the replayable read.
+    pub fn events_since(&self, project_id: &str, _after: i64) -> CoreResult<Vec<Value>> {
         let handle = self
             .projects
             .get(project_id)
             .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
-        let mut stmt = handle
-            .db
-            .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq LIMIT 500")
-            .map_err(internal)?;
-        let events = stmt
-            .query_map([seq], event_from_row)
-            .map_err(internal)?
-            .collect::<rusqlite::Result<Vec<_>>>()
-            .map_err(internal)?;
-        Ok(events)
+        let delivery = self
+            .delivery
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
+        delivery.take(&handle.db, project_id)
     }
 
     fn register(&mut self, handle: ProjectHandle) -> CoreResult<Value> {
@@ -600,9 +594,24 @@ impl CoreApp {
                 ));
             }
         }
+        let mut warnings = Vec::new();
         if !handle.read_only {
             handle.db.execute("UPDATE job SET status='interrupted',finished_at=?1 WHERE status IN ('queued','running')",[now()]).map_err(internal)?;
             handle.db.execute("UPDATE session SET state='interrupted',ended_at=?1 WHERE state IN ('starting','running')",[now()]).map_err(internal)?;
+            // Neither repair may keep a project from opening; what could not
+            // be repaired is said in the result.
+            if let Err(error) = idempotency::recover(&handle) {
+                warnings.push(format!(
+                    "Recorded results of interrupted calls could not be recovered: {}",
+                    error.message
+                ));
+            }
+            if let Err(error) = graph::reconcile(&handle) {
+                warnings.push(format!(
+                    "Freshness of dependent records could not be re-checked: {}",
+                    error.message
+                ));
+            }
         }
         let path = handle.root.to_string_lossy().to_string();
         self.recent_projects.retain(|p| p != &path);
@@ -610,8 +619,21 @@ impl CoreApp {
         self.recent_projects.truncate(20);
         self.save_settings()?;
         let read_only = handle.read_only;
+        let delivered = handle
+            .db
+            .query_row("SELECT COALESCE(MAX(seq),0) FROM event", [], |row| {
+                row.get(0)
+            })
+            .map_err(internal)?;
+        self.delivery
+            .entry(id.clone())
+            .or_insert_with(|| events::Delivery::after(delivered));
         self.projects.insert(id.clone(), handle);
-        Ok(json!({"project": project, "projectId": id, "readOnly": read_only}))
+        let mut result = json!({"project": project, "projectId": id, "readOnly": read_only});
+        if !warnings.is_empty() {
+            result["warnings"] = json!(warnings);
+        }
+        Ok(result)
     }
 
     fn save_settings(&self) -> CoreResult<()> {
@@ -671,8 +693,8 @@ fn dispatch_project(
             tx.commit().map_err(internal)?;
             Ok(json!({"project": handle.project().map_err(storage_error)?}))
         }
-        "artifact.list" => artifact_list(handle, payload),
-        "artifact.read" => artifact_read(handle, payload),
+        "artifact.list" => reads::artifact_list(handle, payload, origin),
+        "artifact.read" => reads::artifact_read(handle, payload, origin),
         "artifact.history" => artifact_history(handle, payload),
         "artifact.compare" => artifact_compare(handle, payload),
         "artifact.archive" => artifact_archive(handle, payload),
@@ -680,12 +702,15 @@ fn dispatch_project(
         "artifact.read_file" => artifact_read_file(handle, payload),
         "artifact.reveal" => simple::artifact_reveal(handle, payload),
         "project.summary" => simple::project_summary(handle, payload),
+        "project.coverage" => coverage::project_coverage(handle),
+        "work.status" => gate::work_status(handle, payload, origin),
         "project.changes_since" => changes_since(handle, payload),
-        "project.search" => project_search(handle, payload),
-        "graph.list" => graph_list(handle),
+        "project.search" => search::project_search(handle, payload),
+        "graph.list" => reads::graph_list(handle),
         "graph.neighbors" => graph::neighbors(handle, payload),
         "graph.impact" => graph::impact(handle, payload),
         "graph.propose_edges" => graph::propose_edges(handle, payload, origin.kind()),
+        "graph.remove_edges" => graph::remove_edges(handle, payload, origin.kind()),
         "job.list" => job_list(handle, payload),
         "job.read" => simple::job_read(handle, payload),
         "job.cancel" => simple::job_cancel(handle, payload, origin),
@@ -720,7 +745,7 @@ fn dispatch_project(
         "bom.propose_edit" => components::bom_propose_edit(handle, payload, origin),
         "bom.update_line" => components::bom_update_line(handle, payload),
         "bom.remove_line" => components::bom_remove_line(handle, payload),
-        "bom.export" => components::bom_export(handle, payload),
+        "bom.export" => components::bom_export(handle, payload, origin),
         "wiring.validate" => wiring::validate(handle, payload),
         "wiring.render" => wiring::render(handle, payload),
         "wiring.set_pins" => wiring::set_pins(handle, payload, origin),
@@ -762,8 +787,8 @@ fn dispatch_project(
         "proposal.approve" => proposal_resolve(handle, payload, "accepted"),
         "proposal.reject" => proposal_resolve(handle, payload, "rejected"),
         "proposal.request_changes" => proposal_resolve(handle, payload, "changes_requested"),
-        "artifact.create_draft" => create_draft(handle, payload, origin),
-        "artifact.update_draft" => update_draft(handle, payload, origin),
+        "artifact.create_draft" => create_draft_op(handle, payload, origin),
+        "artifact.update_draft" => update_draft_op(handle, payload, origin),
         "artifact.import_file" => artifact_import_file(handle, payload, origin),
         "artifact.apply_edit" => apply_edit(handle, payload),
         "artifact.accept_draft" => accept_draft(handle, payload),
@@ -774,112 +799,6 @@ fn dispatch_project(
             format!("Rust operation {op} has not been ported"),
         )),
     }
-}
-
-fn artifact_list(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
-    let mut stmt = handle.db.prepare(
-        "SELECT * FROM artifact WHERE (?1 IS NULL OR type=?1) AND (?2 IS NULL OR subsystem=?2) AND (?3=1 OR archived=0) ORDER BY created_at LIMIT ?4 OFFSET ?5"
-    ).map_err(internal)?;
-    let rows = stmt
-        .query_map(
-            params![
-                payload["type"].as_str(),
-                payload["subsystem"].as_str(),
-                payload["includeArchived"].as_bool().unwrap_or(false) as i64,
-                payload["limit"].as_i64().unwrap_or(200),
-                payload["offset"].as_i64().unwrap_or(0)
-            ],
-            artifact_from_row,
-        )
-        .map_err(internal)?;
-    let artifacts = rows
-        .map(|row| {
-            row.map_err(internal)
-                .and_then(|a| artifact_view(handle, &a))
-        })
-        .collect::<CoreResult<Vec<_>>>()?;
-    Ok(json!({"artifacts": artifacts}))
-}
-
-fn artifact_view(handle: &ProjectHandle, artifact: &Value) -> CoreResult<Value> {
-    let id = required_str(artifact, "id")?;
-    let revision = if let Some(selected) = artifact["selectedRevisionId"].as_str() {
-        get_revision(handle, selected)?
-    } else {
-        None
-    };
-    let draft_count: i64 = handle
-        .db
-        .query_row(
-            "SELECT COUNT(*) FROM revision WHERE artifact_id=?1 AND review_state='draft'",
-            [id],
-            |row| row.get(0),
-        )
-        .map_err(internal)?;
-    let mut stmt = handle
-        .db
-        .prepare("SELECT changes FROM proposal WHERE state='pending'")
-        .map_err(internal)?;
-    let pending = stmt
-        .query_map([], |row| row.get::<_, String>(0))
-        .map_err(internal)?
-        .filter_map(Result::ok)
-        .filter_map(|changes| serde_json::from_str::<Value>(&changes).ok())
-        .any(|changes| {
-            changes
-                .as_array()
-                .is_some_and(|items| items.iter().any(|change| change["artifactId"] == id))
-        });
-    let mut stmt = handle.db.prepare("SELECT artifact_id,upstream_artifact_id,expected_revision_id,actual_revision_id,path,reason,since_event_seq FROM stale WHERE artifact_id=?1").map_err(internal)?;
-    let stale = stmt.query_map([id], |row| {
-        Ok(json!({
-            "artifactId": row.get::<_, String>(0)?, "upstreamArtifactId": row.get::<_, String>(1)?,
-            "expectedRevisionId": row.get::<_, Option<String>>(2)?, "actualRevisionId": row.get::<_, Option<String>>(3)?,
-            "path": serde_json::from_str::<Value>(&row.get::<_, String>(4)?).unwrap_or(json!([])),
-            "reason": row.get::<_, String>(5)?, "sinceEventSeq": row.get::<_, i64>(6)?,
-        }))
-    }).map_err(internal)?.collect::<rusqlite::Result<Vec<_>>>().map_err(internal)?;
-    let freshness = if stale.iter().any(|s| s["reason"] == "missing_input") {
-        "missing_input"
-    } else if stale.is_empty() {
-        "current"
-    } else {
-        "stale"
-    };
-    Ok(
-        json!({"artifact": artifact, "revision": revision, "freshness": freshness, "staleReasons": stale, "draftCount": draft_count, "pendingProposal": pending}),
-    )
-}
-
-fn artifact_read(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
-    let id = required_str(payload, "artifactId")?;
-    let artifact = require_artifact(handle, id)?;
-    let revision = if let Some(id) = payload["revisionId"]
-        .as_str()
-        .or(artifact["selectedRevisionId"].as_str())
-    {
-        get_revision(handle, id)?
-    } else {
-        let mut stmt = handle
-            .db
-            .prepare("SELECT * FROM revision WHERE artifact_id=?1 ORDER BY seq DESC LIMIT 1")
-            .map_err(internal)?;
-        stmt.query_row([id], revision_from_row)
-            .optional()
-            .map_err(internal)?
-    };
-    if revision.as_ref().is_some_and(|r| r["artifactId"] != id) {
-        return Err(ContractError::validation(
-            "Revision does not belong to artifact",
-        ));
-    }
-    let mut stmt = handle.db.prepare("SELECT * FROM revision WHERE artifact_id=?1 AND review_state='draft' ORDER BY created_at").map_err(internal)?;
-    let drafts = stmt
-        .query_map([id], revision_from_row)
-        .map_err(internal)?
-        .collect::<rusqlite::Result<Vec<_>>>()
-        .map_err(internal)?;
-    Ok(json!({"view": artifact_view(handle, &artifact)?, "revision": revision, "drafts": drafts}))
 }
 
 fn artifact_history(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
@@ -1009,22 +928,25 @@ fn diff_payloads(from: Option<&Value>, to: Option<&Value>, path: &str, out: &mut
 
 fn artifact_archive(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     let id = required_str(payload, "artifactId")?;
-    require_artifact(handle, id)?;
     let archived = payload["archived"].as_bool().unwrap_or(true);
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    tx.execute(
-        "UPDATE artifact SET archived=?1 WHERE id=?2",
-        params![archived as i64, id],
-    )
-    .map_err(internal)?;
-    let seq = tx_event(
-        &tx,
-        "artifact.archived",
-        "user",
-        json!({"artifactId": id, "archived": archived}),
-    )?;
-    tx.commit().map_err(internal)?;
-    graph::propagate_from(handle, &[id.to_owned()], seq)?;
+    txn::atomically(handle, || {
+        require_artifact(handle, id)?;
+        handle
+            .db
+            .execute(
+                "UPDATE artifact SET archived=?1 WHERE id=?2",
+                params![archived as i64, id],
+            )
+            .map_err(internal)?;
+        let seq = emit(
+            handle,
+            "artifact.archived",
+            &Origin::User,
+            json!({"artifactId": id, "archived": archived}),
+        )?;
+        graph::propagate_from(handle, &[id.to_owned()], seq)?;
+        Ok(())
+    })?;
     Ok(json!({"ok": true}))
 }
 
@@ -1085,6 +1007,11 @@ fn artifact_read_file(handle: &ProjectHandle, payload: &Value) -> CoreResult<Val
 
 fn changes_since(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     let seq = payload["seq"].as_i64().unwrap_or(0);
+    let project = handle
+        .project()
+        .map_err(storage_error)?
+        .ok_or_else(|| ContractError::new("INTERNAL", "Project row missing"))?;
+    let project_id = required_str(&project, "id")?;
     let mut stmt = handle
         .db
         .prepare("SELECT * FROM event WHERE seq>?1 ORDER BY seq LIMIT 500")
@@ -1092,6 +1019,7 @@ fn changes_since(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     let events = stmt
         .query_map([seq], event_from_row)
         .map_err(internal)?
+        .map(|event| event.map(|event| events::tagged(event, project_id)))
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(internal)?;
     let next = events
@@ -1107,25 +1035,6 @@ fn changes_since(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     Ok(
         json!({"events": events, "latest": next, "nextCursor": next, "highWater": high_water, "hasMore": next < high_water}),
     )
-}
-
-fn project_search(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
-    let query = required_str(payload, "query")?.replace('"', " ");
-    let query = query.trim();
-    if query.is_empty() {
-        return Ok(json!({"results": []}));
-    }
-    let mut stmt = handle.db.prepare(
-        "SELECT f.artifact_id, f.revision_id, f.title, snippet(artifact_fts, 3, '«', '»', '…', 12), COALESCE(a.type,'note') FROM artifact_fts f LEFT JOIN artifact a ON a.id=f.artifact_id WHERE artifact_fts MATCH ?1 ORDER BY rank LIMIT ?2"
-    ).map_err(internal)?;
-    let results = stmt.query_map(params![query, payload["limit"].as_i64().unwrap_or(20)], |row| {
-        Ok(json!({"artifactId": row.get::<_, String>(0)?, "revisionId": row.get::<_, String>(1)?, "title": row.get::<_, String>(2)?, "snippet": row.get::<_, String>(3)?, "type": row.get::<_, String>(4)?}))
-    }).map_err(|e| ContractError::new("VALIDATION", format!("Search failed: {e}")))?.collect::<rusqlite::Result<Vec<_>>>().map_err(internal)?;
-    Ok(json!({"results": results}))
-}
-
-fn graph_list(handle: &ProjectHandle) -> CoreResult<Value> {
-    Ok(json!({"edges": graph::GraphSnapshot::load(handle, &[])?.edges}))
 }
 
 fn job_list(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
@@ -1152,19 +1061,183 @@ fn job_list(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
 fn proposal_list(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     let state = payload["state"].as_str();
     let mut stmt = handle.db.prepare("SELECT id,changes,reason,impact,state,created_by,created_by_session,created_at,resolved_at,resolution_rationale FROM proposal WHERE (?1 IS NULL OR state=?1) ORDER BY created_at DESC").map_err(internal)?;
-    let proposals = stmt
+    let mut proposals = stmt
         .query_map([state], models::proposal_from_row)
         .map_err(internal)?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(internal)?;
+    for proposal in &mut proposals {
+        review::annotate_base_moved(handle, proposal)?;
+    }
     Ok(json!({"proposals": proposals}))
 }
 
+/// A draft revision that is committed but whose files have not reached the
+/// working folder yet.
+struct CommittedDraft {
+    artifact_id: String,
+    revision_id: String,
+    files: Vec<Value>,
+    parent: Option<Value>,
+    /// Open drafts this revision retired, as sentences for the caller.
+    retired: Vec<String>,
+}
+
+struct DraftRow<'a> {
+    id: &'a str,
+    artifact_id: &'a str,
+    parent_id: Option<&'a str>,
+    seq: i64,
+    title: &'a str,
+    body: &'a Value,
+    files: &'a [Value],
+    inputs: &'a [Value],
+    rationale: &'a str,
+}
+
+/// Stores a draft revision with its search row and `revision.committed`
+/// event. Runs inside the caller's transaction.
+fn insert_draft_row(handle: &ProjectHandle, origin: &Origin, row: &DraftRow<'_>) -> CoreResult<()> {
+    let hashes = row
+        .files
+        .iter()
+        .filter_map(|file| file["sha256"].as_str().map(str::to_owned))
+        .collect::<Vec<_>>();
+    handle.db.execute("INSERT INTO revision(id,artifact_id,parent_id,seq,origin,origin_detail,created_at,payload,content_hash,files,inputs,rationale,review_state) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'draft')",
+        params![row.id, row.artifact_id, row.parent_id, row.seq, origin.kind(), origin.session_id(), now(), row.body.to_string(), models::content_hash(row.body, &hashes), json!(row.files).to_string(), json!(row.inputs).to_string(), row.rationale]).map_err(internal)?;
+    handle
+        .db
+        .execute(
+            "DELETE FROM artifact_fts WHERE artifact_id=?1",
+            [row.artifact_id],
+        )
+        .map_err(internal)?;
+    handle
+        .db
+        .execute(
+            "INSERT INTO artifact_fts(artifact_id,revision_id,title,text) VALUES(?1,?2,?3,?4)",
+            params![
+                row.artifact_id,
+                row.id,
+                row.title,
+                row.body
+                    .to_string()
+                    .chars()
+                    .take(20_000)
+                    .collect::<String>()
+            ],
+        )
+        .map_err(internal)?;
+    emit(
+        handle,
+        "revision.committed",
+        origin,
+        json!({"artifactId": row.artifact_id, "revisionId": row.id, "reviewState": "draft"}),
+    )?;
+    Ok(())
+}
+
+/// Writes a committed draft's working files and builds the operation result.
+/// The revision is already stored, so a file that cannot be written is a
+/// warning in the result, never a failure of the operation.
+fn draft_result(handle: &ProjectHandle, draft: &CommittedDraft) -> CoreResult<Value> {
+    let warnings = settle_files(handle, &draft.files, draft.parent.as_ref());
+    let mut result = json!({
+        "artifact": require_artifact(handle, &draft.artifact_id)?,
+        "revision": require_revision(handle, &draft.revision_id)?,
+    });
+    attach_warnings(
+        &mut result,
+        draft.retired.iter().cloned().chain(warnings).collect(),
+    );
+    Ok(result)
+}
+
+fn attach_warnings(result: &mut Value, warnings: Vec<String>) {
+    if !warnings.is_empty() {
+        result["warnings"] = json!(warnings);
+    }
+}
+
+/// `artifact.create_draft` / `artifact.update_draft` as called by an agent:
+/// the payload goes through the agent validator first, so a key the artifact
+/// type does not declare is rejected with the nearest valid key instead of
+/// being dropped, and each lossless repair is reported in `notes`.
+fn agent_payload(
+    type_name: &str,
+    input: &Value,
+    payload: Value,
+) -> CoreResult<(Value, Vec<String>)> {
+    let mut checked = parse_agent_artifact_payload(type_name, payload)?;
+    let mut notes = checked.notes;
+    notes.extend(units::check_authored(&mut checked.value, "payload")?);
+    let mut input = input.clone();
+    input["payload"] = checked.value;
+    Ok((input, notes))
+}
+
+/// Put `notes` ahead of any notes the result already carries.
+fn attach_notes(mut result: Value, mut notes: Vec<String>) -> Value {
+    if let Some(own) = result["notes"].as_array() {
+        notes.extend(own.iter().filter_map(Value::as_str).map(str::to_owned));
+    }
+    if !notes.is_empty() {
+        result["notes"] = json!(notes);
+    }
+    result
+}
+
+fn create_draft_op(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
+    if !matches!(origin, Origin::Agent { .. }) {
+        return create_draft(handle, input, origin);
+    }
+    let payload = if input["payload"].is_null() {
+        json!({})
+    } else {
+        input["payload"].clone()
+    };
+    let (input, notes) = agent_payload(required_str(input, "type")?, input, payload)?;
+    Ok(attach_notes(create_draft(handle, &input, origin)?, notes))
+}
+
+fn update_draft_op(
+    handle: &mut ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+) -> CoreResult<Value> {
+    if !matches!(origin, Origin::Agent { .. }) || input.get("payload").is_none() {
+        return update_draft(handle, input, origin);
+    }
+    let artifact = require_artifact(handle, required_str(input, "artifactId")?)?;
+    let (input, notes) = agent_payload(
+        required_str(&artifact, "type")?,
+        input,
+        input["payload"].clone(),
+    )?;
+    Ok(attach_notes(update_draft(handle, &input, origin)?, notes))
+}
+
 fn create_draft(handle: &mut ProjectHandle, payload: &Value, origin: &Origin) -> CoreResult<Value> {
+    let handle = &*handle;
+    let draft = txn::atomically(handle, || {
+        insert_artifact_with_draft(handle, payload, origin)
+    })?;
+    draft_result(handle, &draft)
+}
+
+fn insert_artifact_with_draft(
+    handle: &ProjectHandle,
+    payload: &Value,
+    origin: &Origin,
+) -> CoreResult<CommittedDraft> {
     let id = uuid::Uuid::new_v4().to_string();
     let type_name = required_str(payload, "type")?;
     let title = required_str(payload, "title")?;
-    let body = parse_artifact_payload(
+    let mut body = parse_artifact_payload(
         type_name,
         if payload["payload"].is_null() {
             json!({})
@@ -1172,74 +1245,95 @@ fn create_draft(handle: &mut ProjectHandle, payload: &Value, origin: &Origin) ->
             payload["payload"].clone()
         },
     )?;
+    wiring::complete_payload(handle, type_name, &mut body)?;
     let files = ingest_files(handle, &payload["files"])?;
+    let (body, files) = if type_name == "mechanical" {
+        mechanical::normalize(handle, body, files, None)?
+    } else {
+        (body, files)
+    };
     let inputs = normalize_inputs(handle, &id, &payload["inputs"])?;
-    let file_hashes = files
-        .iter()
-        .filter_map(|file| file["sha256"].as_str().map(str::to_owned))
-        .collect::<Vec<_>>();
-    let digest = models::content_hash(&body, &file_hashes);
-    let now = now();
     let rev_id = uuid::Uuid::new_v4().to_string();
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    tx.execute("INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?1,?2,?3,?4,NULL,0,?5)", params![id, type_name, title, payload["subsystem"].as_str(), now]).map_err(internal)?;
-    tx.execute("INSERT INTO revision(id,artifact_id,parent_id,seq,origin,origin_detail,created_at,payload,content_hash,files,inputs,rationale,review_state) VALUES(?1,?2,NULL,1,?3,?4,?5,?6,?7,?8,?9,?10,'draft')",
-        params![rev_id, id, origin.kind(), origin.session_id(), now, body.to_string(), digest, json!(files).to_string(), json!(inputs).to_string(), payload["rationale"].as_str().unwrap_or("")]).map_err(internal)?;
-    tx.execute("DELETE FROM artifact_fts WHERE artifact_id=?1", [&id])
-        .map_err(internal)?;
-    tx.execute(
-        "INSERT INTO artifact_fts(artifact_id,revision_id,title,text) VALUES(?1,?2,?3,?4)",
-        params![
-            id,
-            rev_id,
+    handle.db.execute("INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?1,?2,?3,?4,NULL,0,?5)", params![id, type_name, title, payload["subsystem"].as_str(), now()]).map_err(internal)?;
+    insert_draft_row(
+        handle,
+        origin,
+        &DraftRow {
+            id: &rev_id,
+            artifact_id: &id,
+            parent_id: None,
+            seq: 1,
             title,
-            body.to_string().chars().take(20_000).collect::<String>()
-        ],
-    )
-    .map_err(internal)?;
-    tx.execute(
-        "INSERT INTO event(id,type,origin,ts,data) VALUES(?1,'revision.committed',?2,?3,?4)",
-        params![
-            uuid::Uuid::new_v4().to_string(),
-            origin.kind(),
-            now,
-            json!({"artifactId": id, "revisionId": rev_id, "reviewState": "draft"}).to_string()
-        ],
-    )
-    .map_err(internal)?;
-    tx.commit().map_err(internal)?;
-    materialize_files(handle, &files, None)?;
-    let artifact = require_artifact(handle, &id)?;
-    let revision = get_revision(handle, &rev_id)?.unwrap();
-    Ok(json!({"artifact": artifact, "revision": revision}))
+            body: &body,
+            files: &files,
+            inputs: &inputs,
+            rationale: payload["rationale"].as_str().unwrap_or(""),
+        },
+    )?;
+    Ok(CommittedDraft {
+        artifact_id: id,
+        revision_id: rev_id,
+        files,
+        parent: None,
+        retired: Vec::new(),
+    })
 }
 
 fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<Value> {
+    let handle = &*handle;
+    let draft = txn::atomically(handle, || {
+        insert_draft_revision(handle, input, origin, None)
+    })?;
+    draft_result(handle, &draft)
+}
+
+fn base_no_longer_selected(artifact: &Value, requested: &str) -> ContractError {
+    let message = "Base revision is no longer selected";
+    match artifact["selectedRevisionId"].as_str() {
+        Some(current) => ContractError::revision_conflict(message, current).with_details(json!({
+            "artifactId": artifact["id"],
+            "currentRevisionId": current,
+            "requestedRevisionId": requested,
+        })),
+        None => ContractError::new("REVISION_CONFLICT", message).with_repair(
+            "This artifact has no approved revision yet. Read it again and continue from its newest draft.",
+        ),
+    }
+}
+
+/// Adds a draft revision to an existing artifact. `carried_files` are file
+/// references taken over as they are (a direct edit or a revert); otherwise
+/// the files come from the input, or from the parent when the input has none.
+/// Runs inside the caller's transaction and leaves the working folder alone.
+fn insert_draft_revision(
+    handle: &ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+    carried_files: Option<Vec<Value>>,
+) -> CoreResult<CommittedDraft> {
     let artifact_id = required_str(input, "artifactId")?;
-    let mut artifact = require_artifact(handle, artifact_id)?;
+    let artifact = require_artifact(handle, artifact_id)?;
     if let (Some(requested), Some(selected)) = (
         input["baseRevisionId"].as_str(),
         artifact["selectedRevisionId"].as_str(),
     ) {
         if requested != selected {
-            return Err(ContractError::new(
-                "REVISION_CONFLICT",
-                "Base revision is no longer selected",
-            ));
+            return Err(base_no_longer_selected(&artifact, requested));
         }
     }
-    let parent_id = input["draftRevisionId"]
+    // Named revisions are explicit; otherwise the work continues where it
+    // stands, never silently from the baseline behind an open draft.
+    let parent_id = match input["draftRevisionId"]
         .as_str()
         .or(input["baseRevisionId"].as_str())
-        .or(artifact["selectedRevisionId"].as_str());
-    let parent = if let Some(id) = parent_id {
-        Some(require_revision(handle, id)?)
-    } else {
-        handle.db.query_row(
-            "SELECT * FROM revision WHERE artifact_id=?1 AND review_state IN ('draft','proposed') ORDER BY seq DESC LIMIT 1",
-            [artifact_id], revision_from_row,
-        ).optional().map_err(internal)?
+    {
+        Some(id) => Some(id.to_owned()),
+        None => review::continuation(&handle.db, &artifact)?,
     };
+    let parent = parent_id
+        .as_deref()
+        .map(|id| require_revision(handle, id))
+        .transpose()?;
     let parent_id = parent.as_ref().and_then(|revision| revision["id"].as_str());
     if let Some(parent) = &parent {
         if parent["artifactId"] != artifact_id {
@@ -1248,15 +1342,19 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
             ));
         }
     }
-    let body = parse_artifact_payload(
-        required_str(&artifact, "type")?,
+    let type_name = required_str(&artifact, "type")?;
+    let mut body = parse_artifact_payload(
+        type_name,
         input
             .get("payload")
             .cloned()
             .or_else(|| parent.as_ref().map(|p| p["payload"].clone()))
             .unwrap_or_else(|| json!({})),
     )?;
-    let files = if input.get("files").is_some() {
+    wiring::complete_payload(handle, type_name, &mut body)?;
+    let files = if let Some(files) = carried_files {
+        files
+    } else if input.get("files").is_some() {
         ingest_files(handle, &input["files"])?
     } else {
         parent
@@ -1264,6 +1362,11 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
             .and_then(|p| p["files"].as_array())
             .cloned()
             .unwrap_or_default()
+    };
+    let (body, files) = if type_name == "mechanical" {
+        mechanical::normalize(handle, body, files, parent.as_ref())?
+    } else {
+        (body, files)
     };
     let inputs = if input.get("inputs").is_some() {
         normalize_inputs(handle, artifact_id, &input["inputs"])?
@@ -1275,10 +1378,6 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
             .unwrap_or_default()
     };
     graph::validate_revision_inputs(handle, artifact_id, &inputs)?;
-    let hashes = files
-        .iter()
-        .filter_map(|file| file["sha256"].as_str().map(str::to_owned))
-        .collect::<Vec<_>>();
     let revision_id = uuid::Uuid::new_v4().to_string();
     let next_seq: i64 = handle
         .db
@@ -1288,7 +1387,6 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
             |row| row.get(0),
         )
         .map_err(internal)?;
-    let now = now();
     let rationale = input["rationale"]
         .as_str()
         .or_else(|| parent.as_ref().and_then(|p| p["rationale"].as_str()))
@@ -1296,112 +1394,140 @@ fn update_draft(handle: &mut ProjectHandle, input: &Value, origin: &Origin) -> C
     let title = input["title"]
         .as_str()
         .unwrap_or(required_str(&artifact, "title")?);
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    tx.execute("INSERT INTO revision(id,artifact_id,parent_id,seq,origin,origin_detail,created_at,payload,content_hash,files,inputs,rationale,review_state) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'draft')", params![revision_id, artifact_id, parent_id, next_seq, origin.kind(), origin.session_id(), now, body.to_string(), models::content_hash(&body, &hashes), json!(files).to_string(), json!(inputs).to_string(), rationale]).map_err(internal)?;
-    if input["title"].is_string() {
-        tx.execute(
+    if let Some(renamed) = input["title"].as_str() {
+        if renamed != required_str(&artifact, "title")? {
+            rename_artifact(handle, &artifact, renamed, origin)?;
+        }
+    }
+    let open = review::open_drafts(&handle.db, artifact_id)?;
+    insert_draft_row(
+        handle,
+        origin,
+        &DraftRow {
+            id: &revision_id,
+            artifact_id,
+            parent_id,
+            seq: next_seq,
+            title,
+            body: &body,
+            files: &files,
+            inputs: &inputs,
+            rationale,
+        },
+    )?;
+    let retired = review::retired_since(
+        &handle.db,
+        &open,
+        parent.as_ref().and_then(|parent| parent["seq"].as_i64()),
+    )?;
+    Ok(CommittedDraft {
+        artifact_id: artifact_id.to_owned(),
+        revision_id,
+        files,
+        parent,
+        retired,
+    })
+}
+
+/// A title is the one part of an artifact that is not revisioned, so a rename
+/// takes effect at once whoever makes it. It is recorded with its origin and
+/// the previous title, which is what a person needs to see it and to put it
+/// back.
+fn rename_artifact(
+    handle: &ProjectHandle,
+    artifact: &Value,
+    title: &str,
+    origin: &Origin,
+) -> CoreResult<()> {
+    let artifact_id = required_str(artifact, "id")?;
+    handle
+        .db
+        .execute(
             "UPDATE artifact SET title=?1 WHERE id=?2",
             params![title, artifact_id],
         )
         .map_err(internal)?;
-    }
-    tx.execute(
-        "DELETE FROM artifact_fts WHERE artifact_id=?1",
-        [artifact_id],
-    )
-    .map_err(internal)?;
-    tx.execute(
-        "INSERT INTO artifact_fts(artifact_id,revision_id,title,text) VALUES(?1,?2,?3,?4)",
-        params![
-            artifact_id,
-            revision_id,
-            title,
-            body.to_string().chars().take(20_000).collect::<String>()
-        ],
-    )
-    .map_err(internal)?;
-    tx.execute(
-        "INSERT INTO event(id,type,origin,ts,data) VALUES(?1,'revision.committed',?2,?3,?4)",
-        params![
-            uuid::Uuid::new_v4().to_string(),
-            origin.kind(),
-            now,
-            json!({"artifactId": artifact_id, "revisionId": revision_id, "reviewState": "draft"})
-                .to_string()
-        ],
-    )
-    .map_err(internal)?;
-    tx.commit().map_err(internal)?;
-    materialize_files(handle, &files, parent.as_ref())?;
-    artifact = require_artifact(handle, artifact_id)?;
-    Ok(json!({"artifact": artifact, "revision": get_revision(handle, &revision_id)?}))
+    emit(
+        handle,
+        "artifact.renamed",
+        origin,
+        json!({"artifactId": artifact_id, "title": title, "previousTitle": artifact["title"]}),
+    )?;
+    Ok(())
 }
 
 fn accept_draft(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
-    accept_draft_with_action(handle, input, "accepted")
+    let handle = &*handle;
+    txn::atomically(handle, || promote_draft(handle, input, "accepted"))
 }
 
-fn accept_draft_with_action(
-    handle: &mut ProjectHandle,
-    input: &Value,
-    action: &str,
-) -> CoreResult<Value> {
+/// Records that the reviewer accepted a verified CAD scope with this decision.
+fn record_accepted_scope(
+    handle: &ProjectHandle,
+    artifact_id: &str,
+    scope: &Value,
+) -> CoreResult<()> {
+    handle.db.execute("INSERT INTO meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        params![format!("cad.scope.accepted.{artifact_id}"),json!({"evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"expect":scope["expect"],"revisionId":scope["revisionId"]}).to_string()]).map_err(internal)?;
+    cad::record_scope_acceptance(handle, artifact_id, scope)?;
+    emit(
+        handle,
+        "cad.scope.accepted",
+        &Origin::User,
+        json!({"artifactId":artifact_id,"revisionId":scope["revisionId"],
+            "evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"scopeChanges":scope["scopeChanges"]}),
+    )?;
+    Ok(())
+}
+
+/// Makes a draft the baseline: the pointer, the decision, the freshness of
+/// everything downstream and their events. Runs inside the caller's
+/// transaction, so the baseline never moves without its consequences.
+/// Selecting a baseline is the person's call even when CAD verification is
+/// incomplete; readiness stays labelled by the verification evidence.
+fn promote_draft(handle: &ProjectHandle, input: &Value, action: &str) -> CoreResult<Value> {
     let artifact_id = required_str(input, "artifactId")?;
     let artifact = require_artifact(handle, artifact_id)?;
     let revision_id = required_str(input, "draftRevisionId")?;
     let revision = require_revision(handle, revision_id)?;
-    validate_active_candidate(&artifact, &revision)?;
-    let mut ancestor = Some(revision.clone());
-    while let Some(candidate) = &ancestor {
-        if candidate["id"] == artifact["selectedRevisionId"] {
-            break;
-        }
-        if !matches!(
-            candidate["reviewState"].as_str(),
-            Some("draft" | "proposed")
-        ) {
-            break;
-        }
-        ancestor = candidate["parentId"]
-            .as_str()
-            .map(|id| get_revision(handle, id))
-            .transpose()?
-            .flatten();
-    }
-    if ancestor.as_ref().map(|a| &a["id"]).unwrap_or(&Value::Null)
-        != &artifact["selectedRevisionId"]
-    {
-        return Err(ContractError::new(
-            "REVISION_CONFLICT",
+    review::assert_candidate(&handle.db, &artifact, &revision)?;
+    if review::overwrites_baseline(&handle.db, &artifact, revision_id)? {
+        return Err(review::baseline_conflict(
             "Draft is based on an older baseline",
+            &artifact,
+            &json!({"baseRevisionId": revision["parentId"], "newRevisionId": revision_id}),
+            "The baseline changed after this draft was started. Rebuild the draft on the current baseline, then accept that one.",
         ));
     }
-    assert_simple_approval(&artifact)?;
     graph::GraphSnapshot::load(handle, &[(artifact_id.to_owned(), revision.clone())])?
         .assert_no_cycles()?;
+    if let Some(hash) = input["verificationEvidenceHash"].as_str() {
+        let scope = cad::validate_scope_accept(handle, &revision, hash)?;
+        record_accepted_scope(handle, artifact_id, &scope)?;
+    }
     let prior = artifact["selectedRevisionId"]
         .as_str()
         .map(|id| json!({"artifactId": artifact_id, "revisionId": id}))
         .into_iter()
         .collect::<Vec<_>>();
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    promote_revision(&tx, &artifact, &revision)?;
-    let seq = tx_event(
-        &tx,
-        "baseline.changed",
-        "user",
-        json!({"artifactId": artifact_id, "newRevisionId": revision_id, "priorRevisionId": artifact["selectedRevisionId"]}),
+    promote_revision(&handle.db, &artifact, &revision)?;
+    let mut change = json!({"artifactId": artifact_id, "newRevisionId": revision_id, "priorRevisionId": artifact["selectedRevisionId"]});
+    if action == "revert" {
+        change["reverted"] = json!(true);
+    }
+    let seq = emit(handle, "baseline.changed", &Origin::User, change)?;
+    record_decision(
+        &handle.db,
+        &Decision {
+            proposal_id: None,
+            action,
+            actor: "user",
+            rationale: input["rationale"].as_str().unwrap_or(""),
+            prior: &prior,
+            next: &[json!({"artifactId": artifact_id, "revisionId": revision_id})],
+            event_seq: seq,
+        },
     )?;
-    tx_decision(
-        &tx,
-        None,
-        action,
-        input["rationale"].as_str().unwrap_or(""),
-        &prior,
-        &[json!({"artifactId": artifact_id, "revisionId": revision_id})],
-        seq,
-    )?;
-    tx.commit().map_err(internal)?;
     let affected = graph::propagate_from(handle, &[artifact_id.to_owned()], seq)?;
     emit(
         handle,
@@ -1409,6 +1535,7 @@ fn accept_draft_with_action(
         &Origin::User,
         json!({"changed": [{"artifactId": artifact_id, "revisionId": revision_id}], "affected": affected}),
     )?;
+    review::retire_answered(handle, artifact_id, revision_id)?;
     Ok(
         json!({"artifact": require_artifact(handle, artifact_id)?, "revision": get_revision(handle, revision_id)?}),
     )
@@ -1442,133 +1569,135 @@ fn artifact_import_file(
     }
 }
 
+/// The parent's files with `writes` laid over them. Untouched files keep
+/// their recorded reference; a rewritten path keeps the role it had.
+fn overwrite_files(
+    handle: &ProjectHandle,
+    parent: &Value,
+    writes: &[Value],
+) -> CoreResult<Vec<Value>> {
+    let parent_files = parent["files"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let mut written = ingest_files(handle, &json!(writes))?;
+    for file in &mut written {
+        if let Some(role) = parent_files
+            .iter()
+            .find(|prior| prior["path"] == file["path"])
+            .and_then(|prior| prior["role"].as_str())
+        {
+            file["role"] = json!(role);
+        }
+    }
+    let mut files = parent_files
+        .iter()
+        .filter(|prior| !written.iter().any(|file| file["path"] == prior["path"]))
+        .cloned()
+        .collect::<Vec<_>>();
+    files.extend(written);
+    Ok(files)
+}
+
 fn apply_edit(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
+    let handle = &*handle;
     let artifact_id = required_str(input, "artifactId")?;
     let base_id = required_str(input, "baseRevisionId")?;
-    let artifact = require_artifact(handle, artifact_id)?;
-    if artifact["selectedRevisionId"] != base_id {
-        return Err(ContractError::new(
-            "REVISION_CONFLICT",
-            "Base revision is no longer selected",
-        ));
-    }
-    let parent = require_revision(handle, base_id)?;
-    let mut payload = input.get("payload").cloned();
-    if let Some(patch) = input["payloadPatch"].as_object() {
-        let mut base = parent["payload"].as_object().cloned().unwrap_or_default();
-        for (key, value) in patch {
-            base.insert(key.clone(), value.clone());
+    let (draft, mut result) = txn::atomically(handle, || {
+        let artifact = require_artifact(handle, artifact_id)?;
+        if artifact["selectedRevisionId"] != base_id {
+            return Err(base_no_longer_selected(&artifact, base_id));
         }
-        payload = Some(Value::Object(base));
-    }
-    let mut update = json!({"artifactId": artifact_id, "baseRevisionId": base_id, "rationale": input["rationale"]});
-    if let Some(payload) = payload {
-        update["payload"] = payload;
-    }
-    if let Some(title) = input["title"].as_str() {
-        update["title"] = json!(title);
-    }
-    if let Some(writes) = input["fileWrites"].as_array() {
-        if !writes.is_empty() {
-            let overwritten = writes
-                .iter()
-                .filter_map(|file| file["path"].as_str())
-                .collect::<std::collections::HashSet<_>>();
-            let store = handle.object_store().map_err(storage_error)?;
-            let mut files = Vec::new();
-            for file in parent["files"].as_array().into_iter().flatten() {
-                let path = required_str(file, "path")?;
-                if overwritten.contains(path) {
-                    continue;
-                }
-                let sha = required_str(file, "sha256")?;
-                files.push(json!({"path": path, "contentBase64": base64::engine::general_purpose::STANDARD.encode(store.read(sha).map_err(storage_error)?)}));
+        let parent = require_revision(handle, base_id)?;
+        let mut payload = input.get("payload").cloned();
+        if let Some(patch) = input["payloadPatch"].as_object() {
+            let mut base = parent["payload"].as_object().cloned().unwrap_or_default();
+            for (key, value) in patch {
+                base.insert(key.clone(), value.clone());
             }
-            files.extend(writes.iter().cloned());
-            update["files"] = json!(files);
+            payload = Some(Value::Object(base));
         }
-    }
-    let draft = update_draft(handle, &update, &Origin::User)?;
-    accept_draft_with_action(
-        handle,
-        &json!({"artifactId": artifact_id, "draftRevisionId": draft["revision"]["id"], "rationale": input["rationale"]}),
-        "direct_edit",
-    )
+        let mut update = json!({"artifactId": artifact_id, "baseRevisionId": base_id, "rationale": input["rationale"]});
+        if let Some(payload) = payload {
+            update["payload"] = payload;
+        }
+        if let Some(title) = input["title"].as_str() {
+            update["title"] = json!(title);
+        }
+        let files = match input["fileWrites"].as_array() {
+            Some(writes) if !writes.is_empty() => Some(overwrite_files(handle, &parent, writes)?),
+            _ => None,
+        };
+        let draft = insert_draft_revision(handle, &update, &Origin::User, files)?;
+        let result = promote_draft(
+            handle,
+            &json!({"artifactId": artifact_id, "draftRevisionId": draft.revision_id, "rationale": input["rationale"]}),
+            "direct_edit",
+        )?;
+        Ok((draft, result))
+    })?;
+    attach_warnings(
+        &mut result,
+        settle_files(handle, &draft.files, draft.parent.as_ref()),
+    );
+    Ok(result)
 }
 
 fn revert_artifact(handle: &mut ProjectHandle, input: &Value) -> CoreResult<Value> {
+    let handle = &*handle;
     let artifact_id = required_str(input, "artifactId")?;
-    let artifact = require_artifact(handle, artifact_id)?;
-    let target = require_revision(handle, required_str(input, "toRevisionId")?)?;
-    if target["artifactId"] != artifact_id {
-        return Err(ContractError::validation(
-            "Revision does not belong to artifact",
-        ));
-    }
-    let store = handle.object_store().map_err(storage_error)?;
-    let mut files = Vec::new();
-    for file in target["files"].as_array().into_iter().flatten() {
-        let sha = required_str(file, "sha256")?;
-        files.push(json!({"path": file["path"], "contentBase64": base64::engine::general_purpose::STANDARD.encode(store.read(sha).map_err(storage_error)?)}));
-    }
-    let mut draft_input = json!({"artifactId": artifact_id, "payload": target["payload"], "files": files, "inputs": target["inputs"], "rationale": format!("Revert to revision {}: {}", target["seq"], input["rationale"].as_str().unwrap_or(""))});
-    if let Some(selected) = artifact["selectedRevisionId"].as_str() {
-        draft_input["baseRevisionId"] = json!(selected);
-    }
-    let draft = update_draft(handle, &draft_input, &Origin::User)?;
-    accept_draft_with_action(
-        handle,
-        &json!({"artifactId": artifact_id, "draftRevisionId": draft["revision"]["id"], "rationale": input["rationale"]}),
-        "revert",
-    )
+    let (draft, mut result) = txn::atomically(handle, || {
+        let artifact = require_artifact(handle, artifact_id)?;
+        let target = require_revision(handle, required_str(input, "toRevisionId")?)?;
+        if target["artifactId"] != artifact_id {
+            return Err(ContractError::validation(
+                "Revision does not belong to artifact",
+            ));
+        }
+        let mut draft_input = json!({"artifactId": artifact_id, "payload": target["payload"], "inputs": target["inputs"], "rationale": format!("Revert to revision {}: {}", target["seq"], input["rationale"].as_str().unwrap_or(""))});
+        if let Some(selected) = artifact["selectedRevisionId"].as_str() {
+            draft_input["baseRevisionId"] = json!(selected);
+        }
+        let files = target["files"].as_array().cloned().unwrap_or_default();
+        let draft = insert_draft_revision(handle, &draft_input, &Origin::User, Some(files))?;
+        let result = promote_draft(
+            handle,
+            &json!({"artifactId": artifact_id, "draftRevisionId": draft.revision_id, "rationale": input["rationale"]}),
+            "revert",
+        )?;
+        Ok((draft, result))
+    })?;
+    attach_warnings(
+        &mut result,
+        settle_files(handle, &draft.files, draft.parent.as_ref()),
+    );
+    Ok(result)
 }
 
-fn validate_active_candidate(artifact: &Value, revision: &Value) -> CoreResult<()> {
-    if revision["artifactId"] != artifact["id"] {
-        return Err(ContractError::validation(
-            "Revision does not belong to artifact",
-        ));
-    }
-    if !matches!(revision["reviewState"].as_str(), Some("draft" | "proposed")) {
-        return Err(ContractError::validation(
-            "Only an active draft can be accepted",
-        ));
-    }
-    Ok(())
-}
-
-fn assert_simple_approval(artifact: &Value) -> CoreResult<()> {
-    // Human selection of a baseline is allowed even when CAD verification is
-    // incomplete. Readiness remains labeled by the verification evidence.
-    let _ = artifact;
-    Ok(())
-}
-
+/// Moves the baseline pointer to `revision` and retires the draft work that
+/// came before it. The caller propagates freshness afterwards, in the same
+/// transaction.
 fn promote_revision(
-    tx: &rusqlite::Transaction<'_>,
+    db: &rusqlite::Connection,
     artifact: &Value,
     revision: &Value,
 ) -> CoreResult<()> {
     let artifact_id = required_str(artifact, "id")?;
     let revision_id = required_str(revision, "id")?;
-    tx.execute(
+    db.execute(
         "UPDATE revision SET review_state='approved' WHERE id=?1",
         [revision_id],
     )
     .map_err(internal)?;
-    tx.execute(
+    db.execute(
         "UPDATE artifact SET selected_revision_id=?1 WHERE id=?2",
         params![revision_id, artifact_id],
     )
     .map_err(internal)?;
     if let Some(prior) = artifact["selectedRevisionId"].as_str() {
         if prior != revision_id {
-            tx.execute("UPDATE revision SET review_state='superseded' WHERE id=?1 AND review_state='approved'", [prior]).map_err(internal)?;
+            db.execute("UPDATE revision SET review_state='superseded' WHERE id=?1 AND review_state='approved'", [prior]).map_err(internal)?;
         }
     }
-    tx.execute("DELETE FROM stale WHERE artifact_id=?1", [artifact_id])
-        .map_err(internal)?;
-    graph::sync_selected_inputs(tx, artifact, revision)?;
+    review::retire_drafts_before(db, artifact_id, revision_id)?;
+    graph::sync_selected_inputs(db, artifact, revision)?;
     Ok(())
 }
 
@@ -1577,6 +1706,12 @@ fn proposal_submit(
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
+    let handle = &*handle;
+    let proposal_id = txn::atomically(handle, || submit_proposal(handle, input, origin))?;
+    require_proposal(handle, &proposal_id)
+}
+
+fn submit_proposal(handle: &ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<String> {
     let changes = input["changes"]
         .as_array()
         .ok_or_else(|| ContractError::validation("Missing changes"))?;
@@ -1591,8 +1726,9 @@ fn proposal_submit(
             ));
         }
         let artifact = require_artifact(handle, artifact_id)?;
-        let revision = require_revision(handle, required_str(change, "newRevisionId")?)?;
-        validate_active_candidate(&artifact, &revision)?;
+        let revision_id = required_str(change, "newRevisionId")?;
+        let revision = require_revision(handle, revision_id)?;
+        review::assert_candidate(&handle.db, &artifact, &revision)?;
         graph::validate_revision_inputs(
             handle,
             artifact_id,
@@ -1601,14 +1737,17 @@ fn proposal_submit(
                 .map(Vec::as_slice)
                 .unwrap_or(&[]),
         )?;
-        overrides.push((artifact_id.to_owned(), revision));
-        changed_ids.push(artifact_id.to_owned());
         if artifact["selectedRevisionId"] != change["baseRevisionId"]
             && !(artifact["selectedRevisionId"].is_null() && change["baseRevisionId"].is_null())
         {
-            return Err(ContractError::new(
-                "REVISION_CONFLICT",
+            return Err(review::baseline_conflict(
                 "Proposal base does not match selected revision",
+                &artifact,
+                change,
+                match artifact["selectedRevisionId"].as_str() {
+                    Some(current) => format!("Set baseRevisionId to {current}, the approved revision of this artifact, and submit again."),
+                    None => "This artifact has no approved revision: omit baseRevisionId and use kind new_artifact.".to_owned(),
+                },
             ));
         }
         if change["kind"] == "new_artifact" && !artifact["selectedRevisionId"].is_null()
@@ -1617,39 +1756,70 @@ fn proposal_submit(
             return Err(ContractError::new(
                 "REVISION_CONFLICT",
                 "Proposal kind does not match selected revision",
+            )
+            .with_repair(if artifact["selectedRevisionId"].is_null() {
+                "This artifact has no approved revision: use kind new_artifact."
+            } else {
+                "This artifact already has an approved revision: use kind baseline_update."
+            }));
+        }
+        if review::base_moved(&handle.db, &artifact, change)? {
+            return Err(review::baseline_conflict(
+                "Draft is based on an older baseline",
+                &artifact,
+                change,
+                format!(
+                    "Save the draft again on the current baseline (artifact_update_draft with baseRevisionId {}), then submit that revision.",
+                    artifact["selectedRevisionId"].as_str().unwrap_or("")
+                ),
             ));
         }
+        overrides.push((artifact_id.to_owned(), revision));
+        changed_ids.push(artifact_id.to_owned());
     }
     let graph = graph::GraphSnapshot::load(handle, &overrides)?;
     graph.assert_no_cycles()?;
     let affected = graph.downstream(&changed_ids);
     let proposal_id = uuid::Uuid::new_v4().to_string();
-    let impact = json!({"affectedArtifactIds": affected, "summary": format!("{} downstream artifact(s) may be affected", affected.len())});
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    for change in changes {
-        tx.execute(
-            "UPDATE revision SET review_state='proposed' WHERE id=?1",
-            [required_str(change, "newRevisionId")?],
-        )
-        .map_err(internal)?;
+    let replaced = review::replaced_by(&handle.db, &seen, None)?;
+    let superseded_ids = replaced
+        .iter()
+        .map(|proposal| proposal["id"].clone())
+        .collect::<Vec<_>>();
+    let mut impact = json!({"affectedArtifactIds": affected, "summary": format!("{} downstream artifact(s) may be affected", affected.len())});
+    if !superseded_ids.is_empty() {
+        impact["supersedesProposalIds"] = json!(superseded_ids);
     }
-    tx.execute("INSERT INTO proposal(id,changes,reason,impact,state,created_by,created_by_session,created_at,resolved_at,resolution_rationale) VALUES(?1,?2,?3,?4,'pending',?5,?6,?7,NULL,NULL)", params![proposal_id, json!(changes).to_string(), required_str(input, "reason")?, impact.to_string(), origin.kind(), origin.session_id(), now()]).map_err(internal)?;
-    tx_event(
-        &tx,
+    let mut proposed = std::collections::HashSet::new();
+    for change in changes {
+        let revision_id = required_str(change, "newRevisionId")?;
+        proposed.insert(revision_id);
+        handle
+            .db
+            .execute(
+                "UPDATE revision SET review_state='proposed' WHERE id=?1",
+                [revision_id],
+            )
+            .map_err(internal)?;
+    }
+    handle.db.execute("INSERT INTO proposal(id,changes,reason,impact,state,created_by,created_by_session,created_at,resolved_at,resolution_rationale) VALUES(?1,?2,?3,?4,'pending',?5,?6,?7,NULL,NULL)", params![proposal_id, json!(changes).to_string(), required_str(input, "reason")?, impact.to_string(), origin.kind(), origin.session_id(), now()]).map_err(internal)?;
+    review::retire_replaced(handle, &proposal_id, &replaced, &proposed, origin)?;
+    emit(
+        handle,
         "proposal.submitted",
-        origin.kind(),
-        json!({"proposalId": proposal_id, "changes": changes.len(), "affected": affected.len(), "reason": input["reason"], "supersedesProposalIds": []}),
+        origin,
+        json!({"proposalId": proposal_id, "changes": changes.len(), "affected": affected.len(), "reason": input["reason"], "supersedesProposalIds": superseded_ids}),
     )?;
-    tx.commit().map_err(internal)?;
-    require_proposal(handle, &proposal_id)
+    Ok(proposal_id)
 }
 
 fn proposal_read(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
-    let proposal = require_proposal(handle, required_str(input, "proposalId")?)?;
+    let mut proposal = require_proposal(handle, required_str(input, "proposalId")?)?;
+    review::annotate_base_moved(handle, &mut proposal)?;
     let changes = proposal["changes"]
         .as_array()
-        .unwrap()
-        .iter()
+        .into_iter()
+        .flatten()
         .map(|change| -> CoreResult<Value> {
             let artifact = require_artifact(handle, required_str(change, "artifactId")?)?;
             let base = change["baseRevisionId"]
@@ -1658,24 +1828,48 @@ fn proposal_read(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
                 .transpose()?
                 .flatten();
             let next = get_revision(handle, required_str(change, "newRevisionId")?)?;
-            Ok(json!({"change": change, "artifact": artifact, "base": base, "next": next}))
+            let mut entry = json!({"change": change, "artifact": artifact, "base": base, "next": next, "baseMoved": change["baseMoved"]});
+            if let (true, Some(next)) = (artifact["type"] == "mechanical", &next) {
+                entry["verification"] = cad::latest_verification(handle, next)?;
+            }
+            Ok(entry)
         })
         .collect::<CoreResult<Vec<_>>>()?;
     Ok(json!({"proposal": proposal, "changes": changes}))
 }
 
 fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> CoreResult<Value> {
+    let handle = &*handle;
     let proposal_id = required_str(input, "proposalId")?;
+    txn::atomically(handle, || {
+        resolve_proposal(handle, proposal_id, input, state)
+    })?;
+    require_proposal(handle, proposal_id)
+}
+
+fn resolve_proposal(
+    handle: &ProjectHandle,
+    proposal_id: &str,
+    input: &Value,
+    state: &str,
+) -> CoreResult<()> {
     let proposal = require_proposal(handle, proposal_id)?;
-    if proposal["state"] != "pending"
-        && !(proposal["state"] == "changes_requested" && state != "changes_requested")
-    {
+    let current = proposal["state"].as_str().unwrap_or("");
+    if !review::is_open(&proposal["state"]) {
         return Err(ContractError::validation(format!(
-            "Proposal already resolved ({})",
-            proposal["state"]
+            "Proposal already resolved ({current})"
         )));
     }
-    let changes = proposal["changes"].as_array().unwrap();
+    if state == "changes_requested" && current == "changes_requested" {
+        return Err(ContractError::validation(
+            "Proposal already resolved (changes_requested)",
+        )
+        .with_repair(
+            "Changes were already requested and the proposal is waiting on the agent. Approve it as it is, reject it, or wait for the replacement.",
+        ));
+    }
+    let no_changes = Vec::new();
+    let changes = proposal["changes"].as_array().unwrap_or(&no_changes);
     let mut accepted_scopes = Vec::<(String, Value)>::new();
     if state == "accepted" {
         for (artifact_id, hash) in input["verificationEvidence"]
@@ -1706,16 +1900,39 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
         }
         let mut overrides = Vec::new();
         for change in changes {
-            let artifact = require_artifact(handle, required_str(change, "artifactId")?)?;
+            let artifact_id = required_str(change, "artifactId")?;
+            let artifact = require_artifact(handle, artifact_id)?;
             let revision = require_revision(handle, required_str(change, "newRevisionId")?)?;
-            validate_active_candidate(&artifact, &revision)?;
-            if artifact["selectedRevisionId"] != change["baseRevisionId"]
-                && !(artifact["selectedRevisionId"].is_null() && change["baseRevisionId"].is_null())
+            // Accepted earlier with a draft built on it: nothing left to move.
+            let contained = change["kind"] != "archive"
+                && review::in_baseline(&handle.db, &artifact, required_str(&revision, "id")?)?;
+            if revision["artifactId"] != artifact["id"]
+                || (change["kind"] != "archive" && !contained && !review::is_candidate(&revision))
             {
                 return Err(ContractError::new(
                     "REVISION_CONFLICT",
+                    "Proposed revision is no longer an active candidate",
+                )
+                .with_repair(
+                    "Reject this proposal or ask the agent for a replacement. Rejected or superseded work cannot be approved.",
+                )
+                .with_details(json!({"proposalId": proposal_id, "artifactId": artifact_id, "revisionId": revision["id"], "reviewState": revision["reviewState"]})));
+            }
+            if review::base_moved(&handle.db, &artifact, change)? {
+                let mut error = review::baseline_conflict(
                     "Proposal base is stale",
-                ));
+                    &artifact,
+                    change,
+                    format!(
+                        "\"{}\" has a newer baseline than the one this change was prepared against. Ask the agent to rebuild the change on revision {} and submit a replacement, or reject this proposal.",
+                        artifact["title"].as_str().unwrap_or(""),
+                        artifact["selectedRevisionId"].as_str().unwrap_or("")
+                    ),
+                );
+                if let Some(details) = error.details.as_deref_mut() {
+                    details["proposalId"] = json!(proposal_id);
+                }
+                return Err(error);
             }
             if !matches!(
                 change["kind"].as_str(),
@@ -1732,7 +1949,6 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
                     "This approval change kind is not ported yet",
                 ));
             }
-            assert_simple_approval(&artifact)?;
             if let Some(lines) = change["bomLines"].as_array() {
                 for line in lines {
                     let component_id = required_str(line, "componentArtifactId")?;
@@ -1751,155 +1967,258 @@ fn proposal_resolve(handle: &mut ProjectHandle, input: &Value, state: &str) -> C
                     }
                 }
             }
-            graph::validate_revision_inputs(
-                handle,
-                required_str(change, "artifactId")?,
-                revision["inputs"]
-                    .as_array()
-                    .map(Vec::as_slice)
-                    .unwrap_or(&[]),
-            )?;
-            overrides.push((required_str(change, "artifactId")?.to_owned(), revision));
+            if change["kind"] != "archive" {
+                graph::validate_revision_inputs(
+                    handle,
+                    artifact_id,
+                    revision["inputs"]
+                        .as_array()
+                        .map(Vec::as_slice)
+                        .unwrap_or(&[]),
+                )?;
+                overrides.push((artifact_id.to_owned(), revision));
+            }
         }
         graph::GraphSnapshot::load(handle, &overrides)?.assert_no_cycles()?;
     }
     let rationale = input["rationale"].as_str().unwrap_or("");
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
     for (artifact_id, scope) in &accepted_scopes {
-        tx.execute("INSERT INTO meta(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            params![format!("cad.scope.accepted.{artifact_id}"),json!({"evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"expect":scope["expect"],"revisionId":scope["revisionId"]}).to_string()]).map_err(internal)?;
-        tx_event(
-            &tx,
-            "cad.scope.accepted",
-            "user",
-            json!({"artifactId":artifact_id,"revisionId":scope["revisionId"],
-            "evidenceHash":scope["evidenceHash"],"specHash":scope["specHash"],"scopeChanges":scope["scopeChanges"]}),
-        )?;
+        record_accepted_scope(handle, artifact_id, scope)?;
     }
     let mut prior = Vec::new();
     let mut next = Vec::new();
+    let mut roots = Vec::new();
     if state == "accepted" {
+        // A line prepared against the baseline this approval replaces follows
+        // the component to its new baseline instead of pointing at a
+        // revision that has just been superseded.
+        let mut promoted = HashMap::<String, (Value, String)>::new();
+        // A BOM edit is carried by an unchanged copy of its component's
+        // baseline. Approving it changes the lines, not the component: the
+        // baseline stays, nothing downstream goes stale, and the copy is
+        // retired with its lines pinned to the baseline it copies.
+        let mut carried = HashMap::<String, String>::new();
         for change in changes {
             let artifact_id = required_str(change, "artifactId")?;
             let artifact = require_artifact(handle, artifact_id)?;
-            let revision = require_revision(handle, required_str(change, "newRevisionId")?)?;
-            if let Some(old) = artifact["selectedRevisionId"].as_str() {
-                prior.push(json!({"artifactId": artifact_id, "revisionId": old}));
+            let revision_id = required_str(change, "newRevisionId")?;
+            if change["kind"] == "bom_edit" {
+                if let Some(baseline) = carrier_baseline(handle, &artifact, revision_id)? {
+                    handle.db.execute("UPDATE revision SET review_state='superseded' WHERE id=?1 AND review_state='proposed'", [revision_id]).map_err(internal)?;
+                    carried.insert(revision_id.to_owned(), baseline);
+                    continue;
+                }
             }
-            if change["kind"] == "archive" {
-                tx.execute("UPDATE artifact SET archived=1 WHERE id=?1", [artifact_id])
+            // A candidate the baseline already contains was accepted with a
+            // draft built on it; the baseline stays where it is.
+            let contained = change["kind"] != "archive"
+                && review::in_baseline(&handle.db, &artifact, revision_id)?;
+            if !contained {
+                if let Some(old) = artifact["selectedRevisionId"].as_str() {
+                    prior.push(json!({"artifactId": artifact_id, "revisionId": old}));
+                }
+                roots.push(artifact_id.to_owned());
+            }
+            if contained {
+                handle.db.execute("UPDATE revision SET review_state='superseded' WHERE id=?1 AND review_state='proposed'", [revision_id]).map_err(internal)?;
+            } else if change["kind"] == "archive" {
+                handle
+                    .db
+                    .execute("UPDATE artifact SET archived=1 WHERE id=?1", [artifact_id])
                     .map_err(internal)?;
+                handle.db.execute("UPDATE revision SET review_state='superseded' WHERE id=?1 AND review_state='proposed'", [revision_id]).map_err(internal)?;
             } else {
-                promote_revision(&tx, &artifact, &revision)?;
-                next.push(json!({"artifactId": artifact_id, "revisionId": revision["id"]}));
+                let revision = require_revision(handle, revision_id)?;
+                promote_revision(&handle.db, &artifact, &revision)?;
+                next.push(json!({"artifactId": artifact_id, "revisionId": revision_id}));
+                promoted.insert(
+                    artifact_id.to_owned(),
+                    (
+                        artifact["selectedRevisionId"].clone(),
+                        revision_id.to_owned(),
+                    ),
+                );
             }
             if change["kind"] == "component_selection" {
                 if let Some(replaced) = change["replacesArtifactId"].as_str() {
-                    tx.execute("UPDATE artifact SET archived=1 WHERE id=?1", [replaced])
+                    handle
+                        .db
+                        .execute("UPDATE artifact SET archived=1 WHERE id=?1", [replaced])
                         .map_err(internal)?;
+                    roots.push(replaced.to_owned());
                 }
             }
-            if let Some(lines) = change["bomLines"].as_array() {
-                for line in lines {
-                    tx.execute("INSERT INTO bom_line(id,component_artifact_id,component_revision_id,subsystem,quantity,offer_id,location,notes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", params![uuid::Uuid::new_v4().to_string(), line["componentArtifactId"].as_str(), line["componentRevisionId"].as_str(), line["subsystem"].as_str(), line["quantity"].as_f64(), line["offerId"].as_str(), line["location"].as_str(), line["notes"].as_str().unwrap_or("")]).map_err(internal)?;
-                }
+        }
+        for change in changes {
+            for line in change["bomLines"].as_array().into_iter().flatten() {
+                let component_id = required_str(line, "componentArtifactId")?;
+                let linked = required_str(line, "componentRevisionId")?;
+                let pinned = match (promoted.get(component_id), carried.get(linked)) {
+                    (_, Some(baseline)) => baseline.as_str(),
+                    (Some((replaced, current)), None) if *replaced == linked => current.as_str(),
+                    _ => linked,
+                };
+                handle.db.execute("INSERT INTO bom_line(id,component_artifact_id,component_revision_id,subsystem,quantity,offer_id,location,notes) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", params![uuid::Uuid::new_v4().to_string(), component_id, pinned, line["subsystem"].as_str(), line["quantity"].as_f64(), line["offerId"].as_str(), line["location"].as_str(), line["notes"].as_str().unwrap_or("")]).map_err(internal)?;
             }
-            if let Some(ids) = change["removeBomLineIds"].as_array() {
-                for id in ids.iter().filter_map(Value::as_str) {
-                    tx.execute("DELETE FROM bom_line WHERE id=?1", [id])
-                        .map_err(internal)?;
-                }
+            for id in change["removeBomLineIds"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                handle
+                    .db
+                    .execute("DELETE FROM bom_line WHERE id=?1", [id])
+                    .map_err(internal)?;
             }
         }
     } else if state == "rejected" {
         for change in changes {
-            tx.execute("UPDATE revision SET review_state='rejected' WHERE id=?1 AND review_state='proposed'", [required_str(change, "newRevisionId")?]).map_err(internal)?;
+            handle.db.execute("UPDATE revision SET review_state='rejected' WHERE id=?1 AND review_state='proposed'", [required_str(change, "newRevisionId")?]).map_err(internal)?;
         }
     }
-    tx.execute(
-        "UPDATE proposal SET state=?1,resolved_at=?2,resolution_rationale=?3 WHERE id=?4",
-        params![state, now(), rationale, proposal_id],
-    )
-    .map_err(internal)?;
-    let seq = tx_event(
-        &tx,
+    handle
+        .db
+        .execute(
+            "UPDATE proposal SET state=?1,resolved_at=?2,resolution_rationale=?3 WHERE id=?4",
+            params![state, now(), rationale, proposal_id],
+        )
+        .map_err(internal)?;
+    let seq = emit(
+        handle,
         "proposal.resolved",
-        "user",
+        &Origin::User,
         json!({"proposalId": proposal_id, "state": state}),
     )?;
     if state != "changes_requested" {
-        tx_decision(
-            &tx,
-            Some(proposal_id),
-            state,
-            if rationale.is_empty() {
-                proposal["reason"].as_str().unwrap_or("")
-            } else {
-                rationale
+        record_decision(
+            &handle.db,
+            &Decision {
+                proposal_id: Some(proposal_id),
+                action: state,
+                actor: "user",
+                rationale: if rationale.is_empty() {
+                    proposal["reason"].as_str().unwrap_or("")
+                } else {
+                    rationale
+                },
+                prior: &prior,
+                next: &next,
+                event_seq: seq,
             },
-            &prior,
-            &next,
-            seq,
         )?;
     }
-    tx.commit().map_err(internal)?;
     if state == "accepted" {
-        let ids = changes
+        // Older open proposals that only touch what was just decided are
+        // answered by this decision; they leave the queue with it.
+        let decided = changes
             .iter()
-            .filter_map(|change| change["artifactId"].as_str().map(str::to_owned))
-            .collect::<Vec<_>>();
-        let affected = graph::propagate_from(handle, &ids, seq)?;
+            .filter_map(|change| change["artifactId"].as_str())
+            .collect::<std::collections::HashSet<_>>();
+        let kept = changes
+            .iter()
+            .filter_map(|change| change["newRevisionId"].as_str())
+            .collect::<std::collections::HashSet<_>>();
+        let answered = review::replaced_by(&handle.db, &decided, Some(proposal_id))?;
+        review::retire_replaced(handle, proposal_id, &answered, &kept, &Origin::User)?;
+        let affected = graph::propagate_from(handle, &roots, seq)?;
         emit(
             handle,
             "impact.propagated",
             &Origin::User,
             json!({"changed": next, "affected": affected}),
         )?;
-        emit(handle, "bom.changed", &Origin::System, json!({}))?;
+        if touches_bom(handle, changes)? {
+            emit(handle, "bom.changed", &Origin::System, json!({}))?;
+        }
     }
-    require_proposal(handle, proposal_id)
+    Ok(())
+}
+
+/// Whether an approval changed what the bill of materials shows: a component,
+/// a BOM line, or a replaced part.
+fn touches_bom(handle: &ProjectHandle, changes: &[Value]) -> CoreResult<bool> {
+    for change in changes {
+        let lines = |key: &str| {
+            change[key]
+                .as_array()
+                .is_some_and(|lines| !lines.is_empty())
+        };
+        if lines("bomLines")
+            || lines("removeBomLineIds")
+            || change["replacesArtifactId"].is_string()
+            || require_artifact(handle, required_str(change, "artifactId")?)?["type"] == "component"
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The baseline a BOM edit's revision copies unchanged (same content, files
+/// and inputs), or `None` when the revision really changes the component.
+fn carrier_baseline(
+    handle: &ProjectHandle,
+    artifact: &Value,
+    revision_id: &str,
+) -> CoreResult<Option<String>> {
+    let Some(selected) = artifact["selectedRevisionId"].as_str() else {
+        return Ok(None);
+    };
+    let (baseline, revision) = (
+        require_revision(handle, selected)?,
+        require_revision(handle, revision_id)?,
+    );
+    let unchanged = revision["parentId"] == selected
+        && revision["contentHash"] == baseline["contentHash"]
+        && revision["inputs"] == baseline["inputs"];
+    Ok(unchanged.then(|| selected.to_owned()))
 }
 
 fn require_proposal(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {
     handle.db.query_row("SELECT id,changes,reason,impact,state,created_by,created_by_session,created_at,resolved_at,resolution_rationale FROM proposal WHERE id=?1", [id], models::proposal_from_row).optional().map_err(internal)?
-        .ok_or_else(|| ContractError::new("NOT_FOUND", format!("Proposal not found: {id}")))
+        .ok_or_else(|| ContractError::not_found("proposal", id, "proposal_list"))
 }
 
 fn require_revision(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {
     get_revision(handle, id)?
-        .ok_or_else(|| ContractError::new("NOT_FOUND", format!("Revision not found: {id}")))
+        .ok_or_else(|| ContractError::not_found("revision", id, "artifact_history"))
 }
 
 fn tx_event(
-    tx: &rusqlite::Transaction<'_>,
+    db: &rusqlite::Connection,
     event_type: &str,
     origin: &str,
     data: Value,
 ) -> CoreResult<i64> {
-    tx.execute(
-        "INSERT INTO event(id,type,origin,ts,data) VALUES(?1,?2,?3,?4,?5)",
-        params![
-            uuid::Uuid::new_v4().to_string(),
-            event_type,
-            origin,
-            now(),
-            data.to_string()
-        ],
-    )
-    .map_err(internal)?;
-    Ok(tx.last_insert_rowid())
+    record_event(db, event_type, origin, None, data)
 }
 
-fn tx_decision(
-    tx: &rusqlite::Transaction<'_>,
-    proposal_id: Option<&str>,
-    action: &str,
-    rationale: &str,
-    prior: &[Value],
-    next: &[Value],
+/// Appends an event in the caller's transaction and applies the lifecycle
+/// rules that follow from it. Every event of the crate goes through here.
+fn record_event(
+    db: &rusqlite::Connection,
+    event_type: &str,
+    origin: &str,
+    session_id: Option<&str>,
+    data: Value,
+) -> CoreResult<i64> {
+    review::on_event(db, event_type, &data)?;
+    events::record(db, event_type, origin, session_id, data)
+}
+
+struct Decision<'a> {
+    proposal_id: Option<&'a str>,
+    action: &'a str,
+    actor: &'a str,
+    rationale: &'a str,
+    prior: &'a [Value],
+    next: &'a [Value],
     event_seq: i64,
-) -> CoreResult<()> {
-    tx.execute("INSERT INTO decision(id,proposal_id,action,actor,ts,rationale,prior_baseline,new_baseline,event_seq) VALUES(?1,?2,?3,'user',?4,?5,?6,?7,?8)", params![uuid::Uuid::new_v4().to_string(), proposal_id, action, now(), rationale, json!(prior).to_string(), json!(next).to_string(), event_seq]).map_err(internal)?;
+}
+
+fn record_decision(db: &rusqlite::Connection, decision: &Decision<'_>) -> CoreResult<()> {
+    db.execute("INSERT INTO decision(id,proposal_id,action,actor,ts,rationale,prior_baseline,new_baseline,event_seq) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", params![uuid::Uuid::new_v4().to_string(), decision.proposal_id, decision.action, decision.actor, now(), decision.rationale, json!(decision.prior).to_string(), json!(decision.next).to_string(), decision.event_seq]).map_err(internal)?;
     Ok(())
 }
 
@@ -1949,6 +2268,9 @@ fn ingest_files(handle: &ProjectHandle, input: &Value) -> CoreResult<Vec<Value>>
     Ok(files)
 }
 
+/// Writes revision files into the working folder and fails on the first one
+/// that cannot be written. A caller that has already committed the revision
+/// should use `settle_files` and report the problems as warnings instead.
 fn materialize_files(
     handle: &ProjectHandle,
     files: &[Value],
@@ -1956,32 +2278,78 @@ fn materialize_files(
 ) -> CoreResult<()> {
     let objects = handle.object_store().map_err(storage_error)?;
     for file in files {
-        let relative = required_str(file, "path")?;
-        let sha = required_str(file, "sha256")?;
-        let dest = resolve_materialization_path(&handle.root, relative).map_err(storage_error)?;
-        let bytes = objects.read(sha).map_err(storage_error)?;
-        let overwrite = if dest.exists() {
-            let current = fs::read(&dest).map_err(internal)?;
-            let current_hash = omenflow_storage::sha256_hex(&current);
-            let parent_hash = parent
-                .and_then(|revision| revision["files"].as_array())
-                .and_then(|items| items.iter().find(|item| item["path"] == relative))
-                .and_then(|item| item["sha256"].as_str());
-            current_hash == sha || Some(current_hash.as_str()) == parent_hash
-        } else {
-            true
-        };
-        if overwrite {
-            write_materialized_file(&handle.root, relative, &bytes).map_err(storage_error)?;
-        } else {
-            let conflict = format!(
-                "{relative}.omenflow-conflict-{}",
-                Utc::now().timestamp_millis()
-            );
-            write_materialized_file(&handle.root, &conflict, &bytes).map_err(storage_error)?;
-        }
+        materialize_file(handle, &objects, file, parent)?;
     }
     Ok(())
+}
+
+/// Writes the files of a committed revision into the working folder. The
+/// revision stands whatever happens here, so each problem comes back as a
+/// sentence for the operation result instead of an error: a file that could
+/// not be written, or one that was changed outside Omen Flow and was left
+/// untouched with the revision's bytes written beside it.
+fn settle_files(handle: &ProjectHandle, files: &[Value], parent: Option<&Value>) -> Vec<String> {
+    let objects = match handle.object_store() {
+        Ok(objects) => objects,
+        Err(error) => {
+            return vec![format!(
+                "The revision is saved, but its working files were not written: {error}"
+            )]
+        }
+    };
+    let mut warnings = Vec::new();
+    for file in files {
+        let path = file["path"].as_str().unwrap_or("");
+        match materialize_file(handle, &objects, file, parent) {
+            Ok(None) => {}
+            Ok(Some(conflict)) => warnings.push(format!(
+                "{path} was changed outside Omen Flow, so it was left as it is; the saved revision was written to {conflict}."
+            )),
+            Err(error) => warnings.push(format!(
+                "The revision is saved, but {path} could not be written to the project folder: {}",
+                error.message
+            )),
+        }
+    }
+    warnings
+}
+
+/// Writes one revision file. When the working copy matches neither the new
+/// bytes nor the parent revision it was edited elsewhere: the bytes go to a
+/// conflict file beside it, whose path is returned.
+fn materialize_file(
+    handle: &ProjectHandle,
+    objects: &omenflow_storage::ObjectStore,
+    file: &Value,
+    parent: Option<&Value>,
+) -> CoreResult<Option<String>> {
+    let relative = required_str(file, "path")?;
+    let Some(sha) = file["sha256"].as_str() else {
+        return Ok(None);
+    };
+    let dest = resolve_materialization_path(&handle.root, relative).map_err(storage_error)?;
+    let bytes = objects.read(sha).map_err(storage_error)?;
+    let overwrite = if dest.exists() {
+        let current = fs::read(&dest).map_err(internal)?;
+        let current_hash = omenflow_storage::sha256_hex(&current);
+        let parent_hash = parent
+            .and_then(|revision| revision["files"].as_array())
+            .and_then(|items| items.iter().find(|item| item["path"] == relative))
+            .and_then(|item| item["sha256"].as_str());
+        current_hash == sha || Some(current_hash.as_str()) == parent_hash
+    } else {
+        true
+    };
+    if overwrite {
+        write_materialized_file(&handle.root, relative, &bytes).map_err(storage_error)?;
+        return Ok(None);
+    }
+    let conflict = format!(
+        "{relative}.omenflow-conflict-{}",
+        Utc::now().timestamp_millis()
+    );
+    write_materialized_file(&handle.root, &conflict, &bytes).map_err(storage_error)?;
+    Ok(Some(conflict))
 }
 
 fn normalize_inputs(
@@ -2002,7 +2370,7 @@ fn normalize_inputs(
                     .ok_or_else(|| ContractError::validation(format!("Input artifact has no revision: {upstream_id}")))?
         };
         let revision = get_revision(handle, &revision_id)?.ok_or_else(|| {
-            ContractError::new("NOT_FOUND", format!("Revision not found: {revision_id}"))
+            ContractError::not_found("revision", &revision_id, "artifact_history")
         })?;
         if revision["artifactId"] != upstream_id {
             return Err(ContractError::validation(
@@ -2052,24 +2420,17 @@ fn require_artifact(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {
         )
         .optional()
         .map_err(internal)?
-        .ok_or_else(|| ContractError::new("NOT_FOUND", format!("Artifact not found: {id}")))
+        .ok_or_else(|| ContractError::not_found("artifact", id, "artifact_list"))
 }
 
 fn emit(handle: &ProjectHandle, event_type: &str, origin: &Origin, data: Value) -> CoreResult<i64> {
-    handle
-        .db
-        .execute(
-            "INSERT INTO event(id,type,origin,ts,data) VALUES(?1,?2,?3,?4,?5)",
-            params![
-                uuid::Uuid::new_v4().to_string(),
-                event_type,
-                origin.kind(),
-                now(),
-                data.to_string()
-            ],
-        )
-        .map_err(internal)?;
-    Ok(handle.db.last_insert_rowid())
+    record_event(
+        &handle.db,
+        event_type,
+        origin.kind(),
+        origin.session_id(),
+        data,
+    )
 }
 
 fn now() -> String {

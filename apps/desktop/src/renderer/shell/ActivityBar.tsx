@@ -1,71 +1,83 @@
 import React from 'react';
-import {
-  ClockCounterClockwise,
-  Files,
-  GearSix,
-  GitBranch,
-  Graph,
-  Package,
-  Robot,
-} from '@phosphor-icons/react';
-import { openProposals, useStore } from '../store';
-import { Pulse } from '../ui/kit';
+import { AppWindow, GearSix, GitBranch, Robot } from '@phosphor-icons/react';
+import { useStore } from '../store';
+import { needsYou } from '../lib/proposals';
+import { LENSES } from '../project/lenses';
+import { Kbd, Pulse, Tooltip } from '../ui/kit';
+import { useAgentUi } from './agent/agent-store';
+import { activitySignal, ARRIVING_MS, toolWords } from './agent/activity';
+import { useRecent } from './agent/hooks';
+
+interface Tab {
+  id: string;
+  /** Accessible name; the tooltip adds the shortcut. */
+  label: string;
+  shortcut?: string;
+  icon: React.ReactNode;
+  active: boolean;
+  badge?: number;
+  mark?: React.ReactNode;
+  run: () => void;
+}
+
+/** What the Agent tab's icon says: live, working, or that the last recorded call failed. */
+function useAgentMark(): { mark: React.ReactNode; status: string | null } {
+  const session = useStore((s) => s.session);
+  const calls = useAgentUi((s) => s.activity.calls);
+  const lastArrival = useAgentUi((s) => s.activity.lastArrival);
+  const arrivingNow = useRecent(lastArrival, ARRIVING_MS);
+  const live = session?.state === 'running';
+  const { lastFailed } = activitySignal(calls, session?.id ?? null, lastArrival, Date.now());
+  if (lastFailed)
+    return {
+      mark: (
+        <span className="activity-attention" aria-hidden="true">
+          !
+        </span>
+      ),
+      status: `last call failed: ${toolWords(lastFailed.tool)}${lastFailed.code ? ` (${lastFailed.code})` : ''}`,
+    };
+  if (live && arrivingNow) return { mark: <Pulse />, status: 'working' };
+  if (live)
+    return { mark: <span className="activity-live" aria-hidden="true" />, status: 'running' };
+  return { mark: null, status: null };
+}
 
 /**
- * The vertical tab rail on the left edge of the workbench. The first tab is the
- * agent — a full terminal, not a panel. Below sit the project lenses and
- * decisions; the bottom holds the floating agent window toggle and Settings.
+ * The vertical tab rail on the left edge of the workbench. The first tab is the agent — a full
+ * terminal, not a panel. Below sit the project lenses and decisions; the bottom holds the
+ * floating agent window toggle and Settings.
  */
 export function ActivityBar() {
   const view = useStore((s) => s.view);
-  const session = useStore((s) => s.session);
   const proposals = useStore((s) => s.proposals);
   const windowOpen = useStore((s) => s.agentWindowOpen);
   const { go, decide, set } = useStore.getState();
-  const live = session?.state === 'running';
-  const pending = openProposals(proposals).length;
+  const pending = needsYou(proposals).length;
   const onAgentTab = view.level === 'agent';
+  const agent = useAgentMark();
 
-  const tabs = [
+  const tabs: Tab[] = [
     {
       id: 'agent',
-      label: 'Agent',
+      label: agent.status ? `Agent, ${agent.status}` : 'Agent',
       icon: <Robot size={22} />,
       active: onAgentTab,
-      live,
+      mark: agent.mark,
       run: () => go({ level: 'agent' }),
     },
-    {
-      id: 'flow',
-      label: 'Flow (⌘1)',
-      icon: <Graph size={22} />,
-      active: view.level === 'project' && view.lens === 'flow',
-      run: () => go({ level: 'project', lens: 'flow' }),
-    },
-    {
-      id: 'parts',
-      label: 'Parts (⌘2)',
-      icon: <Package size={22} />,
-      active: view.level === 'project' && view.lens === 'parts',
-      run: () => go({ level: 'project', lens: 'parts' }),
-    },
-    {
-      id: 'timeline',
-      label: 'Timeline (⌘3)',
-      icon: <ClockCounterClockwise size={22} />,
-      active: view.level === 'project' && view.lens === 'timeline',
-      run: () => go({ level: 'project', lens: 'timeline' }),
-    },
-    {
-      id: 'files',
-      label: 'Files (⌘4)',
-      icon: <Files size={22} />,
-      active: view.level === 'project' && view.lens === 'files',
-      run: () => go({ level: 'project', lens: 'files' }),
-    },
+    ...LENSES.map((l) => ({
+      id: l.id,
+      label: l.label,
+      shortcut: `⌘${l.shortcut}`,
+      icon: <l.icon size={22} />,
+      active: view.level === 'project' && view.lens === l.id,
+      run: () => go({ level: 'project', lens: l.id }),
+    })),
     {
       id: 'decide',
-      label: 'Decisions (⌘⇧D)',
+      label: pending ? `Decisions, ${pending} to review` : 'Decisions',
+      shortcut: '⌘⇧D',
       icon: <GitBranch size={22} />,
       active: view.level === 'decide',
       badge: pending,
@@ -76,44 +88,62 @@ export function ActivityBar() {
   return (
     <nav className="activity-bar" aria-label="Views">
       {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className="activity-btn"
-          aria-label={t.label}
-          title={t.label}
-          aria-current={t.active ? 'page' : undefined}
-          onClick={t.run}
-        >
-          {t.icon}
-          {t.live && <Pulse />}
-          {t.badge ? <span className="activity-badge">{t.badge}</span> : null}
-        </button>
-      ))}
-      <div className="activity-bottom">
-        {!onAgentTab && (
+        <Tooltip key={t.id} side="right" label={<TipLabel text={t.label} shortcut={t.shortcut} />}>
           <button
             type="button"
             className="activity-btn"
-            aria-label="Agent window (⌘J)"
-            title="Agent window (⌘J)"
-            aria-pressed={windowOpen}
-            onClick={() => set({ agentWindowOpen: !windowOpen })}
+            aria-label={t.label}
+            aria-keyshortcuts={t.shortcut?.replace('⌘', 'Meta+').replace('⇧', 'Shift+')}
+            aria-current={t.active ? 'page' : undefined}
+            onClick={t.run}
           >
-            <Robot size={22} />
-            {live && <Pulse />}
+            {t.icon}
+            {t.mark}
+            {t.badge ? (
+              <span className="activity-badge" aria-hidden="true">
+                {t.badge}
+              </span>
+            ) : null}
           </button>
+        </Tooltip>
+      ))}
+      <div className="activity-bottom">
+        {!onAgentTab && (
+          <Tooltip side="right" label={<TipLabel text="Agent window" shortcut="⌘J" />}>
+            <button
+              type="button"
+              className="activity-btn"
+              aria-label="Agent window"
+              aria-keyshortcuts="Meta+J"
+              aria-pressed={windowOpen}
+              data-agent-window-toggle=""
+              onClick={() => set({ agentWindowOpen: !windowOpen })}
+            >
+              <AppWindow size={22} />
+            </button>
+          </Tooltip>
         )}
-        <button
-          type="button"
-          className="activity-btn"
-          aria-label="Settings (⌘,)"
-          title="Settings (⌘,)"
-          onClick={() => set({ settingsOpen: true })}
-        >
-          <GearSix size={22} />
-        </button>
+        <Tooltip side="right" label={<TipLabel text="Settings" shortcut="⌘," />}>
+          <button
+            type="button"
+            className="activity-btn"
+            aria-label="Settings"
+            aria-keyshortcuts="Meta+,"
+            onClick={() => set({ settingsOpen: true })}
+          >
+            <GearSix size={22} />
+          </button>
+        </Tooltip>
       </div>
     </nav>
+  );
+}
+
+function TipLabel({ text, shortcut }: { text: string; shortcut?: string }) {
+  return (
+    <span className="tip-label">
+      {text.charAt(0).toUpperCase() + text.slice(1)}
+      {shortcut && <Kbd>{shortcut}</Kbd>}
+    </span>
   );
 }

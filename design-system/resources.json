@@ -1,8 +1,8 @@
 {
   "name": "Omen Flow",
   "system": "Lens",
-  "version": "2.0.0",
-  "updated": "2026-09-23",
+  "version": "2.2.0",
+  "updated": "2026-10-13",
   "direction": "See the whole. Focus on one. Decide.",
   "specification": "design.md",
   "tokens": "tokens.css",
@@ -44,13 +44,34 @@
     "versions": "../pnpm-lock.yaml"
   },
   "libraries": [
-    { "package": "@radix-ui/react-dialog", "role": "Omnibar and settings sheet" },
-    { "package": "@radix-ui/react-dropdown-menu", "role": "Project menu and agent menu" },
-    { "package": "@xyflow/react", "role": "Project flow map" },
-    { "package": "three", "role": "STL viewport and illustrative preview geometry" },
-    { "package": "@xterm/xterm", "role": "Real agent PTY terminal" },
-    { "package": "marked", "role": "Prose rendering, sanitised with DOMPurify" },
-    { "package": "zustand", "role": "Zoom state and project record" }
+    {
+      "package": "@radix-ui/react-dialog",
+      "role": "Omnibar and settings sheet"
+    },
+    {
+      "package": "@radix-ui/react-dropdown-menu",
+      "role": "Kit Menu and the project menu"
+    },
+    {
+      "package": "@radix-ui/react-tooltip",
+      "role": "Kit Tooltip and icon button names"
+    },
+    {
+      "package": "three",
+      "role": "STL viewport and illustrative preview geometry"
+    },
+    {
+      "package": "@xterm/xterm",
+      "role": "Real agent PTY terminal"
+    },
+    {
+      "package": "marked",
+      "role": "Prose rendering, sanitised with DOMPurify"
+    },
+    {
+      "package": "zustand",
+      "role": "Zoom state and project record"
+    }
   ],
   "preview": {
     "command": "pnpm design:preview",
@@ -71,5 +92,15 @@
     "@omenflow package namespace",
     ".omenflow project storage",
     "omenflow bridge and CLI identifiers"
-  ]
+  ],
+  "catalogue": {
+    "view": "apps/desktop/src/renderer/system/DesignSystemView.tsx",
+    "preview": "http://127.0.0.1:5173/?design-preview&screen=system",
+    "method": "Real components rendered in Graphite and Paper side by side; contrast measured from the tokens in force"
+  },
+  "accessibility": {
+    "contrast": "Text, supporting and metadata text and state words meet WCAG AA (4.5:1) on every surface in both themes; signal strokes, focus rings and separators meet 3:1",
+    "guard": "tests/frontend/ui-tokens.test.ts"
+  },
+  "screenshots": "screenshots/ holds captures from before the activity bar, kept as history"
 }

@@ -26,8 +26,13 @@ const tauri = path.join(
   process.platform === 'win32' ? 'tauri.cmd' : 'tauri',
 );
 const args = [mode === 'build' ? 'build' : 'dev'];
-if (mode === 'build') args.push('--no-sign');
+// macOS bundles are signed ad hoc (bundle.macOS.signingIdentity "-"): an unsigned bundle downloaded
+// from the web is reported as damaged, while an ad hoc one can be opened with Open Anyway.
+// `pnpm release:macos` replaces that signature with a Developer ID.
+if (mode === 'build' && process.platform !== 'darwin') args.push('--no-sign');
 if (process.platform === 'win32') args.push('--config', 'tauri.windows.conf.json');
+// Anything after the mode goes to tauri, e.g. `pnpm make --bundles deb,rpm,appimage`.
+args.push(...process.argv.slice(3));
 const child = spawn(tauri, args, {
   cwd: desktop,
   stdio: 'inherit',

@@ -5,7 +5,6 @@ import path from 'node:path';
 import { ErrorCodes, OmenflowError, PROJECT_FILE, type Origin } from '@omenflow/contracts';
 import { openProject } from '@omenflow/storage';
 import { CoreApp } from './app.js';
-import { shouldForceUtilityExit, utilityQuitDecision, UTILITY_QUIT_GRACE_MS } from './lifecycle.js';
 
 const user: Origin = { kind: 'user' };
 const apps: CoreApp[] = [];
@@ -20,34 +19,6 @@ function tmp() {
   roots.push(root);
   return root;
 }
-
-describe('utility quit barrier', () => {
-  it('starts shutdown once, then only prevents default until forced fallback', () => {
-    expect(
-      utilityQuitDecision({
-        shutdownComplete: false,
-        shutdownRequested: false,
-        hasUtility: true,
-      }),
-    ).toEqual({ preventDefault: true, startShutdown: true });
-    expect(
-      utilityQuitDecision({
-        shutdownComplete: false,
-        shutdownRequested: true,
-        hasUtility: true,
-      }),
-    ).toEqual({ preventDefault: true, startShutdown: false });
-    expect(
-      utilityQuitDecision({
-        shutdownComplete: true,
-        shutdownRequested: true,
-        hasUtility: true,
-      }),
-    ).toEqual({ preventDefault: false, startShutdown: false });
-    expect(shouldForceUtilityExit(UTILITY_QUIT_GRACE_MS - 1)).toBe(false);
-    expect(shouldForceUtilityExit(UTILITY_QUIT_GRACE_MS)).toBe(true);
-  });
-});
 
 describe('app-level create/rename reservations and crash hooks', () => {
   it('shows the persisted project name in recents after rename and restart without opening it', async () => {

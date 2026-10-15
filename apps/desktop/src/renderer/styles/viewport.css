@@ -1,0 +1,443 @@
+/* Mechanical stage and the STL viewport (also used by CAD review). */
+.mech {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.mech-canvas {
+  position: relative;
+  height: clamp(320px, 52vh, 640px);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--canvas-bg);
+  border: 1px solid var(--line);
+  flex: none;
+}
+.mech-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: var(--s-6);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 0 60%,
+      color-mix(in srgb, var(--field) 50%, transparent)
+    ),
+    repeating-linear-gradient(0deg, transparent 0 23px, var(--canvas-grid) 23px 24px),
+    repeating-linear-gradient(90deg, transparent 0 23px, var(--canvas-grid) 23px 24px);
+}
+.mech-empty strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.mech-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  justify-content: space-between;
+}
+.mech-caption {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.mech-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex: none;
+}
+.mech-note {
+  margin-top: calc(-1 * var(--s-2));
+  text-align: right;
+}
+.render-job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.render-job p {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.render-log {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mech-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  margin-top: var(--s-2);
+}
+.params {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.param {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'head head'
+    'value unit';
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+}
+.param.edited {
+  background: color-mix(in srgb, var(--signal) 7%, var(--surface));
+}
+.param-head {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.param-head .state {
+  font-size: var(--text-2xs);
+}
+.param-name {
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.param input:not([type='checkbox']),
+.param select {
+  grid-area: value;
+  min-height: var(--control-sm);
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.param input.num {
+  text-align: right;
+}
+fieldset:disabled .param input:not([type='checkbox']),
+fieldset:disabled .param select {
+  opacity: 1;
+  background: transparent;
+  border-color: var(--line);
+}
+.param-unit {
+  grid-area: unit;
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+  min-width: 18px;
+}
+.param-static {
+  grid-area: value;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- viewport ---------------- */
+.viewport {
+  position: absolute;
+  inset: 0;
+}
+.viewport-canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.viewport-canvas.measuring {
+  cursor: crosshair;
+}
+.viewport-canvas:focus-visible {
+  outline-offset: -3px;
+  border-radius: var(--r-lg);
+}
+/* Labels that follow points of the model. The frame places them; nothing here animates. */
+.viewport-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.viewport-overlay [hidden] {
+  display: none;
+}
+.viewport-tag,
+.viewport-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.viewport-tag {
+  margin: -11px 0 0 8px;
+  padding: 2px 7px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--raised) 92%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.viewport-tag.measure {
+  border-color: var(--signal-line);
+  color: var(--signal-text);
+}
+.viewport-dot {
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  border: 2px solid var(--signal-stroke);
+  background: var(--canvas-bg);
+}
+.viewport-side {
+  position: absolute;
+  right: var(--s-3);
+  top: var(--s-3);
+  max-height: calc(100% - var(--s-6));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+  pointer-events: none;
+}
+.viewport-side > * {
+  pointer-events: auto;
+}
+.viewport-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+}
+.viewport-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-sm);
+  min-width: var(--control-sm);
+  justify-content: center;
+  padding: 0 7px;
+  border-radius: var(--r-xs);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+}
+.viewport-tools button:hover {
+  background: var(--raised-2);
+  color: var(--text);
+}
+.viewport-tools button[aria-pressed='true'],
+.viewport-tools button[aria-expanded='true'] {
+  color: var(--text);
+  background: var(--raised-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.viewport-tools-rule {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--line-strong);
+}
+.viewport-panel {
+  width: 248px;
+  max-width: calc(100vw - var(--s-12));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow: auto;
+}
+.viewport-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.viewport-panel input[type='range'] {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--signal-stroke);
+}
+.viewport-panel-button {
+  height: var(--control-sm);
+  padding: 0 10px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-size: var(--text-xs);
+}
+.viewport-panel-button:hover:not(:disabled) {
+  background: var(--raised-2);
+}
+.viewport-panel-button:disabled {
+  opacity: var(--disabled-opacity);
+}
+.viewport-panel-button[aria-pressed='true'] {
+  background: var(--raised-2);
+  border-color: var(--line-control);
+}
+.viewport-panel-value {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  line-height: 1.2;
+}
+.viewport-panel-read {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.viewport-keys dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px var(--s-3);
+  margin: 0;
+  align-items: baseline;
+}
+.viewport-keys dt {
+  white-space: nowrap;
+}
+.viewport-keys dd {
+  margin: 0;
+  color: var(--text);
+}
+.viewport-keys p {
+  color: var(--text-3);
+  line-height: 1.5;
+}
+.viewport-corner {
+  position: absolute;
+  left: var(--s-3);
+  top: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  max-width: 46%;
+}
+.viewport-chip {
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--raised) 92%, transparent);
+  color: var(--warn);
+  font-size: var(--text-2xs);
+}
+.viewport-compare {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: 4px 4px 4px 10px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.viewport-key {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--model-compare);
+}
+.viewport-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  box-shadow: var(--shadow-float);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.viewport-dims {
+  position: absolute;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: var(--text-xs);
+  color: var(--text);
+  background: color-mix(in srgb, var(--raised) 88%, transparent);
+  padding: 4px 9px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  pointer-events: none;
+}
+.viewport-dims-sub {
+  color: var(--text-3);
+  font-size: var(--text-2xs);
+}
+.viewport-triad {
+  position: absolute;
+  right: var(--s-3);
+  bottom: var(--s-3);
+  width: 56px;
+  height: 56px;
+  pointer-events: none;
+}
+.viewport-triad line {
+  stroke: var(--text-2);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.viewport-triad text {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+@media (max-width: 1120px) {
+  .mech-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mech-actions {
+    justify-content: space-between;
+  }
+  .viewport-tools-label {
+    display: none;
+  }
+  .viewport-panel {
+    width: 216px;
+  }
+}

@@ -210,41 +210,61 @@ export type MechanicalPayload = z.infer<typeof mechanicalPayload>;
 export const pinSchema = z.object({
   componentArtifactId: idSchema,
   componentRevisionId: idSchema.optional(),
-  pin: z.string(),
+  pin: z.string().describe('Pin label as printed on the part or its datasheet, e.g. "GND".'),
   name: z.string().optional(),
-  type: z.enum(['power', 'ground', 'signal', 'data', 'mechanical', 'unknown']).default('unknown'),
-  voltageRange: z.object({ min: quantitySchema, max: quantitySchema }).optional(),
+  type: z
+    .enum(['power', 'ground', 'signal', 'data', 'mechanical', 'unknown'])
+    .default('unknown')
+    .describe('Electrical role. The ground-return check needs power and ground pins typed.'),
+  voltageRange: z
+    .object({ min: quantitySchema, max: quantitySchema })
+    .optional()
+    .describe('Allowed voltage as two quantities, e.g. min {"value": 4.5, "unit": "V"}.'),
 });
 export type Pin = z.infer<typeof pinSchema>;
 
+const connectionEndSchema = z.object({
+  componentArtifactId: idSchema,
+  /** Filled in by the server when left out: the approved revision, else the newest. */
+  componentRevisionId: idSchema.optional(),
+  pin: z.string(),
+});
+
 export const connectionSchema = z.object({
-  id: idSchema,
-  from: z.object({
-    componentArtifactId: idSchema,
-    componentRevisionId: idSchema,
-    pin: z.string(),
-  }),
-  to: z.object({
-    componentArtifactId: idSchema,
-    componentRevisionId: idSchema,
-    pin: z.string(),
-  }),
-  voltage: quantitySchema.optional(),
-  signalRole: z.string(),
+  /** Assigned by the server when left out. */
+  id: idSchema
+    .optional()
+    .describe('Leave it out: one is assigned. Send an id only to keep an existing connection.'),
+  from: connectionEndSchema.describe(
+    'End it starts at: componentArtifactId and the pin label. componentRevisionId is optional and defaults to the approved revision of the component, else its newest.',
+  ),
+  to: connectionEndSchema.describe('End it goes to, same shape as from.'),
+  voltage: quantitySchema.optional().describe('Nominal voltage, e.g. {"value": 5, "unit": "V"}.'),
+  signalRole: z.string().describe('What it carries, e.g. "power", "ground", "PWM", "UART TX".'),
   polarity: z.enum(['+', '-', 'bidirectional', 'none']).optional(),
   wire: z
     .object({ gauge: z.string().optional(), currentRating: quantitySchema.optional() })
-    .optional(),
+    .optional()
+    .describe('Wire gauge, e.g. "22 AWG", and its current rating as a quantity.'),
   notes: z.string().optional(),
 });
-export type WiringConnection = z.infer<typeof connectionSchema>;
+type ConnectionInput = z.infer<typeof connectionSchema>;
+type ConnectionEnd = ConnectionInput['from'] & { componentRevisionId: string };
+/** A recorded connection: the id and both component revisions are always present. */
+export type WiringConnection = Omit<ConnectionInput, 'id' | 'from' | 'to'> & {
+  id: string;
+  from: ConnectionEnd;
+  to: ConnectionEnd;
+};
 
 export const wiringPayload = z.object({
   pins: z.array(pinSchema).default([]),
   connections: z.array(connectionSchema).default([]),
   coverageNote: z.string().optional(),
 });
-export type WiringPayload = z.infer<typeof wiringPayload>;
+export type WiringPayload = Omit<z.infer<typeof wiringPayload>, 'connections'> & {
+  connections: WiringConnection[];
+};
 
 export const calculationInputSchema = z.object({
   name: z.string(),
@@ -265,10 +285,16 @@ export const calculationPayload = z.object({
       text: z.string().optional(),
     })
     .optional(),
+  /** Unit the caller declared for the result. Absent when the unit was derived. */
+  outputUnit: z.string().optional(),
   limitations: z.array(z.string()).default([]),
   toolVersion: z.string().optional(),
   ranAt: z.string().optional(),
-  evidenceKind: evidenceKindSchema.default('calculated'),
+  /**
+   * Set to 'calculated' by calculation.run. Nothing fills it in for a payload
+   * written by hand: a result is calculated only when the engine computed it.
+   */
+  evidenceKind: evidenceKindSchema.optional(),
 });
 export type CalculationPayload = z.infer<typeof calculationPayload>;
 
@@ -352,7 +378,7 @@ export function validatePayload(type: ArtifactType, payload: unknown): unknown {
         {
           code: z.ZodIssueCode.custom,
           path: [],
-          message: `No recognized ${type} fields. Use tool.describe with artifactType="${type}" for the payload schema. Expected: ${Object.keys(schema.shape).join(', ')}`,
+          message: `No recognized ${type} fields. Call tool_describe with artifactType="${type}" for the payload schema. Expected: ${Object.keys(schema.shape).join(', ')}`,
         },
       ]);
     }
@@ -404,9 +430,16 @@ export type Revision = z.infer<typeof revisionSchema>;
 
 export const proposedChangeSchema = z.object({
   artifactId: idSchema,
-  baseRevisionId: idSchema.nullable().optional(),
-  newRevisionId: idSchema,
-  kind: z.enum(['baseline_update', 'new_artifact', 'component_selection', 'bom_edit', 'archive']),
+  baseRevisionId: idSchema
+    .nullable()
+    .optional()
+    .describe('Currently approved revision of the artifact. Omit or null when it has none.'),
+  newRevisionId: idSchema.describe('Draft revision the human is asked to approve.'),
+  kind: z
+    .enum(['baseline_update', 'new_artifact', 'component_selection', 'bom_edit', 'archive'])
+    .describe(
+      'new_artifact when the artifact has no approved revision yet, baseline_update when it has. The other kinds are made by component_propose_selection and bom_propose_edit.',
+    ),
   /** For component_selection: artifact being replaced. */
   replacesArtifactId: idSchema.optional(),
   /** For bom_edit / component_selection: BOM lines to apply. */
@@ -531,6 +564,8 @@ export const eventSchema = z.object({
   origin: z.enum(['user', 'agent', 'system']),
   ts: z.string(),
   data: z.unknown(),
+  /** Project the event belongs to. Set on delivery by the Rust host; not stored with the event. */
+  projectId: idSchema.optional(),
 });
 export type ProjectEvent = z.infer<typeof eventSchema>;
 

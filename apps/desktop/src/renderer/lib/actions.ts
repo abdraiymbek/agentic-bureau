@@ -2,6 +2,12 @@
 import type { Project } from '@omenflow/contracts';
 import { cmd, CommandError, errMsg } from '../api';
 import { useStore } from '../store';
+import { confirmLeave, guardLeave } from './dirty';
+import { useAgentUi } from '../shell/agent/agent-store';
+import { sanitizePaste } from '../shell/agent/buffer';
+import { surfacePhase, autostartAdapter } from '../shell/agent/phase';
+import { quiet } from '../shell/agent/quiet';
+import { terminalPort } from '../shell/agent/terminal-port';
 
 export async function enterProject(
   r: { project: Project; projectId: string; readOnly?: boolean },
@@ -16,24 +22,23 @@ export async function enterProject(
   await useStore.getState().refreshAll();
 }
 
+/**
+ * Opens the project at `path`, or one the person picks. Unsaved edits in the open project are
+ * asked about only once the other project has opened, and discarded only when the switch happens:
+ * a cancelled picker or a folder that does not open leaves them as they were.
+ */
 export async function openProjectAt(path?: string) {
   const dir = path ?? (await window.omenflow.pickDirectory('Open Omen Flow project'));
   if (!dir) return false;
   const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>('project.open', {
     path: dir,
   });
-  await enterProject(r, dir);
-  return true;
-}
-
-export async function createProject(name: string, intent: string) {
-  const dir = await window.omenflow.pickDirectory('Choose project folder');
-  if (!dir) return false;
-  const r = await cmd<{ project: Project; projectId: string }>('project.create', {
-    name: name.trim(),
-    path: dir,
-    intent: intent.trim(),
-  });
+  if (!(await confirmLeave('open another project', { keep: true }))) {
+    // The person stays: the project opened only to be asked about is closed again.
+    if (r.projectId !== useStore.getState().projectId)
+      await cmd('project.close', {}, { projectId: r.projectId });
+    return false;
+  }
   await enterProject(r, dir);
   return true;
 }
@@ -61,10 +66,18 @@ export async function importArchive() {
 let closing: Promise<void> | null = null;
 export function closeProject(): Promise<void> {
   if (closing) return closing;
-  closing = closeActiveProject().finally(() => {
-    closing = null;
-  });
-  return closing;
+  return new Promise((resolve, reject) =>
+    guardLeave(
+      () => {
+        closing ??= closeActiveProject().finally(() => {
+          closing = null;
+        });
+        closing.then(resolve, reject);
+      },
+      // The edits go with the project once it has closed, not before the close succeeds.
+      { action: 'close the project', cancel: resolve, keep: true },
+    ),
+  );
 }
 
 async function closeActiveProject() {
@@ -105,19 +118,97 @@ export async function exportProject(kind: 'archive' | 'build', includeDrafts = f
   }
 }
 
-/** Type into the running agent CLI exactly as if pasted, then submit. */
-export async function sendToAgent(text: string) {
-  const { projectId, session } = useStore.getState();
-  if (!projectId || session?.state !== 'running') throw new Error('No running agent session');
-  await cmd('terminal.write', { data: `\x1b[200~${text}\x1b[201~` }, { projectId });
-  await cmd('terminal.write', { data: '\r' }, { projectId });
+/* ------------------------------------------------------------------ */
+/* The agent                                                            */
+/* ------------------------------------------------------------------ */
+
+function liveSession() {
+  const { session } = useStore.getState();
+  return session?.state === 'running' ? session : null;
 }
 
-/** Paste text into the running agent CLI without submitting, so the user can finish it. */
+/**
+ * Ask the agent: the text is pasted into the CLI's input for the person to finish and send.
+ * With no session ready for input it waits in a visible queue — the surface opens, a chosen CLI
+ * starts, and the text is pasted once the CLI shows its prompt. It is never dropped.
+ */
+export type AskOutcome = 'pasted' | 'queued' | 'shown';
+
+export function askAgent(text: string): AskOutcome {
+  showAgent();
+  const clean = sanitizePaste(text);
+  if (!clean.trim()) return 'shown';
+  const { projectId } = useStore.getState();
+  const port = terminalPort(projectId);
+  if (liveSession() && port?.readyForInput() && !useAgentUi.getState().pending.length) {
+    port.paste(clean);
+    return 'pasted';
+  }
+  useAgentUi.getState().enqueue(clean);
+  startIfUnambiguous();
+  return 'queued';
+}
+
+/** What became of an ask, as a sentence about `what` ("The rebase request"). */
+export function askedWords(outcome: AskOutcome, what: string): string {
+  return outcome === 'pasted'
+    ? `${what} is typed into the agent’s input, not sent. Read it there and press Enter to send it.`
+    : `${what} waits beside the agent’s input and is typed once the agent is ready. Nothing is sent.`;
+}
+
+/**
+ * Paste everything waiting in the ask queue. `force` pastes even before the CLI has shown its
+ * prompt (the person pressed "Paste now"); the port then types it on one line, so a start-up
+ * dialog or a half-ready input never receives an Enter. Returns false when nothing could be pasted.
+ */
+export function flushAsks(force = false): boolean {
+  const { projectId } = useStore.getState();
+  const port = terminalPort(projectId);
+  if (!port || !liveSession() || (!force && !port.readyForInput())) return false;
+  const pending = useAgentUi.getState().takePending();
+  if (!pending.length) return false;
+  if (!port.paste(pending.map((p) => p.text).join('\n'))) {
+    for (const p of pending) useAgentUi.getState().enqueue(p.text);
+    return false;
+  }
+  port.focus();
+  return true;
+}
+
+/** Start the agent when there is no session yet and exactly one CLI is the choice. */
+function startIfUnambiguous() {
+  const s = useStore.getState();
+  const ui = useAgentUi.getState();
+  const adapterId = autostartAdapter(
+    surfacePhase({
+      readOnly: s.readOnly,
+      session: s.session,
+      adapters: s.adapters,
+      detection: ui.detection,
+      start: ui.start,
+      agentId: s.agentId,
+    }),
+  );
+  if (adapterId) void startAgent(adapterId).catch(() => {});
+}
+
+/** Paste text into the agent CLI without submitting, so the person can finish it. */
 export async function typeIntoAgent(text: string) {
-  const { projectId, session } = useStore.getState();
-  if (!projectId || session?.state !== 'running') throw new Error('No running agent session');
-  await cmd('terminal.write', { data: `\x1b[200~${text}\x1b[201~` }, { projectId });
+  askAgent(text);
+}
+
+/**
+ * Paste text and submit it, for an instruction the person asked to send as it is. Without a live
+ * session it waits in the ask queue and is pasted, not submitted, once the CLI is ready.
+ */
+export async function sendToAgent(text: string) {
+  const { projectId } = useStore.getState();
+  const port = terminalPort(projectId);
+  if (!liveSession() || !port || !port.paste(text)) {
+    askAgent(text);
+    return;
+  }
+  await port.write('\r');
 }
 
 /** Reveal the one agent terminal: its tab when already there, else the floating window. */
@@ -127,11 +218,52 @@ export function showAgent() {
   window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
 }
 
-/** Start the agent CLI in this project; the caller presents failures and retry. */
-export async function startAgent(adapterId: string) {
+/**
+ * Start the agent CLI in this project at the size the terminal shows. The agent surface presents
+ * progress and the host's error from the agent store, so the failure is not also raised as an
+ * application error; the caller may still handle the rejection.
+ */
+export async function startAgent(adapterId: string, size?: { cols: number; rows: number }) {
   const { projectId, readOnly, refreshSession } = useStore.getState();
   if (!projectId) throw new Error('Open a project before starting an agent');
   if (readOnly) throw new Error('Agent sessions are disabled for read-only projects');
-  await cmd('terminal.start', { adapterId }, { projectId });
-  if (useStore.getState().projectId === projectId) await refreshSession();
+  const ui = useAgentUi.getState();
+  if (ui.start.status === 'starting') return;
+  const measured = size ?? terminalPort(projectId)?.size() ?? null;
+  ui.setStart({ status: 'starting', adapterId });
+  const r = await quiet('terminal.start', { adapterId, ...(measured ?? {}) }, { projectId });
+  if (!r.ok) {
+    const error = new CommandError(r.error);
+    if (useStore.getState().projectId === projectId)
+      useAgentUi.getState().setStart({ status: 'failed', adapterId, error: errMsg(error) });
+    throw error;
+  }
+  try {
+    if (useStore.getState().projectId === projectId) await refreshSession();
+  } finally {
+    useAgentUi.getState().setStart({ status: 'idle' });
+  }
+}
+
+/** Start from a control on the agent surface, which shows progress and any failure itself. */
+export function startAgentFromSurface(adapterId: string) {
+  void startAgent(adapterId).catch(() => {});
+}
+
+/** Start a new session on the same CLI. The conversation starts over; the record does not. */
+export async function restartAgent() {
+  const { session } = useStore.getState();
+  if (!session) return;
+  await startAgent(session.adapterId);
+}
+
+export async function stopAgent() {
+  const { projectId } = useStore.getState();
+  if (projectId) await cmd('terminal.stop', {}, { projectId });
+}
+
+/** Send Ctrl-C to the CLI, as the person would to cancel what it is doing. */
+export async function interruptAgent() {
+  const { projectId } = useStore.getState();
+  if (projectId && liveSession()) await cmd('terminal.interrupt', {}, { projectId });
 }

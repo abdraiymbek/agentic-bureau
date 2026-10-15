@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CoreApp } from '@omenflow/core';
+import type { FixtureCore } from '../core';
 import type { Origin } from '@omenflow/contracts';
 
 const USER: Origin = { kind: 'user' };
@@ -44,7 +44,7 @@ export interface RoverRefs {
 
 type Op = (op: string, payload: unknown) => Promise<Record<string, any>>;
 
-export async function buildRoverProject(app: CoreApp, dir: string): Promise<RoverRefs> {
+export async function buildRoverProject(app: FixtureCore, dir: string): Promise<RoverRefs> {
   const created = (await app.dispatch(
     'project.create',
     {

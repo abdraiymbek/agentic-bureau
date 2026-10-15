@@ -10,9 +10,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: typecheck + lint + vitest
-    runs-on: ubuntu-latest
+  typescript:
+    name: contracts + renderer (typecheck, lint, format, tests, build)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,12 +23,94 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # better-sqlite3 / node-pty must be built for the Node ABI for vitest.
+      # node-pty (legacy agent-host tests) must be built for this Node ABI.
       - run: pnpm rebuild:node
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check
+      # The Rust registry is generated from the TypeScript contracts.
+      - run: pnpm contracts:check
+      # Every shipped Rust crate and bundled package is listed (cargo is preinstalled on the runner).
+      - run: pnpm notices:check
+      # Renderer, contracts and the legacy TypeScript suites.
       - run: pnpm test
+      - run: pnpm --filter @omenflow/desktop build:rust-ui
+
+  rust:
+    name: Rust workspace (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # OpenSCAD is installed and required on both: engine tests fail if it is missing.
+          - os: macos-14
+            openscad: snapshot
+          # The Linux packages' build base (scripts/linux/Dockerfile): Ubuntu 22.04, its
+          # libraries and its OpenSCAD 2021.01, the oldest engine the tests run against.
+          - os: ubuntu-22.04
+            openscad: distribution
+    runs-on: ${{ matrix.os }}
+    env:
+      # Ubuntu's OpenSCAD renders from the command line without a display.
+      QT_QPA_PLATFORM: ${{ matrix.openscad == 'distribution' && 'offscreen' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      # The same list the Linux package container installs (scripts/linux/Dockerfile).
+      - name: Desktop system libraries and OpenSCAD (Tauri webview, engine tests)
+        if: runner.os == 'Linux'
+        run: |
+          sudo sh scripts/linux/build-deps.sh --openscad
+          openscad --version
+      - name: Install OpenSCAD (development snapshot, as used to verify the Rust engine)
+        if: matrix.openscad == 'snapshot'
+        run: |
+          brew install --cask openscad@snapshot
+          openscad --version
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # The real-helper round trip needs the release helper.
+      - run: cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml
+      - run: cargo test -p omenflow-agent-host --locked -- --ignored
+
+  bridge:
+    name: omenflow helper (fmt, clippy, tests)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: native/omenflow-bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo build --release --locked
+      - run: cargo test --locked
+
+  conformance:
+    name: conformance suite + headless smoke (Rust host)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      # Builds omenflow-host and runs every *.conformance.ts case against it.
+      # No case renders with OpenSCAD.
+      - run: pnpm test:conformance
+      - run: pnpm build:bridge
+      - run: pnpm smoke:headless
 
   package-macos:
     name: Rust package + packaged smoke (macOS arm64)
@@ -43,12 +125,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
       - run: pnpm install --frozen-lockfile
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
       - run: pnpm make
       - run: pnpm smoke:packaged
       - name: Upload packaged app
@@ -58,8 +135,46 @@ jobs:
           path: target/release/bundle/
           if-no-files-found: error
 
-  real-cad:
-    name: real CAD + evaluator regressions (OpenSCAD 2021.01)
+  package-linux:
+    name: Rust packages (deb, rpm, AppImage) + packaged smoke (Linux x86_64)
+    # Everything runs in containers; the runner matches the Ubuntu 22.04 build base.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # The recipe verified on arm64 (docs/release.md): builds the omenflow-linux-build
+      # image (Ubuntu 22.04) from scripts/linux/Dockerfile, copies the checkout into a
+      # container of it, runs `pnpm make --bundles deb,rpm,appimage` there and checks the
+      # glibc and WebKitGTK floors the packages declare against the binaries, then
+      # installs the .deb with apt into fresh Ubuntu 22.04, Ubuntu 24.04 and Debian 12
+      # containers, runs the AppImage on a fresh Ubuntu 22.04 without WebKit, and installs
+      # the .rpm with dnf on a fresh Fedora 42, each followed by the packaged smoke under
+      # Xvfb (window, helper, bridge, grant round trip, stand-in agent, WebKitGTK snapshot,
+      # SIGTERM quits with status 0 and ends the agent's process group). The test suites
+      # run in the jobs above.
+      - run: node scripts/linux-package.mjs --skip-tests
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: omenflow-linux-x86_64
+          path: |
+            target/release/bundle/linux-amd64/*.deb
+            target/release/bundle/linux-amd64/*.rpm
+            target/release/bundle/linux-amd64/*.AppImage
+          if-no-files-found: error
+      - name: Upload smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: omenflow-linux-x86_64-smoke
+          path: target/release/bundle/linux-amd64/*.png
+          if-no-files-found: warn
+
+  legacy-cad:
+    name: legacy TypeScript CAD evaluator (OpenSCAD 2021.01)
     runs-on: ubuntu-24.04
     env:
       # Ubuntu Noble's published package; update deliberately with geometry checks.
@@ -129,18 +244,3 @@ jobs:
           name: omenflow-win32-x64
           path: target/release/bundle/
           if-no-files-found: error
-
-  rust-bridge:
-    name: rust fmt + clippy
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: native/omenflow-bridge
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - run: cargo fmt --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked

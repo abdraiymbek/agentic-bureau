@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   ErrorCodes,
+  EXPECTATION_SHORT_FORM_KEYS,
   OPS_BY_NAME,
   Origin,
+  RUST_HOST_OPS,
   describeOp,
   OmenflowError,
   okResponse,
@@ -413,10 +415,20 @@ const H: Record<string, Handler> = {
   },
   'tool.describe': (
     _c,
-    i: { op: string; artifactType?: import('@omenflow/contracts').ArtifactType },
+    i: { tool?: string; op?: string; artifactType?: import('@omenflow/contracts').ArtifactType },
   ) => {
-    const d = describeOp(i.op, i.artifactType);
-    if (!d) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown operation: ${i.op}`);
+    const name = i.tool ?? i.op;
+    if (!name)
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        'tool.describe without a tool name (the tool catalogue) is implemented by the Rust host',
+        {
+          repair: 'Pass tool, e.g. {"tool": "cad_check"}.',
+          details: { op: 'tool.describe', implementedBy: 'rust-host' },
+        },
+      );
+    const d = describeOp(name, i.artifactType);
+    if (!d) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown operation: ${name}`);
     return d;
   },
   'tool.doctor': async (c, i: { toolId?: string }) => {
@@ -459,6 +471,89 @@ function requestHash(op: string, payload: unknown): string {
 }
 
 /**
+ * V1 operations that only the Rust host serves. This TypeScript core backs
+ * the design preview, fixtures and evals; it says so rather than answer them.
+ */
+export function assertServedByLegacyCore(op: string): void {
+  if (!RUST_HOST_OPS.has(op)) return;
+  throw new OmenflowError(ErrorCodes.VALIDATION, `${op} is implemented by the Rust host`, {
+    repair: 'Call it through the desktop app; the TypeScript core does not serve it.',
+    details: { op, implementedBy: 'rust-host' },
+  });
+}
+
+/** A parsed input read loosely: any field may be absent. */
+type Fields = Record<string, unknown>;
+const fields = (value: unknown): Fields =>
+  value !== null && typeof value === 'object' ? (value as Fields) : {};
+const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+/**
+ * Inputs only the Rust host understands, per operation, as the paths that
+ * name them. This core would ignore them and do less than was asked: verify
+ * less, drop an inline source, keep a line it was asked to remove, write no
+ * file, page from the start again, or store a connection or a requirement
+ * reference without the id the Rust host fills in. It refuses instead.
+ */
+const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
+  'cad.check': (input) => [
+    ...(input.autoCommit === undefined ? [] : ['autoCommit']),
+    ...EXPECTATION_SHORT_FORM_KEYS.filter((key) => fields(input.expect)[key] !== undefined).map(
+      (key) => `expect.${key}`,
+    ),
+  ],
+  'artifact.list': (input) => (input.cursor === undefined ? [] : ['cursor']),
+  'artifact.create_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
+  'artifact.update_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
+  'wiring.set_connections': (input) => wiringIdsOmitted(input.connections),
+  'component.add_candidate': (input) => (input.source === undefined ? [] : ['source']),
+  'component.propose_selection': (input) =>
+    input.revisionId === undefined ? ['revisionId omitted'] : [],
+  'bom.propose_edit': (input) => (list(input.removeLineIds).length ? ['removeLineIds'] : []),
+  'bom.export': (input) => (input.destPath === undefined ? [] : ['destPath']),
+  'test.create_draft': (input) =>
+    list(input.requirementRefs).flatMap((ref, index) =>
+      fields(ref).revisionId === undefined ? [`requirementRefs[${index}].revisionId omitted`] : [],
+    ),
+  'test.record_result': (input) =>
+    input.requirementRef !== undefined && fields(input.requirementRef).revisionId === undefined
+      ? ['requirementRef.revisionId omitted']
+      : [],
+};
+
+function wiringIdsOmitted(connections: unknown): string[] {
+  return list(connections).flatMap((value, index) => {
+    const connection = fields(value);
+    return [
+      ...(connection.id === undefined ? [`connections[${index}].id omitted`] : []),
+      ...['from', 'to']
+        .filter(
+          (end) =>
+            connection[end] !== undefined &&
+            fields(connection[end]).componentRevisionId === undefined,
+        )
+        .map((end) => `connections[${index}].${end}.componentRevisionId omitted`),
+    ];
+  });
+}
+
+function assertLegacyInputs(op: string, input: unknown): void {
+  const unsupported = RUST_HOST_INPUTS[op]?.(fields(input)) ?? [];
+  if (!unsupported.length) return;
+  throw new OmenflowError(
+    ErrorCodes.VALIDATION,
+    `${op} with ${unsupported.join(', ')} is implemented by the Rust host`,
+    {
+      repair:
+        op === 'cad.check'
+          ? 'Call it through the desktop app, or send the canonical expectation (bbox, shells, sections) with exploratory.'
+          : 'Call it through the desktop app, or send the complete input this core needs (ids and revision ids written out, no Rust-only fields).',
+      details: { op, unsupported, implementedBy: 'rust-host' },
+    },
+  );
+}
+
+/**
  * Single dispatch point used by GUI, MCP, and CLI. Origin is assigned by the
  * caller's trusted layer — agents never reach user-only handlers.
  */
@@ -478,6 +573,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
       repair: req.op === 'artifact.apply_edit' ? 'Submit a proposal instead.' : undefined,
     });
   }
+  assertServedByLegacyCore(req.op);
   let input: never;
   try {
     input = op.input.parse(req.payload ?? {}) as never;
@@ -493,6 +589,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     }
     throw e;
   }
+  assertLegacyInputs(req.op, input);
   if (op.mutating) ctx.assertWritable();
 
   const handler = H[req.op];

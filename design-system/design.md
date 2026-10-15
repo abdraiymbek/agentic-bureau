@@ -1,12 +1,12 @@
 # Omen Flow design system — Lens
 
-Version 2.1 · 24 September 2026 · **See the whole. Focus on one. Decide.**
+Version 2.3 · 14 October 2026 · **See the whole. Focus on one. Decide.**
 
 Lens is the design language and interaction model of Omen Flow. It replaces the previous
 sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
 compatibility constraint. The executable references are [`tokens.css`](tokens.css), the
-primitives in `apps/desktop/src/renderer/ui/kit.tsx`, the stylesheet
-`apps/desktop/src/renderer/styles/app.css`, and the in-app **Design system** view.
+primitives in `apps/desktop/src/renderer/ui/kit.tsx`, the stylesheets in
+`apps/desktop/src/renderer/styles/`, and the in-app **Design system** view.
 
 ## 1. Why Lens exists
 
@@ -38,24 +38,42 @@ around the three things a person actually does:
 Omen Flow has three zoom levels plus the agent. Navigation is a 48 px **activity bar** on the
 left edge: the Agent tab first, then the lens tabs and Decisions. There is no dashboard.
 
-| Level        | What fills the stage                                                            | How you get here                                                 |
-| ------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Agent        | The real agent terminal (PTY), filling the whole main area                      | The first activity-bar tab, “Agent” in `⌘K`                      |
-| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files      | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–4`           |
-| 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
-| 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
+| Level        | What fills the stage                                                                                  | How you get here                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Agent        | The real agent terminal (PTY) under a slim session bar, with a collapsible activity rail on the right | The first activity-bar tab, “Agent” in `⌘K`                      |
+| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files, Evidence                  | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–5`           |
+| 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right                       | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
+| 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below                       | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
 
-- `Esc` zooms out one level. `⌘[` goes back along the path you actually took.
+- `Esc` closes the topmost layer (menu, dialog, sheet, omnibar) and only then zooms out one
+  level, to where you came from: an object returns to the lens it was opened from, a decision
+  to the object it was opened from (else the project), another lens to Flow. `⌘[` and `⌘]` go
+  back and forward along the path you actually took.
+- Changing level moves the stage: a deeper level grows into place from what was pressed, a
+  wider one settles from above (the project level fades, so the map fits to still geometry).
+  Moving across a level does not move the stage.
+- Edits are never silently lost. Every navigation (a click, a shortcut, `Esc`, back and
+  forward, closing or switching the project) asks before it discards unsaved work, with one
+  prompt that lists what would be lost; **Keep editing** is the default. Discarding takes
+  effect only once the move happens: opening another project asks after the folder is chosen
+  and the project has opened, and a cancelled pick, a failed open, choosing to stay, or a close
+  that fails keep the edits. Back or forward with nowhere to go asks nothing. The agent cannot
+  navigate over unsaved work: the view stays and a toast says why.
 - The titlebar trail names only where you are (`Project › Mechanical › Camera tray`).
 - The launcher is the only screen without a project. It asks one question — _What are you
-  building?_ — and lists recent work.
-- Settings (agents, engineering tools, appearance) is a sheet (`⌘,`), never a destination.
+  building?_ — creates the project in a named folder it shows before anything is written, and
+  lists recent work.
+- Settings is a sheet (`⌘,`) with three remembered sections (Agents, Engineering tools,
+  Appearance), never a destination.
 - The Design system view is reachable from the launcher and `⌘K`.
 
 ### Level 0 — Project
 
 The project identity (name and editable one-line intent) floats top-left over the canvas; the
-lenses are tabs on the activity bar.
+lenses are tabs on the activity bar. Opening a project shows its name and intent with a
+placeholder until its record loads; a project whose record could not be read says what failed
+and offers **Try again**. A project reopens on the view it was left on. A background refresh
+that fails keeps the record on screen and says so in the frame strip, with Retry.
 
 **Flow** is the primary navigation surface: a deterministic, layered map of every object.
 
@@ -64,29 +82,75 @@ lenses are tabs on the activity bar.
   electronics, software, assembly, notes) → **Evidence** (calculations, tests).
 - Within a column, objects group by type and order by the barycentre of their upstream (or,
   for pure inputs, downstream) neighbours, so links run as straight as possible. The layout is
-  never hand-arranged and never random.
+  never hand-arranged and never random. Column widths follow the titles; a long title takes
+  two lines.
+- **Links** change height only inside the gutters between columns and pass a column through
+  the gaps between rows. Every link ends in an open chevron at the consequence end. Dashed
+  means related (not causal); dotted means it runs right to left; a link within one column is
+  a bracket on the column's right.
 - **Hover lights the thread**: the full upstream and downstream causal chain through the
   object turns signal-coloured; everything else steps back to 28 % opacity.
-- **Impact** is always visible: out-of-date objects carry an amber border and the edges on
-  recorded stale paths turn amber. After an approval, the consequence path is legible at a
-  glance.
+- **Impact** is always visible: out-of-date objects carry an amber border and dot, and only
+  the links on recorded stale paths turn amber. An impact that arrives while the map is open
+  is drawn once along those paths, outward from the change.
 - **Agent touch**: objects the agent changed in the last 15 minutes carry a soft signal ring.
-- Marks on nodes: amber dot = out of date or in review; hollow ring = no approved baseline.
-- A small legend and zoom/fit controls sit on the canvas edges. Nodes open their object.
+- Marks on nodes: amber dot = out of date; red diamond = missing input; branch icon = in
+  review; hollow ring = no approved baseline. A node can carry several.
+- **Fit** places the map in the largest free rectangle under the project header and beside
+  floating islands, at 88–108 % (snapping to 100 %); below that the map pans and the controls
+  offer “n off screen” and fit all. A manual viewport is remembered per project.
+- **Detail levels**: full nodes from 62 %, glyph and marks from 40 %, a strip of state bars
+  below. Every type group can collapse into one summary node; large groups start collapsed in
+  projects of more than 80 objects.
+- The legend lists only what the map shows. The peek strip below the map spells out the
+  hovered or focused node. Nodes open their object.
+- The map is one tab stop. ←/→ follow links (the way you came first), ↑/↓ move within a
+  column, Home/End jump to its ends, ↵ opens, `T` pins the thread, `C` collapses a group,
+  `+`/`−` zoom, `0` fits, `⇧0` fits all, `Esc` unpins.
 
-**Needs you** is a floating island listing only what waits on a human: open proposals, then
-out-of-date objects, then agent suggestions. When nothing waits it collapses to one quiet
-line: “Every baseline is current and reviewed”.
+**Needs you** is a floating island listing only what waits on a human: pending proposals, then
+out-of-date objects (missing input first, each with its recorded reason and “Ask the agent to
+re-evaluate”), then agent suggestions. Proposals returned to the agent are listed apart under
+“Back with the agent” and are not counted. The quiet line says “Every baseline is current and
+reviewed” only when that is true; otherwise it names what is unfinished (objects without a
+baseline, drafts not proposed). At 1120 px and narrower it rests as a pill; at 1360 px and
+wider its rows run two abreast.
 
-**Parts** is the bill of materials (known cost, known mass, lines; unknowns labelled and
-excluded from totals) with a Candidates mode for side-by-side comparison. Both modes use sourced shopping lines: a real
-product image, name and part number, project-specific selection reason, seller price with pack
-basis, observation date, availability and the exact purchase destination. Candidates are the
-default so agent suggestions are visible before human selection. Missing or failed photos,
-unknown prices and unusable links remain labelled; placeholder domains are never purchase actions. **Timeline** is the
-decision record grouped by day, with adjacent revision/baseline events merged. **Files** lists
-working files by owning object and revision, with text preview, the project archive, and the
-build package (drafts off by default).
+**Parts** is two tables. **Components** (the default, so agent suggestions are visible before
+human selection) groups parts as Candidates, Selected and Set aside; 2 to 4 parts can be
+compared side by side with differences named. **Bill of materials** carries a totals strip:
+known cost per currency (never summed across currencies), known mass, lines, and each value
+excluded as unknown with its reason. Rows are sourced shopping lines: a real product image
+(https only, on the photo well), name and part number, project-specific selection reason,
+seller price with pack basis, observation date, availability and the exact purchase
+destination. Missing or failed photos, unknown prices and unusable links remain labelled;
+placeholder domains are never purchase actions. An export reports success only when the host
+returns the written file.
+
+**Timeline** is the decision record grouped by day, with adjacent revision/baseline events
+merged. It pages back to the start of the record, filters by actor and object, opens what each
+row refers to, and shows recorded agent tool calls between the rows when the host keeps them.
+A row never states a change that did not happen: a bill-of-materials row after an approval
+appears only when the approval touched a component, a BOM line or a replacement (earlier
+builds announced one after every approval, and those records stay in the project), and an
+impact row counts only the objects reached beyond the ones that changed, and is hidden when it
+reached none.
+
+**Files** lists approved and draft working files by owning object, state and revision, with a
+line-numbered preview, reveal of the actual file, the project archive, and the build package
+(drafts off by default; a refused build lists its issues inline).
+
+**Evidence** (`⌘5`) is the requirement → evidence matrix, read left to right: requirement
+(statement, priority, review), target (quantity with unit and range, unknown with its reason,
+or “No quantitative target”), coverage (Covered, Partly covered, Out of date, No evidence, with
+the host's reason), and evidence chips (type, title, Current / Out of date / Draft / No result,
+the recorded result, and Pass or Fail only when a test recorded a verdict). Current evidence is
+the host's judgement: a calculation whose recorded result the engine does not reproduce is No
+result, and a link an agent drew that nobody reviewed is Draft. A header sentence counts what
+has current evidence and says how much of it is partial without counting a requirement twice
+(“1 of 2 requirements has current evidence, but only partly. 1 has no evidence.”, or “…, 2 of
+them only partly”); filters show gaps; “Ask agent to close n gaps” drafts an editable request
+naming each gap. A verdict is never inferred by comparing numbers.
 
 An empty project shows the four layers as a dashed outline and one action that opens the Agent
 tab with a drafted first prompt.
@@ -96,8 +160,10 @@ tab with a drafted first prompt.
 A three-part composition: **left rail · stage · right rail**.
 
 - **Left rail — Depends on**: upstream links (graph edges and recorded, pinned inputs) with the
-  relationship in words. Below it, **Record**: origin, recorded time, evidence kind, bounds,
-  identifier, and “Reveal files”.
+  relationship in words. Below it, **Record**: origin (an agent's revision reads
+  “agent · session” and the first eight characters of the session id, the full id in its
+  title), recorded time, evidence
+  kind, bounds, identifier, and “Reveal files”.
 - **Right rail — Affects**: downstream links, then **Related** (non-causal relations), then
   **Revisions** with the baseline marked and each rationale.
 - Short connector lines lead from every rail link toward the stage. Clicking a link moves focus
@@ -107,68 +173,146 @@ A three-part composition: **left rail · stage · right rail**.
 - If an input changed or is missing, a notice names the path, e.g.
   `Payload capacity → Rover mass budget → this`, each step clickable.
 
-Every stage resolves recorded revisions, including artifacts with no approved baseline. Latest
-work selects the newest active draft descended from the current baseline (or the baseline when
-there is no candidate). A revision picker can hold an explicit baseline or historical revision;
-rejected work is never selected automatically. Header, record rail, inputs, files, and fields
-must describe the displayed revision. Draft and historical content is labelled and baseline edit
-controls are disabled there. Known fields populate from the payload; unknown quantities retain
-their reasons. New observations, decisions, and messages require intentional input.
+- Each rail folds to a narrow strip at its edge and unfolds from the same button; the choice
+  is remembered for every object. A rail that fails to render says so while the stage and the
+  other rail keep working.
+
+Every stage resolves recorded revisions, including artifacts with no approved baseline. **The
+Revisions rail is the picker**: “Latest work” follows the newest active draft descended from
+the baseline, else the baseline; picking the baseline follows the pointer; picking any other
+revision holds it; a save shows the saved revision; while an edit is unsaved the display stays
+on its base revision. Rejected work is never selected automatically. Header, record rail,
+inputs, files, and fields describe the displayed revision; freshness belongs to the baseline
+and reads “Baseline: …” when another revision is on screen, and “Input not yet approved” when
+a missing input exists only as a draft.
+
+A non-baseline revision carries a banner: a draft offers **Accept as baseline** (with its
+consequence stated: at once, without a review, marking what depends on it out of date) and
+**Open decision** when a proposal covers it; history offers “Show latest work”. Disabled edit
+controls say why. Known fields populate from the payload; unknown quantities retain their
+reasons. New observations, decisions, and messages require intentional input.
+
+Edits are held apart from incoming data: a refresh, an agent draft or a moved baseline never
+resets typing. When the base moves underneath, the stage says “The record moved to rN while
+you were editing” with a per-field table and **Keep my edits on rN** / **Discard my edits and
+show rN**. Leaving with unsaved edits asks first; an editor that disappears without being asked
+keeps its edits for its return.
 
 The stage takes the shape of the object:
 
-| Type                                                 | Stage                                                                                                                                                                                         |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Requirement                                          | Statement as large editable text; target as one quantity field (value + unit); priority; acceptance; trace impact                                                                             |
-| Assumption                                           | “Not an established fact” notice; statement, reason, owner, needs-validation                                                                                                                  |
-| Mechanical                                           | STL viewport first, revision picker and view tools as floating islands; render/accept bar; parameters grid; source                                                                            |
-| Calculation                                          | Result in large mono, expression, inputs as `name = quantity · source` rows, assumptions, limitations, re-run                                                                                 |
-| Test                                                 | Procedure steps, conditions, recorded results, record-a-result form                                                                                                                           |
-| Electronics                                          | Automatically drawn, sanitised diagram for the displayed revision; validate and redraw actions, labelled findings, pins, voltage ranges, connections, ratings, and coverage                   |
-| Component                                            | Part number, maker, selection, sourced properties and attributes; supplier offers with recorded web destinations, quantity basis, observation time, availability, and explicit unknown prices |
-| Source                                               | The excerpt as a quotation, publisher, kind, capture time, URL                                                                                                                                |
-| Assembly                                             | Numbered steps with tools, calibration, and linked components                                                                                                                                 |
-| Concept · architecture · subsystem · software · note | Readable prose with an edit toggle; concept dimensions, systems, alternatives, uncertainties, and saved visuals; software metadata and immutable file previews                                |
+| Type                                                 | Stage                                                                                                                                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requirement                                          | Statement as large editable text; target as one quantity field (value + unit) with “The target is unknown” and its reason, so an unknown target is removed only by clearing that choice; priority; acceptance; trace impact                                                                                                                                                     |
+| Assumption                                           | “Not an established fact” notice; statement, reason, owner, needs-validation                                                                                                                                                                                                                                                                                                    |
+| Mechanical                                           | STL viewport first with a tool island (fit, reset, seven standard views, projection, section, two-point measure, envelope, edges, grid, baseline comparison as overlay or side by side); render/accept bar and job row; parameters scanned from the source with units and overrides, sent in the model's units (mm, deg; a unit with none is refused, never sent as mm); source |
+| Calculation                                          | Result in large mono, expression, inputs as `name = quantity · source` rows with their pin state (“Pinned to r3; the baseline is now r5”), assumptions, limitations, re-run; a re-run that reproduces the record says nothing was created, and only a submitted proposal is “waiting for your review”                                                                           |
+| Test                                                 | Procedure steps, conditions, recorded results, record-a-result form                                                                                                                                                                                                                                                                                                             |
+| Electronics                                          | Checks run automatically for the displayed revision; sanitised diagram at stated scale with zoom; labelled findings linked to their connection, pins, voltage ranges, connections, ratings, and coverage                                                                                                                                                                        |
+| Component                                            | Part number, maker, selection, sourced properties and attributes; supplier offers as a table with recorded web destinations, quantity basis, observation date, availability, and explicit unknown prices                                                                                                                                                                        |
+| Source                                               | The excerpt as a quotation, publisher, kind, capture time, URL                                                                                                                                                                                                                                                                                                                  |
+| Assembly                                             | Numbered steps with tools, calibration, and linked components                                                                                                                                                                                                                                                                                                                   |
+| Concept · architecture · subsystem · software · note | Readable prose; editing opens a writing pane beside a live preview of what will be saved; concept dimensions, systems, alternatives, uncertainties, and saved visuals; software metadata and immutable file previews                                                                                                                                                            |
 
 Edits appear in a save bar that only becomes prominent when something changed. Saving creates
-a revision; the copy says so.
+a revision; the copy says so. The viewport's keys: arrows orbit, Shift+arrows pan, `+`/`−`
+zoom, `1`–`7` standard views, `F` fit, `0` reset, `O` projection, `S` section, `M` measure,
+`B` envelope, `E` edges, `W` wireframe, `G` grid, `Esc` leaves measure. Scroll zooms only with
+focus, a resting pointer or a pinch; otherwise the stage scrolls.
 
 ### Level 2 — Decision
 
 The same three-part grammar: **queue · proposal · impact**.
 
-- Left rail: “Needs you / All” and the queue.
+- Left rail: “Needs you” lists pending proposals that nothing replaced, newest first; “n
+  waiting on the agent” links to All. Rows show the reason, the objects, the state in words,
+  who, when and the change count. The activity-bar badge and the titlebar pill count the same
+  proposals.
 - Centre: “Proposal n of m” with previous/next, the reason as the title, who proposed it and
-  when, supersede notices, then one section per change with the object (clickable), change
-  kind, and `r1 → r2`. Diffs are field-level rows; quantities change atomically:
-  **0.3 kg → 0.5 kg**. Mechanical changes render the bound meshes with a baseline overlay,
-  verification checks, declared scope, and coverage limits.
-- The decision bar is pinned to the bottom of the stage: rationale, then **Reject** (demoted,
-  far left), **Request changes**, and **Approve changes** (`⌘↵`).
-- Right rail: “Would affect” and a standing note on what approval means.
-- After a decision: a notice with **Resume agent from decision**, which types a precise
-  continuation instruction into the running CLI.
+  when, then a phase notice when the next move is not yours: **Base moved** (approval blocked,
+  “Ask the agent to rebase”), **Waiting on the agent**, **Superseded** (“Open the
+  replacement”), or the recorded outcome with its rationale. A proposal that replaced earlier
+  ones says “Replaces …” and links them. A proposal that changed while it was open says what
+  changed and waits for “I have read the changes”.
+- One section per change with the object (clickable), change kind, and `r1 → r2` (a change
+  that edits only a bill of materials reads “r1 stays the baseline”). Diffs are
+  field-level rows, one row when short and a stacked line diff with marked words when long;
+  list items match by id or name, else content, and added or removed items show whole;
+  quantities change atomically with their bounds: **0.3 kg → 0.5 kg**. A new object shows its
+  complete content; files show sizes and line diffs. Mechanical changes show Proposed /
+  Baseline / Side by side / Overlay without resetting the camera, verification in words with
+  its readiness, scope acceptance with the reason when it is refused, envelope, parameters,
+  source diff and provenance.
+- The decision bar is pinned to the bottom of the stage: rationale (required to reject or
+  request changes), then **Reject** (demoted, far left, two presses), **Request changes**, and
+  **Approve changes** (`⌘↵`). One guard (`decide/guard.ts`) decides for buttons and keys:
+  approval is blocked while the base moved, and while a proposed part's mesh has not yet been
+  shown in the viewport or could not be read; that geometry gate holds back approval only, so
+  reject and request changes stay available, and an archive change has no geometry to wait for.
+  `⌘↵` approves only with focus in the decision, no open layer, the changes rendered, a proposal
+  that needs you, and not within 400 ms of it appearing (a held or repeated key never approves
+  the next one). A decision in flight disables the bar; its outcome is reported once, in the
+  bar.
+- Right rail: “Would affect”, “Approving will” in words (for a bill-of-materials edit, “the
+  baseline stays rN; only its bill of materials changes”), and a standing note on what approval
+  means. When the base moved it reads **Approval is refused** with the reason (“its baseline is
+  newer than r1, the revision this change was prepared on”) and “Nothing changes until the agent
+  rebuilds the change”. With no proposal open (the done state) only “What approval means”
+  remains.
+- After a decision the next pending proposal opens, else a done state lists the sitting's
+  decisions and the exact handoff text; **Resume agent from decision** types it without
+  sending.
 
 ### The agent
 
-The agent is one real PTY terminal with two presentations, mounted for the life of the open
+The agent is one real PTY terminal with three presentations, mounted for the life of the open
 project so the session, scrollback, and running CLI survive navigation.
 
-- **Agent tab**: the first activity-bar tab. The terminal fills the whole main area — no
-  composer, no chrome. You type into the CLI exactly as in your own terminal.
-- **Agent window** (`⌘J`): a floating island anchored bottom-left over any other tab — the same
-  terminal, so you keep working while navigating. It carries a slim header (status light,
-  agent, session state), resizes from its top-right corner, and remembers its size. A signal
-  ring marks a live session.
-- **Autostart**: the first time the surface becomes visible with no session, the chosen agent
-  starts itself in the project folder. It never restarts on its own after a session ends; an
-  ended session offers “Start again” over the visible scrollback.
-- **The choice lives in Settings**: a radio group of detected (and undetected) agent CLIs picks
-  the agent; a running session on a different CLI can be restarted onto the new choice.
-- “Ask agent” entry points type into the running PTY using bracketed paste — object references
-  arrive as `{type} {title} (artifact {id}, revision {n})` prefixes you can edit before Enter.
-  Nothing is paraphrased, summarised, or fabricated.
-- `⌘K` offers “Ask {agent}: …” for any sentence typed while a session runs.
+- **Agent tab**: the first activity-bar tab. A slim **session bar** (status word, a pulse only
+  while running, agent, model, tool profile with its source, tools listed, elapsed, recorded
+  calls and failures; interrupt, restart and stop as two-press buttons, search `⌘F`, copy
+  transcript, clear, activity, settings), the terminal, and the **activity rail**: only calls
+  recorded in the host's ledger, grouped by pauses and sessions, failures with their selectable
+  error, input repairs, and touched objects as links. A group names a time range only when its
+  shown times differ, and headers and call details wrap only between facts. The rail is
+  remembered per project; when the host keeps no ledger it stays closed and its toggle says
+  “Activity is not available from this host”.
+- **Stop and Restart** show their progress: the pressed control is busy and the other is
+  disabled until the host answers (a CLI that ignores the polite stop is killed after 2 s). A
+  session the person stopped reads “Ended” with no exit code; the host records an exit code
+  only for a process that exited with one.
+- **Agent window** (`⌘J`): a floating island dragged by its header and resized from the
+  top-right corner by pointer or arrow keys, at most half the width and 56 % of the height of
+  the area. It docks to the right (the stage narrows) or collapses to its header with a
+  one-line ticker of the latest call, remembers size, place and mode, and returns focus when it
+  closes. Until the person places it, it sits above the controls pinned to the bottom of the
+  area that mark themselves `data-toast-avoid` (the map's legend and peek strip, the decision
+  bar); once placed it stays where it was put. A signal ring marks a live session.
+- **States** are explicit: “Looking for agent CLIs…”, “Connect an agent CLI” (every adapter
+  with its install guide, Set path…, Detect again), a one-click choice when several are
+  installed, starting, “did not start” with the host's error and Try again, read-only, and
+  ended (the transcript stays readable and copyable, with Start again on the same CLI; it never
+  restarts on its own).
+- **Autostart** happens only for an unambiguous choice, the first time the surface is visible
+  with no session.
+- **Ask**: every “Ask agent” entry point (stage header, Needs you, Evidence gaps, Parts
+  alternatives, rebase and handoff in decisions, the launcher brief, `⌘K`) hands its text to
+  one queue. It is pasted with bracketed paste once the CLI shows its prompt and is never
+  submitted; until then it waits visibly as “Waiting to type” with **Paste now** and
+  **Discard**. Any paste into a CLI that has not turned bracketed paste on (**Paste now**
+  included) joins the lines with spaces, so it never presses Enter. Object references arrive as
+  `{type} "{title}" (artifact {id}, revision {n})` you can edit before Enter. Nothing is
+  dropped, paraphrased, summarised, or fabricated.
+- **Starters** in the rail offer requests drawn from the record for a fresh session; they are
+  typed, never sent, and they are gone once anything was typed or pasted into the session or
+  while an ask waits (the launcher brief counts).
+- **Settings** per agent: model, tool profile (Automatic, Compact, Standard, Full) and how it
+  resolves, executable path, test steps, “Restart to apply”, and “Verified with this build”,
+  “Documented, not verified here” or, for a Custom CLI, “Not verified here”. A Custom CLI shows
+  the arguments the host reports as saved (“Leave empty to keep them”); an older host that does
+  not report them is not guessed at. An agent CLI that is not installed reads neutral; red is
+  for a detected one that fails.
+- `⌘K`: “Ask {agent}” is always the last group and never preselected; the `>` prefix asks
+  directly.
 
 ## 4. Visual language
 
@@ -176,24 +320,31 @@ project so the session, scrollback, and running CLI survive navigation.
 
 Two themes share roles: **Graphite** (default) and **Paper**. `tokens.css` is the only source.
 
-| Role      | Token                            | Use                                             |
-| --------- | -------------------------------- | ----------------------------------------------- |
-| Field     | `--field`                        | Window, map canvas, rails                       |
-| Surface   | `--surface`                      | The stage in focus                              |
-| Raised    | `--raised`, `--raised-2`         | Islands, menus, hover, inputs                   |
-| Inset     | `--inset`, `--terminal-bg`       | Code, terminal, viewport wells                  |
-| Text      | `--text`, `--text-2`, `--text-3` | Content, support, metadata                      |
-| Signal    | `--signal`, `--signal-text`      | Live agent, focus ring, the lit thread, context |
-| Positive  | `--ok`                           | Approved, current, passed                       |
-| Attention | `--warn`                         | Needs review, out of date                       |
-| Error     | `--err`                          | Missing input, failure, rejection               |
-| Primary   | `--primary`, `--primary-ink`     | The one decisive action per area                |
+| Role          | Token                                                                                     | Use                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Field         | `--field`                                                                                 | Window, map canvas, rails                                                                             |
+| Surface       | `--surface`                                                                               | The stage in focus                                                                                    |
+| Raised        | `--raised`, `--raised-2`                                                                  | Islands, menus, hover, inputs                                                                         |
+| Inset         | `--inset`, `--terminal-bg`                                                                | Code, terminal, viewport wells                                                                        |
+| Text          | `--text`, `--text-2`, `--text-3`, `--text-4`                                              | Content, support, metadata; separators and idle marks (`--text-4`, never the only carrier of meaning) |
+| Signal        | `--signal`, `--signal-text`                                                               | Live agent, the lit thread, context (fills)                                                           |
+| Signal stroke | `--signal-stroke`, `--focus`                                                              | Signal drawn as a line, ring, dot or border; the focus ring (olive on Paper)                          |
+| Pressed       | `--pressed`, `--press-scale`                                                              | A control held down                                                                                   |
+| Scrim         | `--overlay`                                                                               | Behind dialogs and the sheet                                                                          |
+| Photo         | `--photo-bg`                                                                              | The well behind product photography                                                                   |
+| Terminal      | `--terminal-bg`, `--terminal-fg`, `--terminal-cursor`, `--terminal-selection`, `--ansi-*` | The agent terminal: surface, text, cursor, selection and the sixteen ANSI colours                     |
+| Positive      | `--ok`                                                                                    | Approved, current, passed                                                                             |
+| Attention     | `--warn`                                                                                  | Needs review, out of date                                                                             |
+| Error         | `--err`                                                                                   | Missing input, failure, rejection                                                                     |
+| Primary       | `--primary`, `--primary-ink`                                                              | The one decisive action per area                                                                      |
 
 - **Signal lime is the only chromatic accent outside state.** It means _alive or selected_:
   a running agent, keyboard focus, the hovered causal thread, the context chip. It is never a
   category colour and never decoration.
 - Primary actions are high-contrast neutrals (white on Graphite, black on Paper).
 - State colours always pair with a word (`State` renders a dot plus a label).
+- Text roles and state words meet 4.5:1 on every surface in both themes; strokes, the focus
+  ring and `--text-4` meet 3:1. `tests/frontend/ui-tokens.test.ts` enforces it.
 
 ### Type
 
@@ -209,20 +360,36 @@ terminal. Both are vendored in `fonts/`.
 | `--text-md`  | 13.5 | Working text                          |
 | `--text-sm`  | 12.5 | Controls, rails, tables               |
 | `--text-xs`  | 11.5 | Metadata                              |
+| `--text-2xs` | 10.5 | Counts and key caps                   |
 
-Display sizes use `--tracking-display`. Numbers use tabular figures. Sentence case everywhere;
-no all-caps labels.
+Display sizes use `--tracking-display` and `.text-display`; titles use `.text-title`. Line
+heights are tokens (`--leading-display`, `--leading-tight`, `--leading`, `--leading-prose`).
+Numbers use tabular figures (`.num`, `.tabular`). Sentence case everywhere; no all-caps labels.
 
 ### Geometry, depth, motion
 
 - Spacing is 4-based (`--s-1` … `--s-12`). Controls are 26 / 32 / 38 px.
 - Radii: 6 (small controls), 8 (controls), 11 (menus, nodes), 15 (islands), 20 (stage, sheet).
 - Depth has three planes: the **field** (flat), the **stage** (surface, 1 px line, no shadow),
-  and **islands** (raised, `--shadow-float`) that hover over the field or stage: Needs you,
-  the agent window, viewport tools, map controls, menus, omnibar, sheet.
-- Motion is functional: 120 ms feedback, 200 ms state, 320 ms zoom and sheet. Zooming into an
-  object uses a subtle scale-in. Only live things pulse. `prefers-reduced-motion` removes all
-  of it.
+  and **islands** (raised, the layered `--shadow-float`) that hover over the field or stage:
+  Needs you, the agent window, viewport tools, map controls, omnibar, sheet. Menus use
+  `--shadow-menu`, tooltips `--shadow-pop`.
+- Layers are tokens (`--z-raised` … `--z-tooltip`): sticky heads, stage tools, the save bar,
+  canvas tools, the project head, islands, the agent tab and window, the titlebar, the scrim,
+  dialogs, menus, toasts, tooltips.
+- Pressed is `--pressed` with `--press-scale` at once (other controls fall back to
+  `--press-filter`); disabled is `--disabled-opacity`.
+- Motion is functional: 120 ms feedback and exits (`--ease-in`), 200 ms state and enters,
+  320 ms zoom and sheet. Five utilities carry it: `.motion-fade` (scrims), `.motion-rise`
+  (omnibar, menus, toasts, prompts), `.motion-sheet`, `.motion-zoom-in`, `.motion-zoom-out`.
+  Each plays on mount and exits while Radix marks it `data-state='closed'` or the surface sets
+  `data-leaving`. Only live things pulse. `prefers-reduced-motion` zeroes every duration and
+  live indicators breathe instead of pulsing; the terminal cursor stops blinking.
+- Toasts rise at the bottom right and lift above any control that marks itself
+  `data-toast-avoid` (the decision bar, the map's controls, a save bar), so they never cover
+  one. The stack is measured (its width and height) and rises only past a control it would
+  overlap both across and down, lowest first; a control beside it or above it never moves it
+  (`frame/toast-clearance.ts`).
 
 ### Brand
 
@@ -239,33 +406,50 @@ vectorised from the supplied artwork (`brand/source-mark-*.png`) as `brand/omen-
 
 ## 5. Primitives
 
-All live in `ui/kit.tsx` and appear in the Design system view.
+All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled in
+`styles/kit.css`, and appear in the Design system view.
 
-| Primitive            | Purpose                                                                      |
-| -------------------- | ---------------------------------------------------------------------------- |
-| `Mark`, `Brand`      | Identity                                                                     |
-| `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types    |
-| `State`, `Pulse`     | Labelled state (review, freshness, execution); live pulse for running things |
-| `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`  |
-| `IconButton`         | Named icon-only action (label doubles as tooltip)                            |
-| `Segmented`          | Lens and mode switching with optional counts                                 |
-| `Field`              | Label + control + hint with connected ids                                    |
-| `Notice`             | Inline, toned explanation with an optional action                            |
-| `Empty`              | Specific empty state with a recovery                                         |
-| `Disclosure`         | Progressive detail with contextual actions                                   |
-| `Block`, `Facts`     | Quiet labelled sections and key/value metadata                               |
-| `Kbd`, `Spinner`     | Shortcuts and active work                                                    |
+| Primitive            | Purpose                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `Mark`, `Brand`      | Identity                                                                                                         |
+| `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types                                        |
+| `State`, `Pulse`     | Labelled state from one vocabulary by dimension (`ui/vocabulary.ts`); live pulse for running things              |
+| `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`; `busy` keeps its width; `shortcut`  |
+| `IconButton`         | Named icon-only action, 26 / 32 / 38 px; the label is its accessible name and its tooltip; `pressed`, `shortcut` |
+| `Tooltip`            | Names a control on hover and when Tab reaches it; `TooltipProvider` wraps the application                        |
+| `ConfirmButton`      | Two-press action for anything irreversible; stands down after four seconds, on blur, or on Escape                |
+| `Menu`               | A short list of actions behind one trigger, with icons, shortcuts, and a destructive tone                        |
+| `Segmented`          | A radio group for lens and mode switching, one tab stop, arrow keys, optional counts                             |
+| `Field`              | Label + control + hint with connected ids; `error`, `required`                                                   |
+| `Checkbox`           | A labelled choice with an optional hint                                                                          |
+| `QuantityField`      | Value and unit changed together; empty is not set, never zero; non-numbers are flagged, not saved                |
+| `Notice`             | Inline, toned explanation with an optional action                                                                |
+| `Empty`              | Specific empty state with a recovery                                                                             |
+| `Skeleton`           | Placeholder with the rough shape of content that is still loading                                                |
+| `ErrorBoundary`      | Contains a render failure to one region, shows the recorded error, and offers a retry                            |
+| `Disclosure`         | Progressive detail with contextual actions, controlled or `defaultOpen`                                          |
+| `Qty`, `Time`        | One formatter for quantities (`formatQuantity`) and one for times (`formatDate`), unit attached                  |
+| `Block`, `Facts`     | Quiet labelled sections and key/value metadata                                                                   |
+| `Kbd`, `Spinner`     | Shortcuts and active work                                                                                        |
 
-Composite patterns: map node, rail link node, stage header, save bar, diff row, decision bar,
-activity bar, agent window, island, sheet, omnibar.
+Composite patterns: map node, map legend and peek, Needs-you row, rail link node, folding rail,
+stage header, revision banner, underneath notice, save bar, viewport tool island, render job
+row, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
+bar, handoff card, lens table row, totals strip, evidence chip, activity bar, session bar,
+activity rail and call row, agent onboarding panel, waiting-to-type bar, terminal search,
+agent window (dock, collapse), island, sheet, omnibar, unsaved-work prompt, project loading
+state, frame strip (failures to act on, with Retry or Dismiss), toast. The catalogue's “In the
+product” section opens each one where it lives.
 
 ## 6. Engineering integrity
 
 These rules outrank aesthetics.
 
-- **Quantities keep their units**, atomically, in values, diffs, and tables.
+- **Quantities keep their units**, atomically, in values, diffs, and tables, with their bounds:
+  a one-sided bound (only a minimum or only a maximum) is shown, never dropped.
 - **Unknown stays unknown.** It is never shown as zero, never summed, and is labelled with
-  its reason when one was recorded.
+  its reason when one was recorded. A recorded unknown without a reason still reads “Unknown”,
+  and saving an edit never erases it.
 - **Review, freshness, evidence, and execution are separate dimensions** and are shown
   separately. Approved ≠ current ≠ validated.
 - **Provenance is one click away**: every sourced property links to its source; every
@@ -273,35 +457,68 @@ These rules outrank aesthetics.
 - **Illustrative data is labelled** (e.g. the preview mesh). A calculation marks itself
   experimental where the engine is.
 - **No fabricated agent activity.** The agent surface is the real PTY; “Ask” writes to it with
-  bracketed paste; running state comes from the session.
+  bracketed paste; running state comes from the session. The activity rail shows only recorded
+  ledger calls; counts come from the host or the ledger, never estimated. Starters and asks are
+  typed, never sent. An ended session shows only an exit code the process returned.
+- **The record states only what happened**: a Timeline row, an approval effect or a re-run
+  message says a baseline moved, a bill of materials changed or a proposal waits only when the
+  host recorded it.
+- **Edits are never silently lost**: leaving unsaved work asks first, and an agent cannot
+  navigate over it.
+- **Coverage is recorded, not inferred**: Evidence shows Pass or Fail only from a recorded test
+  result.
 - **Exports report success only after the operation returns.**
+
+## Selection and copy
+
+Chrome is not selectable; content is. Inputs, code, values (`.mono`, `.num`, `dd`, `output`,
+`time`), table cells, prose, notices, diffs, the terminal and live regions select as text;
+`.copyable` marks other recorded content. Buttons, tabs, menu items, options and their
+descendants never select. Never put `.copyable` on a control.
 
 ## 7. Keyboard and accessibility
 
-| Shortcut    | Action                        |
-| ----------- | ----------------------------- |
-| `⌘K` / `⌘P` | Omnibar: go to, run, or ask   |
-| `Esc`       | Zoom out one level            |
-| `⌘[`        | Back                          |
-| `⌘J`        | Show or hide the agent window |
-| `⌘⇧D`       | Decisions                     |
-| `⌘1`–`⌘4`   | Flow, Parts, Timeline, Files  |
-| `⌘↵`        | Approve (in a decision)       |
-| `⌘,`        | Settings                      |
+| Shortcut             | Action                                             |
+| -------------------- | -------------------------------------------------- |
+| `⌘K` / `⌘P`          | Omnibar: go to, run, or ask                        |
+| `Esc`                | Close the topmost layer, else zoom out one level   |
+| `⌘[` / `⌘]`          | Back / forward                                     |
+| `⌘J`                 | Show or hide the agent window                      |
+| `⌘F`                 | Search the agent scrollback                        |
+| `⌘⇧D`                | Decisions                                          |
+| `⌘1`–`⌘5`            | Flow, Parts, Timeline, Files, Evidence             |
+| `⌘↵`                 | Approve (focus in a decision)                      |
+| `J` / `K`, `[` / `]` | Next and previous change, proposal (in a decision) |
+| `⌘,`                 | Settings                                           |
 
-Focus rings use `--focus` in both themes. Icon-only buttons have names. Dialogs (omnibar,
-sheet, menus) trap and return focus via Radix. The map exposes each node with an accessible
-label; the viewport documents its keyboard alternative. Toasts use a live region. Target WCAG
-AA for essential text; verify with VoiceOver before release.
+- A shortcut never reaches the workspace while a menu, dialog, sheet or the omnibar is open,
+  except that layer's own (`⌘K` closes the omnibar, `⌘,` closes Settings). A layer playing its
+  exit (`data-state="closed"`) no longer holds the keyboard. Shortcuts that
+  navigate never fire while typing in a field; `⌘K`, `⌘,` and `⌘J` do. Escape in the terminal
+  belongs to the CLI; Escape on the agent window's controls returns focus to the workspace.
+  `⌘` on macOS, Ctrl elsewhere; `Kbd` shows Ctrl on Windows and Linux, and controls with a
+  shortcut carry `aria-keyshortcuts`.
+- In `⌘K`, Tab moves between a row's actions and `⌘↵` asks the agent about the object; `>` asks
+  directly. Arrow keys resize the agent window from its corner handle.
+- The map and viewport keys are listed with their levels above.
+
+Focus rings use `--focus` in both themes; rows inside lists draw it inset. Icon-only buttons
+have names. Dialogs (omnibar, sheet, menus, the unsaved-work prompt) trap and return focus via
+Radix. The map is a `role="application"` region named with its counts, and each node has an
+accessible name that reads its states; the viewport documents its keyboard alternative. Toasts
+use a live region. Target WCAG AA for essential text; verify with VoiceOver before release.
 
 ## 8. Layout
 
 - Titlebar 48 px with macOS overlay traffic lights (70 px reserved); the whole bar drags.
 - Activity bar 48 px on the left edge, below the titlebar: icon tabs, the agent window toggle,
   and Settings at the bottom.
-- Rails 248 px, 216 px below 1280, 196 px below 1120. The stage takes the rest.
+- Rails 248 px, 216 px below 1280, 196 px below 1120; a folded rail is 40 px. The stage takes
+  the rest.
 - Supported from **1024 × 700**; designed at **1440 × 900**.
-- Scrolling belongs to regions: rails, stage, lens pages, terminal, omnibar list, sheet.
+- Scrolling belongs to regions: rails, stage, lens pages, terminal, omnibar list, sheet. Each
+  view's scroll positions are remembered and restored on return. The flow map canvas never
+  scrolls; it pans by transform. Scrollbars are thin and themed (`.scroll-region`).
 
 ## 9. Extending Lens
 
@@ -323,20 +540,56 @@ purple, fake chat bubbles, unlabelled colour, or collaboration features that don
 
 ## 10. Implementation map
 
-| Concern                                               | Source of truth                                          |
-| ----------------------------------------------------- | -------------------------------------------------------- |
-| Tokens (both themes)                                  | `design-system/tokens.css`                               |
-| Fonts and licences                                    | `design-system/fonts/`                                   |
-| Brand                                                 | `design-system/brand/`                                   |
-| Primitives                                            | `renderer/ui/kit.tsx`                                    |
-| Styling                                               | `renderer/styles/app.css`                                |
-| Zoom model, keyboard, events                          | `renderer/App.tsx`, `renderer/store.ts`                  |
-| Titlebar, activity bar, agent surface, omnibar, sheet | `renderer/shell/`                                        |
-| Project lenses and flow map                           | `renderer/project/`                                      |
-| Object focus and stages                               | `renderer/object/`                                       |
-| Decisions                                             | `renderer/decide/`                                       |
-| Launcher                                              | `renderer/launcher/`                                     |
-| Catalogue                                             | `renderer/system/DesignSystemView.tsx`                   |
-| Lineage and actions                                   | `renderer/lib/graph.ts`, `renderer/lib/actions.ts`       |
-| Disposable preview                                    | `scripts/design-preview.ts`, `renderer/preview.ts`       |
-| Screens                                               | `design-system/screenshots/`, `design-system/index.html` |
+| Concern                                            | Source of truth                                                                                                            |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Tokens (both themes)                               | `design-system/tokens.css`                                                                                                 |
+| Fonts and licences                                 | `design-system/fonts/`                                                                                                     |
+| Brand                                              | `design-system/brand/`                                                                                                     |
+| Primitives                                         | `renderer/ui/kit.tsx`, `renderer/ui/ErrorBoundary.tsx`                                                                     |
+| Vocabulary, formatters, shortcuts, contrast, units | `renderer/ui/vocabulary.ts`, `ui/format.ts`, `ui/shortcuts.ts`, `ui/contrast.ts`, `ui/units.ts`                            |
+| Styling                                            | `renderer/styles/`, one file per surface (below)                                                                           |
+| Zoom model, keyboard, events                       | `renderer/App.tsx`, `renderer/store.ts`, `renderer/lib/{navigation,shortcuts,layers,sync,dirty,view-memory}.ts`            |
+| Frame: strip, unsaved-work prompt, loading, toasts | `renderer/frame/`                                                                                                          |
+| Titlebar, activity bar, omnibar, sheet             | `renderer/shell/`, `renderer/shell/omnibar/rank.ts`                                                                        |
+| Agent surface                                      | `renderer/shell/Agent.tsx`, `renderer/shell/agent/` (terminal engine, session bar, activity rail, onboarding, view-models) |
+| Lens registry                                      | `renderer/project/lenses.ts`                                                                                               |
+| Project lenses                                     | `renderer/project/` (`EvidenceLens`, `PartsLens`, `TimelineLens`, `FilesLens` and their pure models)                       |
+| Flow map                                           | `renderer/project/FlowMap.tsx`, `renderer/project/flow/` (model, layout, routing, fit, keyboard, controller)               |
+| Object focus and stages                            | `renderer/object/` (`stages/`, `mechanical/`, `viewport/`, `revisions.tsx`, `rails.tsx`, `useRevisionDraft.ts`)            |
+| Decisions                                          | `renderer/decide/` (model, guard, memory, handoff, diff rendering, CAD review)                                             |
+| Launcher                                           | `renderer/launcher/`                                                                                                       |
+| Catalogue                                          | `renderer/system/DesignSystemView.tsx`                                                                                     |
+| Lineage, actions, proposals, diffs, edits          | `renderer/lib/` (`graph`, `actions`, `proposals`, `diff`, `revision-draft`, `unsaved-edits`, …)                            |
+| Disposable preview                                 | `scripts/design-preview.ts` (the Rust headless host), `renderer/preview.ts`                                                |
+| Screens                                            | `design-system/index.html` (links to live screens); `design-system/screenshots/` is history                                |
+
+`renderer/styles/index.css` only imports the files below, in this order. A later file wins a tie,
+so the order is the cascade order. Responsive and reduced-motion rules sit in the file of the
+surface they style.
+
+| File            | Styles                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `base.css`      | Reset, document defaults, form controls, scrollbars, utilities                                    |
+| `kit.css`       | Everything `ui/kit.tsx` renders, plus shared patterns: island, menus, tables                      |
+| `shell.css`     | App frame, stage zoom motion, activity bar, titlebar, omnibar, settings sheet, toasts             |
+| `app-frame.css` | The frame strip, the unsaved-work prompt, the project loading state                               |
+| `agent.css`     | The agent surface, as a tab and as a floating window                                              |
+| `project.css`   | Project identity, Needs you, the empty project                                                    |
+| `flow.css`      | The flow map: canvas, nodes, links, headers, legend, peek, controls                               |
+| `lenses.css`    | Lens page chrome and tables, then Parts (with the part card), Timeline, Files, Evidence           |
+| `launcher.css`  | The launcher                                                                                      |
+| `object.css`    | The three-part grid, folding rails and stage shell that Object and Decide share, then every stage |
+| `viewport.css`  | The mechanical stage and the STL viewport                                                         |
+| `decide.css`    | Queue, proposal, diff, decision bar, CAD review                                                   |
+| `system.css`    | The catalogue                                                                                     |
+
+A lens is one entry in `LENSES` (`renderer/project/lenses.ts`) plus its component. The activity
+bar, `⌘n`, the omnibar, the preview's `screen=` parameter, and the catalogue read that list.
+The Object, Decision, Design system and Agent views, the omnibar and the sheet are code-split
+and fetched once the first screen is up; three.js, xterm and the markdown renderer have chunks
+of their own. The renderer imports only types and `@omenflow/contracts/format` from the
+contracts package, never its runtime barrel.
+
+Class names are global. Name a class for its surface (`object-view`, `lens-check`,
+`verify-row`), never with a bare state word such as `focus` or `check`: libraries such as xterm
+add those to their own elements.

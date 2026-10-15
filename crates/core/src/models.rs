@@ -53,17 +53,30 @@ pub fn revision_from_row(row: &Row<'_>) -> rusqlite::Result<Value> {
 
 pub fn proposal_from_row(row: &Row<'_>) -> rusqlite::Result<Value> {
     let impact: Option<String> = row.get("impact")?;
+    let impact = impact
+        .map(|s| serde_json::from_str::<Value>(&s))
+        .transpose()
+        .map_err(|error| Error::FromSqlConversionFailure(3, Type::Text, Box::new(error)))?;
+    // Supersession is stored in `impact`, where the first implementation put
+    // it; the same facts are also given as plain proposal fields.
+    let recorded = |key: &str| impact.as_ref().and_then(|impact| impact.get(key)).cloned();
+    let supersedes = recorded("supersedesProposalIds")
+        .filter(Value::is_array)
+        .unwrap_or_else(|| json!([]));
+    let superseded_by = recorded("supersededByProposalId").filter(Value::is_string);
     Ok(json!({
         "id": row.get::<_, String>("id")?,
         "changes": parse_json(row, 1)?,
         "reason": row.get::<_, String>("reason")?,
-        "impact": impact.map(|s| serde_json::from_str::<Value>(&s)).transpose().map_err(|error| Error::FromSqlConversionFailure(3, Type::Text, Box::new(error)))?,
+        "impact": impact,
         "state": row.get::<_, String>("state")?,
         "createdBy": row.get::<_, String>("created_by")?,
         "createdBySession": row.get::<_, Option<String>>("created_by_session")?,
         "createdAt": row.get::<_, String>("created_at")?,
         "resolvedAt": row.get::<_, Option<String>>("resolved_at")?,
         "resolutionRationale": row.get::<_, Option<String>>("resolution_rationale")?,
+        "supersedesProposalIds": supersedes,
+        "supersededBy": superseded_by,
     }))
 }
 

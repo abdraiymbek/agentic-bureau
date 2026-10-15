@@ -23,5 +23,4 @@ export * from './cad-checks.js';
 export * from './cad-verification.js';
 export * from './durability.js';
 export * from './work.js';
-export * from './lifecycle.js';
 export * from './session-retention.js';

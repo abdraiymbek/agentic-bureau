@@ -22,7 +22,7 @@ import {
 } from '@omenflow/storage';
 import { ProjectContext, HostServices, EngineTools, nullHost } from './context.js';
 import { ProjectWatcher } from './watcher.js';
-import { dispatch } from './dispatch.js';
+import { assertServedByLegacyCore, dispatch } from './dispatch.js';
 import { expandArchive, verifyArchive } from './build.js';
 import { propagateFrom } from './graph.js';
 import { pruneHistoricalSessionData } from './session-retention.js';
@@ -311,6 +311,7 @@ export class CoreApp {
         `Agents cannot call ${op}`,
       );
     }
+    assertServedByLegacyCore(op);
     const parsed = definition.input.safeParse(payload ?? {});
     if (!parsed.success)
       throw new OmenflowError(

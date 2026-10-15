@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Sign the Rust/Tauri app, notarize and staple it, then package the DMG. */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,19 +21,17 @@ run('pnpm', ['--filter', '@omenflow/desktop', 'build:rust-ui']);
 const rust = path.join(root, 'apps/rust-desktop');
 run(path.join(root, 'node_modules/.bin/tauri'), ['build', '--bundles', 'app', '--no-sign'], rust);
 const app = path.join(root, 'target/release/bundle/macos/Omen Flow.app');
-const dmg = path.join(root, 'target/release/bundle/dmg/Omen Flow_0.1.0_aarch64.dmg');
+const helper = path.join(app, 'Contents/Resources/omenflow');
+const { version } = JSON.parse(readFileSync(path.join(rust, 'tauri.conf.json'), 'utf8'));
+const arch = process.arch === 'arm64' ? 'aarch64' : process.arch;
+const dmg = path.join(root, `target/release/bundle/dmg/Omen Flow_${version}_${arch}.dmg`);
 const scratch = mkdtempSync(path.join(tmpdir(), 'omenflow-notary-'));
 try {
-  run('codesign', [
-    '--force',
-    '--deep',
-    '--options',
-    'runtime',
-    '--timestamp',
-    '--sign',
-    identity,
-    app,
-  ]);
+  // Inside out: notarization rejects any Mach-O without a Developer ID signature, and
+  // `--deep` does not sign executables shipped as resources, such as the helper.
+  for (const code of [helper, app]) {
+    run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--sign', identity, code]);
+  }
   run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
   const archive = path.join(scratch, 'Omen Flow.zip');
   run('ditto', ['-c', '-k', '--keepParent', app, archive]);
@@ -43,12 +41,17 @@ try {
   run('spctl', ['--assess', '--type', 'execute', '--verbose=2', app]);
   run(process.execPath, [path.join(root, 'scripts/rust-packaged-smoke.mjs'), app]);
   mkdirSync(path.dirname(dmg), { recursive: true });
+  // The volume holds the stapled app and a link to /Applications to drag it onto.
+  const volume = path.join(scratch, 'volume');
+  mkdirSync(volume);
+  run('ditto', [app, path.join(volume, 'Omen Flow.app')]);
+  symlinkSync('/Applications', path.join(volume, 'Applications'));
   run('hdiutil', [
     'create',
     '-volname',
     'Omen Flow',
     '-srcfolder',
-    app,
+    volume,
     '-ov',
     '-format',
     'UDZO',

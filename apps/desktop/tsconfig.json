@@ -3,13 +3,8 @@
   "compilerOptions": {
     "types": ["node", "vite/client"],
     "paths": {
-      "@omenflow/contracts": ["../../packages/contracts/src/index.ts"],
-      "@omenflow/storage": ["../../packages/storage/src/index.ts"],
-      "@omenflow/core": ["../../packages/core/src/index.ts"],
-      "@omenflow/agent-host": ["../../packages/agent-host/src/index.ts"],
-      "@omenflow/mcp-server": ["../../packages/mcp-server/src/index.ts"],
-      "@omenflow/engineering": ["../../packages/engineering/src/index.ts"]
+      "@omenflow/contracts": ["../../packages/contracts/src/index.ts"]
     }
   },
-  "include": ["src", "forge.config.ts", "vite.*.config.ts", "../../packages/*/src"]
+  "include": ["src", "vite.*.config.ts"]
 }

@@ -169,7 +169,7 @@ impl ProjectHandle {
         };
         atomic_json_write(&root.join(PROJECT_FILE), &file)?;
         let readme = format!(
-            "# {name}\n\nOmen Flow engineering project. State lives in `.omenflow/state.sqlite`; readable views live under `artifacts/`.\n\n{intent}\n"
+            "# {name}\n\nOmen Flow engineering project. Its record (artifacts, revisions, reviews and history) lives in `.omenflow/state.sqlite`. Files attached to revisions are written into this folder as working copies, OpenSCAD parts under `artifacts/mechanical/`. Exports go to `exports/`.\n\n{intent}\n"
         );
         fs::write(root.join("README.md"), readme)?;
         let db = Connection::open(root.join(".omenflow/state.sqlite"))?;
@@ -381,6 +381,23 @@ mod tests {
         let reopened = ProjectHandle::open(temp.path().join("project")).unwrap();
         assert!(!reopened.read_only);
         assert_eq!(reopened.file.version, 1);
+    }
+
+    /// The README says only what this core puts in the folder: no readable
+    /// views are written, the record is the database.
+    #[test]
+    fn the_project_readme_describes_what_the_folder_holds() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("project");
+        ProjectHandle::create(&root, "Rover", "Carry a camera").unwrap();
+        let readme = fs::read_to_string(root.join("README.md")).unwrap();
+        assert!(readme.starts_with("# Rover\n"));
+        assert!(readme.contains("`.omenflow/state.sqlite`"));
+        assert!(!readme.contains("readable views"), "{readme}");
+        for named in ["artifacts/mechanical", "exports"] {
+            assert!(root.join(named).is_dir(), "{named}");
+        }
+        assert!(readme.ends_with("Carry a camera\n"));
     }
 
     #[test]

@@ -5,6 +5,12 @@ export type TerminalSnapshot = {
 export type TerminalLiveFrame = { sessionId?: string; seq?: number; chunk: string };
 
 /**
+ * Frames held while the snapshot is outstanding. The snapshot already contains anything older
+ * than its cursor, so when the host stays unreachable the oldest held frames are the ones to drop.
+ */
+export const MAX_BUFFERED_FRAMES = 4000;
+
+/**
  * One asynchronous history restore per xterm lifetime, not per React ref.
  * Live frames carry a session sequence; only frames newer than the snapshot
  * cursor are written, so output concurrent with restore cannot duplicate or
@@ -52,6 +58,8 @@ export function createTerminalRestore(
       if (disposed) return;
       if (!restored) {
         buffered.push(frame);
+        if (buffered.length > MAX_BUFFERED_FRAMES)
+          buffered.splice(0, buffered.length - MAX_BUFFERED_FRAMES);
         return;
       }
       applyFrame(frame);

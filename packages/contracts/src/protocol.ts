@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ErrorCodes } from './errors.js';
 import { idSchema } from './ids.js';
 
 export const PROTOCOL_VERSION = 1;
@@ -12,8 +11,6 @@ export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 export const MAX_JOB_LOG_CHARS = 64 * 1024;
 /** Max artifact file size (bytes). */
 export const MAX_FILE_BYTES = 64 * 1024 * 1024;
-/** Max text extraction chars from research pages. */
-export const MAX_EXTRACT_CHARS = 200 * 1024;
 /** Max graph traversal depth for impact. */
 export const MAX_IMPACT_DEPTH = 64;
 
@@ -105,25 +102,8 @@ export function protocolMismatch(version: number): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/* Renderer ↔ main IPC                                                  */
+/* Project events                                                       */
 /* ------------------------------------------------------------------ */
-
-export const IPC = {
-  /** invoke: {op, payload} → ResponseEnvelope (minus requestId echo). */
-  command: 'omenflow:command',
-  /** main → renderer push channels. */
-  event: 'omenflow:event', // project events
-  terminalData: 'omenflow:terminal:data',
-  terminalState: 'omenflow:terminal:state',
-  jobProgress: 'omenflow:job:progress',
-  /** request-response utilities */
-  pickDirectory: 'omenflow:pick-directory',
-  pickFile: 'omenflow:pick-file',
-  saveFile: 'omenflow:save-file',
-  openExternal: 'omenflow:open-external',
-  openPath: 'omenflow:open-path',
-  windowState: 'omenflow:window-state',
-} as const;
 
 /** Project event pushed to renderer + bridge waiters. */
 export const EVENT_TYPES = {

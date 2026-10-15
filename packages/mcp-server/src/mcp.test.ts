@@ -154,6 +154,10 @@ describe('OmenflowMcpServer over bridge frames', () => {
     for (const t of ['cad_render', 'cad_probe', 'cad_validate_source', 'job_read', 'job_list']) {
       expect(names).not.toContain(t);
     }
+    // Served only by the Rust host: this server must not list a tool it cannot answer.
+    for (const t of ['work_status', 'project_coverage', 'guide_read', 'tool_call']) {
+      expect(names).not.toContain(t);
+    }
     const check = list.result.tools.find((t) => t.name === 'cad_check')!;
     expect(check.inputSchema.properties?.expect?.description).toMatch(/must be true/i);
     expect(check.annotations?.readOnlyHint).toBe(false); // persists verification job evidence

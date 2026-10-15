@@ -32,11 +32,15 @@ pub struct Loop {
 pub struct Section {
     pub axis: usize,
     pub at: f64,
-    pub plane_axes: [usize; 2],
+    /// Names of the two in-plane coordinates: model axes for an axis-aligned
+    /// cut, `u` and `v` for an oblique one.
+    pub labels: [&'static str; 2],
     pub loops: Vec<Loop>,
     pub material_area: f64,
     pub open_chains: usize,
 }
+
+const AXES: [&str; 3] = ["x", "y", "z"];
 fn r3(v: f64) -> f64 {
     (v * 1000.0).round() / 1000.0
 }
@@ -161,7 +165,7 @@ impl Section {
             mesh,
             axis,
             at,
-            [u, v],
+            [AXES[u], AXES[v]],
             |p| p[axis] - at - shift,
             |p| [p[u], p[v]],
         )
@@ -178,24 +182,23 @@ impl Section {
             return Err(ContractError::validation("Section normal cannot be zero"));
         }
         let n = normal.map(|v| v / length);
-        let (axis, plane_axes, u, v) =
-            if n[2].abs() > 0.999 && n[0].abs() < 1e-6 && n[1].abs() < 1e-6 {
-                (2, [0, 1], [1.0, 0.0, 0.0], [0.0, n[2].signum(), 0.0])
-            } else if n[1].abs() > 0.999 && n[0].abs() < 1e-6 && n[2].abs() < 1e-6 {
-                (1, [0, 2], [1.0, 0.0, 0.0], [0.0, 0.0, n[1].signum()])
-            } else if n[0].abs() > 0.999 && n[1].abs() < 1e-6 && n[2].abs() < 1e-6 {
-                (0, [1, 2], [0.0, 1.0, 0.0], [0.0, 0.0, n[0].signum()])
+        let (axis, labels, u, v) = if n[2].abs() > 0.999 && n[0].abs() < 1e-6 && n[1].abs() < 1e-6 {
+            (2, ["x", "y"], [1.0, 0.0, 0.0], [0.0, n[2].signum(), 0.0])
+        } else if n[1].abs() > 0.999 && n[0].abs() < 1e-6 && n[2].abs() < 1e-6 {
+            (1, ["x", "z"], [1.0, 0.0, 0.0], [0.0, 0.0, n[1].signum()])
+        } else if n[0].abs() > 0.999 && n[1].abs() < 1e-6 && n[2].abs() < 1e-6 {
+            (0, ["y", "z"], [0.0, 1.0, 0.0], [0.0, 0.0, n[0].signum()])
+        } else {
+            let helper = if n[1].abs() < 0.9 {
+                [0.0, 1.0, 0.0]
             } else {
-                let helper = if n[1].abs() < 0.9 {
-                    [0.0, 1.0, 0.0]
-                } else {
-                    [1.0, 0.0, 0.0]
-                };
-                let u = cross(helper, n);
-                let ul = dot(u, u).sqrt();
-                let u = u.map(|x| x / ul);
-                (2, [0, 1], u, cross(n, u))
+                [1.0, 0.0, 0.0]
             };
+            let u = cross(helper, n);
+            let ul = dot(u, u).sqrt();
+            let u = u.map(|x| x / ul);
+            (2, ["u", "v"], u, cross(n, u))
+        };
         let shift = if mesh
             .triangles
             .iter()
@@ -210,7 +213,7 @@ impl Section {
             mesh,
             axis,
             origin[axis],
-            plane_axes,
+            labels,
             |p| dot(sub(p, origin), n) - shift,
             |p| {
                 let relative = sub(p, origin);
@@ -223,7 +226,7 @@ impl Section {
         mesh: &mesh::Mesh,
         axis: usize,
         at: f64,
-        plane_axes: [usize; 2],
+        labels: [&'static str; 2],
         distance_to_plane: impl Fn([f64; 3]) -> f64,
         project: impl Fn([f64; 3]) -> P2,
     ) -> Self {
@@ -355,18 +358,15 @@ impl Section {
         Self {
             axis,
             at,
-            plane_axes,
+            labels,
             loops,
             material_area,
             open_chains,
         }
     }
     pub fn report(&self, label: Option<&str>) -> Value {
-        let axis = ["x", "y", "z"][self.axis];
-        let axes = [
-            ["x", "y", "z"][self.plane_axes[0]],
-            ["x", "y", "z"][self.plane_axes[1]],
-        ];
+        let axis = AXES[self.axis];
+        let axes = self.labels;
         let mut descriptions = self
             .loops
             .iter()
@@ -390,18 +390,22 @@ impl Section {
 
     pub fn report_plane(&self, origin: [f64; 3], normal: [f64; 3]) -> Value {
         let mut report = self.report(None);
-        report["plane"] = json!(format!(
-            "origin=({}) n=({})",
-            origin
-                .iter()
-                .map(|v| r3(*v).to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-            normal
+        let list = |values: [f64; 3]| {
+            values
                 .iter()
                 .map(|v| r3(*v).to_string())
                 .collect::<Vec<_>>()
                 .join(", ")
+        };
+        report["plane"] = json!(format!(
+            "origin=({}) n=({}){}",
+            list(origin),
+            list(normal),
+            if self.labels == ["u", "v"] {
+                "; u and v are in-plane distances from the origin"
+            } else {
+                ""
+            }
         ));
         report
     }
@@ -467,4 +471,152 @@ pub fn describe(item: &Loop, axes: [&str; 2]) -> String {
         r3((item.min[1] + item.max[1]) / 2.0),
         r3(item.area)
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cad::mesh::fixtures::{cuboid, merged, mesh, plate_with_hole};
+
+    #[test]
+    fn mid_plane_of_a_box_is_one_material_rectangle() {
+        let cube = mesh(cuboid([0.0; 3], [10.0, 20.0, 30.0], false));
+        let cut = Section::from_mesh(&cube, 2, 15.0);
+        assert_eq!(cut.labels, ["x", "y"]);
+        assert_eq!((cut.loops.len(), cut.open_chains), (1, 0));
+        let outline = &cut.loops[0];
+        assert!(!outline.is_hole);
+        assert_eq!(outline.rectangle.as_ref().unwrap().size, [10.0, 20.0]);
+        assert_eq!(outline.rectangle.as_ref().unwrap().center, [5.0, 10.0]);
+        assert!((cut.material_area - 200.0).abs() < 1e-9);
+        assert_eq!(
+            cut.report(Some("mid")),
+            json!({"plane": "z=15 (mid)", "loops": ["material rectangle 10×20 centered (x=5, y=10)"]})
+        );
+        assert_eq!(Section::from_mesh(&cube, 1, 3.0).labels, ["x", "z"]);
+        assert_eq!(Section::from_mesh(&cube, 0, 3.0).labels, ["y", "z"]);
+    }
+
+    #[test]
+    fn a_plane_on_a_face_is_nudged_inside_and_a_plane_outside_is_empty() {
+        let cube = mesh(cuboid([0.0; 3], [10.0; 3], false));
+        let bottom = Section::from_mesh(&cube, 2, 0.0);
+        assert_eq!((bottom.loops.len(), bottom.open_chains), (1, 0));
+        let outside = Section::from_mesh(&cube, 2, 12.0);
+        assert!(outside.loops.is_empty());
+        assert_eq!(
+            outside.report(None)["loops"],
+            json!(["no material in this plane"])
+        );
+    }
+
+    #[test]
+    fn a_hole_is_a_nested_circular_cut_out_with_its_diameter_and_position() {
+        let facets = 64;
+        let plate = mesh(plate_with_hole(
+            [100.0, 40.0, 6.0],
+            [50.0, 20.0],
+            8.0,
+            facets,
+        ));
+        let cut = Section::from_mesh(&plate, 2, 3.0);
+        assert_eq!((cut.loops.len(), cut.open_chains), (2, 0));
+        let outline = cut.loops.iter().find(|item| !item.is_hole).unwrap();
+        let hole = cut.loops.iter().find(|item| item.is_hole).unwrap();
+        assert_eq!(outline.rectangle.as_ref().unwrap().size, [100.0, 40.0]);
+        assert_eq!(hole.depth, 1);
+        assert_eq!(hole.centroid, [50.0, 20.0]);
+        let circle = hole.circle.as_ref().unwrap();
+        assert!((circle.radius - 4.0).abs() < 1e-3);
+        assert!(circle.roundness > 0.99);
+        let hole_area = facets as f64 * 0.5 * 16.0 * (std::f64::consts::TAU / facets as f64).sin();
+        assert!((cut.material_area - (4000.0 - hole_area)).abs() < 1e-2);
+        assert_eq!(
+            describe(hole, cut.labels),
+            "cut-out circle d=8 at (x=50, y=20)"
+        );
+    }
+
+    #[test]
+    fn coarse_holes_report_their_roundness_and_polygons_their_flats() {
+        let pentagon = mesh(plate_with_hole([20.0, 20.0, 5.0], [10.0, 10.0], 2.5, 8));
+        let cut = Section::from_mesh(&pentagon, 2, 2.5);
+        let hole = cut.loops.iter().find(|item| item.is_hole).unwrap();
+        assert_eq!(hole.points.len(), 8);
+        let circle = hole.circle.as_ref().unwrap();
+        assert!((circle.roundness - (std::f64::consts::PI / 8.0).cos()).abs() < 2e-3);
+        assert!(describe(hole, cut.labels)
+            .starts_with("cut-out circle d=2.5 at (x=10, y=10) roundness 0.92"));
+        let hex = mesh(plate_with_hole([30.0, 30.0, 5.0], [15.0, 15.0], 8.0, 6));
+        let cut = Section::from_mesh(&hex, 2, 2.5);
+        let trap = cut.loops.iter().find(|item| item.is_hole).unwrap();
+        assert_eq!(
+            describe(trap, cut.labels),
+            "cut-out 6-gon across-flats 6.928 at (x=15, y=15)"
+        );
+    }
+
+    #[test]
+    fn separate_bodies_and_islands_nest_by_depth() {
+        let nested = merged(&[
+            cuboid([0.0; 3], [20.0; 3], false),
+            cuboid([2.0; 3], [18.0; 3], true),
+            cuboid([8.0; 3], [12.0; 3], false),
+            cuboid([30.0, 0.0, 0.0], [35.0, 5.0, 20.0], false),
+        ]);
+        let cut = Section::from_mesh(&nested, 2, 10.0);
+        let depths = cut.loops.iter().map(|item| item.depth).collect::<Vec<_>>();
+        assert_eq!(depths, vec![0, 0, 1, 2]);
+        assert_eq!(cut.loops.iter().filter(|item| item.is_hole).count(), 1);
+        assert!((cut.material_area - (400.0 - 256.0 + 16.0 + 25.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn an_open_mesh_reports_open_chains_instead_of_inventing_a_loop() {
+        let mut open = cuboid([0.0; 3], [10.0; 3], false);
+        open.truncate(10);
+        let cut = Section::from_mesh(&mesh(open), 2, 5.0);
+        assert_eq!(cut.open_chains, 1);
+        assert!(cut.loops.is_empty());
+        assert!(cut.report(None)["loops"][1]
+            .as_str()
+            .unwrap()
+            .contains("1 open chain(s)"));
+    }
+
+    #[test]
+    fn an_axis_aligned_plane_request_matches_the_axis_section() {
+        let cube = mesh(cuboid([0.0; 3], [10.0, 20.0, 30.0], false));
+        let plane = Section::from_plane(&cube, [0.0, 0.0, 15.0], [0.0, 0.0, 1.0]).unwrap();
+        assert_eq!(plane.labels, ["x", "y"]);
+        assert_eq!(
+            plane.loops[0].rectangle.as_ref().unwrap().size,
+            [10.0, 20.0]
+        );
+    }
+
+    #[test]
+    fn an_oblique_plane_is_measured_in_its_own_coordinates() {
+        let cube = mesh(cuboid([0.0; 3], [20.0; 3], false));
+        let cut = Section::from_plane(&cube, [10.0, 0.0, 10.0], [1.0, 0.0, 1.0]).unwrap();
+        assert_eq!(cut.labels, ["u", "v"]);
+        assert_eq!((cut.loops.len(), cut.open_chains), (1, 0));
+        let diagonal = 20.0 * std::f64::consts::SQRT_2;
+        let size = cut.loops[0].size;
+        assert!((size[0].max(size[1]) - diagonal).abs() < 0.01, "{size:?}");
+        assert!((size[0].min(size[1]) - 20.0).abs() < 0.01);
+        let report = cut.report_plane([10.0, 0.0, 10.0], [1.0, 0.0, 1.0]);
+        assert!(report["plane"]
+            .as_str()
+            .unwrap()
+            .contains("u and v are in-plane"));
+        assert!(report["loops"][0].as_str().unwrap().contains("u="));
+    }
+
+    #[test]
+    fn plane_requests_must_be_finite_and_have_a_direction() {
+        let cube = mesh(cuboid([0.0; 3], [1.0; 3], false));
+        assert!(Section::from_plane(&cube, [0.0; 3], [0.0; 3]).is_err());
+        assert!(Section::from_plane(&cube, [f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0]).is_err());
+    }
 }

@@ -3,6 +3,12 @@ import type { ArtifactView, Edge, Relationship } from '@omenflow/contracts';
 /** Relationships that carry engineering consequence from upstream to downstream. */
 const CAUSAL: Relationship[] = ['depends_on', 'derived_from', 'validates'];
 
+export const isCausal = (relationship: Relationship) => CAUSAL.includes(relationship);
+
+/** Names one directed link, upstream first. */
+export const linkKey = (upstreamId: string, downstreamId: string) =>
+  `${upstreamId}>${downstreamId}`;
+
 export interface Link {
   id: string;
   relationship: Relationship | 'recorded_input';
@@ -82,4 +88,62 @@ export function relationshipLabel(r: Link['relationship']): string {
 /** Ids on any recorded stale path: the part of the project a change is travelling through. */
 export function impactIds(stale: Record<string, { path: string[] }[]>): Set<string> {
   return new Set(Object.values(stale).flatMap((reasons) => reasons.flatMap((r) => r.path)));
+}
+
+/**
+ * The links a recorded change travelled along: each consecutive pair of every stale path, keyed
+ * by `linkKey`, with how many steps it is from the changed input (0 = leaves the changed object).
+ * Two objects that are merely both out of date do not make the link between them a stale path.
+ */
+export function stalePathSteps(stale: Record<string, { path: string[] }[]>): Map<string, number> {
+  const steps = new Map<string, number>();
+  for (const records of Object.values(stale)) {
+    for (const { path } of records) {
+      for (let i = 0; i + 1 < path.length; i++) {
+        const key = linkKey(path[i]!, path[i + 1]!);
+        steps.set(key, Math.min(steps.get(key) ?? i, i));
+      }
+    }
+  }
+  return steps;
+}
+
+export interface Adjacency {
+  up: Map<string, string[]>;
+  down: Map<string, string[]>;
+}
+
+/** Upstream and downstream neighbours per object, over the links that carry consequence. */
+export function causalAdjacency(
+  links: Iterable<{ from: string; to: string; causal: boolean }>,
+): Adjacency {
+  const up = new Map<string, string[]>();
+  const down = new Map<string, string[]>();
+  const add = (map: Map<string, string[]>, key: string, value: string) => {
+    const list = map.get(key);
+    if (list) list.push(value);
+    else map.set(key, [value]);
+  };
+  for (const link of links) {
+    if (!link.causal) continue;
+    add(up, link.to, link.from);
+    add(down, link.from, link.to);
+  }
+  return { up, down };
+}
+
+/** The full causal thread through one object: everything it rests on and everything it reaches. */
+export function threadOf(id: string, adjacency: Adjacency): Set<string> {
+  const thread = new Set([id]);
+  for (const neighbours of [adjacency.up, adjacency.down]) {
+    const queue = [id];
+    for (let i = 0; i < queue.length; i++) {
+      for (const next of neighbours.get(queue[i]!) ?? []) {
+        if (thread.has(next)) continue;
+        thread.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return thread;
 }

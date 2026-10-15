@@ -1,0 +1,437 @@
+/*
+ * Base: reset, document defaults, selection and copy, focus, pressed feedback, form controls,
+ * scrollbars, motion utilities, utilities.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--field);
+  color: var(--text);
+  font: 400 var(--text-md) / var(--leading) var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* ---------------- selection and copy ----------------
+ * Chrome (navigation, labels, buttons, headings of controls) is not selectable. Recorded content
+ * is: values and quantities, identifiers, file paths, source, error and status text, table cells,
+ * metadata values. Mark any other recorded content with `.copyable`; controls inside it stay
+ * unselectable so a drag across a row copies its values, not its buttons. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+:where(
+  input,
+  textarea,
+  pre,
+  code,
+  samp,
+  output,
+  data,
+  time,
+  dd,
+  td,
+  .copyable,
+  .prose,
+  .mono,
+  .num,
+  .unknown,
+  .notice-body,
+  .cell-sub,
+  .terminal-host,
+  .diff,
+  [role='alert'],
+  [role='status'],
+  [role='log']
+) {
+  user-select: text;
+  -webkit-user-select: text;
+}
+:where(button, [role='button'], [role='tab'], [role='menuitem'], [role='option'], label, kbd),
+:where(button, [role='button'], [role='tab'], [role='menuitem'], [role='option']) * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+::selection {
+  background: var(--selection);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+button:disabled {
+  cursor: default;
+}
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+code,
+kbd,
+pre,
+samp,
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ---------------- focus ----------------
+ * One ring for everything interactive. Rows and items that fill a scrolling list draw it inside
+ * their box so the list edge never clips it. `[data-preview='focus']` shows it in the catalogue. */
+:is(:focus-visible, [data-preview='focus']) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--r-xs);
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+:where(li, [role='row']) > :focus-visible,
+:where([role='option'], [role='menuitem'], [role='treeitem'], [role='gridcell']):focus-visible,
+.focus-inset:focus-visible {
+  outline-offset: calc(var(--focus-width) * -1);
+}
+
+/* ---------------- pressed ----------------
+ * A held control answers at once. Kit controls set their own pressed fill and scale; anything else
+ * clickable gets this neutral fallback. Override with `filter: none` where a surface has its own. */
+:where(button, [role='button'], [role='tab'], [role='radio'], summary, a[href]):where(
+    :not(:disabled, [aria-disabled='true'])
+  ):active {
+  filter: var(--press-filter);
+}
+
+/* ---------------- form controls ---------------- */
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  width: 100%;
+  min-height: var(--control);
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--inset);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+input:not([type='checkbox'], [type='radio']):hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-control);
+}
+input:not([type='checkbox'], [type='radio']):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--focus);
+  outline: none;
+  box-shadow: var(--halo);
+}
+input[aria-invalid='true']:not([type='checkbox'], [type='radio']),
+textarea[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--err);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-3);
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+input[readonly],
+textarea[readonly] {
+  background: transparent;
+}
+select {
+  appearance: none;
+  padding-right: 28px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-3) 50%),
+    linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 52%,
+    calc(100% - 10px) 52%;
+  background-size:
+    4px 4px,
+    4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--signal-stroke);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+input[type='checkbox']:disabled,
+input[type='radio']:disabled {
+  cursor: default;
+}
+fieldset.bare {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* ---------------- scrollbars ----------------
+ * Thin and themed. The thumb thickens under the pointer. WebKit, Blink and WebKitGTK use the
+ * pseudo-elements; the standard properties are for engines without them, because setting them in
+ * Blink would replace the pseudo-elements. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  min-height: var(--s-8);
+  background: var(--scrollbar-thumb);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+  border-width: 2px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+/* A region that scrolls on its own: no reflow when it starts to overflow, no scroll chaining. */
+.scroll-region {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* ---------------- motion ----------------
+ * Enter plays when the element mounts. Exit plays while the element carries
+ * [data-state='closed'] (Radix keeps it mounted until the animation ends) or [data-leaving]
+ * (set it, then unmount on `animationend`). Durations are tokens, so reduced motion makes every
+ * one of these instant; `animationend` still fires. Individual transform properties are used so
+ * an element's own `transform` (centring, positioning) is kept. */
+@keyframes lens-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes lens-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes lens-rise-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.99;
+  }
+}
+@keyframes lens-rise-out {
+  to {
+    opacity: 0;
+    translate: 0 4px;
+    scale: 0.99;
+  }
+}
+@keyframes lens-sheet-in {
+  from {
+    opacity: 0;
+    translate: 16px 0;
+  }
+}
+@keyframes lens-sheet-out {
+  to {
+    opacity: 0;
+    translate: 16px 0;
+  }
+}
+/* Zooming in: the deeper level grows into place. Zooming out: the wider level settles from above. */
+@keyframes lens-zoom-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+@keyframes lens-zoom-out {
+  from {
+    opacity: 0;
+    scale: 1.04;
+  }
+}
+.motion-fade {
+  animation: lens-fade-in var(--t) var(--ease) backwards;
+}
+.motion-rise {
+  animation: lens-rise-in var(--t) var(--ease) backwards;
+}
+.motion-sheet {
+  animation: lens-sheet-in var(--t-slow) var(--ease) backwards;
+}
+.motion-fade:is([data-state='closed'], [data-leaving]) {
+  animation: lens-fade-out var(--t-fast) var(--ease-in) forwards;
+}
+.motion-rise:is([data-state='closed'], [data-leaving]) {
+  animation: lens-rise-out var(--t-fast) var(--ease-in) forwards;
+}
+.motion-sheet:is([data-state='closed'], [data-leaving]) {
+  animation: lens-sheet-out var(--t) var(--ease-in) forwards;
+}
+.motion-zoom-in {
+  animation: lens-zoom-in var(--t-slow) var(--ease) backwards;
+  transform-origin: var(--zoom-origin, 50% 40%);
+}
+.motion-zoom-out {
+  animation: lens-zoom-out var(--t-slow) var(--ease) backwards;
+  transform-origin: var(--zoom-origin, 50% 40%);
+}
+
+/* ---------------- utilities ---------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* Display type: titles at 2xl and 3xl track tighter and sit on a short line. */
+.text-display {
+  font-weight: 500;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+}
+/* Titles at lg and xl. */
+.text-title {
+  font-weight: 500;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+/* Numbers that line up: tables, totals, quantities, counts. */
+.num,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+.dim {
+  color: var(--text-3);
+}
+/* Unknown stays unknown: the word says so; no faux italic (no italic face is vendored). */
+.unknown {
+  color: var(--text-3);
+}
+.tone-ok-text {
+  color: var(--ok);
+}
+.tone-warn-text {
+  color: var(--warn);
+}
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 17px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: var(--r-pill);
+  background: var(--raised-2);
+  color: var(--text-2);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 1px;
+}
+.link {
+  color: var(--text-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line-control);
+  text-underline-offset: 3px;
+  font-size: inherit;
+  transition:
+    color var(--t-fast) var(--ease),
+    text-decoration-color var(--t-fast) var(--ease);
+}
+.link:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}

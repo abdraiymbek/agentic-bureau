@@ -55,6 +55,7 @@ export async function runCalculation(
       sourceRef?: { artifactId: string; revisionId: string };
       literal?: boolean;
     }[];
+    outputUnit?: string;
     assumptions: string[];
     title?: string;
     submitForReview: boolean;
@@ -120,9 +121,14 @@ export async function runCalculation(
   let result: { value: number; unit: string };
   try {
     ctx.assertJobActive(job.id);
-    result = await calc.evaluate(expression, input.inputs, template?.outputUnit ?? firstUnit, {
-      signal: ac.signal,
-    });
+    result = await calc.evaluate(
+      expression,
+      input.inputs,
+      input.outputUnit ?? template?.outputUnit ?? firstUnit,
+      {
+        signal: ac.signal,
+      },
+    );
     ctx.assertJobActive(job.id);
   } catch (error) {
     ctx.jobCancels.delete(job.id);
@@ -141,6 +147,7 @@ export async function runCalculation(
   const payload: CalculationPayload = {
     templateId: input.templateId,
     expression,
+    ...(input.outputUnit ? { outputUnit: input.outputUnit } : {}),
     inputs: input.inputs.map((i) => ({
       name: i.name,
       quantity: i.quantity,

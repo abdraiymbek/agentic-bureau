@@ -34,8 +34,7 @@ export function makePreviewMesh(): string {
     wall.position.set(x!, y!, 8.5);
     group.add(wall);
   }
-  // Present Z-up geometry in the viewer's Y-up coordinate system.
-  group.rotation.x = -Math.PI / 2;
+  // Z-up, as OpenSCAD writes STL and as the viewer reads it (62 × 44 × 14.5 mm).
   group.updateMatrixWorld(true);
   const result = new STLExporter().parse(group);
   group.traverse((object) => {

@@ -6,8 +6,14 @@ import {
   enterProject,
   exportProject,
   importArchive,
+  openProjectAt,
   startAgent,
 } from '../../apps/desktop/src/renderer/lib/actions';
+import {
+  clearAllUnsaved,
+  listUnsaved,
+  markUnsaved,
+} from '../../apps/desktop/src/renderer/lib/dirty';
 
 const project = { id: 'one', name: 'First' } as Project;
 const command = vi.fn();
@@ -44,8 +50,68 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  clearAllUnsaved();
   vi.unstubAllGlobals();
   useStore.setState(initial);
+});
+
+const opened = { ok: true, result: { project: { ...project, id: 'two' }, projectId: 'two' } };
+/** Waits for the leave prompt and answers it. */
+async function answerLeave(discard: boolean) {
+  await vi.waitFor(() => expect(useStore.getState().leavePrompt).not.toBeNull());
+  useStore.getState().resolveLeavePrompt(discard);
+}
+
+describe('leaving unsaved edits for another project', () => {
+  beforeEach(() => markUnsaved('requirement:a1', 'Payload capacity: target value'));
+
+  it('does not ask, and keeps the edits, when the folder picker is cancelled', async () => {
+    api.pickDirectory.mockResolvedValueOnce(null);
+    await expect(openProjectAt()).resolves.toBe(false);
+    expect(useStore.getState().leavePrompt).toBeNull();
+    expect(listUnsaved()).toHaveLength(1);
+    expect(command).not.toHaveBeenCalled();
+  });
+
+  it('does not ask, and keeps the edits, when the folder does not open', async () => {
+    command.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'NOT_FOUND', message: 'Not an Omen Flow project' },
+    });
+    await expect(openProjectAt('/two')).rejects.toThrow('Not an Omen Flow project');
+    expect(useStore.getState().leavePrompt).toBeNull();
+    expect(useStore.getState().projectId).toBe('one');
+    expect(listUnsaved()).toHaveLength(1);
+  });
+
+  it('closes the other project again and keeps the edits when the person stays', async () => {
+    command.mockResolvedValueOnce(opened);
+    const opening = openProjectAt('/two');
+    await answerLeave(false);
+    await expect(opening).resolves.toBe(false);
+    expect(command).toHaveBeenLastCalledWith('project.close', {}, { projectId: 'two' });
+    expect(useStore.getState().projectId).toBe('one');
+    expect(listUnsaved()).toHaveLength(1);
+  });
+
+  it('discards the edits only as the switch happens', async () => {
+    command.mockResolvedValueOnce(opened);
+    const opening = openProjectAt('/two');
+    await answerLeave(true);
+    await expect(opening).resolves.toBe(true);
+    expect(command).toHaveBeenCalledWith('project.close', {}, { projectId: 'one' });
+    expect(useStore.getState().projectId).toBe('two');
+    expect(listUnsaved()).toEqual([]);
+  });
+
+  it('keeps the edits when the project close fails after the person chose to discard', async () => {
+    command.mockRejectedValueOnce(new Error('Disk unavailable'));
+    const closing = closeProject();
+    await answerLeave(true);
+    await expect(closing).rejects.toThrow('Disk unavailable');
+    expect(useStore.getState().projectId).toBe('one');
+    expect(listUnsaved()).toHaveLength(1);
+  });
 });
 
 describe('project lifecycle', () => {

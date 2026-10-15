@@ -1,50 +1,23 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowsOut, Minus } from '@phosphor-icons/react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import '@xterm/xterm/css/xterm.css';
-import { cmd, errMsg } from '../api';
-import { FALLBACK_ADAPTERS, preferredAdapter, useStore } from '../store';
-import { createTerminalRestore } from '../lib/terminal-restore';
-import { startAgent } from '../lib/actions';
-import { Button, IconButton, State } from '../ui/kit';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useStore } from '../store';
+import { flushAsks, startAgentFromSurface as startAdapter } from '../lib/actions';
+import { useAgentUi } from './agent/agent-store';
+import { ActivityRail, ActivityTicker } from './agent/ActivityRail';
+import { detectAgents, loadActivity, subscribeCalls } from './agent/feed';
+import { EndedBar, PendingBar, SurfacePanel } from './agent/Onboarding';
+import { autostartAdapter, surfacePhase } from './agent/phase';
+import { SessionBar, WindowHeader } from './agent/SessionBar';
+import { sessionStatus } from './agent/session-view';
+import { TerminalEngine } from './agent/terminal';
+import { TerminalSearch } from './agent/TerminalSearch';
+import { useFloatingWindow } from './agent/useFloatingWindow';
 
-const SESSION_LABELS: Record<string, string> = {
-  starting: 'Starting',
-  running: 'Running',
-  exited: 'Ended',
-  failed: 'Failed',
-  interrupted: 'Interrupted',
-};
-
-const SIZE_KEY = 'omen.agentWindow';
-const MIN_W = 360;
-const MIN_H = 220;
-
-function readSize(): { w: number; h: number } {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SIZE_KEY) ?? 'null') as {
-      w?: number;
-      h?: number;
-    } | null;
-    if (
-      saved &&
-      typeof saved.w === 'number' &&
-      typeof saved.h === 'number' &&
-      saved.w >= MIN_W &&
-      saved.h >= MIN_H
-    )
-      return { w: saved.w, h: saved.h };
-  } catch {
-    /* default size */
-  }
-  return { w: 560, h: 380 };
-}
+type Mode = 'tab' | 'window' | 'docked' | 'hidden';
 
 /**
- * The one agent terminal. It stays mounted for the life of the open project so
- * the xterm instance, PTY listeners, and scrollback survive tab switches; only
- * its presentation changes — a full tab, a floating window, or hidden.
+ * The one agent surface. It stays mounted for the life of the open project so the terminal, the
+ * PTY listeners and the scrollback survive navigation; only its presentation changes — the Agent
+ * tab, a floating or docked window, or hidden.
  */
 export function AgentSurface() {
   const projectId = useStore((s) => s.projectId)!;
@@ -53,319 +26,202 @@ export function AgentSurface() {
   const agentId = useStore((s) => s.agentId);
   const view = useStore((s) => s.view);
   const windowOpen = useStore((s) => s.agentWindowOpen);
-  const theme = useStore((s) => s.theme);
-  const { set, go, decide, refreshSession, refreshAdapters } = useStore.getState();
+  const readOnly = useStore((s) => s.readOnly);
+  const set = useStore((s) => s.set);
+  const detection = useAgentUi((s) => s.detection);
+  const start = useAgentUi((s) => s.start);
+  const sessionChecked = useAgentUi((s) => s.sessionChecked);
+  const inputReady = useAgentUi((s) => s.inputReady);
+  const pending = useAgentUi((s) => s.pending.length);
+  const railOpen = useAgentUi((s) => s.railOpen);
 
   const root = useRef<HTMLElement>(null);
   const host = useRef<HTMLDivElement>(null);
-  const term = useRef<Terminal | null>(null);
-  const fit = useRef<FitAddon | null>(null);
-  const readOnly = useStore((s) => s.readOnly);
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
-  const [size, setSize] = useState(readSize);
+  const [engine, setEngine] = useState<TerminalEngine | null>(null);
+  const [searching, setSearching] = useState(false);
+  const win = useFloatingWindow(root);
+  const { docked, collapsed } = win.prefs;
 
-  const mode = view.level === 'agent' ? 'tab' : windowOpen ? 'window' : 'hidden';
-  const running = session?.state === 'running' || session?.state === 'starting';
-  const live = session?.state === 'running';
-  const options = adapters.length ? adapters : FALLBACK_ADAPTERS;
-  const preferred = preferredAdapter(options, agentId);
-  const label = session
-    ? (adapters.find((a) => a.adapterId === session.adapterId)?.label ?? session.adapterId)
-    : (preferred?.label ?? 'Agent');
-  const status = session ? (SESSION_LABELS[session.state] ?? session.state) : 'Not started';
+  const mode: Mode =
+    view.level === 'agent' ? 'tab' : windowOpen ? (docked ? 'docked' : 'window') : 'hidden';
+  const status = sessionStatus(session);
+  const phase = surfacePhase({ readOnly, session, adapters, detection, start, agentId });
+  const autoId = autostartAdapter(phase);
+  const restartable =
+    adapters.find((a) => a.adapterId === session?.adapterId && a.available) ??
+    adapters.find((a) => a.adapterId === agentId && a.available) ??
+    null;
+  const startId = restartable?.adapterId ?? null;
 
-  /* ---------------- terminal lifetime ---------------- */
-  useEffect(() => {
-    if (!host.current) return;
-    const t = new Terminal({
-      fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
-      fontSize: 12.5,
-      lineHeight: 1.25,
-      cursorBlink: true,
-      allowProposedApi: true,
-      theme: terminalTheme(),
-    });
-    const f = new FitAddon();
-    t.loadAddon(f);
-    t.open(host.current);
-    term.current = t;
-    fit.current = f;
-    t.onData((data) => {
-      void cmd('terminal.write', { data }, { projectId }).catch(() => {});
-    });
-    const history = createTerminalRestore(
-      () =>
-        cmd<{ session: { id: string; scrollback?: string; scrollbackCursor?: number } | null }>(
-          'terminal.state',
-          {},
-          { projectId },
-        ),
-      (chunk) => {
-        if (chunk) t.write(chunk);
-      },
-      () => t.reset(),
-    );
-    const unData = window.omenflow.onTerminalData((data) => {
-      const current = useStore.getState().session;
-      if (data.projectId === projectId && (!current || data.sessionId === current.id))
-        history.acceptLive({ sessionId: data.sessionId, seq: data.seq, chunk: data.chunk });
-    });
-    const unState = window.omenflow.onTerminalState((value) => {
-      if ((value as { projectId?: string }).projectId === projectId) {
-        const next = (value as { session?: { id?: string } }).session?.id;
-        if (next) history.selectSession(next);
-        void refreshSession().catch(() => {});
-        void history.restore();
-      }
-    });
-    const ro = new ResizeObserver(() => {
-      if (!host.current || host.current.clientHeight < 40) return;
-      try {
-        f.fit();
-        void cmd('terminal.resize', { cols: t.cols, rows: t.rows }, { projectId }).catch(() => {});
-      } catch {
-        /* hidden */
-      }
-    });
-    ro.observe(host.current);
-    const onFocus = () => requestAnimationFrame(() => t.focus());
-    window.addEventListener('omenflow:focus-terminal', onFocus);
-    void history.restore();
-    return () => {
-      history.dispose();
-      unData();
-      unState();
-      ro.disconnect();
-      window.removeEventListener('omenflow:focus-terminal', onFocus);
-      t.dispose();
-      term.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const start = useCallback(async (adapterId: string) => {
-    setStarting(true);
-    setStartError(null);
-    try {
-      await startAgent(adapterId);
-    } catch (error) {
-      setStartError(errMsg(error));
-    } finally {
-      setStarting(false);
-    }
-  }, []);
-
-  /* ---------------- autostart ---------------- */
-  const sessionReady = useRef(false);
-  const autostarted = useRef(false);
-  const [, setReady] = useState(false);
-  useEffect(() => {
-    void refreshSession()
-      .catch(() => {})
-      .then(() => {
-        sessionReady.current = true;
-        setReady(true);
-      });
-    void refreshAdapters().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // The surface lives exactly as long as the open project; so does the agent state it shows.
+  useLayoutEffect(() => {
+    useAgentUi.getState().enterProject(projectId);
+    return () => useAgentUi.getState().enterProject(null);
   }, [projectId]);
 
+  /* ---------------- terminal and host feeds ---------------- */
   useEffect(() => {
-    if (autostarted.current || !sessionReady.current) return;
-    if (readOnly || mode === 'hidden' || session !== null || !preferred?.available) return;
+    const created = new TerminalEngine(projectId);
+    created.open(host.current!);
+    setEngine(created);
+    const onFocus = () => requestAnimationFrame(() => created.focus());
+    window.addEventListener('omenflow:focus-terminal', onFocus);
+    void detectAgents();
+    void loadActivity(projectId);
+    const unsubscribe = subscribeCalls(projectId);
+    return () => {
+      window.removeEventListener('omenflow:focus-terminal', onFocus);
+      unsubscribe?.();
+      created.dispose();
+      setEngine(null);
+    };
+  }, [projectId]);
+
+  const sessionId = session?.id ?? null;
+  const sessionState = session?.state ?? null;
+  useEffect(() => {
+    engine?.setSession(sessionId && sessionState ? { id: sessionId, state: sessionState } : null);
+  }, [engine, sessionId, sessionState]);
+
+  /* ---------------- autostart and the ask queue ---------------- */
+  const autostarted = useRef(false);
+  useEffect(() => {
+    if (autostarted.current || !sessionChecked || mode === 'hidden' || !autoId || !engine) return;
     autostarted.current = true;
-    void start(preferred.adapterId);
-  }, [mode, session, preferred, readOnly, start]);
+    startAdapter(autoId);
+  }, [sessionChecked, mode, autoId, engine]);
 
   useEffect(() => {
-    if (term.current) term.current.options.theme = terminalTheme();
-  }, [theme]);
+    if (status.live && inputReady && pending) flushAsks();
+  }, [status.live, inputReady, pending]);
 
-  /* Fit, resize, and focus when the surface goes from hidden to visible. */
-  const wasHidden = useRef(true);
-  useEffect(() => {
-    if (mode === 'hidden') {
-      wasHidden.current = true;
-      return;
-    }
-    if (!wasHidden.current) return;
-    wasHidden.current = false;
-    const frame = requestAnimationFrame(() => {
-      try {
-        fit.current?.fit();
-        const t = term.current;
-        if (t)
-          void cmd('terminal.resize', { cols: t.cols, rows: t.rows }, { projectId }).catch(
-            () => {},
-          );
-        t?.focus();
-      } catch {
-        /* not measurable yet */
+  /* ---------------- presentation changes and focus ---------------- */
+  const previous = useRef<Mode>(mode);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const live = status.live;
+  useLayoutEffect(() => {
+    const before = previous.current;
+    previous.current = mode;
+    if (before === mode) return;
+    const active = document.activeElement as HTMLElement | null;
+    const inside = !!active && !!root.current?.contains(active);
+    if (before === 'hidden') {
+      if (active && active !== document.body && !inside) returnFocus.current = active;
+      engine?.fit();
+      if (live) requestAnimationFrame(() => engine?.focus());
+    } else if (mode === 'hidden') {
+      setSearching(false);
+      // Closing the window must not strand focus on a terminal nobody can see.
+      if (before !== 'tab' && (inside || !active || active === document.body)) {
+        const back = returnFocus.current?.isConnected
+          ? returnFocus.current
+          : document.querySelector<HTMLElement>('[data-agent-window-toggle]');
+        back?.focus();
       }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode, projectId]);
+      returnFocus.current = null;
+    } else {
+      engine?.fit();
+    }
+  }, [mode, engine, live]);
 
+  // A session going live takes focus only if nothing else has it.
   useEffect(() => {
-    if (host.current) host.current.inert = !live || readOnly;
-    if (!live || readOnly || mode === 'hidden') return;
-    const frame = requestAnimationFrame(() => term.current?.focus());
+    if (!live || mode === 'hidden') return;
+    const active = document.activeElement;
+    if (active && active !== document.body && !root.current?.contains(active)) return;
+    const frame = requestAnimationFrame(() => engine?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [live, readOnly, mode]);
+  }, [live, mode, engine]);
 
-  /* ---------------- window resize ---------------- */
-  const onResizeStart = useCallback(
-    (e: React.PointerEvent) => {
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    if (session && key === 'f' && (e.metaKey || (e.ctrlKey && e.shiftKey))) {
       e.preventDefault();
-      const bounds = root.current?.parentElement;
-      const maxW = Math.max(MIN_W, (bounds?.clientWidth ?? 1200) - 24);
-      const maxH = Math.max(MIN_H, (bounds?.clientHeight ?? 800) - 24);
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startW = size.w;
-      const startH = size.h;
-      const move = (ev: PointerEvent) =>
-        setSize({
-          w: Math.max(MIN_W, Math.min(maxW, startW + (ev.clientX - startX))),
-          h: Math.max(MIN_H, Math.min(maxH, startH + (startY - ev.clientY))),
-        });
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        setSize((s) => {
-          try {
-            localStorage.setItem(SIZE_KEY, JSON.stringify(s));
-          } catch {
-            /* convenience only */
-          }
-          return s;
-        });
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    },
-    [size],
-  );
+      setSearching(true);
+    }
+  };
 
-  const reviewPill = session?.waitingForReview && (
-    <button type="button" className="decisions-pill" onClick={() => decide(null)}>
-      <span className="state-dot" aria-hidden="true" />
-      Waiting for your review
-    </button>
-  );
+  const style: React.CSSProperties | undefined =
+    mode === 'window' && win.rect && win.bounds
+      ? {
+          left: win.rect.x,
+          bottom: win.bounds.height - win.rect.y - win.rect.h,
+          width: win.rect.w,
+          height: collapsed ? undefined : win.rect.h,
+        }
+      : mode === 'docked'
+        ? { width: win.dockWidth }
+        : undefined;
 
+  const floating = mode === 'window' || mode === 'docked';
   return (
     <section
       ref={root}
-      className={`agent-surface mode-${mode} ${live ? 'live' : ''}`}
-      style={mode === 'window' ? { width: size.w, height: size.h } : undefined}
+      className={[
+        'agent-surface',
+        `mode-${mode}`,
+        status.live ? 'live' : '',
+        mode === 'window' && collapsed ? 'collapsed' : '',
+        win.dragging ? 'dragging' : '',
+      ].join(' ')}
+      style={style}
       aria-label="Agent"
+      onKeyDown={onKeyDown}
     >
-      {mode === 'window' && (
-        <header className="agent-head">
-          <span
-            className={`agent-light ${live ? 'live' : session || preferred?.available ? 'ready' : 'off'}`}
-          />
-          <span className="agent-name truncate">{label}</span>
-          <span className="agent-status">{status}</span>
-          <span className="grow" />
-          {reviewPill}
-          <IconButton size="sm" label="Open agent tab" onClick={() => go({ level: 'agent' })}>
-            <ArrowsOut size={13} />
-          </IconButton>
-          <IconButton
-            size="sm"
-            label="Close agent window (⌘J)"
-            onClick={() => set({ agentWindowOpen: false })}
-          >
-            <Minus size={13} />
-          </IconButton>
-        </header>
-      )}
-      <div className="agent-screen">
-        <div
-          ref={host}
-          className="terminal-host"
-          aria-label="Agent terminal"
-          aria-hidden={!session}
+      {mode === 'tab' && <SessionBar engine={engine} onSearch={() => setSearching(true)} />}
+      {floating && (
+        <WindowHeader
+          engine={engine}
+          onSearch={() => {
+            if (collapsed) useAgentUi.getState().setWindow({ collapsed: false });
+            setSearching(true);
+          }}
+          docked={docked}
+          collapsed={collapsed}
+          onDock={() => useAgentUi.getState().setWindow({ docked: !docked })}
+          onCollapse={() => useAgentUi.getState().setWindow({ collapsed: !collapsed })}
+          onClose={() => set({ agentWindowOpen: false })}
+          onPointerDown={win.onHeaderPointerDown}
+          startLabel={restartable?.label ?? null}
+          onStart={() => startId && startAdapter(startId)}
         />
-        {mode === 'tab' && reviewPill && <div className="agent-review">{reviewPill}</div>}
-        {!readOnly && !session && preferred && !preferred.available && (
-          <div className="agent-empty">
-            <p>{preferred.label} was not found on this machine.</p>
-            <Button size="sm" onClick={() => set({ settingsOpen: true })}>
-              Choose an agent in Settings
-            </Button>
-          </div>
-        )}
-        {readOnly && (
-          <div className="agent-empty">
-            <p>This project is read-only. Agent sessions are disabled.</p>
-          </div>
-        )}
-        {!readOnly && !session && preferred?.available && (
-          <div className="agent-empty" role="status">
-            <p>
-              {startError ??
-                (starting ? `Starting ${preferred.label}…` : 'Ready to start your agent.')}
-            </p>
-            {!starting && (
-              <Button size="sm" onClick={() => void start(preferred.adapterId)}>
-                Start agent
-              </Button>
-            )}
-          </div>
-        )}
-        {!readOnly && session && !running && (
-          <div className="agent-ended">
-            <State
-              state={session.state}
-              tone={session.state === 'failed' ? 'err' : 'neutral'}
-              label={`${label} · ${status}`}
-            />
-            <Button
-              size="sm"
-              disabled={!preferred?.available || starting}
-              onClick={() => preferred && void start(preferred.adapterId)}
-            >
-              Start again
-            </Button>
-          </div>
-        )}
+      )}
+      {floating && <ActivityTicker />}
+      <div className="agent-body">
+        <div className="agent-screen">
+          <div
+            ref={host}
+            className="terminal-host"
+            aria-label="Agent terminal"
+            aria-hidden={!session}
+          />
+          {searching && engine && (
+            <TerminalSearch engine={engine} onClose={() => setSearching(false)} />
+          )}
+          {!session && <SurfacePanel phase={phase} />}
+          <EndedBar phase={phase} startId={startId} />
+          <PendingBar live={status.live} />
+        </div>
+        {mode === 'tab' && railOpen && <ActivityRail />}
       </div>
-      {mode === 'window' && (
-        <div
+      {mode === 'window' && !collapsed && (
+        <button
+          type="button"
           className="agent-resize"
-          onPointerDown={onResizeStart}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize agent window"
+          aria-label="Resize agent window (arrow keys)"
+          onPointerDown={win.onResizePointerDown}
+          onKeyDown={win.onResizeKey}
+        />
+      )}
+      {mode === 'docked' && (
+        <button
+          type="button"
+          className="agent-dock-edge"
+          aria-label="Resize docked agent (left and right arrow keys)"
+          onPointerDown={win.onDockPointerDown}
+          onKeyDown={win.onDockKey}
         />
       )}
     </section>
   );
-}
-
-function terminalTheme() {
-  const css = getComputedStyle(document.documentElement);
-  const c = (token: string) => css.getPropertyValue(token).trim();
-  const light = document.documentElement.dataset.theme === 'light';
-  return {
-    background: c('--terminal-bg'),
-    foreground: c('--text'),
-    cursor: c('--focus'),
-    cursorAccent: c('--terminal-bg'),
-    selectionBackground: c('--selection'),
-    black: light ? '#2b2e33' : '#1b1d21',
-    red: c('--err'),
-    green: c('--ok'),
-    yellow: c('--warn'),
-    blue: light ? '#2f64b3' : '#8ab4f0',
-    magenta: light ? '#8a4fb0' : '#c3a6e3',
-    cyan: light ? '#1f7f8a' : '#8fcfd6',
-    white: c('--text-2'),
-    brightBlack: c('--text-3'),
-    brightWhite: c('--text'),
-  };
 }

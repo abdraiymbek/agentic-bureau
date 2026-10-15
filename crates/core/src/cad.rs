@@ -1,16 +1,36 @@
-//! OpenSCAD and STL handling. Source and mesh bytes live in the same immutable
-//! object store as the original application; working files remain materialized.
+//! OpenSCAD parts: source, renders, measurements and verification. Source and
+//! mesh bytes live in the same immutable object store as the original
+//! application; working files remain materialized.
+//!
+//! Every operation that runs the engine or analyses a mesh is a pipeline of
+//! three steps: plan (read inputs, open jobs), compute (engine and mesh work,
+//! no project database) and commit (confirm the inputs are unchanged, write
+//! rows, build the response). `dispatch_shared` holds the application lock
+//! for the first and last step only; a direct dispatch runs all three in place.
 use super::*;
-use regex::Regex;
-use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use omenflow_storage::ObjectStore;
+use std::collections::HashSet;
 
 mod checks;
+mod engine;
+mod expect;
+mod jobs;
 mod mesh;
+mod params;
+mod render;
+mod report;
 mod section;
+mod stage;
 mod verification;
 
-const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad.write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.";
+pub use report::brief;
+pub(crate) use stage::{committing, planning, with_probe};
+pub use verification::readiness;
+pub(super) use verification::{
+    committed_expect, latest_verification, record_scope_acceptance, validate_scope_accept,
+};
+
+const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad_write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.";
 
 thread_local! {
     static CONFIGURED_EXECUTABLE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
@@ -35,156 +55,97 @@ pub(super) fn configured_executable() -> Option<PathBuf> {
     CONFIGURED_EXECUTABLE.with(|value| value.borrow().clone())
 }
 
-fn executable() -> Option<PathBuf> {
-    if let Some(path) = configured_executable() {
-        return Some(path);
-    }
-    if let Ok(path) = std::env::var("OPENSCAD_PATH") {
-        if Path::new(&path).is_file() {
-            return Some(PathBuf::from(path));
-        }
-    }
-    let candidates = if cfg!(target_os = "macos") {
-        vec![
-            "/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD",
-            "/opt/homebrew/bin/openscad",
-            "/usr/local/bin/openscad",
-        ]
-    } else if cfg!(target_os = "windows") {
-        vec![
-            r"C:\Program Files\OpenSCAD\openscad.exe",
-            r"C:\Program Files (x86)\OpenSCAD\openscad.exe",
-        ]
-    } else {
-        vec![
-            "/usr/bin/openscad",
-            "/usr/local/bin/openscad",
-            "/snap/bin/openscad",
-        ]
-    };
-    for candidate in candidates {
-        if Path::new(candidate).is_file() {
-            return Some(PathBuf::from(candidate));
-        }
-    }
-    std::env::split_paths(&std::env::var_os("PATH")?)
-        .map(|dir| {
-            dir.join(if cfg!(target_os = "windows") {
-                "openscad.exe"
-            } else {
-                "openscad"
-            })
+/// What compute may use: the object store, the engine setting and a
+/// cancellation signal. Deliberately no project database.
+pub(crate) struct Workspace<'a> {
+    pub root: &'a Path,
+    pub objects: ObjectStore,
+    pub executable: Option<PathBuf>,
+    pub cancelled: &'a dyn Fn() -> bool,
+}
+
+impl<'a> Workspace<'a> {
+    pub fn new(
+        root: &'a Path,
+        executable: Option<PathBuf>,
+        cancelled: &'a dyn Fn() -> bool,
+    ) -> CoreResult<Self> {
+        Ok(Self {
+            root,
+            objects: ObjectStore::new(root.join(".omenflow/objects"), false)
+                .map_err(storage_error)?,
+            executable,
+            cancelled,
         })
-        .find(|p| p.is_file())
+    }
 }
 
-fn run_tool(
-    exe: &Path,
-    args: &[String],
-    timeout_ms: u64,
-    cwd: &Path,
-) -> CoreResult<(bool, String, bool)> {
-    let (ok, log, timed_out, _) = run_tool_interruptible(exe, args, timeout_ms, cwd, || false)?;
-    Ok((ok, log, timed_out))
+/// One slow CAD operation, planned. See the module documentation.
+pub(crate) trait Pipeline: Send {
+    fn op(&self) -> &'static str;
+    /// Engine path configured when the operation was planned.
+    fn executable(&self) -> Option<PathBuf>;
+    /// Jobs opened for this work; cancelling any of them cancels the work.
+    fn job_ids(&self) -> Vec<String>;
+    /// A queued job starts running. Under the lock.
+    fn begin(&mut self, _handle: &ProjectHandle, _origin: &Origin) -> CoreResult<()> {
+        Ok(())
+    }
+    /// Engine and mesh work. The outcome, success or failure, is kept for commit.
+    fn compute(&mut self, workspace: &Workspace<'_>);
+    /// Confirm the inputs, write the result and close the jobs. Under the lock.
+    fn commit(self: Box<Self>, handle: &ProjectHandle, origin: &Origin) -> CoreResult<Value>;
 }
 
-fn run_tool_interruptible(
-    exe: &Path,
-    args: &[String],
-    timeout_ms: u64,
-    cwd: &Path,
-    cancelled: impl Fn() -> bool,
-) -> CoreResult<(bool, String, bool, bool)> {
-    let log_path = cwd.join(format!("tool-{}.log", uuid::Uuid::new_v4()));
-    let output = fs::File::create(&log_path).map_err(internal)?;
-    let mut command = Command::new(exe);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        command.process_group(0);
+fn run_inline(
+    handle: &ProjectHandle,
+    origin: &Origin,
+    mut pipeline: Box<dyn Pipeline>,
+) -> CoreResult<Value> {
+    let job_ids = pipeline.job_ids();
+    let cancelled = || jobs::cancelled(&handle.db, &job_ids);
+    match Workspace::new(&handle.root, pipeline.executable(), &cancelled) {
+        Ok(workspace) => pipeline.compute(&workspace),
+        Err(error) => {
+            abandon(handle, &job_ids, &error, origin);
+            return Err(error);
+        }
     }
-    let mut child = command
-        .args(args)
-        .current_dir(cwd)
-        .stdout(Stdio::from(output.try_clone().map_err(internal)?))
-        .stderr(Stdio::from(output))
-        .spawn()
-        .map_err(internal)?;
-    let start = Instant::now();
-    let (ok, timed_out, was_cancelled) = loop {
-        if let Some(status) = child.try_wait().map_err(internal)? {
-            break (status.success(), false, false);
-        }
-        if cancelled() {
-            terminate_tool(&mut child);
-            break (false, false, true);
-        }
-        if start.elapsed() > Duration::from_millis(timeout_ms) {
-            terminate_tool(&mut child);
-            break (false, true, false);
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    };
-    let bytes = fs::read(&log_path).map_err(internal)?;
-    let _ = fs::remove_file(log_path);
-    Ok((
-        ok,
-        String::from_utf8_lossy(&bytes[..bytes.len().min(1_048_576)]).into_owned(),
-        timed_out,
-        was_cancelled,
-    ))
+    pipeline.commit(handle, origin)
 }
 
-fn terminate_tool(child: &mut std::process::Child) {
-    #[cfg(unix)]
-    unsafe {
-        libc::kill(-(child.id() as i32), libc::SIGKILL);
+/// Close jobs whose work ended without a commit.
+pub(crate) fn abandon(
+    handle: &ProjectHandle,
+    job_ids: &[String],
+    error: &ContractError,
+    origin: &Origin,
+) {
+    for job_id in job_ids {
+        let _ = jobs::fail(handle, job_id, error, origin);
     }
-    #[cfg(windows)]
-    {
-        let _ = Command::new("taskkill")
-            .args(["/PID", &child.id().to_string(), "/T", "/F"])
-            .status();
-    }
-    let _ = child.kill();
-    let _ = child.wait();
+}
+
+pub(crate) fn jobs_cancelled(db: &rusqlite::Connection, job_ids: &[String]) -> bool {
+    jobs::cancelled(db, job_ids)
+}
+
+/// Probe the engine without touching application state.
+pub(crate) fn engine_probe(configured: Option<&Path>) -> CoreResult<Value> {
+    engine::probe(configured)
+}
+
+/// Kill every engine process this application started. Call it when the
+/// application shuts down: engines run in their own process groups.
+pub fn stop_engines() {
+    engine::stop_all();
 }
 
 pub(super) fn probe() -> CoreResult<Value> {
-    let Some(exe) = executable() else {
-        return Ok(
-            json!({"available":false,"executablePath":null,"version":null,"error":"OpenSCAD not found"}),
-        );
-    };
-    let temp = tempfile::tempdir().map_err(internal)?;
-    let (ok, log, timed_out) = run_tool(&exe, &["--version".into()], 10_000, temp.path())?;
-    let version = Regex::new(r"(?i)OpenSCAD version\s+([0-9][\w.\-]*)")
-        .unwrap()
-        .captures(&log)
-        .map(|m| m[1].to_owned());
-    if !ok || timed_out || version.is_none() {
-        return Ok(
-            json!({"available":false,"executablePath":exe,"version":version,"error":format!("Unrecognized --version output: {}",log.trim())}),
-        );
+    match stage::staged_probe() {
+        Some(probe) => Ok(probe),
+        None => engine::probe(configured_executable().as_deref()),
     }
-    let source = temp.path().join("probe.scad");
-    let stl = temp.path().join("probe.stl");
-    fs::write(&source, "cube(1);\n").map_err(internal)?;
-    let (rendered, render_log, _) = run_tool(
-        &exe,
-        &[
-            "-o".into(),
-            stl.to_string_lossy().into(),
-            source.to_string_lossy().into(),
-        ],
-        30_000,
-        temp.path(),
-    )?;
-    let available = rendered && stl.metadata().is_ok_and(|m| m.len() > 84);
-    Ok(
-        json!({"available":available,"executablePath":exe,"version":version,
-        "error": if available { Value::Null } else { json!(format!("probe render failed: {}",render_log.trim())) }}),
-    )
 }
 
 fn require_mechanical(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {
@@ -194,7 +155,8 @@ fn require_mechanical(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {
             "Artifact \"{}\" is a {}, not a mechanical part",
             artifact["title"].as_str().unwrap_or(""),
             artifact["type"]
-        )));
+        ))
+        .with_repair("Pass the artifactId of a mechanical part; artifact_list with type \"mechanical\" lists them."));
     }
     Ok(artifact)
 }
@@ -251,128 +213,13 @@ fn source_of(handle: &ProjectHandle, revision: &Value) -> CoreResult<(String, St
     Ok((path, source))
 }
 
-fn safe_scad(source: &str) -> CoreResult<()> {
-    let stripped_blocks = Regex::new(r"(?s)/\*.*?\*/")
-        .unwrap()
-        .replace_all(source, " ");
-    let code = Regex::new(r"//[^\n]*")
-        .unwrap()
-        .replace_all(&stripped_blocks, " ");
-    if Regex::new(r"\b(?:include|use)\s*<|\b(?:import|surface|text|rands)\s*\(")
-        .unwrap()
-        .is_match(&code)
-    {
-        return Err(ContractError::validation("V0.1 CAD source must be self-contained; include/use/import/surface, host-font text() and random rands() dependencies are not yet reproducibly pinned."));
-    }
-    Ok(())
+/// Recorded parameters as plain values; a payload this build cannot read
+/// contributes none rather than blocking the part.
+fn recorded_params(revision: &Value) -> serde_json::Map<String, Value> {
+    params::effective_params(&revision["payload"]["params"]).unwrap_or_default()
 }
 
-#[derive(Clone)]
-struct ScadParam {
-    name: String,
-    value: Value,
-    derived: bool,
-    expr: Option<String>,
-    comment: Option<String>,
-    line: usize,
-}
-
-fn parameters(source: &str) -> Vec<ScadParam> {
-    let pattern = Regex::new(r"^\s*([A-Za-z_$][A-Za-z0-9_]*)\s*=\s*(.+?)\s*$").unwrap();
-    let mut result = Vec::new();
-    let mut depth = 0i32;
-    let mut block = false;
-    for (line_index, line) in source.lines().enumerate() {
-        let mut clean = String::new();
-        let mut chars = line.chars().peekable();
-        while let Some(ch) = chars.next() {
-            if block {
-                if ch == '*' && chars.peek() == Some(&'/') {
-                    chars.next();
-                    block = false;
-                }
-                continue;
-            }
-            if ch == '/' && chars.peek() == Some(&'*') {
-                chars.next();
-                block = true;
-                continue;
-            }
-            clean.push(ch);
-        }
-        let (code, comment) = clean
-            .split_once("//")
-            .map(|(a, b)| (a, Some(b.trim().to_owned())))
-            .unwrap_or((&clean, None));
-        if depth == 0 {
-            for statement in code.split(';') {
-                if let Some(captures) = pattern.captures(statement) {
-                    let name = captures[1].to_owned();
-                    let expr = captures[2].trim().to_owned();
-                    let value = if expr == "true" {
-                        json!(true)
-                    } else if expr == "false" {
-                        json!(false)
-                    } else if let Ok(number) = expr.parse::<f64>() {
-                        json!(number)
-                    } else if expr.starts_with('"') && expr.ends_with('"') {
-                        json!(expr.trim_matches('"'))
-                    } else {
-                        Value::Null
-                    };
-                    result.push(ScadParam {
-                        name,
-                        value,
-                        derived: !matches!(expr.as_str(), "true" | "false")
-                            && expr.parse::<f64>().is_err()
-                            && !(expr.starts_with('"') && expr.ends_with('"')),
-                        expr: Some(expr),
-                        comment: comment.clone(),
-                        line: line_index,
-                    });
-                }
-            }
-        }
-        for ch in code.chars() {
-            if ch == '{' {
-                depth += 1;
-            } else if ch == '}' {
-                depth = (depth - 1).max(0);
-            }
-        }
-    }
-    result
-}
-
-fn param_json(param: &ScadParam) -> Value {
-    let mut item = json!({"name":param.name,"value":param.value,"derived":param.derived});
-    if param.derived {
-        item["expr"] = json!(param.expr);
-    }
-    if let Some(comment) = &param.comment {
-        item["comment"] = json!(comment);
-    }
-    item
-}
-
-pub(super) fn read_source(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
-    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
-    let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
-    let (path, source) = source_of(handle, &revision)?;
-    let params = parameters(&source)
-        .into_iter()
-        .map(|p| param_json(&p))
-        .collect::<Vec<_>>();
-    let has_render = render_matches(&revision);
-    Ok(
-        json!({"artifactId":artifact["id"],"revisionId":revision["id"],"title":artifact["title"],
-        "revisionSeq":revision["seq"],"reviewState":revision["reviewState"],
-        "isBaseline":artifact["selectedRevisionId"]==revision["id"],"sourcePath":path,"source":source,
-        "parameters":params,"recordedParams":revision["payload"]["params"],
-        "unit":revision["payload"]["modelUnit"].as_str().unwrap_or("mm"),"hasRender":has_render,"next":NEXT_SOURCE}),
-    )
-}
-
+/// Does the revision carry the render of exactly its own source and parameters?
 fn render_matches(revision: &Value) -> bool {
     let Some(source) = scad_ref(revision) else {
         return false;
@@ -380,325 +227,151 @@ fn render_matches(revision: &Value) -> bool {
     let identity = &revision["payload"]["renderIdentity"];
     let stl = &revision["payload"]["stl"];
     identity["version"] == 1
+        && source["sha256"].is_string()
         && identity["sourceHash"] == source["sha256"]
+        && stl["sha256"].is_string()
         && identity["outputHash"] == stl["sha256"]
         && identity["modelUnit"] == revision["payload"]["modelUnit"]
-        && identity["params"] == revision["payload"]["params"]
-}
-
-struct Render {
-    ok: bool,
-    ms: u128,
-    tool: String,
-    log: String,
-    warnings: Vec<String>,
-    errors: Vec<String>,
-    stl: Option<Vec<u8>>,
-    mesh: Option<mesh::Mesh>,
-    identity: Option<Value>,
-    job_id: String,
-}
-
-fn source_with_facets(source: &str) -> String {
-    let stripped = Regex::new(r"(?s)/\*.*?\*/|//[^\n]*")
-        .unwrap()
-        .replace_all(source, " ");
-    if !stripped.contains("$fn =")
-        && Regex::new(r"\b(cylinder|sphere|circle|rotate_extrude)\s*\(")
-            .unwrap()
-            .is_match(&stripped)
-    {
-        format!("$fn = 64;\n{source}")
-    } else {
-        source.to_owned()
-    }
-}
-
-fn override_params(input: &Value, declared: &[ScadParam]) -> CoreResult<Value> {
-    let mut out = serde_json::Map::new();
-    for (name, value) in input.as_object().into_iter().flat_map(|m| m.iter()) {
-        if !declared.iter().any(|p| p.name == *name) {
-            return Err(ContractError::validation(format!(
-                "Unknown parameter: {name}"
-            )));
-        }
-        if !(value.is_number() || value.is_boolean() || value.is_string()) {
-            return Err(ContractError::validation(format!(
-                "Unsupported CAD parameter value: {name}"
-            )));
-        }
-        out.insert(name.clone(), value.clone());
-    }
-    Ok(Value::Object(out))
-}
-
-fn engine_version(exe: &Path) -> CoreResult<String> {
-    let temp = tempfile::tempdir().map_err(internal)?;
-    let (ok, log, _) = run_tool(exe, &["--version".into()], 10_000, temp.path())?;
-    let version = Regex::new(r"(?i)OpenSCAD version\s+([0-9][\w.\-]*)")
-        .unwrap()
-        .captures(&log)
-        .map(|m| m[1].to_owned());
-    if !ok || version.is_none() {
-        return Err(ContractError::new(
-            "TOOL_MISSING",
-            format!("OpenSCAD version probe failed: {}", log.trim()),
-        ));
-    }
-    Ok(version.unwrap())
+        && params::effective_params(&identity["params"])
+            .is_ok_and(|rendered| rendered == recorded_params(revision))
 }
 
 fn hash_text(text: &str) -> String {
     format!("{:x}", Sha256::digest(text.as_bytes()))
 }
 
-fn job_cancelled(handle: &ProjectHandle, id: &str) -> bool {
-    handle
-        .db
-        .query_row("SELECT status FROM job WHERE id=?1", [id], |row| {
-            row.get::<_, String>(0)
-        })
-        .is_ok_and(|status| matches!(status.as_str(), "cancelled" | "interrupted"))
+fn file_hash(handle: &ProjectHandle, relative: &str) -> CoreResult<Option<String>> {
+    let path = resolve_materialization_path(&handle.root, relative).map_err(storage_error)?;
+    Ok(fs::read(path)
+        .ok()
+        .map(|bytes| omenflow_storage::sha256_hex(&bytes)))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn render_source(
-    handle: &ProjectHandle,
-    source: &str,
-    params: &Value,
-    timeout_ms: u64,
-    origin: &Origin,
-    artifact_id: &str,
-    parent_id: Option<&str>,
-    existing_job_id: Option<&str>,
-) -> CoreResult<Render> {
-    safe_scad(source)?;
-    if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
-        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
-    }
-    let exe =
-        executable().ok_or_else(|| ContractError::new("TOOL_MISSING", "OpenSCAD not found"))?;
-    let version = engine_version(&exe)?;
-    if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
-        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
-    }
-    let source_hash = handle
-        .object_store()
-        .map_err(storage_error)?
-        .put(source.as_bytes())
-        .map_err(storage_error)?;
-    let job_id = existing_job_id
-        .map(str::to_owned)
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let timestamp = now();
-    if existing_job_id.is_some() {
-        let updated=handle.db.execute("UPDATE job SET status='running',tool_version=?1,input_hashes=?2,started_at=?3 WHERE id=?4 AND status='queued'",
-            params![version,json!({"source":source_hash}).to_string(),timestamp,job_id]).map_err(internal)?;
-        if updated != 1 {
-            return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+/// Parameters as the part is actually rendered: the source values with the
+/// recorded overrides applied.
+fn effective_parameters(source: &str, overrides: &Value) -> Vec<Value> {
+    let mut effective = source.to_owned();
+    for (name, value) in overrides.as_object().into_iter().flatten() {
+        if let Ok(updated) = params::set_param_source(&effective, name, value) {
+            effective = updated;
         }
-    } else {
-        handle.db.execute("INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at,started_at,finished_at) VALUES(?1,'cad_render','openscad',?2,?3,?4,NULL,'running','','{}',NULL,?5,?6,?6,NULL)",
-            params![job_id,version,json!({"artifactId":artifact_id,"revisionId":parent_id,"params":params}).to_string(),json!({"source":source_hash}).to_string(),origin.session_id(),timestamp]).map_err(internal)?;
     }
-    let temp = tempfile::tempdir().map_err(internal)?;
-    let scad = temp.path().join("input.scad");
-    let stl = temp.path().join("output.stl");
-    fs::write(&scad, source).map_err(internal)?;
-    let mut args = vec![
-        "-o".to_owned(),
-        stl.to_string_lossy().into_owned(),
-        "--export-format".into(),
-        "binstl".into(),
-    ];
-    for (name, value) in params.as_object().into_iter().flat_map(|m| m.iter()) {
-        let formatted = value.to_string();
-        args.push("-D".into());
-        args.push(format!("{name}={formatted}"));
-    }
-    args.push(scad.to_string_lossy().into_owned());
-    let start = Instant::now();
-    let (ok, log, timed_out, was_cancelled) =
-        run_tool_interruptible(&exe, &args, timeout_ms, temp.path(), || {
-            job_cancelled(handle, &job_id)
-        })?;
-    if was_cancelled || job_cancelled(handle, &job_id) {
-        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
-    }
-    let ms = start.elapsed().as_millis();
-    let warnings = log
-        .lines()
-        .filter(|line| {
-            line.trim_start().starts_with("WARNING:")
-                || line.trim_start().starts_with("DEPRECATED:")
-        })
-        .take(12)
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    let mut errors = log
-        .lines()
-        .filter(|line| {
-            line.trim_start().starts_with("ERROR:")
-                || line.contains("Parser error")
-                || line.contains("top level object is empty")
-        })
-        .take(12)
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    if timed_out {
-        errors.push(format!("Render exceeded {timeout_ms} ms"));
-    }
-    let mut result = Render {
-        ok: false,
-        ms,
-        tool: format!("openscad {version}"),
-        log: log.clone(),
-        warnings,
-        errors,
-        stl: None,
-        mesh: None,
-        identity: None,
-        job_id: job_id.clone(),
-    };
-    if ok && result.errors.is_empty() && stl.is_file() {
-        let bytes = fs::read(&stl).map_err(internal)?;
-        match mesh::Mesh::read(&bytes) {
-            Ok(mesh) => {
-                let hash = handle
-                    .object_store()
-                    .map_err(storage_error)?
-                    .put(&bytes)
-                    .map_err(storage_error)?;
-                let mut sorted = params
-                    .as_object()
-                    .into_iter()
-                    .flat_map(|m| m.iter())
-                    .map(|(k, v)| json!([k, v]))
-                    .collect::<Vec<_>>();
-                sorted.sort_by(|a, b| a[0].as_str().cmp(&b[0].as_str()));
-                let base = json!({"version":1,"sourceHash":source_hash,"params":sorted,"modelUnit":"mm","frame":"right-handed-z-up",
-                    "engine":"openscad","engineVersion":version,"options":format!("stl;orientation-v1;exe={}",exe.display())});
-                let fingerprint = hash_text(&base.to_string());
-                let identity = json!({"version":1,"sourceHash":source_hash,"params":params,"modelUnit":"mm","frame":"right-handed-z-up",
-                    "engine":"openscad","engineVersion":version,"options":format!("stl;orientation-v1;exe={}",exe.display()),
-                    "inputFingerprint":fingerprint,"outputHash":hash,"sourceOrientationCorrected":mesh.inverted});
-                result.ok = true;
-                result.stl = Some(bytes);
-                result.mesh = Some(mesh);
-                result.identity = Some(identity);
-            }
-            Err(error) => result.errors.push(error.message),
-        }
-    } else if result.errors.is_empty() {
-        result.errors.push(
-            if timed_out {
-                "render timed out"
-            } else {
-                "OpenSCAD produced no geometry"
-            }
-            .into(),
-        );
-    }
-    let updated=handle.db.execute("UPDATE job SET status=?1,log=?2,output_hashes=?3,error=?4,command=?5,finished_at=?6 WHERE id=?7 AND status='running'",
-        params![if result.ok && existing_job_id.is_some() {"running"} else if result.ok {"succeeded"} else {"failed"},result.log,json!(result.identity.as_ref().map(|i|json!({"stl":i["outputHash"]})).unwrap_or(json!({}))).to_string(),
-            if result.ok {None} else {Some(json!({"code":"VALIDATION","message":result.errors.first()}).to_string())},
-            format!("{} -o output.stl input.scad",exe.display()),if result.ok && existing_job_id.is_some(){None}else{Some(now())},job_id]).map_err(internal)?;
-    if updated != 1 {
-        return Err(ContractError::new("CANCELLED", "Render was cancelled"));
-    }
-    Ok(result)
+    params::parameters(&effective)
+        .iter()
+        .map(params::param_json)
+        .collect()
 }
 
 fn slug(title: &str) -> String {
-    let lower = title.to_lowercase();
-    let clean = Regex::new(r"[^a-z0-9]+").unwrap().replace_all(&lower, "-");
-    let trimmed = clean.trim_matches('-');
-    if trimmed.is_empty() {
-        "artifact".into()
-    } else {
-        trimmed.chars().take(60).collect()
-    }
-}
-
-fn auto_sections(mesh: &mesh::Mesh) -> Vec<Value> {
-    let mut reports = Vec::new();
-    for axis in [2, 1, 0] {
-        let span = mesh.bounds_max[axis] - mesh.bounds_min[axis];
-        if span > 0.0 {
-            reports.push(
-                section::Section::from_mesh(mesh, axis, mesh.bounds_min[axis] + span * 0.5 + 1e-3)
-                    .report(Some("mid")),
-            );
+    let mut out = String::new();
+    for ch in title.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.is_empty() && !out.ends_with('-') {
+            out.push('-');
         }
     }
-    let span = mesh.bounds_max[2] - mesh.bounds_min[2];
-    if span > 0.0 {
-        reports.push(
-            section::Section::from_mesh(mesh, 2, mesh.bounds_min[2] + span * 0.1 + 1e-3)
-                .report(Some("near bottom")),
-        );
-        reports.push(
-            section::Section::from_mesh(mesh, 2, mesh.bounds_min[2] + span * 0.9 + 1e-3)
-                .report(Some("near top")),
-        );
-    }
-    reports
+    out.trim_end_matches('-').chars().take(60).collect()
 }
 
+/// Where a part's source is materialized. A revision keeps its parent's
+/// path. A new part gets a path no other part uses: titles that differ only
+/// by case or punctuation, or that have no Latin letters or digits at all,
+/// are told apart by the part's own id.
 fn source_path(
     handle: &ProjectHandle,
     title: &str,
     artifact_id: &str,
     parent: Option<&Value>,
 ) -> CoreResult<String> {
-    if let Some(parent) = parent {
-        if let Some(path) = scad_ref(parent).and_then(|f| f["path"].as_str()) {
-            return Ok(path.to_owned());
-        }
+    if let Some(path) = parent
+        .and_then(scad_ref)
+        .and_then(|file| file["path"].as_str())
+    {
+        return Ok(path.to_owned());
     }
-    let candidate = format!("artifacts/mechanical/{}.scad", slug(title));
-    let existing: Option<String> = handle
+    let slug = slug(title);
+    let suffix = &artifact_id[..artifact_id.len().min(8)];
+    if slug.is_empty() {
+        return Ok(format!("artifacts/mechanical/part-{suffix}.scad"));
+    }
+    let candidate = format!("artifacts/mechanical/{slug}.scad");
+    let used: bool = handle
         .db
         .query_row(
-            "SELECT id FROM artifact WHERE type='mechanical' AND title=?1 AND id!=?2",
-            params![title, artifact_id],
+            "SELECT EXISTS(SELECT 1 FROM revision r JOIN artifact a ON a.id=r.artifact_id
+             WHERE a.type='mechanical' AND a.id!=?2 AND (lower(json_extract(r.payload,'$.scad.path'))=lower(?1)
+             OR EXISTS(SELECT 1 FROM json_each(r.files) f WHERE lower(json_extract(f.value,'$.path'))=lower(?1))))",
+            params![candidate, artifact_id],
             |row| row.get(0),
         )
-        .optional()
         .map_err(internal)?;
-    Ok(if existing.is_some() {
-        format!(
-            "artifacts/mechanical/{}-{}.scad",
-            slug(title),
-            &artifact_id[..8]
-        )
+    let on_disk = resolve_materialization_path(&handle.root, &candidate)
+        .map_err(storage_error)?
+        .exists();
+    Ok(if used || on_disk {
+        format!("artifacts/mechanical/{slug}-{suffix}.scad")
     } else {
         candidate
     })
 }
 
+/// The parameter manifest for a new revision. What a person recorded about
+/// a parameter (its dimension, unit and description) survives a rewrite.
+fn manifest_for(declared: &[params::ScadParam], parent: Option<&Value>) -> Value {
+    let prior = |name: &str| {
+        parent
+            .and_then(|revision| revision["payload"]["paramManifest"].as_array())
+            .into_iter()
+            .flatten()
+            .find(|entry| entry["name"] == name)
+    };
+    let mut seen = HashSet::new();
+    Value::Array(
+        declared
+            .iter()
+            .filter(|param| seen.insert(param.name.as_str()))
+            .map(|param| {
+                let before = prior(&param.name);
+                let mut entry = json!({"name": param.name,
+                    "dimension": before.and_then(|entry| entry["dimension"].as_str()).unwrap_or_else(|| params::inferred_dimension(param))});
+                if let Some(unit) = before.and_then(|entry| entry["unit"].as_str()) {
+                    entry["unit"] = json!(unit);
+                }
+                if let Some(description) = param
+                    .comment
+                    .as_deref()
+                    .or_else(|| before.and_then(|entry| entry["description"].as_str()))
+                {
+                    entry["description"] = json!(description);
+                }
+                entry
+            })
+            .collect(),
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn commit_cad(
-    handle: &mut ProjectHandle,
+    handle: &ProjectHandle,
     artifact_id: &str,
     artifact: Option<&Value>,
     parent: Option<&Value>,
     title: &str,
     source_path: &str,
     source_hash: &str,
-    render: &Render,
+    render: &render::Rendered,
+    job_id: &str,
     params_value: &Value,
     manifest: &Value,
     inputs: &Value,
     rationale: &str,
     subsystem: Option<&str>,
     origin: &Origin,
-    queued_job_id: Option<&str>,
-) -> CoreResult<(Value, Value)> {
+) -> CoreResult<(Value, Vec<String>)> {
     let source_ref = json!({"path":source_path,"sha256":source_hash,"role":"source"});
     let mut files = vec![source_ref.clone()];
-    let mut body =
-        json!({"scad":source_ref,"params":params_value,"paramManifest":manifest,"modelUnit":"mm"});
+    let mut body = json!({"scad":source_ref,"params":params_value,"paramManifest":manifest,"modelUnit":"mm","renderJobId":job_id});
     if let Some(existing) = parent {
         for key in ["material", "manufacturing"] {
             if let Some(v) = existing["payload"].get(key) {
@@ -706,20 +379,16 @@ fn commit_cad(
             }
         }
     }
-    if let Some(identity) = &render.identity {
-        let stl_hash = identity["outputHash"].as_str().unwrap();
+    if let (Some(identity), Some(mesh)) = (&render.identity, &render.mesh) {
         let stl_path = source_path
             .strip_suffix(".scad")
             .map(|p| format!("{p}.stl"))
             .unwrap_or(format!("{source_path}.stl"));
-        let stl_ref = json!({"path":stl_path,"sha256":stl_hash,"role":"output"});
+        let stl_ref = json!({"path":stl_path,"sha256":identity["outputHash"],"role":"output"});
         files.push(stl_ref.clone());
         body["stl"] = stl_ref;
-        body["renderJobId"] = json!(render.job_id);
         body["renderIdentity"] = identity.clone();
-        if let Some(mesh) = &render.mesh {
-            body["bounds"] = json!({"min":mesh.bounds_min,"max":mesh.bounds_max});
-        }
+        body["bounds"] = json!({"min":mesh.bounds_min,"max":mesh.bounds_max});
     }
     let body = parse_artifact_payload("mechanical", body)?;
     let normalized = normalize_inputs(handle, artifact_id, inputs)?;
@@ -732,30 +401,22 @@ fn commit_cad(
             .collect::<Vec<_>>(),
     );
     let revision_id = uuid::Uuid::new_v4().to_string();
-    let seq: i64 = handle
-        .db
+    let timestamp = now();
+    // A render worker commits on its own connection while the interface's
+    // keeps writing. The write lock is taken up front (and waited for): a
+    // deferred transaction that read first could not take it later once the
+    // other connection had committed, and the call would fail as "database
+    // is locked" without waiting.
+    let tx =
+        rusqlite::Transaction::new_unchecked(&handle.db, rusqlite::TransactionBehavior::Immediate)
+            .map_err(internal)?;
+    let seq: i64 = tx
         .query_row(
             "SELECT COALESCE(MAX(seq),0)+1 FROM revision WHERE artifact_id=?1",
             [&artifact_id],
             |row| row.get(0),
         )
         .map_err(internal)?;
-    let timestamp = now();
-    let tx = handle.db.unchecked_transaction().map_err(internal)?;
-    if let Some(job_id) = queued_job_id {
-        let updated = tx
-            .execute(
-                "UPDATE job SET status='succeeded',finished_at=?1 WHERE id=?2 AND status='running'",
-                params![timestamp, job_id],
-            )
-            .map_err(internal)?;
-        if updated != 1 {
-            return Err(ContractError::new(
-                "CANCELLED",
-                "Render was cancelled before commit",
-            ));
-        }
-    }
     if artifact.is_none() {
         tx.execute("INSERT INTO artifact(id,type,title,subsystem,selected_revision_id,archived,created_at) VALUES(?1,'mechanical',?2,?3,NULL,0,?4)",params![artifact_id,title,subsystem,timestamp]).map_err(internal)?;
     }
@@ -778,11 +439,550 @@ fn commit_cad(
         json!({"artifactId":artifact_id,"revisionId":revision_id,"reviewState":"draft"}),
     )?;
     tx.commit().map_err(internal)?;
-    materialize_files(handle, &files, parent)?;
-    Ok((
-        require_artifact(handle, artifact_id)?,
-        require_revision(handle, &revision_id)?,
+    // The revision stands from here: a working file that cannot be written
+    // is reported with the result, not as a failure of the call.
+    let warnings = settle_files(handle, &files, parent);
+    Ok((require_revision(handle, &revision_id)?, warnings))
+}
+
+fn render_job_finish(rendered: &render::Rendered) -> jobs::Finish {
+    jobs::Finish {
+        tool_version: Some(rendered.engine_version.clone()),
+        command: Some(if rendered.cached {
+            format!("render cache ({})", rendered.command)
+        } else {
+            rendered.command.clone()
+        }),
+        log: rendered.log.clone(),
+        output_hashes: rendered
+            .identity
+            .as_ref()
+            .map(|identity| json!({"stl": identity["outputHash"]}))
+            .unwrap_or_else(|| json!({})),
+        error: (!rendered.ok).then(|| {
+            ContractError::new(
+                if rendered.timed_out {
+                    "TIMEOUT"
+                } else {
+                    "VALIDATION"
+                },
+                rendered.first_error(),
+            )
+        }),
+        inputs: None,
+    }
+}
+
+/// Close the job of a render that ran to an outcome.
+fn close_render_job(
+    handle: &ProjectHandle,
+    job_id: &str,
+    rendered: &render::Rendered,
+    origin: &Origin,
+) -> CoreResult<()> {
+    if !job_id.is_empty() {
+        jobs::finish(
+            handle,
+            job_id,
+            if rendered.ok { "succeeded" } else { "failed" },
+            render_job_finish(rendered),
+            origin,
+        )?;
+    }
+    Ok(())
+}
+
+fn render_failed(action: &str, rendered: &render::Rendered) -> ContractError {
+    ContractError::new(
+        if rendered.timed_out {
+            "TIMEOUT"
+        } else {
+            "VALIDATION"
+        },
+        format!("Cannot {action}: {}", rendered.first_error()),
+    )
+    .with_repair(format!(
+        "Fix the source with cad_write_source, then {action} again."
     ))
+    .with_details(
+        json!({"warnings": rendered.warnings, "errors": rendered.errors, "hints": rendered.hints}),
+    )
+}
+
+fn input_changed(artifact: &Value, planned: &str, current: &str) -> ContractError {
+    ContractError::new(
+        "INPUT_CHANGED",
+        format!(
+            "\"{}\" changed while this call was running: revision {current} was saved after revision {planned} was read. Nothing was committed.",
+            artifact["title"].as_str().unwrap_or("The part")
+        ),
+    )
+    .with_repair("Read the current source with cad_read_source, then repeat the call against the current revision.")
+    .with_details(json!({"artifactId": artifact["id"], "plannedRevisionId": planned, "currentRevisionId": current}))
+}
+
+fn internal_stage() -> ContractError {
+    ContractError::new("INTERNAL", "CAD work was committed before it was computed")
+}
+
+struct WriteRequest<'a> {
+    op: &'static str,
+    artifact_id: Option<&'a str>,
+    expected_revision_id: Option<&'a str>,
+    title: Option<&'a str>,
+    source: String,
+    params: Value,
+    subsystem: Option<&'a str>,
+    rationale: String,
+    inputs: Option<Value>,
+    timeout_ms: u64,
+    notes: Vec<String>,
+    brief: bool,
+}
+
+/// How a re-render of an existing revision obtains its job.
+enum RenderJob<'a> {
+    Start,
+    Queue,
+    Existing(&'a str),
+}
+
+struct WritePlan {
+    op: &'static str,
+    artifact_id: String,
+    artifact: Option<Value>,
+    parent: Option<Value>,
+    title: String,
+    subsystem: Option<String>,
+    source: String,
+    injected_fn: bool,
+    has_parameters: bool,
+    params: Value,
+    manifest: Value,
+    inputs: Value,
+    rationale: String,
+    path: String,
+    working_hash: Option<String>,
+    source_hash: String,
+    request: render::Request,
+    job_id: String,
+    queued: bool,
+    /// A re-render of an existing revision: commits only a successful render
+    /// and answers with the job.
+    rerender: bool,
+    notes: Vec<String>,
+    brief: bool,
+    executable: Option<PathBuf>,
+}
+
+struct WriteOutcome {
+    rendered: render::Rendered,
+    details: Option<report::Details>,
+}
+
+struct WritePipeline {
+    plan: WritePlan,
+    outcome: Option<CoreResult<WriteOutcome>>,
+}
+
+fn plan_write(
+    handle: &ProjectHandle,
+    request: WriteRequest<'_>,
+    origin: &Origin,
+) -> CoreResult<WritePipeline> {
+    let (source, injected_fn) = params::with_default_facets(&request.source);
+    params::assert_self_contained(&source)?;
+    let declared = params::parameters(&source);
+    let mut overrides = params::override_params(&request.params, &declared)?
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    let artifact = request
+        .artifact_id
+        .map(|id| require_mechanical(handle, id))
+        .transpose()?;
+    let parent = artifact
+        .as_ref()
+        .map(|a| pick_revision(handle, a, None))
+        .transpose()?;
+    if let (Some(expected), Some(parent)) = (request.expected_revision_id, parent.as_ref()) {
+        if parent["id"] != expected {
+            return Err(ContractError::revision_conflict(
+                "CAD input revision changed; read the current source before retrying.",
+                parent["id"].as_str().unwrap_or(""),
+            ));
+        }
+    }
+    let mut notes = request.notes;
+    let title = match &artifact {
+        Some(artifact) => {
+            let title = required_str(artifact, "title")?;
+            if request.title.is_some_and(|given| given != title) {
+                notes.push(format!(
+                    "title was ignored: this call revises the existing part \"{title}\"."
+                ));
+            }
+            title.to_owned()
+        }
+        None => request
+            .title
+            .ok_or_else(|| {
+                ContractError::validation("title is required when creating a new part").with_repair(
+                    "Pass title to create a part, or artifactId to revise an existing one.",
+                )
+            })?
+            .to_owned(),
+    };
+    if let Some(parent) = &parent {
+        let previous = source_of(handle, parent)
+            .map(|(_, source)| source)
+            .unwrap_or_default();
+        for (name, value) in
+            params::inherited_overrides(&source, &previous, &recorded_params(parent))
+        {
+            overrides.entry(name).or_insert(value);
+        }
+    }
+    let overrides = Value::Object(overrides);
+    let artifact_id = artifact
+        .as_ref()
+        .and_then(|a| a["id"].as_str())
+        .map(str::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let inputs = request
+        .inputs
+        .or_else(|| parent.as_ref().map(|p| p["inputs"].clone()))
+        .unwrap_or(json!([]));
+    let normalized = normalize_inputs(handle, &artifact_id, &inputs)?;
+    graph::validate_revision_inputs(handle, &artifact_id, &normalized)?;
+    let path = source_path(handle, &title, &artifact_id, parent.as_ref())?;
+    let working_hash = file_hash(handle, &path)?;
+    let source_hash = handle
+        .object_store()
+        .map_err(storage_error)?
+        .put(source.as_bytes())
+        .map_err(storage_error)?;
+    let job_id = jobs::start(
+        handle,
+        "cad_render",
+        "openscad",
+        &json!({"artifactId": artifact_id, "revisionId": parent.as_ref().map(|p| p["id"].clone()), "params": overrides}),
+        &json!({"source": source_hash}),
+        origin,
+    )?;
+    Ok(WritePipeline {
+        plan: WritePlan {
+            op: request.op,
+            manifest: manifest_for(&declared, parent.as_ref()),
+            rationale: if request.rationale.is_empty() {
+                if parent.is_some() {
+                    "source revised"
+                } else {
+                    "initial source"
+                }
+                .to_owned()
+            } else {
+                request.rationale
+            },
+            request: render::Request::new(&source, &overrides, request.timeout_ms),
+            artifact_id,
+            artifact,
+            parent,
+            title,
+            subsystem: request.subsystem.map(str::to_owned),
+            source,
+            injected_fn,
+            has_parameters: !declared.is_empty(),
+            params: overrides,
+            inputs,
+            path,
+            working_hash,
+            source_hash,
+            job_id,
+            queued: false,
+            rerender: false,
+            notes,
+            brief: request.brief,
+            executable: configured_executable(),
+        },
+        outcome: None,
+    })
+}
+
+/// Plan a render of an existing revision's own source, as the interface's
+/// Render action asks for. Only the newest revision of a part can be
+/// rendered, because the result is committed as its successor.
+fn plan_rerender(
+    handle: &ProjectHandle,
+    input: &Value,
+    origin: &Origin,
+    job: RenderJob<'_>,
+) -> CoreResult<WritePipeline> {
+    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+    let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
+    let head = pick_revision(handle, &artifact, None)?;
+    if head["id"] != revision["id"] {
+        return Err(ContractError::revision_conflict(
+            "Only the newest revision of a part can be rendered; this one has a successor.",
+            head["id"].as_str().unwrap_or(""),
+        ));
+    }
+    let (path, source) = source_of(handle, &revision)?;
+    params::assert_self_contained(&source)?;
+    let declared = params::parameters(&source);
+    let mut merged = recorded_params(&revision);
+    merged.extend(params::effective_params(&input["params"])?);
+    let overrides = params::override_params(&Value::Object(merged), &declared)?;
+    let source_hash = required_str(
+        scad_ref(&revision).ok_or_else(|| ContractError::validation("CAD source missing"))?,
+        "sha256",
+    )?
+    .to_owned();
+    let artifact_id = required_str(&artifact, "id")?.to_owned();
+    let job_inputs =
+        json!({"artifactId": artifact_id, "revisionId": revision["id"], "params": overrides});
+    let job_hashes = json!({"source": source_hash});
+    let (job_id, queued) = match job {
+        RenderJob::Start => (
+            jobs::start(
+                handle,
+                "cad_render",
+                "openscad",
+                &job_inputs,
+                &job_hashes,
+                origin,
+            )?,
+            false,
+        ),
+        RenderJob::Queue => (
+            jobs::queue(
+                handle,
+                "cad_render",
+                "openscad",
+                &job_inputs,
+                &job_hashes,
+                origin,
+            )?,
+            true,
+        ),
+        RenderJob::Existing(id) => (id.to_owned(), true),
+    };
+    Ok(WritePipeline {
+        plan: WritePlan {
+            op: "cad.render",
+            title: required_str(&artifact, "title")?.to_owned(),
+            subsystem: artifact["subsystem"].as_str().map(str::to_owned),
+            manifest: revision["payload"]["paramManifest"].clone(),
+            inputs: revision["inputs"].clone(),
+            rationale: "rendered source".to_owned(),
+            working_hash: file_hash(handle, &path)?,
+            request: render::Request::new(&source, &overrides, render::timeout_ms(input)),
+            artifact_id,
+            artifact: Some(artifact),
+            parent: Some(revision),
+            source,
+            injected_fn: false,
+            has_parameters: !declared.is_empty(),
+            params: overrides,
+            path,
+            source_hash,
+            job_id,
+            queued,
+            rerender: true,
+            notes: vec![],
+            brief: false,
+            executable: configured_executable(),
+        },
+        outcome: None,
+    })
+}
+
+impl WritePipeline {
+    fn report(&self, revision: &Value, outcome: &WriteOutcome) -> Value {
+        let plan = &self.plan;
+        let rendered = &outcome.rendered;
+        let mut notes = plan.notes.clone();
+        if !rendered.warnings.is_empty() {
+            notes.push(if rendered.ok {
+                "OpenSCAD reported warnings (see render.warnings and render.hints) — an unknown variable usually means a typo; fix them before trusting the geometry."
+            } else {
+                "OpenSCAD warnings usually point at the cause (unknown variable = typo, empty object = nothing left after difference)."
+            }.to_owned());
+        }
+        if plan.injected_fn {
+            notes.push("Injected $fn = 64 as the first line so curved primitives render as circles instead of the default coarse polygon; line numbers in messages count from that line.".to_owned());
+        }
+        if rendered.source_inverted {
+            notes.push("NOT VERIFIED: the source produces inside-out geometry. The stored mesh was turned outward for display, but the source winding must be fixed before verification. For polyhedron(), list each face clockwise when viewed from outside; reverse every face if the whole body is inverted.".to_owned());
+        }
+        let (action, text, step) = if rendered.ok {
+            (
+                "commit_assertions",
+                "Compare these measurements with the request. Then call cad_check with expectations taken from the request (size, holes with position and diameter, bodies, solid and empty points) and fix any failure. Report done only when the check is ready.",
+                json!({"tool": "cad_check", "why": "Measurements are not verification; assert the request's dimensions.", "args": {"artifactId": plan.artifact_id}}),
+            )
+        } else {
+            notes.insert(0, "Render failed — fix the source and call cad_write_source again. The source was saved as a draft without a mesh.".to_owned());
+            (
+                "repair_geometry",
+                "The render failed, so there is nothing to measure or verify. Read render.errors and render.hints, fix the source and save it again with cad_write_source.",
+                json!({"tool": "cad_write_source", "why": "Fix the source errors and save again.", "args": {"artifactId": plan.artifact_id}}),
+            )
+        };
+        let mut report = json!({"artifactId":plan.artifact_id,"revisionId":revision["id"],"title":plan.title,"sourcePath":plan.path,
+            "render":rendered.summary(),
+            "parameters":effective_parameters(&plan.source, &plan.params)});
+        if let Some(details) = &outcome.details {
+            notes.extend(details.notes.iter().cloned());
+            report["geometry"] = details.geometry.clone();
+            report["sections"] = json!(details.sections);
+            report["probes"] = json!([]);
+            if !details.not_evaluated.is_empty() {
+                report["limits"] = json!({"triangles": details.geometry["triangles"], "maxTriangles": mesh::MAX_TRIANGLES, "notEvaluated": details.not_evaluated});
+            }
+        }
+        report["notes"] = json!(notes);
+        report["nextAction"] = json!(action);
+        report["nextStep"] = step;
+        report["next"] = json!(text);
+        report
+    }
+
+    fn commit_outcome(
+        &self,
+        handle: &ProjectHandle,
+        outcome: &WriteOutcome,
+        origin: &Origin,
+    ) -> CoreResult<Value> {
+        let plan = &self.plan;
+        let rendered = &outcome.rendered;
+        if jobs::cancelled(&handle.db, std::slice::from_ref(&plan.job_id)) {
+            return Err(ContractError::new("CANCELLED", "Render was cancelled"));
+        }
+        if let (Some(artifact), Some(parent)) = (&plan.artifact, &plan.parent) {
+            let current =
+                pick_revision(handle, &require_artifact(handle, &plan.artifact_id)?, None)?;
+            if current["id"] != parent["id"] {
+                return Err(input_changed(
+                    artifact,
+                    parent["id"].as_str().unwrap_or(""),
+                    current["id"].as_str().unwrap_or(""),
+                ));
+            }
+        }
+        // A revision continues its parent's working file, which must still be
+        // what was read. A new part chooses its path again below.
+        if plan.parent.is_some() && file_hash(handle, &plan.path)? != plan.working_hash {
+            return Err(ContractError::new(
+                "REVISION_CONFLICT",
+                "Source changed during render; reread before retrying",
+            )
+            .with_repair(format!("The working file {} was edited while it rendered. Read it again and save the version you want with cad_write_source.", plan.path))
+            .with_details(json!({"sourcePath": plan.path, "jobId": plan.job_id})));
+        }
+        if plan.rerender && !rendered.ok {
+            close_render_job(handle, &plan.job_id, rendered, origin)?;
+            return Ok(json!({"job": jobs::read(handle, &plan.job_id)?}));
+        }
+        // Another part, or a file, may have taken the path while this one
+        // rendered.
+        let path = if plan.parent.is_some() {
+            plan.path.clone()
+        } else {
+            source_path(handle, &plan.title, &plan.artifact_id, None)?
+        };
+        let (revision, warnings) = commit_cad(
+            handle,
+            &plan.artifact_id,
+            plan.artifact.as_ref(),
+            plan.parent.as_ref(),
+            &plan.title,
+            &path,
+            &plan.source_hash,
+            rendered,
+            &plan.job_id,
+            &plan.params,
+            &plan.manifest,
+            &plan.inputs,
+            &plan.rationale,
+            plan.subsystem.as_deref(),
+            origin,
+        )?;
+        close_render_job(handle, &plan.job_id, rendered, origin)?;
+        if plan.rerender {
+            let mut queued = json!({"job": jobs::read(handle, &plan.job_id)?});
+            if !warnings.is_empty() {
+                queued["warnings"] = json!(warnings);
+            }
+            return Ok(queued);
+        }
+        let mut report = self.report(&revision, outcome);
+        report["sourcePath"] = json!(path);
+        if !warnings.is_empty() {
+            report["warnings"] = json!(warnings);
+        }
+        Ok(if plan.brief {
+            report::brief(plan.op, &report)
+        } else {
+            report
+        })
+    }
+}
+
+impl Pipeline for WritePipeline {
+    fn op(&self) -> &'static str {
+        self.plan.op
+    }
+
+    fn executable(&self) -> Option<PathBuf> {
+        self.plan.executable.clone()
+    }
+
+    fn job_ids(&self) -> Vec<String> {
+        vec![self.plan.job_id.clone()]
+    }
+
+    fn begin(&mut self, handle: &ProjectHandle, origin: &Origin) -> CoreResult<()> {
+        if self.plan.queued {
+            jobs::claim(handle, &self.plan.job_id, origin)?;
+            self.plan.queued = false;
+        }
+        Ok(())
+    }
+
+    fn compute(&mut self, workspace: &Workspace<'_>) {
+        let plan = &self.plan;
+        self.outcome = Some((|| {
+            let rendered = render::render(workspace, &plan.request, &plan.job_id)?;
+            let details = match (&rendered.mesh, plan.rerender) {
+                (Some(mesh), false) => Some(report::details(
+                    mesh,
+                    plan.has_parameters,
+                    &[],
+                    &[],
+                    workspace.cancelled,
+                )?),
+                _ => None,
+            };
+            Ok(WriteOutcome { rendered, details })
+        })());
+    }
+
+    fn commit(mut self: Box<Self>, handle: &ProjectHandle, origin: &Origin) -> CoreResult<Value> {
+        let result = match self.outcome.take() {
+            Some(Ok(outcome)) => self.commit_outcome(handle, &outcome, origin),
+            Some(Err(error)) => Err(error),
+            None => Err(internal_stage()),
+        };
+        if let Err(error) = &result {
+            abandon(handle, &self.job_ids(), error, origin);
+        }
+        result
+    }
+}
+
+fn wants_brief(input: &Value) -> bool {
+    input["detail"] == "brief"
 }
 
 pub(super) fn write_source(
@@ -790,321 +990,91 @@ pub(super) fn write_source(
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    let source = source_with_facets(required_str(input, "source")?);
-    safe_scad(&source)?;
-    let declared = parameters(&source);
-    let mut overrides = override_params(&input["params"], &declared)?;
-    let artifact = input["artifactId"]
-        .as_str()
-        .map(|id| require_mechanical(handle, id))
-        .transpose()?;
-    let parent = artifact
-        .as_ref()
-        .map(|a| pick_revision(handle, a, None))
-        .transpose()?;
-    if let (Some(expected), Some(parent)) = (input["expectedRevisionId"].as_str(), parent.as_ref())
-    {
-        if parent["id"] != expected {
-            return Err(ContractError::new(
-                "REVISION_CONFLICT",
-                "CAD input revision changed; read the current source before retrying.",
-            ));
-        }
-    }
-    let title = input["title"]
-        .as_str()
-        .or_else(|| artifact.as_ref().and_then(|a| a["title"].as_str()))
-        .ok_or_else(|| ContractError::validation("title is required when creating a new part"))?;
-    if let Some(parent) = &parent {
-        let old_params = &parent["payload"]["params"];
-        let old_source = source_of(handle, parent)
-            .ok()
-            .map(|(_, s)| s)
-            .unwrap_or_default();
-        let old_declared = parameters(&old_source);
-        for (name, value) in old_params.as_object().into_iter().flat_map(|m| m.iter()) {
-            if overrides.get(name).is_some() {
-                continue;
-            }
-            let before = old_declared.iter().find(|p| p.name == *name);
-            let after = declared.iter().find(|p| p.name == *name);
-            if before.is_some() && after.is_some() && before.unwrap().expr == after.unwrap().expr {
-                overrides[name] = value.clone();
-            }
-        }
-    }
-    let artifact_id = artifact
-        .as_ref()
-        .and_then(|a| a["id"].as_str())
-        .map(str::to_owned)
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let path = source_path(handle, title, &artifact_id, parent.as_ref())?;
-    let working_hash = resolve_materialization_path(&handle.root, &path).map_err(storage_error)?;
-    let working_hash = fs::read(&working_hash)
-        .ok()
-        .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
-    let source_hash = handle
-        .object_store()
-        .map_err(storage_error)?
-        .put(source.as_bytes())
-        .map_err(storage_error)?;
-    let render = render_source(
-        handle,
-        &source,
-        &overrides,
-        input["timeoutMs"].as_u64().unwrap_or(90_000),
-        origin,
-        &artifact_id,
-        parent.as_ref().and_then(|p| p["id"].as_str()),
-        None,
-    )?;
-    let after = resolve_materialization_path(&handle.root, &path).map_err(storage_error)?;
-    let after_hash = fs::read(&after)
-        .ok()
-        .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
-    if working_hash != after_hash {
-        return Err(ContractError::new(
-            "REVISION_CONFLICT",
-            "Source changed during render; reread before retrying",
-        ));
-    }
-    let manifest=declared.iter().map(|p|json!({"name":p.name,"dimension":if p.value.is_boolean(){"boolean"}else if p.value.is_string(){"text"}else if p.name=="$fn"{"count"}else{"number"}})).collect::<Vec<_>>();
-    let rationale = input["rationale"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(if parent.is_some() {
-            "source revised"
-        } else {
-            "initial source"
-        });
-    let parent_inputs = input
-        .get("inputs")
-        .cloned()
-        .or_else(|| parent.as_ref().map(|p| p["inputs"].clone()))
-        .unwrap_or(json!([]));
-    let (_, revision) = commit_cad(
-        handle,
-        &artifact_id,
-        artifact.as_ref(),
-        parent.as_ref(),
-        title,
-        &path,
-        &source_hash,
-        &render,
-        &overrides,
-        &json!(manifest),
-        &parent_inputs,
-        rationale,
-        input["subsystem"].as_str(),
-        origin,
-        None,
-    )?;
-    let mut notes = Vec::new();
-    if !render.ok {
-        notes.push("Render failed — fix the source and call cad.write_source again.".to_owned());
-    }
-    if render.mesh.as_ref().is_some_and(|m| m.inverted) {
-        notes.push(
-            "NOT VERIFIED: source winding is inverted; repair the source before checking."
-                .to_owned(),
-        );
-    }
-    if declared.is_empty() {
-        notes.push("No top-level parameters found. Exposing key dimensions as name = value; at file scope makes the part re-sizable via params.".to_owned());
-    }
-    let mut report = json!({"artifactId":artifact_id,"revisionId":revision["id"],"title":title,"sourcePath":path,
-        "render":{"ok":render.ok,"tool":render.tool,"ms":render.ms,"warnings":render.warnings,"errors":render.errors},
-        "parameters":declared.iter().map(param_json).collect::<Vec<_>>(),"notes":notes,
-        "next":"Compare these measurements with the request. Then call cad.check with explicit expectations (envelope, hole positions and diameters in cross-sections, solid/empty points) and fix any failure. Report done only when all checks pass."});
-    if let Some(mesh) = &render.mesh {
-        report["geometry"] = mesh.summary();
-        report["sections"] = json!(auto_sections(mesh));
-        report["probes"] = json!([]);
-    }
-    Ok(report)
+    stage::drive(handle, origin, "cad.write_source", || {
+        Ok(Box::new(plan_write(
+            handle,
+            WriteRequest {
+                op: "cad.write_source",
+                artifact_id: input["artifactId"].as_str(),
+                expected_revision_id: input["expectedRevisionId"].as_str(),
+                title: input["title"].as_str(),
+                source: required_str(input, "source")?.to_owned(),
+                params: input["params"].clone(),
+                subsystem: input["subsystem"].as_str(),
+                rationale: input["rationale"].as_str().unwrap_or("").to_owned(),
+                inputs: None,
+                timeout_ms: render::timeout_ms(input),
+                notes: vec![],
+                brief: wants_brief(input),
+            },
+            origin,
+        )?))
+    })
 }
 
-fn load_render(
-    handle: &ProjectHandle,
-    artifact: &Value,
-    revision: &Value,
-    source: &str,
-    overrides: &Value,
-    origin: &Origin,
-) -> CoreResult<Render> {
-    if overrides.as_object().is_none_or(|m| m.is_empty()) && render_matches(revision) {
-        if let Some(hash) = revision["payload"]["stl"]["sha256"].as_str() {
-            if let Ok(bytes) = handle.object_store().map_err(storage_error)?.read(hash) {
-                let mesh = mesh::Mesh::read(&bytes)?;
-                return Ok(Render {
-                    ok: true,
-                    ms: 0,
-                    tool: "stored render".into(),
-                    log: String::new(),
-                    warnings: vec![],
-                    errors: vec![],
-                    stl: Some(bytes),
-                    mesh: Some(mesh),
-                    identity: Some(revision["payload"]["renderIdentity"].clone()),
-                    job_id: String::new(),
-                });
-            }
-        }
+/// Where a snippet that was not found verbatim would match if whitespace
+/// were ignored: the commonest reason a patch misses.
+fn whitespace_match(source: &str, snippet: &str) -> Option<usize> {
+    let squeeze = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let wanted = squeeze(snippet);
+    if wanted.is_empty() {
+        return None;
     }
-    let mut params = revision["payload"]["params"]
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
-    params.extend(
-        overrides
-            .as_object()
-            .into_iter()
-            .flat_map(|m| m.iter())
-            .map(|(k, v)| (k.clone(), v.clone())),
-    );
-    render_source(
-        handle,
-        source,
-        &Value::Object(params),
-        90_000,
-        origin,
-        required_str(artifact, "id")?,
-        revision["id"].as_str(),
-        None,
-    )
+    let lines = source.lines().collect::<Vec<_>>();
+    let span = snippet.lines().count().max(1);
+    (0..lines.len()).find(|start| {
+        let end = (start + span).min(lines.len());
+        squeeze(&lines[*start..end].join("\n")).contains(&wanted)
+    })
 }
-
-pub(super) fn inspect(handle: &ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<Value> {
-    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
-    let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
-    let (source_path, source) = source_of(handle, &revision)?;
-    let declared = parameters(&source);
-    let overrides = override_params(&input["params"], &declared)?;
-    let render = load_render(handle, &artifact, &revision, &source, &overrides, origin)?;
-    if !render.ok {
-        return Err(ContractError::validation(format!(
-            "Cannot inspect: {}",
-            render
-                .errors
-                .first()
-                .map(String::as_str)
-                .unwrap_or("render failed")
-        )));
-    }
-    let mesh = render
-        .mesh
-        .as_ref()
-        .ok_or_else(|| ContractError::validation("Cannot inspect: no mesh"))?;
-    let probes_requested = input["probes"].as_array().map(Vec::len).unwrap_or(0);
-    let sections_requested = input["sections"].as_array().map(Vec::len).unwrap_or(0);
-    if probes_requested + sections_requested > 512
-        || mesh.triangles.len() * (probes_requested + (sections_requested + 5) * 2) > 10_000_000
-    {
-        return Err(ContractError::validation(
-            "CAD inspection exceeds the supported V0.1 work limit",
-        ));
-    }
-    let mut probes = Vec::new();
-    for point in input["probes"].as_array().into_iter().flatten() {
-        let xyz = [
-            point[0].as_f64().unwrap_or(0.0),
-            point[1].as_f64().unwrap_or(0.0),
-            point[2].as_f64().unwrap_or(0.0),
-        ];
-        probes.push(json!({"point":point,"result":if mesh.contains(xyz){"solid"}else{"empty"}}));
-    }
-    let sizes = &mesh.summary()["bounds"]["size"].clone();
-    let mut sections = auto_sections(mesh);
-    for request in input["sections"].as_array().into_iter().flatten() {
-        if let (Some(axis), Some(at)) = (request["axis"].as_str(), request["at"].as_f64()) {
-            let index = match axis {
-                "x" => 0,
-                "y" => 1,
-                "z" => 2,
-                _ => return Err(ContractError::validation("Unknown section axis")),
-            };
-            sections.push(section::Section::from_mesh(mesh, index, at).report(None));
-        } else if let (Some(origin), Some(normal)) =
-            (request["origin"].as_array(), request["normal"].as_array())
-        {
-            let point = |values: &[Value]| -> CoreResult<[f64; 3]> {
-                if values.len() != 3 {
-                    return Err(ContractError::validation(
-                        "Section plane needs three coordinates",
-                    ));
-                }
-                Ok([0, 1, 2].map(|i| values[i].as_f64().unwrap_or(f64::NAN)))
-            };
-            let origin = point(origin)?;
-            let normal = point(normal)?;
-            sections.push(
-                section::Section::from_plane(mesh, origin, normal)?.report_plane(origin, normal),
-            );
-        } else {
-            return Err(ContractError::validation(
-                "Section needs axis and at, or origin and normal",
-            ));
-        }
-    }
-    let formatted = |v: &Value| format!("{} mm", v.as_f64().unwrap_or(0.0));
-    Ok(
-        json!({"artifactId":artifact["id"],"revisionId":revision["id"],"title":artifact["title"],
-        "sourcePath":source_path,"render":{"ok":true,"tool":render.tool,"ms":render.ms,"warnings":render.warnings,"errors":render.errors},
-        "geometry":mesh.summary(),"sections":sections,"probes":probes,"parameters":declared.iter().map(param_json).collect::<Vec<_>>(),"notes":[],
-        "next":"Inspect is diagnostic only and does not bind request assertions. Use the sections/probes to confirm each requested feature; then cad.check (exploratory false) with explicit expectations from the request.",
-        "inspect":{"plausible":true,"triangles":mesh.triangles.len()},"modelUnit":"mm",
-        "dimensions":{"x":formatted(&sizes[0]),"y":formatted(&sizes[1]),"z":formatted(&sizes[2])}}),
-    )
-}
-
-pub(super) use verification::{check, latest_verification, validate_scope_accept};
 
 pub(super) fn patch_source(
     handle: &mut ProjectHandle,
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
-    let revision = pick_revision(handle, &artifact, None)?;
-    let (_, source) = source_of(handle, &revision)?;
-    let old = required_str(input, "oldString")?;
-    let hits = source.matches(old).count();
-    if hits != 1 {
-        return Err(ContractError::validation(if hits == 0 {
-            "oldString was not found in the current source — read the source and copy the snippet exactly.".into()
-        } else {
-            format!("oldString occurs {hits} times; it must be unique so the patch cannot hit the wrong site.")
-        }));
-    }
-    let mut args = json!({"artifactId":artifact["id"],"expectedRevisionId":input["expectedRevisionId"].as_str().unwrap_or(revision["id"].as_str().unwrap()),
-        "source":source.replacen(old,required_str(input,"newString")?,1),"rationale":input["rationale"],"timeoutMs":input["timeoutMs"]});
-    if args["rationale"].as_str().is_none_or(str::is_empty) {
-        args["rationale"] = json!("source patched");
-    }
-    write_source(handle, &args, origin)
-}
-
-fn set_param_source(source: &str, name: &str, value: &Value) -> CoreResult<String> {
-    let param = parameters(source)
-        .into_iter()
-        .find(|p| p.name == name)
-        .ok_or_else(|| ContractError::validation(format!("No file-scope parameter \"{name}\".")))?;
-    let mut lines = source.split('\n').map(str::to_owned).collect::<Vec<_>>();
-    let pattern =
-        Regex::new(&format!(r"({}\s*=\s*)([^;]+)", regex::escape(name))).map_err(internal)?;
-    let replacement = value.to_string();
-    let line = &mut lines[param.line];
-    if !pattern.is_match(line) {
-        return Err(ContractError::validation(format!(
-            "No file-scope parameter \"{name}\"."
-        )));
-    }
-    *line = pattern
-        .replace(line.as_str(), |captures: &regex::Captures<'_>| {
-            format!("{}{replacement}", &captures[1])
-        })
-        .to_string();
-    Ok(lines.join("\n"))
+    stage::drive(handle, origin, "cad.patch_source", || {
+        let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+        let revision = pick_revision(handle, &artifact, None)?;
+        let (_, source) = source_of(handle, &revision)?;
+        let old = required_str(input, "oldString")?;
+        let hits = source.matches(old).count();
+        if hits != 1 {
+            let error = if hits == 0 {
+                let near = whitespace_match(&source, old);
+                ContractError::validation("oldString was not found in the current source — read the source and copy the snippet exactly.")
+                    .with_repair(match near {
+                        Some(line) => format!("A match that differs only in whitespace starts at line {}: `{}`. Call cad_read_source and copy the snippet character for character.", line + 1, source.lines().nth(line).unwrap_or("").trim()),
+                        None => "Call cad_read_source and copy the snippet character for character.".to_owned(),
+                    })
+            } else {
+                ContractError::validation(format!("oldString occurs {hits} times; it must be unique so the patch cannot hit the wrong site."))
+                    .with_repair("Include more of the surrounding text so the snippet occurs exactly once.")
+            };
+            return Err(error.with_details(json!({"occurrences": hits})));
+        }
+        let rationale = input["rationale"].as_str().filter(|text| !text.is_empty());
+        Ok(Box::new(plan_write(
+            handle,
+            WriteRequest {
+                op: "cad.patch_source",
+                artifact_id: artifact["id"].as_str(),
+                expected_revision_id: input["expectedRevisionId"]
+                    .as_str()
+                    .or(revision["id"].as_str()),
+                title: None,
+                source: source.replacen(old, required_str(input, "newString")?, 1),
+                params: Value::Null,
+                subsystem: None,
+                rationale: rationale.unwrap_or("source patched").to_owned(),
+                inputs: None,
+                timeout_ms: render::timeout_ms(input),
+                notes: vec![],
+                brief: wants_brief(input),
+            },
+            origin,
+        )?))
+    })
 }
 
 pub(super) fn set_param(
@@ -1112,22 +1082,73 @@ pub(super) fn set_param(
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
-    let revision = pick_revision(handle, &artifact, None)?;
-    let (_, source) = source_of(handle, &revision)?;
-    let name = required_str(input, "name")?;
-    let updated = set_param_source(&source, name, &input["value"])?;
-    let mut params = revision["payload"]["params"]
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
-    params.insert(name.to_owned(), input["value"].clone());
-    let mut args = json!({"artifactId":artifact["id"],"expectedRevisionId":input["expectedRevisionId"].as_str().unwrap_or(revision["id"].as_str().unwrap()),
-        "source":updated,"params":params,"rationale":input["rationale"],"timeoutMs":input["timeoutMs"]});
-    if args["rationale"].as_str().is_none_or(str::is_empty) {
-        args["rationale"] = json!(format!("set {name}"));
+    stage::drive(handle, origin, "cad.set_param", || {
+        let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+        let revision = pick_revision(handle, &artifact, None)?;
+        let (_, source) = source_of(handle, &revision)?;
+        let name = required_str(input, "name")?;
+        let updated = params::set_param_source(&source, name, &input["value"])?;
+        let mut recorded = recorded_params(&revision);
+        recorded.insert(name.to_owned(), input["value"].clone());
+        let rationale = input["rationale"].as_str().filter(|text| !text.is_empty());
+        Ok(Box::new(plan_write(
+            handle,
+            WriteRequest {
+                op: "cad.set_param",
+                artifact_id: artifact["id"].as_str(),
+                expected_revision_id: input["expectedRevisionId"]
+                    .as_str()
+                    .or(revision["id"].as_str()),
+                title: None,
+                source: updated,
+                params: Value::Object(recorded),
+                subsystem: None,
+                rationale: rationale
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("set {name}")),
+                inputs: None,
+                timeout_ms: render::timeout_ms(input),
+                notes: vec![],
+                brief: wants_brief(input),
+            },
+            origin,
+        )?))
+    })
+}
+
+fn vector(value: &Value) -> [f64; 3] {
+    [0, 1, 2].map(|i| value[i].as_f64().unwrap_or(0.0))
+}
+
+/// OpenSCAD `rotate([x, y, z])`: about x, then y, then z, in degrees.
+fn rotate_xyz(point: [f64; 3], degrees: [f64; 3]) -> [f64; 3] {
+    let [ax, ay, az] = degrees.map(f64::to_radians);
+    let [x, y, z] = point;
+    let (y, z) = (y * ax.cos() - z * ax.sin(), y * ax.sin() + z * ax.cos());
+    let (x, z) = (x * ay.cos() + z * ay.sin(), -x * ay.sin() + z * ay.cos());
+    let (x, y) = (x * az.cos() - y * az.sin(), x * az.sin() + y * az.cos());
+    [x, y, z]
+}
+
+fn placed_bounds(bounds: &Value, translate: [f64; 3], rotate: [f64; 3]) -> ([f64; 3], [f64; 3]) {
+    let (low, high) = (vector(&bounds["min"]), vector(&bounds["max"]));
+    let mut min = [f64::INFINITY; 3];
+    let mut max = [f64::NEG_INFINITY; 3];
+    for corner in 0..8 {
+        let point = std::array::from_fn(|axis| {
+            if corner >> axis & 1 == 0 {
+                low[axis]
+            } else {
+                high[axis]
+            }
+        });
+        let turned = rotate_xyz(point, rotate);
+        for axis in 0..3 {
+            min[axis] = min[axis].min(turned[axis] + translate[axis]);
+            max[axis] = max[axis].max(turned[axis] + translate[axis]);
+        }
     }
-    write_source(handle, &args, origin)
+    (min, max)
 }
 
 pub(super) fn compose(
@@ -1135,115 +1156,120 @@ pub(super) fn compose(
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    let mut blocks = vec![
-        "// composed assembly — module-wrapped instances, transform only (no mates / STEP)"
-            .to_owned(),
-    ];
-    let mut inputs = Vec::<Value>::new();
-    for (index, instance) in input["instances"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .enumerate()
-    {
-        let artifact = require_mechanical(handle, required_str(instance, "artifactId")?)?;
-        let revision = pick_revision(handle, &artifact, instance["revisionId"].as_str())?;
-        let (_, mut source) = source_of(handle, &revision)?;
-        for (key, value) in revision["payload"]["params"]
-            .as_object()
+    stage::drive(handle, origin, "cad.compose", || {
+        let mut blocks = vec![
+            "// composed assembly — module-wrapped instances, transform only (no mates / STEP)"
+                .to_owned(),
+        ];
+        let mut inputs = Vec::<Value>::new();
+        let mut placed = Vec::<(usize, [f64; 3], [f64; 3])>::new();
+        for (index, instance) in input["instances"]
+            .as_array()
             .into_iter()
-            .flat_map(|m| m.iter())
+            .flatten()
+            .enumerate()
         {
-            source = set_param_source(&source, key, value)?;
+            let artifact = require_mechanical(handle, required_str(instance, "artifactId")?)?;
+            let revision = pick_revision(handle, &artifact, instance["revisionId"].as_str())?;
+            let (_, mut source) = source_of(handle, &revision)?;
+            for (name, value) in recorded_params(&revision) {
+                if let Ok(updated) = params::set_param_source(&source, &name, &value) {
+                    source = updated;
+                }
+            }
+            let list = |key: &str| {
+                instance[key]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_else(|| vec![json!(0), json!(0), json!(0)])
+                    .iter()
+                    .map(|value| params::number_value(value.as_f64().unwrap_or(0.0)).to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let (translate, rotate) = (vector(&instance["translate"]), vector(&instance["rotate"]));
+            let transform = if rotate == [0.0; 3] {
+                format!("translate([{}]) _inst_{index}();", list("translate"))
+            } else {
+                format!(
+                    "translate([{}]) rotate([{}]) _inst_{index}();",
+                    list("translate"),
+                    list("rotate")
+                )
+            };
+            blocks.push(format!(
+                "module _inst_{index}() {{\n{}\n}}\n{transform}",
+                source.trim_end()
+            ));
+            if !inputs.iter().any(|item| {
+                item["artifactId"] == artifact["id"] && item["revisionId"] == revision["id"]
+            }) {
+                inputs.push(json!({"artifactId":artifact["id"],"revisionId":revision["id"],"relationship":"depends_on","label":"composition snapshot"}));
+            }
+            if revision["payload"]["bounds"].is_object() {
+                let (min, max) = placed_bounds(&revision["payload"]["bounds"], translate, rotate);
+                placed.push((index, min, max));
+            }
         }
-        let translation = instance["translate"]
-            .as_array()
-            .cloned()
-            .unwrap_or_else(|| vec![json!(0), json!(0), json!(0)]);
-        let rotation = instance["rotate"]
-            .as_array()
-            .cloned()
-            .unwrap_or_else(|| vec![json!(0), json!(0), json!(0)]);
-        let format_vec = |values: &[Value]| {
-            values
-                .iter()
-                .map(Value::to_string)
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        let transform = if rotation
-            .iter()
-            .all(|v| v.as_f64() == Some(0.0) || v.as_i64() == Some(0))
-        {
-            format!("translate([{}]) _inst_{index}();", format_vec(&translation))
+        let mut overlapping = Vec::new();
+        for (i, (first, min_a, max_a)) in placed.iter().enumerate() {
+            for (second, min_b, max_b) in &placed[i + 1..] {
+                if (0..3).all(|axis| {
+                    min_a[axis] < max_b[axis] - 1e-3 && max_a[axis] > min_b[axis] + 1e-3
+                }) {
+                    overlapping.push(format!("#{first} and #{second}"));
+                }
+            }
+        }
+        let notes = if overlapping.is_empty() {
+            vec![]
         } else {
-            format!(
-                "translate([{}]) rotate([{}]) _inst_{index}();",
-                format_vec(&translation),
-                format_vec(&rotation)
-            )
+            vec![format!("Instances {} overlap after transform — OpenSCAD unions overlapping top-level objects into one body. Separate them or accept the unioned solid.", overlapping.join(", "))]
         };
-        blocks.push(format!(
-            "module _inst_{index}() {{\n{}\n}}\n{transform}",
-            source.trim_end()
-        ));
-        if !inputs.iter().any(|item| {
-            item["artifactId"] == artifact["id"] && item["revisionId"] == revision["id"]
-        }) {
-            inputs.push(json!({"artifactId":artifact["id"],"revisionId":revision["id"],"relationship":"depends_on","label":"composition snapshot"}));
-        }
-    }
-    let source = format!("{}\n", blocks.join("\n\n"));
-    let mut args = json!({"title":input["title"],"source":source,"inputs":inputs,"rationale":input["rationale"],"timeoutMs":input["timeoutMs"]});
-    if args["rationale"].as_str().is_none_or(str::is_empty) {
-        args["rationale"] = json!("composed from existing parts");
-    }
-    write_source(handle, &args, origin)
+        let rationale = input["rationale"].as_str().filter(|text| !text.is_empty());
+        Ok(Box::new(plan_write(
+            handle,
+            WriteRequest {
+                op: "cad.compose",
+                artifact_id: None,
+                expected_revision_id: None,
+                title: input["title"].as_str(),
+                source: format!("{}\n", blocks.join("\n\n")),
+                params: Value::Null,
+                subsystem: None,
+                rationale: rationale
+                    .unwrap_or("composed from existing parts")
+                    .to_owned(),
+                inputs: Some(json!(inputs)),
+                timeout_ms: render::timeout_ms(input),
+                notes,
+                brief: wants_brief(input),
+            },
+            origin,
+        )?))
+    })
 }
 
-fn render_inputs(
-    handle: &ProjectHandle,
-    input: &Value,
-) -> CoreResult<(Value, Value, String, Value)> {
-    let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
-    let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
-    let (_, source) = source_of(handle, &revision)?;
-    let mut params = revision["payload"]["params"]
-        .as_object()
-        .cloned()
-        .unwrap_or_default();
-    params.extend(
-        input["params"]
-            .as_object()
-            .into_iter()
-            .flat_map(|m| m.iter())
-            .map(|(k, v)| (k.clone(), v.clone())),
-    );
-    let params = override_params(&json!(params), &parameters(&source))?;
-    Ok((artifact, revision, source, params))
-}
-
+/// Queue a render of a revision's source. The job is returned at once; a
+/// worker renders it and commits the result as a new draft.
 pub(super) fn queue_render(
     handle: &ProjectHandle,
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    let (artifact, revision, source, params) = render_inputs(handle, input)?;
-    safe_scad(&source)?;
-    let id = uuid::Uuid::new_v4().to_string();
-    let source_hash = required_str(
-        scad_ref(&revision).ok_or_else(|| ContractError::validation("CAD source missing"))?,
-        "sha256",
-    )?;
-    handle.db.execute("INSERT INTO job(id,kind,tool,tool_version,inputs,input_hashes,command,status,log,output_hashes,error,session_id,created_at,started_at,finished_at) VALUES(?1,'cad_render','openscad',NULL,?2,?3,NULL,'queued','','{}',NULL,?4,?5,NULL,NULL)",
-        params![id,json!({"artifactId":artifact["id"],"revisionId":revision["id"],"params":params}).to_string(),json!({"source":source_hash}).to_string(),origin.session_id(),now()]).map_err(internal)?;
-    emit(
-        handle,
-        "job.updated",
-        origin,
-        json!({"jobId":id,"status":"queued"}),
-    )?;
-    simple::job_read(handle, &json!({"jobId":id}))
+    let pipeline = plan_rerender(handle, input, origin, RenderJob::Queue)?;
+    let queued = json!({"job": jobs::read(handle, &pipeline.plan.job_id)?});
+    if stage::is_planning() {
+        stage::hand_back(Box::new(pipeline));
+    }
+    Ok(queued)
+}
+
+/// True when the render just queued on this thread was handed to
+/// `dispatch_shared`, which runs it itself: the caller must not start a
+/// worker for it.
+pub(super) fn queued_render_is_staged() -> bool {
+    stage::is_planned()
 }
 
 pub(super) fn render(
@@ -1251,313 +1277,703 @@ pub(super) fn render(
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
-    render_with_job(handle, input, origin, None)
+    let pipeline = plan_rerender(handle, input, origin, RenderJob::Start)?;
+    run_inline(handle, origin, Box::new(pipeline))
 }
 
+/// The worker half of a queued render started by a direct dispatch.
 pub(super) fn finish_queued_render(
     handle: &mut ProjectHandle,
     input: &Value,
     origin: &Origin,
     job_id: &str,
 ) -> CoreResult<Value> {
-    let result = render_with_job(handle, input, origin, Some(job_id));
+    let result = plan_rerender(handle, input, origin, RenderJob::Existing(job_id)).and_then(
+        |mut pipeline| {
+            pipeline.begin(handle, origin)?;
+            run_inline(handle, origin, Box::new(pipeline))
+        },
+    );
     if let Err(error) = &result {
-        handle.db.execute("UPDATE job SET status='failed',error=?1,finished_at=?2 WHERE id=?3 AND status IN ('queued','running','succeeded')",
-            params![json!({"code":error.code,"message":error.message}).to_string(),now(),job_id]).map_err(internal)?;
+        jobs::fail(handle, job_id, error, origin)?;
     }
-    let status = handle
-        .db
-        .query_row("SELECT status FROM job WHERE id=?1", [job_id], |row| {
-            row.get::<_, String>(0)
-        })
-        .map_err(internal)?;
-    emit(
-        handle,
-        "job.updated",
-        origin,
-        json!({"jobId":job_id,"status":status}),
-    )?;
     result
 }
 
-fn render_with_job(
-    handle: &mut ProjectHandle,
-    input: &Value,
-    origin: &Origin,
-    existing_job_id: Option<&str>,
-) -> CoreResult<Value> {
-    let (artifact, revision, source, params) = render_inputs(handle, input)?;
-    let (path, _) = source_of(handle, &revision)?;
-    let materialized = resolve_materialization_path(&handle.root, &path).map_err(storage_error)?;
-    let before = fs::read(&materialized)
-        .ok()
-        .map(|bytes| format!("{:x}", Sha256::digest(bytes)));
-    let result = render_source(
-        handle,
-        &source,
-        &params,
-        input["timeoutMs"].as_u64().unwrap_or(120_000),
-        origin,
-        required_str(&artifact, "id")?,
-        revision["id"].as_str(),
-        existing_job_id,
-    )?;
-    if result.ok {
-        if existing_job_id.is_some_and(|id| job_cancelled(handle, id)) {
-            return Err(ContractError::new("CANCELLED", "Render was cancelled"));
-        }
-        let latest = handle
-            .db
-            .query_row(
-                "SELECT id FROM revision WHERE artifact_id=?1 ORDER BY seq DESC LIMIT 1",
-                [required_str(&artifact, "id")?],
-                |row| row.get::<_, String>(0),
-            )
-            .map_err(internal)?;
-        if latest != required_str(&revision, "id")?
-            || fs::read(&materialized)
-                .ok()
-                .map(|bytes| format!("{:x}", Sha256::digest(bytes)))
-                != before
-        {
-            return Err(ContractError::new(
-                "REVISION_CONFLICT",
-                "CAD source changed during render; reread before retrying",
-            ));
-        }
-        let hash = required_str(scad_ref(&revision).unwrap(), "sha256")?;
-        let _ = commit_cad(
-            handle,
-            required_str(&artifact, "id")?,
-            Some(&artifact),
-            Some(&revision),
-            required_str(&artifact, "title")?,
-            &path,
-            hash,
-            &result,
-            &params,
-            &revision["payload"]["paramManifest"],
-            &revision["inputs"],
-            "rendered source",
-            artifact["subsystem"].as_str(),
-            origin,
-            existing_job_id,
-        )?;
-    }
-    let job = handle
-        .db
-        .query_row(
-            "SELECT * FROM job WHERE id=?1",
-            [&result.job_id],
-            models::job_from_row,
-        )
-        .map_err(internal)?;
-    Ok(json!({"job":job}))
-}
-
-pub(super) fn validate_source(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
+pub(super) fn read_source(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
     let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
     let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
-    let (_, source) = source_of(handle, &revision)?;
-    safe_scad(&source)?;
-    let exe =
-        executable().ok_or_else(|| ContractError::new("TOOL_MISSING", "OpenSCAD not found"))?;
-    let temp = tempfile::tempdir().map_err(internal)?;
-    let scad = temp.path().join("source.scad");
-    let csg = temp.path().join("output.csg");
-    fs::write(&scad, source).map_err(internal)?;
-    let (ok, log, _) = run_tool(
-        &exe,
-        &[
-            "-o".into(),
-            csg.to_string_lossy().into(),
-            scad.to_string_lossy().into(),
-        ],
-        30_000,
-        temp.path(),
-    )?;
-    let errors = log
-        .lines()
-        .filter(|line| line.contains("ERROR:"))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+    let (path, source) = source_of(handle, &revision)?;
+    let recorded = Value::Object(recorded_params(&revision));
     Ok(
-        json!({"ok":ok&&errors.is_empty(),"errors":if errors.is_empty()&&!ok {log.lines().map(str::to_owned).collect::<Vec<_>>()} else {errors}}),
+        json!({"artifactId":artifact["id"],"revisionId":revision["id"],"title":artifact["title"],
+        "revisionSeq":revision["seq"],"reviewState":revision["reviewState"],
+        "isBaseline":artifact["selectedRevisionId"]==revision["id"],"sourcePath":path,
+        "parameters":effective_parameters(&source, &recorded),"source":source,"recordedParams":recorded,
+        "unit":revision["payload"]["modelUnit"].as_str().unwrap_or("mm"),"hasRender":render_matches(&revision),"next":NEXT_SOURCE}),
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Where the mesh of a revision comes from for a measurement.
+enum MeshSource {
+    /// The revision's own stored render, with the request that reproduces it
+    /// should the stored bytes be unreadable.
+    Stored {
+        hash: String,
+        identity: Value,
+        fallback: render::Request,
+    },
+    Render {
+        request: render::Request,
+        job_id: String,
+    },
+}
 
-    #[cfg(unix)]
-    #[test]
-    fn cancelled_openscad_process_group_cannot_leave_a_child_running() {
-        let temp = tempfile::tempdir().unwrap();
-        let marker = temp.path().join("child-survived");
-        let script = format!("(sleep 1; touch '{}') & wait", marker.display());
-        let start = Instant::now();
-        let result = run_tool_interruptible(
-            Path::new("/bin/sh"),
-            &["-c".into(), script],
-            5_000,
-            temp.path(),
-            || start.elapsed() > Duration::from_millis(100),
-        )
-        .unwrap();
-        assert!(result.3, "expected cancellation");
-        std::thread::sleep(Duration::from_millis(1200));
-        assert!(
-            !marker.exists(),
-            "OpenSCAD subprocess survived cancellation"
-        );
+impl MeshSource {
+    /// Decide where the mesh comes from. No job is opened yet, so a later
+    /// validation failure leaves nothing behind.
+    fn plan(
+        revision: &Value,
+        source: &str,
+        overrides: &Value,
+        timeout_ms: u64,
+    ) -> CoreResult<Self> {
+        let mut effective = recorded_params(revision);
+        let variant = overrides.as_object().is_some_and(|map| !map.is_empty());
+        effective.extend(overrides.as_object().cloned().unwrap_or_default());
+        let request = render::Request::new(source, &Value::Object(effective), timeout_ms);
+        if !variant && render_matches(revision) {
+            if let Some(hash) = revision["payload"]["stl"]["sha256"].as_str() {
+                return Ok(Self::Stored {
+                    hash: hash.to_owned(),
+                    identity: revision["payload"]["renderIdentity"].clone(),
+                    fallback: request,
+                });
+            }
+        }
+        params::assert_self_contained(source)?;
+        Ok(Self::Render {
+            request,
+            job_id: String::new(),
+        })
     }
 
-    #[test]
-    fn openscad_render_keeps_source_and_mesh_in_schema_one_project() {
-        if executable().is_none() {
-            return;
+    /// Open the render job, when this source needs the engine.
+    fn open(
+        &mut self,
+        handle: &ProjectHandle,
+        revision: &Value,
+        origin: &Origin,
+    ) -> CoreResult<()> {
+        if let Self::Render { request, job_id } = self {
+            *job_id = jobs::start(
+                handle,
+                "cad_render",
+                "openscad",
+                &json!({"artifactId": revision["artifactId"], "revisionId": revision["id"], "params": request.params}),
+                &json!({"source": request.source_hash}),
+                origin,
+            )?;
         }
-        let temp = tempfile::tempdir().unwrap();
-        let mut handle = ProjectHandle::create(temp.path().join("cad"), "CAD", "test").unwrap();
-        let report=write_source(&mut handle,&json!({"title":"Plate","source":"width = 20;\ncube([width, 10, 2]);\n","timeoutMs":30000}),&Origin::User).unwrap();
-        assert_eq!(report["render"]["ok"], true);
-        assert_eq!(
-            report["geometry"]["bounds"]["size"],
-            json!([20.0, 10.0, 2.0])
-        );
-        assert!(report["sections"][0]["loops"][0]
-            .as_str()
-            .unwrap()
-            .contains("material rectangle"));
-        let source = read_source(&handle, &json!({"artifactId":report["artifactId"]})).unwrap();
-        assert_eq!(source["hasRender"], true);
-        assert!(source["source"].as_str().unwrap().contains("cube"));
-        let revision = require_revision(&handle, report["revisionId"].as_str().unwrap()).unwrap();
-        assert_eq!(revision["files"].as_array().unwrap().len(), 2);
-        assert!(handle
-            .object_store()
-            .unwrap()
-            .read(revision["payload"]["stl"]["sha256"].as_str().unwrap())
-            .is_ok());
-        let details = inspect(
-            &handle,
-            &json!({"artifactId":report["artifactId"],"probes":[[10,5,1],[30,5,1]]}),
-            &Origin::User,
-        )
-        .unwrap();
-        assert_eq!(details["probes"][0]["result"], "solid");
-        assert_eq!(details["probes"][1]["result"], "empty");
-        let plane = inspect(
-            &handle,
-            &json!({"artifactId":report["artifactId"],"sections":[{"origin":[10,5,1],"normal":[0,0,1]},{"origin":[10,5,1],"normal":[1,0,1]}]}),
-            &Origin::User,
-        ).unwrap();
-        assert!(plane["sections"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|s| s["plane"].as_str().unwrap_or("").starts_with("origin=(10")));
-        assert!(plane["sections"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|s| s["plane"].as_str().unwrap_or("").starts_with("origin=(10"))
-            .all(|s| !s["loops"].as_array().unwrap().is_empty()));
-        let request = json!({"artifactId":report["artifactId"],"expect":{
-            "bbox":{"min":[0,0,0],"max":[20,10,2]},"volume":{"value":400},
-            "solid":[[10,5,1]],"empty":[[30,5,1]],
-            "maxSelfIntersections":0,
-            "sections":[{"axis":"z","at":1,"outerCount":1,"holeCount":0,"outer":{"size":[20,10]}}]
-        }});
-        let verified = check(&handle, &request, &Origin::User).unwrap();
-        assert_eq!(verified["verificationStatus"], "passed", "{verified}");
-        assert_eq!(
-            latest_verification(&handle, &revision).unwrap()["status"],
-            "passed"
-        );
-        let proposal = proposal_submit(
-            &mut handle,
-            &json!({"changes":[{"artifactId":report["artifactId"],
-            "baseRevisionId":null,"newRevisionId":report["revisionId"],"kind":"new_artifact"}],
-            "reason":"reviewed plate"}),
-            &Origin::User,
-        )
-        .unwrap();
-        let mut evidence = serde_json::Map::new();
-        evidence.insert(
-            report["artifactId"].as_str().unwrap().to_owned(),
-            verified["evidenceHash"].clone(),
-        );
-        let accepted = proposal_resolve(
-            &mut handle,
-            &json!({"proposalId":proposal["id"],
-            "rationale":"dimensions reviewed","verificationEvidence":evidence}),
-            "accepted",
-        )
-        .unwrap();
-        assert_eq!(accepted["state"], "accepted");
-        assert_eq!(
-            latest_verification(&handle, &revision).unwrap()["status"],
-            "passed"
-        );
-        assert_eq!(
-            build::preview(&handle, false).unwrap()["counts"]["ready"],
-            1
-        );
-        let weakened=check(&handle,&json!({"artifactId":report["artifactId"],"expect":{"bbox":{"min":[0,0,0],"max":[20,10,2]}}}),&Origin::User).unwrap();
-        assert_eq!(weakened["verificationStatus"], "scope_changed");
-        let without_reference = check(
-            &handle,
-            &json!({"artifactId":report["artifactId"],
-            "expect":{"preserve":{"changeRegions":[]}}}),
-            &Origin::User,
-        )
-        .unwrap();
-        assert_eq!(without_reference["verificationStatus"], "failed");
-        let queued = queue_render(
-            &handle,
-            &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
-            &Origin::User,
-        )
-        .unwrap();
-        let job_id = queued["job"]["id"].as_str().unwrap();
-        simple::job_cancel(&handle, &json!({"jobId":job_id}), &Origin::User).unwrap();
-        assert_eq!(
-            finish_queued_render(
-                &mut handle,
-                &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
-                &Origin::User,
-                job_id
-            )
-            .unwrap_err()
-            .code,
-            "CANCELLED"
-        );
-        assert_eq!(
-            simple::job_read(&handle, &json!({"jobId":job_id})).unwrap()["job"]["status"],
-            "cancelled"
-        );
-        let orphan = queue_render(
-            &handle,
-            &json!({"artifactId":report["artifactId"],"revisionId":report["revisionId"]}),
-            &Origin::User,
-        )
-        .unwrap();
-        let reopened = CoreApp::new(temp.path().join("appdata"))
-            .unwrap()
-            .dispatch(
-                "project.open",
-                json!({"path":handle.root}),
-                Origin::User,
-                None,
-            )
-            .unwrap();
-        assert_eq!(reopened["projectId"], handle.file.id);
-        assert_eq!(
-            simple::job_read(&handle, &json!({"jobId":orphan["job"]["id"]})).unwrap()["job"]
-                ["status"],
-            "interrupted"
-        );
+        Ok(())
+    }
+
+    fn job_id(&self) -> Option<&str> {
+        match self {
+            Self::Stored { .. } => None,
+            Self::Render { job_id, .. } => Some(job_id),
+        }
+    }
+
+    fn resolve(&self, workspace: &Workspace<'_>) -> CoreResult<render::Rendered> {
+        match self {
+            Self::Stored {
+                hash,
+                identity,
+                fallback,
+            } => match render::stored_mesh(workspace, hash) {
+                Ok(mesh) => Ok(render::Rendered::stored(mesh, identity)),
+                Err(_) => render::render(workspace, fallback, ""),
+            },
+            Self::Render { request, job_id } => render::render(workspace, request, job_id),
+        }
+    }
+
+    fn close(
+        &self,
+        handle: &ProjectHandle,
+        rendered: &render::Rendered,
+        origin: &Origin,
+    ) -> CoreResult<()> {
+        match self.job_id() {
+            Some(job_id) => close_render_job(handle, job_id, rendered, origin),
+            None => Ok(()),
+        }
     }
 }
+
+struct InspectPipeline {
+    artifact: Value,
+    revision: Value,
+    source_path: String,
+    parameters: Vec<Value>,
+    has_parameters: bool,
+    mesh: MeshSource,
+    sections: Vec<Value>,
+    probes: Vec<Value>,
+    brief: bool,
+    executable: Option<PathBuf>,
+    outcome: Option<CoreResult<(render::Rendered, Option<report::Details>)>>,
+}
+
+impl Pipeline for InspectPipeline {
+    fn op(&self) -> &'static str {
+        "cad.inspect"
+    }
+
+    fn executable(&self) -> Option<PathBuf> {
+        self.executable.clone()
+    }
+
+    fn job_ids(&self) -> Vec<String> {
+        self.mesh.job_id().map(str::to_owned).into_iter().collect()
+    }
+
+    fn compute(&mut self, workspace: &Workspace<'_>) {
+        self.outcome = Some((|| {
+            let rendered = self.mesh.resolve(workspace)?;
+            let details = match &rendered.mesh {
+                Some(mesh) => Some(report::details(
+                    mesh,
+                    self.has_parameters,
+                    &self.sections,
+                    &self.probes,
+                    workspace.cancelled,
+                )?),
+                None => None,
+            };
+            Ok((rendered, details))
+        })());
+    }
+
+    fn commit(mut self: Box<Self>, handle: &ProjectHandle, origin: &Origin) -> CoreResult<Value> {
+        let (rendered, details) = match self.outcome.take() {
+            Some(Ok(outcome)) => outcome,
+            Some(Err(error)) => {
+                abandon(handle, &self.job_ids(), &error, origin);
+                return Err(error);
+            }
+            None => return Err(internal_stage()),
+        };
+        self.mesh.close(handle, &rendered, origin)?;
+        let Some(details) = details else {
+            return Err(render_failed("inspect", &rendered));
+        };
+        let size = &details.geometry["bounds"]["size"];
+        let formatted = |index: usize| format!("{} mm", size[index].as_f64().unwrap_or(0.0));
+        let mut notes = details.notes;
+        if rendered.source_inverted {
+            notes.insert(0, "NOT VERIFIED: the source produces inside-out geometry; the mesh was turned outward for display only.".to_owned());
+        }
+        let mut report = json!({"artifactId":self.artifact["id"],"revisionId":self.revision["id"],"title":self.artifact["title"],
+            "sourcePath":self.source_path,"render":rendered.summary(),
+            "geometry":details.geometry,"sections":details.sections,"probes":details.probes,"parameters":self.parameters,"notes":notes,
+            "nextAction":"commit_assertions",
+            "nextStep":{"tool":"cad_check","why":"Inspecting is diagnostic; verification needs cad_check with assertions from the request.","args":{"artifactId":self.artifact["id"]}},
+            "next":"Inspect is diagnostic only and does not bind request assertions. Use the sections and probes to confirm each requested feature; then call cad_check with expectations taken from the request.",
+            "inspect":{"plausible":true,"triangles":details.geometry["triangles"]},"modelUnit":"mm",
+            "dimensions":{"x":formatted(0),"y":formatted(1),"z":formatted(2)}});
+        if !details.not_evaluated.is_empty() {
+            report["limits"] = json!({"triangles": report["geometry"]["triangles"], "maxTriangles": mesh::MAX_TRIANGLES, "notEvaluated": details.not_evaluated});
+        }
+        Ok(if self.brief {
+            report::brief("cad.inspect", &report)
+        } else {
+            report
+        })
+    }
+}
+
+pub(super) fn inspect(handle: &ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<Value> {
+    stage::drive(handle, origin, "cad.inspect", || {
+        let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+        let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
+        let (source_path, source) = source_of(handle, &revision)?;
+        let declared = params::parameters(&source);
+        let overrides = params::override_params(&input["params"], &declared)?;
+        let mut shown = recorded_params(&revision);
+        shown.extend(overrides.as_object().cloned().unwrap_or_default());
+        let list = |key: &str| input[key].as_array().cloned().unwrap_or_default();
+        let mut mesh = MeshSource::plan(&revision, &source, &overrides, render::timeout_ms(input))?;
+        mesh.open(handle, &revision, origin)?;
+        Ok(Box::new(InspectPipeline {
+            mesh,
+            parameters: effective_parameters(&source, &Value::Object(shown)),
+            has_parameters: !declared.is_empty(),
+            artifact,
+            revision,
+            source_path,
+            sections: list("sections"),
+            probes: list("probes"),
+            brief: wants_brief(input),
+            executable: configured_executable(),
+            outcome: None,
+        }))
+    })
+}
+
+/// The revision a modification is compared against: the baseline this
+/// draft lineage started from, not the most recent rewritten draft, which
+/// would let a repeated bad edit certify itself.
+fn preservation_reference(
+    handle: &ProjectHandle,
+    artifact: &Value,
+    revision: &Value,
+) -> CoreResult<Option<Value>> {
+    let mut parent_id = revision["parentId"].as_str().map(str::to_owned);
+    let mut seen = HashSet::new();
+    while let Some(id) = parent_id {
+        if !seen.insert(id.clone()) {
+            return Err(ContractError::validation(
+                "Revision ancestry contains a cycle",
+            ));
+        }
+        let ancestor = require_revision(handle, &id)?;
+        if ancestor["id"] == artifact["selectedRevisionId"]
+            || matches!(
+                ancestor["reviewState"].as_str(),
+                Some("approved" | "superseded")
+            )
+            || ancestor["parentId"].is_null()
+        {
+            return Ok(Some(ancestor));
+        }
+        parent_id = ancestor["parentId"].as_str().map(str::to_owned);
+    }
+    Ok(None)
+}
+
+fn ancestors(handle: &ProjectHandle, revision: &Value) -> CoreResult<HashSet<String>> {
+    let mut seen = HashSet::new();
+    let mut parent_id = revision["parentId"].as_str().map(str::to_owned);
+    while let Some(id) = parent_id {
+        if !seen.insert(id.clone()) {
+            break;
+        }
+        parent_id = get_revision(handle, &id)?
+            .and_then(|ancestor| ancestor["parentId"].as_str().map(str::to_owned));
+    }
+    Ok(seen)
+}
+
+struct CheckOutcome {
+    rendered: render::Rendered,
+    lines: Vec<Value>,
+    preservation: Value,
+    /// The reference render, when one was needed, so its job can be closed.
+    reference: Option<render::Rendered>,
+}
+
+struct CheckPipeline {
+    artifact: Value,
+    revision: Value,
+    /// The revision was picked as the newest one rather than named.
+    implicit: bool,
+    params: Value,
+    variant: bool,
+    normalized: expect::Normalized,
+    mode: verification::Mode,
+    context: checks::Context,
+    mesh: MeshSource,
+    /// `None`: no preservation asserted. `Some(None)`: asserted, but the part
+    /// has no earlier revision to compare with.
+    reference: Option<Option<(Value, MeshSource)>>,
+    job_id: String,
+    brief: bool,
+    executable: Option<PathBuf>,
+    outcome: Option<CoreResult<CheckOutcome>>,
+}
+
+impl CheckPipeline {
+    fn measure(&self, workspace: &Workspace<'_>) -> CoreResult<CheckOutcome> {
+        let rendered = self.mesh.resolve(workspace)?;
+        let Some(mesh) = rendered.mesh.clone() else {
+            return Ok(CheckOutcome {
+                rendered,
+                lines: vec![],
+                preservation: Value::Null,
+                reference: None,
+            });
+        };
+        let expect = &self.normalized.expect;
+        let mut lines = checks::run(&mesh, expect, self.context)?;
+        let mut preservation = Value::Null;
+        let mut reference_render = None;
+        if let Some(reference) = &self.reference {
+            let regions = expect["preserve"]["changeRegions"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            let missing = |detail: String| json!({"name": "unrelated geometry preserved", "pass": false, "detail": detail});
+            match reference {
+                None => lines.push(missing("No prior baseline/reference revision exists; preservation cannot be established for a newly created part.".into())),
+                Some((reference, source)) => {
+                    if (workspace.cancelled)() {
+                        return Err(ContractError::new("CANCELLED", "Check was cancelled"));
+                    }
+                    let resolved = source.resolve(workspace)?;
+                    match (&resolved.mesh, &resolved.identity) {
+                        (Some(reference_mesh), Some(identity)) => {
+                            let mut line = checks::preservation(reference_mesh, &mesh, regions)?;
+                            line["detail"] = json!(format!(
+                                "Compared with baseline/reference revision {}: {}",
+                                reference["id"].as_str().unwrap_or(""),
+                                line["detail"].as_str().unwrap_or("")
+                            ));
+                            lines.push(line);
+                            preservation = json!({"revisionId": reference["id"],
+                                "inputFingerprint": identity["inputFingerprint"], "outputHash": identity["outputHash"]});
+                        }
+                        _ => lines.push(missing(format!(
+                            "Reference revision {} cannot render: {}. Repair the reference explicitly; repeating the modified source does not create a preservation reference.",
+                            reference["id"].as_str().unwrap_or(""),
+                            resolved.first_error()
+                        ))),
+                    }
+                    reference_render = Some(resolved);
+                }
+            }
+        }
+        if rendered.source_inverted {
+            lines.push(json!({"name":"source winding","pass":false,"detail":"OpenSCAD source produces an inside-out mesh. Turning the stored mesh outward for display is not a source repair: reverse the polyhedron face order (clockwise seen from outside), save, and repeat the same assertions."}));
+        }
+        Ok(CheckOutcome {
+            rendered,
+            lines,
+            preservation,
+            reference: reference_render,
+        })
+    }
+
+    fn commit_outcome(
+        &self,
+        handle: &ProjectHandle,
+        outcome: &CheckOutcome,
+        origin: &Origin,
+    ) -> CoreResult<Value> {
+        let artifact_id = required_str(&self.artifact, "id")?;
+        self.mesh.close(handle, &outcome.rendered, origin)?;
+        if let (Some(Some((_, source))), Some(reference)) = (&self.reference, &outcome.reference) {
+            source.close(handle, reference, origin)?;
+        }
+        let (Some(mesh), Some(identity)) = (&outcome.rendered.mesh, &outcome.rendered.identity)
+        else {
+            return Err(render_failed("check", &outcome.rendered));
+        };
+        if jobs::cancelled(&handle.db, std::slice::from_ref(&self.job_id)) {
+            return Err(ContractError::new("CANCELLED", "Check was cancelled"));
+        }
+        if self.implicit {
+            let current = pick_revision(handle, &require_artifact(handle, artifact_id)?, None)?;
+            if current["id"] != self.revision["id"] {
+                return Err(input_changed(
+                    &self.artifact,
+                    self.revision["id"].as_str().unwrap_or(""),
+                    current["id"].as_str().unwrap_or(""),
+                ));
+            }
+        }
+        let payload_identity = &self.revision["payload"]["renderIdentity"];
+        let measured = verification::Measured {
+            lines: outcome.lines.clone(),
+            integrity: mesh.watertight
+                && !mesh.inverted
+                && !outcome.rendered.source_inverted
+                && mesh.volume > 0.0,
+            matching: render_matches(&self.revision)
+                && payload_identity["inputFingerprint"] == identity["inputFingerprint"]
+                && payload_identity["outputHash"] == identity["outputHash"],
+        };
+        let expect = &self.normalized.expect;
+        let judgement = verification::judge(
+            &measured,
+            expect,
+            &self.params,
+            self.mode,
+            self.variant,
+            &self.revision,
+            &ancestors(handle, &self.revision)?,
+            &verification::accepted_scope(handle, artifact_id)?,
+            &verification::history(handle, artifact_id)?,
+        );
+        let evidence = verification::evidence(
+            &self.artifact,
+            &self.revision,
+            identity,
+            expect,
+            &measured.lines,
+            &outcome.preservation,
+            measured.integrity,
+            &judgement,
+        );
+        let evidence_hash = handle
+            .object_store()
+            .map_err(storage_error)?
+            .put(&serde_json::to_vec(&evidence).map_err(internal)?)
+            .map_err(storage_error)?;
+        let mut log = measured
+            .lines
+            .iter()
+            .map(|line| {
+                format!(
+                    "{} {} — {}",
+                    if line["pass"] == true { "PASS" } else { "FAIL" },
+                    line["name"].as_str().unwrap_or("check"),
+                    line["detail"].as_str().unwrap_or("")
+                )
+            })
+            .collect::<Vec<_>>();
+        if !judgement.dropped.is_empty() {
+            log.push(format!(
+                "WEAKENED: dropped previously failing assertions on unchanged geometry: {}",
+                judgement.dropped.join("; ")
+            ));
+        }
+        if !judgement.loosened.is_empty() {
+            log.push(format!(
+                "WEAKENED: loosened tolerance on assertions that previously failed: {}",
+                judgement.loosened.join("; ")
+            ));
+        }
+        let failing = measured.lines.len() - judgement.passed;
+        let commit_order = verification::next_commit_order(handle, artifact_id)?;
+        jobs::finish(
+            handle,
+            &self.job_id,
+            if judgement.pass {
+                "succeeded"
+            } else {
+                "failed"
+            },
+            jobs::Finish {
+                tool_version: Some(verification::CHECKER.to_owned()),
+                log: log.join("\n"),
+                output_hashes: json!({"verification": evidence_hash}),
+                error: (!judgement.pass).then(|| {
+                    ContractError::validation(format!(
+                        "{failing} of {} checks failed",
+                        measured.lines.len()
+                    ))
+                }),
+                inputs: Some(
+                    json!({"artifactId": artifact_id, "revisionId": self.revision["id"],
+                    "params": self.params, "expect": expect, "preservation": outcome.preservation,
+                    "exploratory": judgement.exploratory, "commitOrder": commit_order,
+                    "results": measured.lines.iter().map(|line| json!({"name": line["name"], "pass": line["pass"], "tightness": line["tightness"]})).collect::<Vec<_>>()}),
+                ),
+                command: None,
+            },
+            origin,
+        )?;
+        let response = verification::response(
+            handle,
+            &self.artifact,
+            &self.revision,
+            &evidence,
+            &evidence_hash,
+            &judgement,
+            self.mode,
+            self.variant,
+            &self.normalized,
+            self.normalized.ignored.clone(),
+        )?;
+        Ok(if self.brief {
+            report::brief("cad.check", &response)
+        } else {
+            response
+        })
+    }
+}
+
+impl Pipeline for CheckPipeline {
+    fn op(&self) -> &'static str {
+        "cad.check"
+    }
+
+    fn executable(&self) -> Option<PathBuf> {
+        self.executable.clone()
+    }
+
+    fn job_ids(&self) -> Vec<String> {
+        let mut ids = vec![self.job_id.clone()];
+        ids.extend(self.mesh.job_id().map(str::to_owned));
+        if let Some(Some((_, source))) = &self.reference {
+            ids.extend(source.job_id().map(str::to_owned));
+        }
+        ids
+    }
+
+    fn compute(&mut self, workspace: &Workspace<'_>) {
+        self.outcome = Some(self.measure(workspace));
+    }
+
+    fn commit(mut self: Box<Self>, handle: &ProjectHandle, origin: &Origin) -> CoreResult<Value> {
+        let result = match self.outcome.take() {
+            Some(Ok(outcome)) => self.commit_outcome(handle, &outcome, origin),
+            Some(Err(error)) => Err(error),
+            None => Err(internal_stage()),
+        };
+        if let Err(error) = &result {
+            abandon(handle, &self.job_ids(), error, origin);
+        }
+        result
+    }
+}
+
+pub(super) fn check(handle: &ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<Value> {
+    stage::drive(handle, origin, "cad.check", || {
+        let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+        let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
+        let (_, source) = source_of(handle, &revision)?;
+        let overrides = params::override_params(&input["params"], &params::parameters(&source))?;
+        let variant = overrides.as_object().is_some_and(|map| !map.is_empty());
+        let mut normalized = expect::normalize(&input["expect"])?;
+        let mode = if input["exploratory"] == true {
+            verification::Mode::Trial
+        } else if input["autoCommit"] == true {
+            verification::Mode::AutoCommit
+        } else {
+            verification::Mode::Commit
+        };
+        if input["exploratory"] == true && input["autoCommit"] == true {
+            normalized.ignored.push(
+                "autoCommit: exploratory true asks for a trial, so nothing was committed"
+                    .to_owned(),
+            );
+        }
+        let timeout_ms = render::timeout_ms(input);
+        let mut reference = if normalized.expect["preserve"]["changeRegions"].is_array() {
+            Some(
+                preservation_reference(handle, &artifact, &revision)?
+                    .map(|reference| {
+                        let (_, reference_source) = source_of(handle, &reference)?;
+                        let source = MeshSource::plan(
+                            &reference,
+                            &reference_source,
+                            &Value::Null,
+                            timeout_ms,
+                        )?;
+                        Ok::<_, ContractError>((reference, source))
+                    })
+                    .transpose()?,
+            )
+        } else {
+            None
+        };
+        let mut mesh = MeshSource::plan(&revision, &source, &overrides, timeout_ms)?;
+        if let Some(Some((reference, source))) = &mut reference {
+            source.open(handle, reference, origin)?;
+        }
+        mesh.open(handle, &revision, origin)?;
+        let job_id = jobs::start(
+            handle,
+            "cad_check",
+            "omenflow-geometry",
+            &json!({"artifactId": artifact["id"], "revisionId": revision["id"], "params": overrides,
+                "expect": normalized.expect, "exploratory": mode == verification::Mode::Trial || variant}),
+            &json!({"stl": revision["payload"]["stl"]["sha256"]}),
+            origin,
+        )?;
+        Ok(Box::new(CheckPipeline {
+            implicit: input["revisionId"].as_str().is_none(),
+            context: checks::Context {
+                curved_source: params::uses_curved_primitives(&source),
+            },
+            artifact,
+            revision,
+            params: overrides,
+            variant,
+            normalized,
+            mode,
+            mesh,
+            reference,
+            job_id,
+            brief: wants_brief(input),
+            executable: configured_executable(),
+            outcome: None,
+        }))
+    })
+}
+
+struct ValidatePipeline {
+    source: String,
+    executable: Option<PathBuf>,
+    outcome: Option<CoreResult<Value>>,
+}
+
+impl Pipeline for ValidatePipeline {
+    fn op(&self) -> &'static str {
+        "cad.validate_source"
+    }
+
+    fn executable(&self) -> Option<PathBuf> {
+        self.executable.clone()
+    }
+
+    fn job_ids(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn compute(&mut self, workspace: &Workspace<'_>) {
+        self.outcome = Some((|| {
+            let engine = engine::engine(workspace.executable.as_deref())?;
+            let temp = tempfile::tempdir().map_err(internal)?;
+            let scad = temp.path().join("source.scad");
+            let csg = temp.path().join("output.csg");
+            fs::write(&scad, &self.source).map_err(internal)?;
+            let run = engine::run(
+                &engine.exe,
+                &[
+                    "-o".into(),
+                    csg.to_string_lossy().into(),
+                    scad.to_string_lossy().into(),
+                ],
+                std::time::Duration::from_secs(30),
+                temp.path(),
+                workspace.cancelled,
+            )?;
+            let (warnings, mut errors) = engine::classify(&run.log);
+            if run.timed_out {
+                errors.push("Validation exceeded 30000 ms".into());
+            }
+            if errors.is_empty() && !run.ok {
+                errors = run.log.lines().map(str::to_owned).collect();
+            }
+            Ok(json!({"ok": run.ok && errors.is_empty(), "errors": errors,
+                "hints": engine::hints(&warnings, &errors, &self.source)}))
+        })());
+    }
+
+    fn commit(mut self: Box<Self>, _handle: &ProjectHandle, _origin: &Origin) -> CoreResult<Value> {
+        self.outcome.take().unwrap_or_else(|| Err(internal_stage()))
+    }
+}
+
+pub(super) fn validate_source(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
+    stage::drive(handle, &Origin::System, "cad.validate_source", || {
+        let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
+        let revision = pick_revision(handle, &artifact, input["revisionId"].as_str())?;
+        let (_, source) = source_of(handle, &revision)?;
+        params::assert_self_contained(&source)?;
+        Ok(Box::new(ValidatePipeline {
+            source,
+            executable: configured_executable(),
+            outcome: None,
+        }))
+    })
+}
+
+#[cfg(test)]
+pub(crate) mod testing;
+#[cfg(test)]
+mod tests;

@@ -1,10 +1,226 @@
 # Lens verification
 
-23 September 2026. Checks apply to the Lens working-tree redesign, not to a packaged or
-signed release. Native v0.1 qualification of the previous renderer is recorded in
+The newest record comes first. Checks apply to working trees, not to a packaged or signed
+release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
-## What changed
+## V1 · 14 October 2026
+
+V1 brought eight renderer tracks (sync and frame, object, decision, agent, lenses, flow, visual
+system, renderer seams) onto the Rust-backed host: the Evidence lens (`⌘5`), a flow map
+renderer of its own with a keyboard model, the agent surface (session bar, activity rail from
+the host's call ledger, onboarding states, one ask queue, a docking window), decisions with
+phases and one approval guard, the object edit model, viewport tools, new kit primitives, the
+lens registry, and stylesheets split by surface. [The specification](design.md) (version 2.3,
+with the QA and review changes folded in) describes the result. Recorded here: the renderer
+integration pass with its preview walkthrough, a fresh-eyes QA pass, and the final checks after
+the adversarial review, made for the [V1 readiness record](../audit/v1/README.md).
+
+### Integration
+
+The integration pass joined the tracks' seams:
+
+- One unsaved-work registry and one prompt. Object editors register with the frame
+  (`lib/unsaved-edits.ts` → `lib/dirty.ts`); every store navigation (go, focus, decide, zoom
+  out, back, forward, closing or switching the project) asks first; the object view's own
+  prompt is gone. Parked edits are cleared with the project.
+- One ask path. `askAbout` and every “Ask agent” entry point use the agent's queue: pasted once
+  the CLI shows its prompt, waiting visibly until then, never dropped or submitted. The
+  surfaces that said “nothing was typed” no longer need to.
+- One proposal rule (`lib/proposals.ts`): the activity-bar badge, titlebar pill, omnibar,
+  Needs you and the decision queue count pending proposals that nothing replaced.
+- The decision guard reads the shared layer helper (`lib/layers.ts`).
+- Toasts lift above any `data-toast-avoid` control (decision bar, map controls, save bar) and
+  leave with an exit animation.
+- Object rails fold (40 px strip, `omen.rails`) and each rail, the decision queue, the impact
+  rail and CAD geometry have their own error boundary.
+- Timeline pages through the store's event window; lens filters, picks and queries survive a
+  lens switch (`useViewState`).
+- Visual-system roles adopted in surface stylesheets: signal stroke for lines, rings and dots;
+  motion utilities on the omnibar, sheet, scrims, prompt and toasts; stage zoom motion only
+  when the level changes; layer tokens; the disabled token; the photo well; the terminal
+  palette read from `--terminal-*`, `--ansi-*` and the scrollbar tokens, cursor still under
+  reduced motion.
+- Bundle: no runtime import of the contracts barrel (Parts uses `ui/units.ts`, kept identical
+  to the contract unit table by `tests/frontend/ui-units.test.ts`); the omnibar and settings
+  sheet are code-split. Entry chunk **444.4 kB** (gzip 137.9 kB), down from 507.6 kB at merge.
+
+### Automated checks at the end of the integration pass
+
+| Check                                                                        | Result                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter @omenflow/desktop typecheck`                                  | Passed                                                                                                                                                                                                                                                                          |
+| `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts`         | 49 files, 563 tests passed                                                                                                                                                                                                                                                      |
+| `pnpm exec eslint apps/desktop/src/renderer tests/frontend --max-warnings 0` | 0 errors, 0 warnings                                                                                                                                                                                                                                                            |
+| `prettier --check` on `apps/desktop`, `tests/frontend`, `design-system`      | Passed                                                                                                                                                                                                                                                                          |
+| `pnpm --filter @omenflow/desktop build:rust-ui`                              | Passed; entry 444.4 kB; lazy: three 499.8, xterm 331.3, ObjectView 93.5, markdown 68.7, DecideView 65.0, FlowLens 57.9, Agent 49.3, StlViewport 49.2, DesignSystemView 33.6, Omnibar 29.7, PartsLens 24.0, Settings 15.1, TimelineLens 12.4, EvidenceLens 9.5, FilesLens 8.8 kB |
+
+### Preview walkthrough (integration pass)
+
+`pnpm design:preview` on the Rust headless host, Chromium (Browser pane), 1440 × 900 and
+1024 × 700, Graphite and Paper, on the disposable rover fixture:
+
+- Flow: 26 objects at 100 % (1440) and 88 % with “5 off screen” (1024), titles 12.5 px; hover
+  on Rover mass budget lit 5 nodes and 4 links in `--signal-stroke` (lime; olive on Paper);
+  keyboard → followed the link from Payload capacity to Rover mass budget, ↵ opened it.
+- Needs you counted only the pending proposal (1); after approving it, the flow showed four
+  out-of-date objects with reasons (“Payload capacity changed, through Rover mass budget”),
+  the legend gained “path of a change” and “out of date”, and the badge cleared.
+- Every lens, Evidence included (served by the Rust host's `project.coverage`): no horizontal
+  overflow, lens bars 50 px. Timeline paged from 400 held events to the start of the record
+  through the store after 420 intent edits on the disposable project.
+- All ten object types in the fixture (requirement, assumption, mechanical, calculation, test,
+  wiring, component, source, assembly, architecture): no overflow and no error boundary in
+  either theme at either size. Rails fold to 40 px and back; the mechanical stage labels its
+  illustrative mesh.
+- Unsaved edit on a requirement target: the activity-bar Flow tab and a revision pick each
+  opened the frame prompt naming “requirement Payload capacity”; Escape kept the edit;
+  “Discard and show another revision” discarded it and moved.
+- Decision: approved the pending proposal by pointer; the done state and handoff text
+  appeared; a toast raised over the decision view sat above the bar (bottom 756 px against the
+  bar's top 760 px at 1440 × 900), and above the map controls at 1024 × 700.
+- Agent: with no session, “Ask agent” opened the window and showed “Waiting to type” with the
+  CLI choice (Codex and Claude Code were not started; the preview refuses them anyway). A
+  Custom CLI configured to `/bin/cat` in the preview's own app data started in the real PTY;
+  the session bar read “Running · Custom CLI · Compact · adapter default · 13 tools”; a queued
+  ask waited (cat never enables bracketed paste) and “Paste now” typed it without a Return;
+  the palette followed the theme at once (`#0d0e10` → `#fbfbfc`).
+- Omnibar and settings load on first open with their enter and exit motion; the catalogue's
+  `PayloadDiff` specimen renders the typed diff; the launcher's location stays in the preview
+  root.
+- Console: no errors or warnings from the app.
+
+Defects found and fixed during the pass: the folded rail token was missing (rail kept its
+width); toasts slid up over the decision bar while their position settled; a scaling zoom-out
+on the project level was measured by the flow map's fit; the flow canvas could be scrolled
+sideways by focus and scroll memory, shifting nodes under the activity bar (it is now
+`overflow: clip`).
+
+### QA pass
+
+A fresh-eyes product QA walked every surface in the specification on the Rust-backed preview
+(rover and drone fixtures) in the Browser pane at 1440 × 900 and 1024 × 700, Graphite and
+Paper, and drove the Agent tab with a real shell: Settings → Custom CLI, executable `/bin/zsh`,
+arguments `-i`, saved through the form. At that time the preview started a Custom CLI without
+`OMEN_PREVIEW_AGENTS=1`; since the review it starts no terminal without it. Codex CLI and Claude
+Code were never started. The pane was hidden, so terminal content was checked against the
+host's `terminal.state` scrollback as well as on screen. The host was restarted once to pick up
+the one Rust fix.
+
+What the real terminal showed (observed, not injected):
+
+- The session bar read “Running · Custom CLI · Compact · adapter default · 13 tools · 0 calls”,
+  and `which omenflow` found the bundled helper. `omenflow status` answered “Nothing is
+  unfinished in this session.” and the bar moved to 1 call; `omenflow guide cad` printed the
+  CAD playbook; `omenflow call artifact_list` listed the project.
+- `artifact_read` with `revisionID` was repaired, with the note “renamed revisionID →
+  revisionId”; with `verbosity` it was refused as `VALIDATION` naming the allowed keys, with an
+  example and a repair.
+- The activity rail listed every call newest first with outcome, duration, raw tool name,
+  time, the repair note, the selectable error and the touched object as a link; the rail header
+  and the session bar gave the same call and failure counts, and the activity-bar mark appeared
+  after a failed call and cleared after the next successful one.
+- Interrupt cut off `sleep 30`. The `⌘J` window's ticker followed new calls live, docking
+  narrowed the stage and the flow refit, and `⌘J` closed it with focus back in the terminal.
+  Restart gave a new session with no calls and kept the earlier ones under “earlier session”.
+- A shell script ran `artifact_update_draft` and `proposal_submit` through the helper: the rail
+  recorded both, and the proposal read “Proposed by the agent” and superseded the fixture's
+  proposal.
+- “Ask agent” on a stage, “Ask the agent to rebase” and the launcher brief were pasted with
+  bracketed paste and never submitted (checked in the scrollback).
+
+Every count on the agent surface matched the ledger.
+
+The pass found 22 problems. It fixed 15 and one partly, and left six with owners; the review
+fix tracks then closed those seven.
+
+| #   | Surface              | What was wrong                                                                                                                  | Now                                                                                                                                                       |
+| --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Session bar, ended   | A stop the person asked for read “Ended · exit code 1” in red: the PTY library reports code 1 for any process ended by a signal | The host records an exit code only without a signal (`crates/agent-host/src/pty.rs`, with a test that fails without it); the bar reads “Ended”, neutral   |
+| B   | Mechanical stage     | The illustrative tray lay on its side (62 × 14.5 × 44 mm): the fixture still rotated Z-up geometry for an older Y-up viewer     | Rotation removed; 62.00 × 44.00 × 14.50 mm, upright, as a real render of the same source                                                                  |
+| C   | Decision, base moved | The right rail said approving would move the baseline, which the core refuses                                                   | “Approval is refused”, with the reason                                                                                                                    |
+| D   | Timeline             | “Bill of materials changed” after every approval                                                                                | The renderer hides an empty announcement after an approval that touched no component, line or replacement; the core now emits one only for such approvals |
+| E   | Timeline             | An impact row counted the changed object itself as reached                                                                      | Impact rows count only objects beyond the changed ones; a row that reached none is hidden                                                                 |
+| F   | Toasts               | A toast rose mid-screen over the Revisions rail                                                                                 | The stack is measured and lifts only past a control it would overlap both ways                                                                            |
+| G   | Activity rail        | “1:15:38 AM – 1:15:38 AM”; headers and call details broke mid-phrase at 264–300 px                                              | A range only when the shown times differ; wrapping only between facts                                                                                     |
+| H   | Session bar          | About 2 s of “Running” with live controls after Stop on a shell that ignores SIGTERM                                            | The pressed control is busy and the other disabled until the host answers                                                                                 |
+| I   | Evidence header      | “1 of 2 … 1 is only partly covered and 1 has no evidence” read as three requirements                                            | “…has current evidence, but only partly. 1 has no evidence.”                                                                                              |
+| J   | Settings, Custom CLI | An operation name in the hint, and “Documented, not verified here” for a CLI nothing documents                                  | “Set its executable path under Configure.” and “Not verified here”                                                                                        |
+| K   | Settings, Agents     | CLIs that are simply not installed shown in error red                                                                           | Neutral when not detected, red when a detected one fails                                                                                                  |
+| L   | Settings, Custom CLI | Saved arguments were invisible after a save                                                                                     | Partly in the pass (hint); closed in the review: `connection.list` reports `args` and Settings shows them                                                 |
+| M   | Record rail          | An agent revision's full session UUID wrapped over three lines                                                                  | “agent · session” and a short id, the full id in the title                                                                                                |
+| N   | Decision, done       | “Would affect —” with nothing open                                                                                              | Only “What approval means” remains                                                                                                                        |
+| O   | Flow map             | Its accessible name said “17 links” beside the header's “18 recorded links”                                                     | “17 drawn links”                                                                                                                                          |
+| P   | Catalogue            | Level cards and the screens index left out Evidence                                                                             | Added                                                                                                                                                     |
+| Q   | Shortcuts            | `⌘K` was ignored for about 320 ms while a closing sheet played its exit                                                         | Closed in the review: a layer marked `data-state="closed"` no longer holds the keyboard                                                                   |
+| R   | Agent rail           | “Draft the first requirements” stayed offered after the launcher brief was typed                                                | Closed in the review: starters hide once anything was typed or pasted                                                                                     |
+| S   | Agent window         | Collapsed, it covered the map legend and part of the peek strip                                                                 | Closed in the review: until placed it sits above the bottom controls                                                                                      |
+| T   | Calculation inputs   | A pinned input named a short revision id where other rails say `rN`                                                             | Closed in the review: `rN` from the source's history                                                                                                      |
+| U   | Preview script       | The disposable data folder was never removed                                                                                    | Closed in the review: removed when the preview stops                                                                                                      |
+| V   | Fixture data         | Endurance target 45 min, acceptance “≥30 min”                                                                                   | Closed in the review: acceptance says ≥45 min                                                                                                             |
+
+Checked and correct in the same pass: supersession both ways with “Open the replacement”; base
+moved with “I have read the changes” and “Ask the agent to rebase”; approve with `⌘↵` from the
+rationale, the done state and handoff; request changes and the disabled handoff with its
+reason; impact after approval (amber paths, the agent ring, Needs you two abreast with
+Re-evaluate all); the hover thread and map keys; fit all at 1024; the unsaved-work prompt and
+the conflict table (Keep or Discard); save to baseline and draft accept; a real OpenSCAD render
+accepted as baseline; section, measure and envelope; Parts and BOM totals equal to the sum of
+lines; Files preview; the omnibar; `⌘[` and `⌘]`; launcher create with the brief pasted;
+Settings sections; Paper; every rover object type at 1024 with no alert and no horizontal
+overflow. No console errors or warnings in the whole walk.
+
+QA did not cover the native WKWebView, a live model CLI, VoiceOver, animations and xterm
+repaint while the pane was hidden (checked through the DOM, host state and scrollback), or the
+Linux Rust job for the `pty.rs` change.
+
+### Final checks after the review
+
+After the adversarial review's 11 renderer fixes and the Rust fixes the renderer reads (the
+[V1 readiness record](../audit/v1/README.md) lists them), run between 09:18 and 09:36 UTC; counts
+are copied from the output.
+
+| Check                                                                | Result                                                                                    |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts` | 52 files, 616 tests passed                                                                |
+| `pnpm typecheck`                                                     | Passed (every workspace package and `evals/`)                                             |
+| `pnpm lint`                                                          | 0 errors; 123 warnings, none under `apps/desktop`                                         |
+| `pnpm --filter @omenflow/desktop build:rust-ui`                      | Passed; entry 445.98 kB (gzip 138.60 kB); three.js 499.75 kB and xterm 331.26 kB separate |
+| `pnpm test`                                                          | 91 files, 967 passed, 2 skipped (real-engine gated cases)                                 |
+| `pnpm test:conformance`                                              | 4 files, 52 tests passed, one an expected failure                                         |
+| `cargo test --workspace --locked --no-fail-fast`                     | 544 passed, 1 ignored                                                                     |
+| `pnpm format:check`                                                  | Passed                                                                                    |
+
+On the Rust headless host, with no browser (`OMEN_PREVIEW_PORT=5199 pnpm design:preview`): the
+page's endpoints answered 403 until the printed key was traded for the cookie; then the gallery
+answered 200, a cross-origin bootstrap 403, and through the preview proxy `project.coverage`
+(2 requirements), `work.status`, `guide.read`, `agent.activity` and the `tool.describe`
+catalogue (57 tools) answered, while `terminal.start` was refused with `PREVIEW`. Stopping it
+removed its data folder.
+
+No browser walkthrough was repeated after the review fixes. They are covered by tests; the
+placement of an agent window that was never placed and the requirement stage's “The target is
+unknown” choice have not been looked at in a running app.
+
+### Not covered
+
+- **Native WKWebView.** The Tauri app was not launched. `overflow: clip`, `:has()`, container
+  queries, `text-wrap`, individual transform properties, `field-sizing` and the first-paint
+  theme script were seen in Chromium only.
+- **VoiceOver** and the operating system's reduced-motion setting (reasoned from the tokens).
+- **A live model in the interface.** No Codex, Claude Code or other model CLI was started from
+  the interface. The integration pass ran `/bin/cat` (no tool calls); the QA pass filled the
+  activity rail from a real shell calling the helper. The live models ran headless, without the
+  interface, in the evaluation recorded in the [V1 readiness record](../audit/v1/README.md).
+- The Browser pane was hidden during both passes, so animations and intersection observers
+  were throttled; exit animations and Timeline's automatic paging were confirmed by state and
+  by pressing “Show earlier entries”, not by watching them run.
+- **Windows and Linux** chrome and webviews (WebView2, WebKitGTK): never run.
+- **Signed packages.** No build was signed or notarized; no clean-machine install.
+
+## Lens redesign · 23 September 2026
+
+### What changed
 
 The v1 renderer (sidebar, overview dashboard, nine routes, inspector side panel, status bar,
 `components/ui.tsx`, `global.css`, `welcome.css`) was removed. Lens replaces it with three
@@ -13,7 +229,7 @@ the PTY, an omnibar, and a settings sheet. Tokens, specification, catalogue, bra
 and reference screens were replaced together. `@omenflow` operations, `.omenflow` storage, and
 the bridge are unchanged.
 
-## Automated checks
+### Automated checks
 
 | Check                                            | Result                                                 |
 | ------------------------------------------------ | ------------------------------------------------------ |
@@ -28,7 +244,7 @@ the bridge are unchanged.
 Renderer logic that tests cover moved without behavioural change:
 `lib/mechanical-revisions.ts` and `lib/terminal-restore.ts` (test imports updated).
 
-## Preview walkthrough
+### Preview walkthrough
 
 Performed in `pnpm design:preview` at 1440 × 900 and 1024 × 700, Graphite and Paper, on the
 disposable rover fixture with the real engineering core:
@@ -57,7 +273,7 @@ Defects found and fixed during the pass: map overlapped the project header; tall
 diff values too far apart; omnibar painted under flow nodes; revision rows collided in narrow
 rails; timeline noise.
 
-## Not covered
+### Not covered
 
 - **Native visual inspection.** The Tauri app built and launched, but screen capture and
   computer-use were unavailable in this environment, so the overlay titlebar, traffic-light

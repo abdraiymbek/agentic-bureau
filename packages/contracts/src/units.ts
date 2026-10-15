@@ -134,9 +134,8 @@ export const maybeQuantitySchema = z.union([
 ]);
 export type MaybeQuantity = z.infer<typeof maybeQuantitySchema>;
 
-export function isUnknown(q: MaybeQuantity | null | undefined): boolean {
-  return q == null || ('unknown' in q && q.unknown === true);
-}
+/** Defined in the dependency-free `format` entry point; re-exported for existing callers. */
+export { formatQty, isUnknown } from './format.js';
 
 export function unitDef(unit: string): (UnitDef & { name: string }) | undefined {
   return CANONICAL[unit];
@@ -214,22 +213,6 @@ export function qty(value: number, unit: string): Quantity {
     throw new OmenflowError(ErrorCodes.INVALID_UNITS, `Unknown unit '${unit}'`);
   }
   return { value, unit };
-}
-
-const FORMAT_DIGITS = 4;
-export function formatQty(q: Quantity | MaybeQuantity | null | undefined): string {
-  if (isUnknown(q as MaybeQuantity)) {
-    const reason =
-      q && typeof q === 'object' && 'reason' in q ? ` (${(q as { reason: string }).reason})` : '';
-    return `unknown${reason}`;
-  }
-  const qq = q as Quantity;
-  const v = Number(qq.value.toPrecision(FORMAT_DIGITS));
-  const range =
-    qq.min !== undefined && qq.max !== undefined
-      ? ` [${Number(qq.min.toPrecision(FORMAT_DIGITS))}–${Number(qq.max.toPrecision(FORMAT_DIGITS))}]`
-      : '';
-  return `${v}${range} ${qq.unit}`;
 }
 
 /** Money: decimal string + ISO 4217 currency. Never mixed without conversion record. */

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import DOMPurify from 'dompurify';
 import type { FileRef, Revision } from '@omenflow/contracts';
 import { cmd, errMsg } from '../api';
 import { Block, Button, Notice, decodeBase64 } from '../ui/kit';
+import { SvgDiagram } from './stages/shared';
 
 /** Preview immutable bytes from the displayed revision, never from a mutable working file. */
 export function ArtifactFiles({
@@ -78,12 +78,7 @@ export function ArtifactFiles({
           ) : image ? (
             <img className="artifact-image" src={content} alt={`Recorded visual: ${path}`} />
           ) : svg ? (
-            <div
-              className="diagram island"
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(content, { USE_PROFILES: { svg: true } }),
-              }}
-            />
+            <SvgDiagram svg={content} />
           ) : (
             <pre className="artifact-file-text">{content}</pre>
           )}

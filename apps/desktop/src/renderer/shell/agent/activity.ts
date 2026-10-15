@@ -1,0 +1,172 @@
+/**
+ * The agent's recorded tool calls, as the host ledger reports them. Nothing here invents a call,
+ * an outcome or a duration: records are merged, counted and grouped, never synthesised.
+ */
+import type { AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
+
+/** Calls kept in memory per project; older ones stay in the ledger and can be paged in. */
+export const CALL_LIMIT = 1000;
+
+/** A pause longer than this starts a new group in the rail. */
+export const GROUP_GAP_MS = 5 * 60_000;
+
+/** How long after the last arrival the agent counts as "working" for the activity-bar mark. */
+export const ARRIVING_MS = 6_000;
+
+const ACRONYMS: Record<string, string> = {
+  cad: 'CAD',
+  bom: 'BOM',
+  ui: 'UI',
+  mcp: 'MCP',
+  id: 'ID',
+  ids: 'IDs',
+  url: 'URL',
+  stl: 'STL',
+};
+
+/** "cad_check" → "CAD check"; "mcp__omenflow__artifact_read" → "Artifact read". */
+export function toolWords(tool: string): string {
+  const bare = tool.includes('__') ? tool.slice(tool.lastIndexOf('__') + 2) : tool;
+  const words = bare
+    .split(/[_.\s]+/)
+    .filter(Boolean)
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? w.toLowerCase());
+  if (!words.length) return tool;
+  const sentence = words.join(' ');
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+}
+
+/** "84 ms", "1.4 s", "2 min 3 s". */
+export function durationLabel(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)} s`;
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds} s`;
+  const rest = seconds % 60;
+  return rest ? `${Math.floor(seconds / 60)} min ${rest} s` : `${Math.floor(seconds / 60)} min`;
+}
+
+/** A record as the host sent it, or null when it lacks the fields the rail relies on. */
+export function asCallRecord(value: unknown): AgentCallRecord | null {
+  const v = value as Partial<AgentCallRecord> | null;
+  if (!v || typeof v !== 'object') return null;
+  if (typeof v.seq !== 'number' || typeof v.tool !== 'string' || typeof v.ok !== 'boolean')
+    return null;
+  if (typeof v.sessionId !== 'string' || typeof v.at !== 'string') return null;
+  return {
+    seq: v.seq,
+    at: v.at,
+    projectId: typeof v.projectId === 'string' ? v.projectId : '',
+    sessionId: v.sessionId,
+    tool: v.tool,
+    op: typeof v.op === 'string' ? v.op : v.tool,
+    via: v.via === 'call' ? 'call' : 'mcp',
+    ok: v.ok,
+    code: typeof v.code === 'string' ? v.code : null,
+    message: typeof v.message === 'string' ? v.message : null,
+    durationMs: typeof v.durationMs === 'number' ? v.durationMs : NaN,
+    mutating: v.mutating === true,
+    artifactIds: Array.isArray(v.artifactIds)
+      ? v.artifactIds.filter((id): id is string => typeof id === 'string')
+      : [],
+    notes: Array.isArray(v.notes) ? v.notes.filter((n): n is string => typeof n === 'string') : [],
+  };
+}
+
+/** Union by sequence number, oldest first, keeping the newest `limit`. */
+export function mergeCalls(
+  current: AgentCallRecord[],
+  incoming: AgentCallRecord[],
+  limit = CALL_LIMIT,
+): AgentCallRecord[] {
+  if (!incoming.length) return current;
+  const bySeq = new Map<number, AgentCallRecord>();
+  for (const call of current) bySeq.set(call.seq, call);
+  for (const call of incoming) bySeq.set(call.seq, call);
+  const merged = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+  return merged.length > limit ? merged.slice(merged.length - limit) : merged;
+}
+
+export interface CallGroup {
+  sessionId: string;
+  /** ISO time of the newest call in the group. */
+  latest: string;
+  /** ISO time of the oldest call in the group. */
+  earliest: string;
+  /** Newest first. */
+  calls: AgentCallRecord[];
+  failures: number;
+}
+
+/**
+ * Newest group first. A new group starts wherever consecutive calls are `gapMs` apart or belong
+ * to different sessions.
+ */
+export function groupCalls(calls: AgentCallRecord[], gapMs = GROUP_GAP_MS): CallGroup[] {
+  const groups: CallGroup[] = [];
+  let current: CallGroup | null = null;
+  let previous = Number.NaN;
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const call = calls[i]!;
+    const at = Date.parse(call.at);
+    if (!current || current.sessionId !== call.sessionId || !(Math.abs(previous - at) < gapMs)) {
+      current = {
+        sessionId: call.sessionId,
+        latest: call.at,
+        earliest: call.at,
+        calls: [],
+        failures: 0,
+      };
+      groups.push(current);
+    }
+    current.calls.push(call);
+    current.earliest = call.at;
+    if (!call.ok) current.failures++;
+    previous = at;
+  }
+  return groups;
+}
+
+/** "1:09:15 PM – 1:11:13 PM"; one time when both ends read the same as `clock` shows them. */
+export function timeRange(earliest: string, latest: string, clock: (iso: string) => string) {
+  const from = clock(earliest);
+  const to = clock(latest);
+  return from === to ? from : `${from} – ${to}`;
+}
+
+/**
+ * Calls and failures recorded for one session: the ledger's summary plus live records that
+ * arrived after that summary was read.
+ */
+export function sessionCounts(
+  sessionId: string,
+  calls: AgentCallRecord[],
+  sessions: AgentSessionSummary[],
+  summarySeq: number,
+): { calls: number; errors: number } | null {
+  const summary = sessions.find((s) => s.sessionId === sessionId);
+  const later = calls.filter(
+    (c) => c.sessionId === sessionId && (summary ? c.seq > summarySeq : true),
+  );
+  if (!summary && !later.length) return null;
+  return {
+    calls: (summary?.calls ?? 0) + later.length,
+    errors: (summary?.errors ?? 0) + later.filter((c) => !c.ok).length,
+  };
+}
+
+/** What the activity-bar mark says about the agent's calls right now. */
+export function activitySignal(
+  calls: AgentCallRecord[],
+  sessionId: string | null,
+  lastArrival: number | null,
+  now: number,
+): { arriving: boolean; lastFailed: AgentCallRecord | null } {
+  const mine = sessionId ? calls.filter((c) => c.sessionId === sessionId) : [];
+  const last = mine[mine.length - 1] ?? null;
+  return {
+    arriving: lastArrival !== null && now - lastArrival < ARRIVING_MS,
+    lastFailed: last && !last.ok ? last : null,
+  };
+}

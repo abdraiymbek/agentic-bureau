@@ -773,7 +773,8 @@
                 "format": "uuid"
               },
               "pin": {
-                "type": "string"
+                "type": "string",
+                "description": "Pin label as printed on the part or its datasheet, e.g. \"GND\"."
               },
               "name": {
                 "type": "string"
@@ -788,7 +789,8 @@
                   "mechanical",
                   "unknown"
                 ],
-                "default": "unknown"
+                "default": "unknown",
+                "description": "Electrical role. The ground-return check needs power and ground pins typed."
               },
               "voltageRange": {
                 "type": "object",
@@ -844,7 +846,8 @@
                   "min",
                   "max"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Allowed voltage as two quantities, e.g. min {\"value\": 4.5, \"unit\": \"V\"}."
               }
             },
             "required": [
@@ -862,7 +865,8 @@
             "properties": {
               "id": {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "description": "Leave it out: one is assigned. Send an id only to keep an existing connection."
               },
               "from": {
                 "type": "object",
@@ -881,10 +885,10 @@
                 },
                 "required": [
                   "componentArtifactId",
-                  "componentRevisionId",
                   "pin"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "End it starts at: componentArtifactId and the pin label. componentRevisionId is optional and defaults to the approved revision of the component, else its newest."
               },
               "to": {
                 "type": "object",
@@ -903,10 +907,10 @@
                 },
                 "required": [
                   "componentArtifactId",
-                  "componentRevisionId",
                   "pin"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "End it goes to, same shape as from."
               },
               "voltage": {
                 "type": "object",
@@ -929,10 +933,12 @@
                   "value",
                   "unit"
                 ],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Nominal voltage, e.g. {\"value\": 5, \"unit\": \"V\"}."
               },
               "signalRole": {
-                "type": "string"
+                "type": "string",
+                "description": "What it carries, e.g. \"power\", \"ground\", \"PWM\", \"UART TX\"."
               },
               "polarity": {
                 "type": "string",
@@ -973,14 +979,14 @@
                     "additionalProperties": false
                   }
                 },
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Wire gauge, e.g. \"22 AWG\", and its current rating as a quantity."
               },
               "notes": {
                 "type": "string"
               }
             },
             "required": [
-              "id",
               "from",
               "to",
               "signalRole"
@@ -1148,6 +1154,9 @@
           },
           "additionalProperties": false
         },
+        "outputUnit": {
+          "type": "string"
+        },
         "limitations": {
           "type": "array",
           "items": {
@@ -1169,8 +1178,7 @@
             "calculated",
             "simulated",
             "measured"
-          ],
-          "default": "calculated"
+          ]
         }
       },
       "additionalProperties": false,
@@ -1448,6 +1456,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Create a project at a folder path",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1481,6 +1494,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Open an existing project folder",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1505,6 +1523,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Rename the active project",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1529,6 +1552,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Update project intent",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1546,19 +1574,28 @@
     {
       "name": "project.summary",
       "toolName": "project_summary",
-      "description": "Bounded structured project summary",
+      "description": "Start here. Returns the project intent, artifact counts by type, requirements and assumptions, pending proposals, stale artifacts, recent decisions and your unfinished work with the next tool to call. Call it once at the start of a session, then use artifact_list and artifact_read for detail.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Start here: intent, counts, requirements, pending proposals, unfinished work.",
+      "example": {},
+      "compactSchema": {
+        "type": "object",
+        "properties": {}
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
           "budget": {
             "type": "integer",
             "exclusiveMinimum": 0,
-            "default": 6000
+            "default": 6000,
+            "description": "Size cap in characters. Lists are cut to fit and truncated is set to true."
           }
         },
         "additionalProperties": false,
@@ -1568,24 +1605,33 @@
     {
       "name": "project.search",
       "toolName": "project_search",
-      "description": "Full-text search over project records",
+      "description": "Search artifact titles and content for words. Use it to find an artifact when you know a term but not its id. Returns the best matches with artifactId, revisionId, type, title and a snippet.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "graph",
+      "summary": "Search artifact titles and content for words.",
+      "example": {
+        "query": "payload mass"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "query": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Words to look for in artifact titles and content."
           },
           "limit": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 100,
-            "default": 20
+            "default": 20,
+            "description": "Maximum number of matches."
           }
         },
         "required": [
@@ -1598,23 +1644,52 @@
     {
       "name": "project.changes_since",
       "toolName": "project_changes_since",
-      "description": "Events after a sequence cursor",
+      "description": "List project events (drafts, proposals, decisions, staleness) recorded after a sequence number. Use it to catch up on what changed since you last looked. Returns up to 500 events with nextCursor and hasMore.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "graph",
+      "summary": "List project events recorded after a sequence number.",
+      "example": {
+        "seq": 0
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "seq": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Return events after this sequence number: 0 at first, then the last nextCursor."
           }
         },
         "required": [
           "seq"
         ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "project.coverage",
+      "toolName": "project_coverage",
+      "description": "List each requirement with its coverage (covered, partial, stale or none) and the calculations, tests and parts linked as evidence, with their state and recorded result. Use it to find requirements that still need evidence. A pass or fail verdict appears only where a test result recorded one.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "List requirements with their linked evidence and coverage state.",
+      "example": {},
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
@@ -1628,6 +1703,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Lossless project archive export",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1660,6 +1740,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Import a project archive",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1693,6 +1778,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "List open projects",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -1709,6 +1799,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Close an open project",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -1725,6 +1820,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "List recent project folders",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -1741,6 +1841,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Previewable diagnostic bundle",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -1751,13 +1856,19 @@
     {
       "name": "artifact.list",
       "toolName": "artifact_list",
-      "description": "List artifacts with freshness",
+      "description": "List artifacts with their id, type, title, review state and freshness. Use it to find the ids other tools need; filter by type to keep the result small. Returns artifacts in creation order, each with its approved revision when it has one, its draft count and whether a proposal is pending. Page with limit and offset.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
-      "inputSchema": {
+      "tier": "core",
+      "pack": "core",
+      "summary": "List artifacts with id, type, title and state; filter by type.",
+      "example": {
+        "type": "requirement"
+      },
+      "compactSchema": {
         "type": "object",
         "properties": {
           "type": {
@@ -1779,23 +1890,73 @@
               "subsystem"
             ]
           },
+          "limit": {
+            "type": "integer",
+            "description": "Page size, default 200."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Artifacts to skip."
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ],
+            "description": "Only artifacts of this type."
+          },
           "subsystem": {
-            "type": "string"
+            "type": "string",
+            "description": "Only artifacts in this subsystem."
           },
           "includeArchived": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Also list archived artifacts."
           },
           "limit": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 500,
-            "default": 200
+            "default": 200,
+            "description": "Page size."
           },
           "offset": {
             "type": "integer",
             "minimum": 0,
-            "default": 0
+            "default": 0,
+            "description": "Artifacts to skip, for paging."
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "nextCursor of the previous page. Continues the listing; replaces offset."
+          },
+          "fields": {
+            "type": "string",
+            "enum": [
+              "full",
+              "summary"
+            ],
+            "description": "summary (the default for agents): headers and state without payloads. full: each approved revision with payload, files and inputs."
           }
         },
         "additionalProperties": false,
@@ -1805,22 +1966,50 @@
     {
       "name": "artifact.read",
       "toolName": "artifact_read",
-      "description": "Read an artifact revision",
+      "description": "Read one artifact: its header, the approved revision (or the newest one when nothing is approved yet) and every open draft, each with payload, files, inputs and review state. Use it before updating an artifact, and after creating one to confirm the content was saved as intended.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Read one artifact: its current content, open drafts and state.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "description": "Id from artifact_list or an earlier result."
+          }
+        },
+        "required": [
+          "artifactId"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact id, from artifact_list or an earlier result."
           },
           "revisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to read. Defaults to the approved one, or the newest when none is."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "brief (the default for agents): open drafts only, long text shortened. full: every draft and the complete text."
           }
         },
         "required": [
@@ -1833,18 +2022,26 @@
     {
       "name": "artifact.history",
       "toolName": "artifact_history",
-      "description": "Revision history",
+      "description": "List every revision of an artifact, oldest first, with origin, time, rationale and review state. Use it to see how an artifact changed or to find revision ids for artifact_compare. Returns the revisions.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "graph",
+      "summary": "List every revision of an artifact, oldest first.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact to list revisions of."
           }
         },
         "required": [
@@ -1857,26 +2054,38 @@
     {
       "name": "artifact.compare",
       "toolName": "artifact_compare",
-      "description": "Compare two revisions",
+      "description": "Compare two revisions of one artifact. Returns both revisions and the differences in payload fields, attached files and upstream inputs. Use it to explain what a draft changes relative to the approved revision.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "graph",
+      "summary": "Compare two revisions of an artifact field by field.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "fromRevisionId": "00000000-0000-4000-8000-000000000002",
+        "toRevisionId": "00000000-0000-4000-8000-000000000004"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact both revisions belong to."
           },
           "fromRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to compare from (the \"before\")."
           },
           "toRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to compare to (the \"after\")."
           }
         },
         "required": [
@@ -1891,13 +2100,29 @@
     {
       "name": "artifact.create_draft",
       "toolName": "artifact_create_draft",
-      "description": "Create a non-CAD artifact (requirement, assumption, component, note, test…) with its first draft revision. For parts use cad.write_source.",
+      "description": "Create a new artifact of any type except a part (requirement, assumption, note, concept, component, wiring, calculation, test…) with its first draft revision. The payload must use the fields of that type: call tool_describe with artifactType first unless you already know them. Returns the artifact and revision with their ids. A draft is not approved until a human accepts a proposal. For parts use cad_write_source. Example: {\"type\":\"requirement\",\"title\":\"Payload capacity\",\"payload\":{\"statement\":\"Carry a 0.3 kg payload\",\"target\":{\"value\":0.3,\"unit\":\"kg\"},\"acceptanceCriterion\":\"Lifts 0.3 kg for 60 s\",\"priority\":\"must\"}}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
-      "inputSchema": {
+      "tier": "core",
+      "pack": "core",
+      "summary": "Create a non-CAD artifact (requirement, note, component, test…) as a draft.",
+      "example": {
+        "type": "requirement",
+        "title": "Payload capacity",
+        "payload": {
+          "statement": "Carry a 0.3 kg payload",
+          "target": {
+            "value": 0.3,
+            "unit": "kg"
+          },
+          "acceptanceCriterion": "Lifts 0.3 kg for 60 s",
+          "priority": "must"
+        }
+      },
+      "compactSchema": {
         "type": "object",
         "properties": {
           "type": {
@@ -1920,17 +2145,59 @@
             ]
           },
           "title": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Fields of this type; get them from tool_describe with artifactType."
+          },
+          "rationale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "payload"
+        ]
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
             "type": "string",
-            "minLength": 1
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ],
+            "description": "Artifact type. Electrical work is \"wiring\". Parts are made with cad_write_source, not here."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Short name shown in the workspace, e.g. \"Payload capacity\"."
           },
           "subsystem": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Subsystem to group the artifact under. Omit for none."
           },
           "payload": {
-            "description": "Structured fields for this artifact type. Call tool.describe with op=\"artifact.create_draft\" and artifactType to get the exact payload schema before authoring. Populate known fields, quantities with units, source references, and wiring pins/connections; prose in an unrecognized field is not rendered."
+            "description": "Structured fields for this artifact type, as an object. Call tool_describe with artifactType to get the exact payload schema before authoring. Quantities are {value, unit}; an unknown value is {\"unknown\": true, \"reason\": \"…\"}. Prose in an unrecognized field is not rendered."
           },
           "files": {
             "type": "array",
@@ -1952,7 +2219,8 @@
               ],
               "additionalProperties": false
             },
-            "default": []
+            "default": [],
+            "description": "Files to attach, each {path, contentBase64 or sourcePath}: path is project-relative, sourcePath an existing project file to copy."
           },
           "inputs": {
             "type": "array",
@@ -1987,14 +2255,17 @@
               ],
               "additionalProperties": false
             },
-            "default": []
+            "default": [],
+            "description": "Upstream artifacts this one uses, each {artifactId, relationship}: relationship defaults to depends_on, revisionId to the current revision."
           },
           "rationale": {
             "type": "string",
-            "default": ""
+            "default": "",
+            "description": "One line on what this draft is for."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2008,31 +2279,75 @@
     {
       "name": "artifact.update_draft",
       "toolName": "artifact_update_draft",
-      "description": "Create a new draft revision on an existing non-CAD artifact (payload/files/inputs). For parts use cad.write_source.",
+      "description": "Save a new draft revision of an existing non-CAD artifact. Send the complete payload: it replaces the previous one and is not merged. Payload, files or inputs you omit are carried over from the previous revision. Returns the artifact and the new revision. For parts use cad_write_source, cad_set_param or cad_patch_source.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Save a new draft revision of a non-CAD artifact; send the whole payload.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "payload": {
+          "statement": "Carry a 0.5 kg payload",
+          "target": {
+            "value": 0.5,
+            "unit": "kg"
+          },
+          "acceptanceCriterion": "Lifts 0.5 kg for 60 s",
+          "priority": "must"
+        },
+        "rationale": "Payload raised to 0.5 kg"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Complete payload; replaces the previous one."
+          },
+          "title": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "payload"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact to revise."
           },
           "baseRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Approved revision you started from. The call fails if it is no longer current."
           },
           "draftRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Draft to continue from. Defaults to the approved revision, else the newest draft."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "New title. Omit to keep the current one."
           },
-          "payload": {},
+          "payload": {
+            "description": "Complete payload for the artifact type, as an object. It replaces the previous payload. Omit to keep the previous one."
+          },
           "files": {
             "type": "array",
             "items": {
@@ -2052,7 +2367,8 @@
                 "path"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Replaces the attached files, each {path, contentBase64 or sourcePath}: path is project-relative, sourcePath an existing project file to copy. Omit to keep them."
           },
           "inputs": {
             "type": "array",
@@ -2086,13 +2402,16 @@
                 "artifactId"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Replaces the upstream links, each {artifactId, relationship}: relationship defaults to depends_on, revisionId to the current revision. Omit to keep them."
           },
           "rationale": {
-            "type": "string"
+            "type": "string",
+            "description": "One line on what this revision changes and why."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2105,18 +2424,28 @@
     {
       "name": "artifact.import_file",
       "toolName": "artifact_import_file",
-      "description": "Import a project file as a draft artifact revision (non-CAD files). For OpenSCAD parts use cad.write_source.",
+      "description": "Attach a file that already exists in the project folder to an artifact as a new draft revision: give artifactId, or type and title to create one. Returns the artifact and revision. For OpenSCAD parts use cad_write_source.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "files",
+      "summary": "Attach an existing project file to an artifact as a draft.",
+      "example": {
+        "type": "note",
+        "title": "Motor datasheet",
+        "path": "docs/motor-datasheet.pdf"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact to attach the file to. Omit to create a new artifact."
           },
           "type": {
             "type": "string",
@@ -2135,21 +2464,26 @@
               "test",
               "note",
               "subsystem"
-            ]
+            ],
+            "description": "Type of the new artifact; needed with title."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "Title of the new artifact; needed with type."
           },
           "path": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Path of a file inside the project folder."
           },
           "rationale": {
             "type": "string",
-            "default": ""
+            "default": "",
+            "description": "One line on why the file is attached."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2168,6 +2502,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "User direct baseline edit (decision + propagation)",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2211,7 +2550,8 @@
             "default": ""
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2231,6 +2571,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "Accept a draft revision as the baseline",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2251,7 +2596,8 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2271,6 +2617,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "Revert baseline to a historical revision",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2287,7 +2638,8 @@
             "default": ""
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2307,6 +2659,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "Archive/unarchive an artifact",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2318,7 +2675,8 @@
             "type": "boolean"
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2338,6 +2696,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "Reveal artifact files in OS file manager",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2356,26 +2719,37 @@
     {
       "name": "artifact.read_file",
       "toolName": "artifact_read_file",
-      "description": "Read an artifact file (base64) by project-relative path",
+      "description": "Read the bytes of a file attached to an artifact revision, by its project-relative path. Returns contentBase64 and sha256. Use it for small attached files; for a part's source use cad_read_source.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "files",
+      "summary": "Read a file attached to an artifact revision (base64).",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "path": "docs/motor-datasheet.pdf"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact the file is attached to."
           },
           "path": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Project-relative path, as listed in the revision files."
           },
           "revisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to read from. Defaults to the current one."
           }
         },
         "required": [
@@ -2395,6 +2769,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "core",
+      "summary": "Move artifact between subsystems",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2409,7 +2788,8 @@
             ]
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2423,18 +2803,27 @@
     {
       "name": "graph.neighbors",
       "toolName": "graph_neighbors",
-      "description": "Bounded graph neighborhood",
+      "description": "List the artifacts linked to one artifact: upstream (what it depends on), downstream (what depends on it) or both, to a given depth. Returns the artifacts with type, depth and freshness, and the edges between them.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "graph",
+      "summary": "List artifacts linked to one artifact, upstream or downstream.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "direction": "downstream"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact to start from."
           },
           "direction": {
             "type": "string",
@@ -2443,13 +2832,15 @@
               "downstream",
               "both"
             ],
-            "default": "both"
+            "default": "both",
+            "description": "upstream: what it depends on. downstream: what depends on it."
           },
           "depth": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 10,
-            "default": 1
+            "default": 1,
+            "description": "How many links to follow."
           },
           "relationship": {
             "type": "string",
@@ -2460,7 +2851,8 @@
               "connects_to",
               "belongs_to",
               "alternative_to"
-            ]
+            ],
+            "description": "Follow only links of this kind."
           }
         },
         "required": [
@@ -2473,12 +2865,24 @@
     {
       "name": "graph.impact",
       "toolName": "graph_impact",
-      "description": "Impact report for changed revisions",
+      "description": "Report which downstream artifacts are affected when the given revisions change. Use it before proposing a change to see what it would make stale. Returns the affected artifacts with the reason and the dependency path to each.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "graph",
+      "summary": "Show which downstream artifacts a change to given revisions affects.",
+      "example": {
+        "refs": [
+          {
+            "artifactId": "00000000-0000-4000-8000-000000000001",
+            "revisionId": "00000000-0000-4000-8000-000000000002"
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2502,22 +2906,26 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "Changed revisions, each as {artifactId, revisionId}."
           },
           "limit": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 2000,
-            "default": 200
+            "default": 200,
+            "description": "Page size."
           },
           "offset": {
             "type": "integer",
             "minimum": 0,
-            "default": 0
+            "default": 0,
+            "description": "Affected artifacts to skip."
           },
           "includePaths": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Include the dependency path from the change to each affected artifact."
           }
         },
         "required": [
@@ -2530,12 +2938,25 @@
     {
       "name": "graph.propose_edges",
       "toolName": "graph_propose_edges",
-      "description": "Propose/add dependency edges",
+      "description": "Add dependency links between artifacts, for example that a test validates a requirement or a part is derived from a concept. A link that would create a dependency cycle is refused. Returns the added edges.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "graph",
+      "summary": "Add dependency links between artifacts, upstream to downstream.",
+      "example": {
+        "edges": [
+          {
+            "upstreamArtifactId": "00000000-0000-4000-8000-000000000001",
+            "downstreamArtifactId": "00000000-0000-4000-8000-000000000003",
+            "relationship": "validates"
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2575,10 +2996,12 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "Links to add. The downstream artifact depends on the upstream one; relationship reads downstream to upstream, e.g. a test (downstream) validates a requirement (upstream)."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2589,14 +3012,61 @@
       }
     },
     {
+      "name": "graph.remove_edges",
+      "toolName": "graph_remove_edges",
+      "description": "Remove dependency links that were added with graph_propose_edges, for example one added by mistake. You can remove links an agent added; links a person added are theirs to remove. Links that come from an artifact's recorded inputs are not removed here. Returns the removed edges.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "graph",
+      "summary": "Remove dependency links added with graph_propose_edges.",
+      "example": {
+        "edgeIds": [
+          "00000000-0000-4000-8000-000000000001"
+        ]
+      },
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "edgeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1,
+            "description": "Ids of the links to remove, from graph_list or graph_neighbors."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
+          }
+        },
+        "required": [
+          "edgeIds"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "graph.list",
       "toolName": "graph_list",
-      "description": "All edges for graph/list views",
+      "description": "List every dependency edge in the project with its upstream and downstream artifact ids and relationship. Use graph_neighbors instead when you only need the links around one artifact.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "graph",
+      "summary": "List every dependency edge in the project.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -2607,32 +3077,49 @@
     {
       "name": "source.capture",
       "toolName": "source_capture",
-      "description": "Capture a URL/file as a source",
+      "description": "Record where a fact came from: a web page (url) or a project file (filePath), with its title, publisher and a factual excerpt. Give url or filePath. Returns a source artifact whose id you pass as sourceId when recording components and offers.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Record a web page or file as a source that facts can cite.",
+      "example": {
+        "url": "https://example.com/products/mg996r",
+        "title": "MG996R servo product page",
+        "publisher": "Example Robotics",
+        "sourceKind": "supplier",
+        "excerpt": "MG996R metal gear servo, 12.50 USD each, in stock"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "url": {
-            "type": "string"
+            "type": "string",
+            "description": "Address of the page. Give this or filePath."
           },
           "filePath": {
-            "type": "string"
+            "type": "string",
+            "description": "Project-relative path of a file to record as the source. Give this or url."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "Title of the page or document."
           },
           "publisher": {
-            "type": "string"
+            "type": "string",
+            "description": "Who published it, e.g. the manufacturer or shop."
           },
           "locator": {
-            "type": "string"
+            "type": "string",
+            "description": "Where in the source the fact is, e.g. \"page 3\"."
           },
           "excerpt": {
-            "type": "string"
+            "type": "string",
+            "description": "The facts as observed: name, price, pack size, availability."
           },
           "sourceKind": {
             "type": "string",
@@ -2645,10 +3132,12 @@
               "note",
               "other"
             ],
-            "default": "other"
+            "default": "other",
+            "description": "Kind of source. Use supplier for a shop product page."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -2661,18 +3150,26 @@
     {
       "name": "source.read",
       "toolName": "source_read",
-      "description": "Read a source record",
+      "description": "Read a captured source: its address or file hash, title, publisher, excerpt and when it was retrieved. Use it to check what a sourceId refers to. Returns the source artifact and its payload.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Read a captured source record by id.",
+      "example": {
+        "sourceId": "00000000-0000-4000-8000-000000000007"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "sourceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Id of a source artifact."
           }
         },
         "required": [
@@ -2691,6 +3188,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Navigate research browser to a search query",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2712,18 +3214,26 @@
     {
       "name": "research.read_page",
       "toolName": "research_read_page",
-      "description": "Read an exact public product/source URL. Returns page text, links, images and structured product pricing. Inspect identity, price, currency, pack size and availability before recording an offer.",
+      "description": "Open one exact public web page and read it: text, links, images and structured product data such as price and availability. Use it on a seller's product page before recording a component or offer, and check the part, variant, price, pack size and availability. It does not search.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Read one public web page: text, links, images and product pricing.",
+      "example": {
+        "url": "https://example.com/products/mg996r"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "url": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Exact public http(s) address of the page to read."
           }
         },
         "required": [
@@ -2742,6 +3252,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Open URL in the isolated research browser",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2766,6 +3281,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Read current page text",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -2782,6 +3302,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Follow a link on the current page",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2805,6 +3330,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Capture current page as a source",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2828,6 +3358,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Screenshot current page",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -2838,39 +3373,77 @@
     {
       "name": "component.add_candidate",
       "toolName": "component_add_candidate",
-      "description": "Add a sourced component candidate",
+      "description": "Record a purchasable part as a component candidate with its sourced properties and one seller offer. It needs a manufacturer or vendor, and where it came from: source, sourceId or an offer url. Record only what you observed. Returns the artifact, its draft revision and the saved offer.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Record a purchasable part as a component candidate with its source.",
+      "example": {
+        "title": "MG996R servo",
+        "manufacturer": "TowerPro",
+        "partNumber": "MG996R",
+        "source": {
+          "url": "https://example.com/products/mg996r",
+          "title": "MG996R servo product page",
+          "excerpt": "MG996R metal gear servo, 55 g, 12.50 USD each, in stock"
+        },
+        "properties": {
+          "mass": {
+            "quantity": {
+              "value": 55,
+              "unit": "g"
+            }
+          }
+        },
+        "offer": {
+          "seller": "Example Robotics",
+          "url": "https://example.com/products/mg996r",
+          "price": {
+            "amount": "12.50",
+            "currency": "USD"
+          },
+          "quantityBasis": 1
+        }
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Name of the part as it should appear in the parts list."
           },
           "manufacturer": {
-            "type": "string"
+            "type": "string",
+            "description": "Who makes it. Give this or vendor."
           },
           "vendor": {
-            "type": "string"
+            "type": "string",
+            "description": "Brand or vendor. Give this or manufacturer."
           },
           "partNumber": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Manufacturer part number or model."
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "One line on what the part is."
           },
           "imageUrl": {
             "type": "string",
             "format": "uri",
-            "pattern": "^https?:\\/\\/"
+            "pattern": "^https?:\\/\\/",
+            "description": "Address of the actual product photo from the page. Never a generated image."
           },
           "selectionReason": {
-            "type": "string"
+            "type": "string",
+            "description": "Why this part suits this project."
           },
           "properties": {
             "type": "object",
@@ -2937,7 +3510,8 @@
               ],
               "additionalProperties": false
             },
-            "default": {}
+            "default": {},
+            "description": "Engineering values by name, e.g. {\"mass\": {\"quantity\": {\"value\": 55, \"unit\": \"g\"}, \"sourceId\": \"…\"}}. A value that was not found is {\"quantity\": {\"unknown\": true, \"reason\": \"…\"}}."
           },
           "attributes": {
             "type": "object",
@@ -2960,7 +3534,8 @@
               ],
               "additionalProperties": false
             },
-            "default": {}
+            "default": {},
+            "description": "Facts without units by name, e.g. {\"interface\": {\"value\": \"PWM\"}}."
           },
           "offer": {
             "type": "object",
@@ -2971,7 +3546,8 @@
               "url": {
                 "type": "string",
                 "format": "uri",
-                "pattern": "^https?:\\/\\/"
+                "pattern": "^https?:\\/\\/",
+                "description": "Address of the exact product page."
               },
               "price": {
                 "anyOf": [
@@ -2998,15 +3574,18 @@
                     "type": "null"
                   }
                 ],
-                "default": null
+                "default": null,
+                "description": "Observed price, e.g. {\"amount\": \"12.50\", \"currency\": \"USD\"}; amount is a string."
               },
               "quantityBasis": {
                 "type": "number",
                 "exclusiveMinimum": 0,
-                "default": 1
+                "default": 1,
+                "description": "Units the price covers, e.g. 10 for a pack of ten."
               },
               "availabilityText": {
-                "type": "string"
+                "type": "string",
+                "description": "Availability as shown, e.g. \"In stock\"."
               },
               "sourceId": {
                 "type": "string",
@@ -3016,18 +3595,64 @@
             "required": [
               "seller"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "One seller offer you observed. Add more with component_add_offer."
           },
           "sourceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Source from source_capture. Needed unless source or an offer url is given."
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?:\\/\\/"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "publisher": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string"
+              },
+              "locator": {
+                "type": "string"
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "manufacturer",
+                  "supplier",
+                  "datasheet",
+                  "article",
+                  "user_import",
+                  "note",
+                  "other"
+                ],
+                "default": "supplier"
+              }
+            },
+            "required": [
+              "url",
+              "title"
+            ],
+            "additionalProperties": false,
+            "description": "The page the facts came from, as {url, title, excerpt}. It is recorded as a source for you, so source_capture is not needed. Ignored when sourceId is given."
           },
           "alternativeTo": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Component this one is an alternative to."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3041,12 +3666,22 @@
     {
       "name": "component.compare",
       "toolName": "component_compare",
-      "description": "Side-by-side property comparison",
+      "description": "Compare components side by side. Returns each with its payload and saved offers (ids, prices, addresses) and a matrix of their properties. Use it to read back what was saved and to get the offerId for component_propose_selection.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Compare components side by side with their offers and properties.",
+      "example": {
+        "artifactIds": [
+          "00000000-0000-4000-8000-000000000001",
+          "00000000-0000-4000-8000-000000000003"
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3056,7 +3691,8 @@
               "type": "string",
               "format": "uuid"
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "Component artifacts to compare."
           }
         },
         "required": [
@@ -3069,22 +3705,38 @@
     {
       "name": "component.propose_selection",
       "toolName": "component_propose_selection",
-      "description": "Propose selecting a component",
+      "description": "Propose selecting a component for the build, with the BOM lines it adds. It marks the component selected in a new draft and submits a proposal; nothing is selected until the human accepts. A line without offerId uses the only offer of the component. Returns {proposal, notes}.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Propose selecting a component with its BOM lines, for human approval.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "bomLines": [
+          {
+            "quantity": 2,
+            "notes": "One per steering axle"
+          }
+        ],
+        "reason": "Meets the 9 kg·cm torque requirement at the lowest observed price"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Component to select."
           },
           "revisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision of that component to select. Defaults to its newest draft."
           },
           "bomLines": {
             "type": "array",
@@ -3131,22 +3783,25 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "BOM lines to add on approval: quantity needed and optionally offerId, subsystem, location and notes. Without offerId the only offer of the component is used; with several offers, name one."
           },
           "replacesArtifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Component this selection replaces. Its BOM lines are removed on approval."
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "Why this component, in a sentence the reviewer can check."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
           "artifactId",
-          "revisionId",
           "bomLines",
           "reason"
         ],
@@ -3157,26 +3812,44 @@
     {
       "name": "component.add_offer",
       "toolName": "component_add_offer",
-      "description": "Add a seller offer observation",
+      "description": "Add another seller offer (price, pack size, availability, address) to an existing component. Use it for each further seller you actually observed. Offers are separate records and do not create a revision. Returns the saved offer with its id.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Add a seller offer (price, address, availability) to a component.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "seller": "Example Robotics",
+        "url": "https://example.com/products/mg996r",
+        "price": {
+          "amount": "12.50",
+          "currency": "USD"
+        },
+        "quantityBasis": 1,
+        "availabilityText": "In stock"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Component the offer is for."
           },
           "seller": {
-            "type": "string"
+            "type": "string",
+            "description": "Shop or distributor name."
           },
           "url": {
             "type": "string",
             "format": "uri",
-            "pattern": "^https?:\\/\\/"
+            "pattern": "^https?:\\/\\/",
+            "description": "Address of the exact product page."
           },
           "price": {
             "anyOf": [
@@ -3203,22 +3876,27 @@
                 "type": "null"
               }
             ],
-            "default": null
+            "default": null,
+            "description": "Observed price, e.g. {\"amount\": \"12.50\", \"currency\": \"USD\"}; amount is a string."
           },
           "quantityBasis": {
             "type": "number",
             "exclusiveMinimum": 0,
-            "default": 1
+            "default": 1,
+            "description": "Units the price covers, e.g. 10 for a pack of ten."
           },
           "availabilityText": {
-            "type": "string"
+            "type": "string",
+            "description": "Availability as shown, e.g. \"In stock\"."
           },
           "sourceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Source captured from the offer page."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3232,12 +3910,17 @@
     {
       "name": "bom.read",
       "toolName": "bom_read",
-      "description": "Read live BOM with totals",
+      "description": "Read the bill of materials: each line with its component, quantity, chosen offer and line total, plus totals for cost by currency and known mass. Lines are added when the human approves a selection or a BOM proposal.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Read the bill of materials with quantities, offers and totals.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -3248,12 +3931,25 @@
     {
       "name": "bom.propose_edit",
       "toolName": "bom_propose_edit",
-      "description": "Propose BOM line changes",
+      "description": "Propose adding BOM lines for approved components, removing lines by id, or both. It submits a proposal; the BOM does not change until the human accepts. Each new line names the component, a quantity and optionally the offer to buy from. Returns {proposal}.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "parts",
+      "summary": "Propose adding or removing BOM lines, for human approval.",
+      "example": {
+        "lines": [
+          {
+            "componentArtifactId": "00000000-0000-4000-8000-000000000001",
+            "quantity": 4
+          }
+        ],
+        "reason": "Four wheel motors are needed"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3311,17 +4007,28 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "default": [],
+            "description": "BOM lines to add on approval: the component, quantity needed, offerId to buy from (from component_compare), and optionally subsystem, location and notes."
+          },
+          "removeLineIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "default": [],
+            "description": "Ids of BOM lines (from bom_read) to remove on approval."
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "Why the BOM should change."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
-          "lines",
           "reason"
         ],
         "additionalProperties": false,
@@ -3337,6 +4044,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "User inline BOM line edit",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3369,7 +4081,8 @@
             "type": "string"
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3388,6 +4101,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "User remove BOM line",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3396,7 +4114,8 @@
             "format": "uuid"
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3409,12 +4128,17 @@
     {
       "name": "bom.export",
       "toolName": "bom_export",
-      "description": "Export BOM as CSV/Markdown",
+      "description": "Return the bill of materials as CSV or Markdown text. Use it when the person asks for the BOM as text. It returns the content, and also writes it to destPath when you give one.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "parts",
+      "summary": "Return the bill of materials as CSV or Markdown text.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3424,7 +4148,13 @@
               "csv",
               "markdown"
             ],
-            "default": "markdown"
+            "default": "markdown",
+            "description": "Text format to return."
+          },
+          "destPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Also write the text to this file. A path inside the project when you are an agent."
           }
         },
         "additionalProperties": false,
@@ -3440,6 +4170,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "cad",
+      "summary": "Probe CAD tool availability",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -3456,6 +4191,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "cad",
+      "summary": "Validate .scad source parses",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3484,6 +4224,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "cad",
+      "summary": "Render .scad → .stl via real OpenSCAD (background job)",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3541,7 +4286,8 @@
             "default": 120000
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3554,12 +4300,42 @@
     {
       "name": "cad.write_source",
       "toolName": "cad_write_source",
-      "description": "Create or revise a part from OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD, and returns a measured geometry report (envelope, volume, watertightness, mid-plane cross-sections with holes/outlines, detected parameters, render warnings). Use this for every geometry change; then verify with cad.check.",
+      "description": "Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change, compare the report with the request, then verify with cad_check. Example: {\"title\":\"Motor mount plate\",\"source\":\"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}\"}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "cad",
+      "summary": "Create (title) or revise (artifactId) a part from complete OpenSCAD source.",
+      "example": {
+        "title": "Motor mount plate",
+        "source": "$fn = 64;\ndifference() {\n  cube([40, 30, 5]);\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\n}"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Complete OpenSCAD file as plain text. Units mm, +Z up."
+          },
+          "title": {
+            "type": "string",
+            "description": "Name, for a new part."
+          },
+          "artifactId": {
+            "type": "string",
+            "description": "Existing part to revise."
+          },
+          "rationale": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3598,7 +4374,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Subsystem to group a new part under. Omit for none."
           },
           "rationale": {
             "type": "string",
@@ -3612,8 +4389,17 @@
             "default": 90000,
             "description": "Render timeout."
           },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -3626,18 +4412,36 @@
     {
       "name": "cad.read_source",
       "toolName": "cad_read_source",
-      "description": "Read the OpenSCAD source of a part as plain text, with its top-level parameters and revision info. Use before modifying an existing part.",
+      "description": "Read a part's OpenSCAD source as plain text, with its top-level parameters, revision id and whether it has a render. Use it before changing an existing part so your edit starts from the current source.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "cad",
+      "summary": "Read a part's OpenSCAD source and parameters before changing it.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Mechanical part to read."
           },
           "revisionId": {
             "type": "string",
@@ -3655,18 +4459,39 @@
     {
       "name": "cad.inspect",
       "toolName": "cad_inspect",
-      "description": "Diagnostic measurements of a rendered part: envelope, volume, watertightness, body count, cross-sections and probe points. Does not bind request assertions or establish verification. Use cad.check to commit request-bound expectations.",
+      "description": "Measure a rendered part for debugging: envelope, volume, watertightness, body count, cross-sections on the planes you ask for, and whether probe points are solid or empty. Use it to find why a cad_check assertion fails. Diagnostic only: it does not bind request assertions or establish verification.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "cad",
+      "summary": "Measure a part for debugging (sections, probe points); not verification.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "sections": [
+          {
+            "axis": "z",
+            "at": 2.5
+          }
+        ],
+        "probes": [
+          [
+            10,
+            10,
+            2.5
+          ]
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Mechanical part to measure."
           },
           "revisionId": {
             "type": "string",
@@ -3738,6 +4563,20 @@
             },
             "maxItems": 64,
             "description": "Points (x,y,z) in mm to classify as solid or empty."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "description": "Render timeout if the part must be rendered again (default 90000)."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
           }
         },
         "required": [
@@ -3750,18 +4589,176 @@
     {
       "name": "cad.check",
       "toolName": "cad_check",
-      "description": "Verify a part against explicit expectations derived from the request (envelope, volume, solid/empty points, holes and outlines in cross-sections, optional preserve vs the approved baseline or initial draft ancestor). Commits the request-bound assertion spec unless exploratory is true. Only verificationStatus passed establishes matching declared evidence. Scope changes require explicit human review; a raw pass does not establish readiness. Do not claim verified completion when status is scope_changed, partial, failed or unverified.",
+      "description": "Verify a part against expectations taken from the request, never copied from the measured report: overall size, bodies, holes by position and diameter and, for more detail, envelope corners, volume, solid and empty points, cross-section outlines and preservation of unrelated geometry. Call it with autoCommit true: the complete check runs as a trial and is committed as the verification only when everything passes. A failing run binds nothing, so fix the part or the mistaken assertion and call again. Returns each assertion result, ready, verificationStatus, the normalized expectation and the next action. Only ready true is verified; do not claim completion on failed, scope_changed, partial or unverified. Example: {\"artifactId\":\"<part id>\",\"autoCommit\":true,\"expect\":{\"size\":[40,30,5],\"bodies\":1,\"holes\":[{\"at\":[10,10,2.5],\"d\":4}]}}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "cad",
+      "summary": "Verify a part against request dimensions; autoCommit binds only a passing check.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "autoCommit": true,
+        "expect": {
+          "size": [
+            40,
+            30,
+            5
+          ],
+          "bodies": 1,
+          "holes": [
+            {
+              "at": [
+                10,
+                10,
+                2.5
+              ],
+              "d": 4
+            }
+          ]
+        }
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "size": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Overall size [x,y,z], mm."
+              },
+              "bodies": {
+                "type": "integer",
+                "description": "Separate bodies; 1 for one part."
+              },
+              "holes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "description": "Point on the hole axis, inside the material."
+                    },
+                    "d": {
+                      "type": "number",
+                      "description": "Diameter, mm."
+                    },
+                    "axis": {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "y",
+                        "z"
+                      ],
+                      "description": "Hole direction, default z."
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "d"
+                  ]
+                },
+                "description": "Round holes."
+              },
+              "bbox": {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  },
+                  "max": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 3,
+                    "maxItems": 3
+                  }
+                },
+                "required": [
+                  "min",
+                  "max"
+                ],
+                "description": "Envelope corners, when position matters."
+              },
+              "volume": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "value"
+                ],
+                "description": "Solid volume, mm³."
+              },
+              "solid": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "description": "Points [x,y,z] inside material."
+              },
+              "empty": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "description": "Points [x,y,z] in empty space."
+              }
+            },
+            "description": "From the request, never copied from the report."
+          },
+          "autoCommit": {
+            "type": "boolean",
+            "description": "true: commit when everything passes."
+          }
+        },
+        "required": [
+          "artifactId",
+          "expect"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Mechanical part to verify."
           },
           "revisionId": {
             "type": "string",
@@ -3782,6 +4779,62 @@
           "expect": {
             "type": "object",
             "properties": {
+              "size": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3,
+                "description": "Overall size [x, y, z] in mm, wherever the part sits."
+              },
+              "holes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "description": "Point on the hole axis inside the material, e.g. at mid-thickness."
+                    },
+                    "d": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Diameter, mm."
+                    },
+                    "axis": {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "y",
+                        "z"
+                      ],
+                      "description": "Hole direction (default z)."
+                    }
+                  },
+                  "required": [
+                    "at",
+                    "d"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Round holes by a point on the axis and a diameter (short form of sections)."
+              },
+              "bodies": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Separate bodies; same as shells."
+              },
+              "tol": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Linear tolerance in mm where an assertion gives none (default 0.1)."
+              },
               "bbox": {
                 "type": "object",
                 "properties": {
@@ -4113,11 +5166,29 @@
               }
             },
             "additionalProperties": false,
-            "description": "What must be true of the part, taken from the request: envelope, volume, solid/empty points, cross-section holes and outlines."
+            "description": "What must be true of the part, taken from the request: size, bodies and holes, or envelope, volume, points and cross-sections for more detail."
+          },
+          "autoCommit": {
+            "type": "boolean",
+            "description": "true: trial the complete check and commit it in the same call only when everything passes and no committed assertion is dropped or changed. A failing run binds nothing."
           },
           "exploratory": {
             "type": "boolean",
-            "description": "Use true on the first check for a new request to trial the complete request-derived expectations without binding them. Fix source that violates the request; correct mistaken assertions only against the request, never to fit measured output. After the trial passes, repeat the same complete expect with false to commit verification. Existing committed scope remains binding. Default false: request-bound."
+            "description": "true: trial only, never binds. Omitted or false without autoCommit: commit the expectations even if they fail; they then stay binding."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "description": "Render timeout if the part must be rendered again (default 90000)."
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
           }
         },
         "required": [
@@ -4131,12 +5202,22 @@
     {
       "name": "cad.patch_source",
       "toolName": "cad_patch_source",
-      "description": "Replace one unique snippet in an existing part's OpenSCAD source and re-render. Use for a small, local edit instead of rewriting the whole file. The snippet must appear exactly once.",
+      "description": "Replace one snippet in an existing part's OpenSCAD source and re-render. Use it for a small local edit instead of rewriting the file; the snippet must occur exactly once in the current source. Saves a new draft revision and returns the same measured report as cad_write_source.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "cad",
+      "summary": "Replace one unique snippet in a part's source and re-render.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "oldString": "cylinder(d = 4, h = 7)",
+        "newString": "cylinder(d = 5, h = 7)",
+        "rationale": "Clearance hole for M5"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4171,8 +5252,17 @@
             "default": 90000,
             "description": "Render timeout."
           },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -4187,12 +5277,21 @@
     {
       "name": "cad.set_param",
       "toolName": "cad_set_param",
-      "description": "Change one file-scope OpenSCAD assignment (name = value;) and re-render. Prefer this over rewriting the whole file when only a dimension changes.",
+      "description": "Change one top-level OpenSCAD assignment (name = value;) of an existing part and re-render. Prefer it over rewriting the file when only a dimension changes. Saves a new draft revision and returns the same measured report as cad_write_source.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "cad",
+      "summary": "Change one top-level OpenSCAD parameter of a part and re-render.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "name": "hole_d",
+        "value": 5
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4209,7 +5308,7 @@
           "name": {
             "type": "string",
             "minLength": 1,
-            "description": "File-scope parameter name from cad.read_source (e.g. hole_d)."
+            "description": "File-scope parameter name from cad_read_source (e.g. hole_d)."
           },
           "value": {
             "type": [
@@ -4231,8 +5330,17 @@
             "default": 90000,
             "description": "Render timeout."
           },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -4247,12 +5355,32 @@
     {
       "name": "cad.compose",
       "toolName": "cad_compose",
-      "description": "Place existing parts together with translate/rotate (no mates, no STEP). Each part's source is wrapped in a module so its variables stay isolated. Returns a new mechanical artifact with the combined mesh.",
+      "description": "Place existing parts together with translate and rotate to make one combined part (no mates, no STEP). Each part's source is wrapped in its own module so variable names do not collide. Returns a new mechanical artifact with the combined mesh and its measured report.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "cad",
+      "summary": "Place existing parts together by translate and rotate as one new part.",
+      "example": {
+        "title": "Mount with bracket",
+        "instances": [
+          {
+            "artifactId": "00000000-0000-4000-8000-000000000001"
+          },
+          {
+            "artifactId": "00000000-0000-4000-8000-000000000003",
+            "translate": [
+              0,
+              0,
+              5
+            ]
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4316,8 +5444,17 @@
             "default": 90000,
             "description": "Render timeout."
           },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "full"
+            ],
+            "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -4337,6 +5474,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "cad",
+      "summary": "Export STL/SCAD file to a chosen path",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4368,24 +5510,54 @@
     {
       "name": "calculation.run",
       "toolName": "calculation_run",
-      "description": "Experimental unit-aware calculation. Source references are labels, not resolved field values; derived-unit inference is incomplete. Results are not verified engineering evidence.",
+      "description": "Run a unit-aware calculation and save it as a calculation artifact. Give templateId or expression, and named inputs with units. Returns the result with its unit, the revision and its limitations; unchanged is true when a re-run reproduced the recorded result. By default it is submitted for review.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "Run a unit-aware calculation from a template or expression and save it.",
+      "example": {
+        "title": "Rover mass budget",
+        "expression": "chassis + battery",
+        "inputs": [
+          {
+            "name": "chassis",
+            "quantity": {
+              "value": 1.2,
+              "unit": "kg"
+            },
+            "literal": true
+          },
+          {
+            "name": "battery",
+            "quantity": {
+              "value": 0.4,
+              "unit": "kg"
+            },
+            "literal": true
+          }
+        ],
+        "submitForReview": false
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Existing calculation to re-run as a new revision. Omit to create one."
           },
           "templateId": {
-            "type": "string"
+            "type": "string",
+            "description": "Template id from calculation_templates. Give this or expression."
           },
           "expression": {
-            "type": "string"
+            "type": "string",
+            "description": "Formula over the input names, e.g. \"mass * g\". Give this or templateId."
           },
           "inputs": {
             "type": "array",
@@ -4468,24 +5640,34 @@
               ],
               "additionalProperties": false
             },
-            "default": []
+            "default": [],
+            "description": "Input values, each {name, quantity: {value, unit}}: name is the variable used in the expression. Add sourceRef {artifactId, revisionId} when the value came from an artifact."
+          },
+          "outputUnit": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unit to report the result in, e.g. \"Wh\". Omit it and the unit follows from the expression; a result that could be energy or torque needs it."
           },
           "assumptions": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "default": []
+            "default": [],
+            "description": "Assumptions the result depends on."
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "Title for a new calculation artifact."
           },
           "submitForReview": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Also submit the result as a proposal. Pass false to keep it a draft."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "additionalProperties": false,
@@ -4495,18 +5677,26 @@
     {
       "name": "calculation.explain_inputs",
       "toolName": "calculation_explain_inputs",
-      "description": "Explain calculation inputs and their recorded provenance (experimental)",
+      "description": "List the inputs of a saved calculation with where each value came from and whether its source has moved on since. Use it to see why a calculation is stale or to audit its inputs. Returns the inputs, expression and freshness. Experimental.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "Explain a calculation's inputs and where each value came from.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Calculation artifact to explain."
           }
         },
         "required": [
@@ -4519,12 +5709,17 @@
     {
       "name": "calculation.templates",
       "toolName": "calculation_templates",
-      "description": "List experimental calculation templates. Derived units and source-field binding are unfinished.",
+      "description": "List the calculation templates: id, title, expression, the inputs each needs with units, output unit, assumptions and limitations. Call it before calculation_run to pick a templateId and its input names. Experimental: a result is not verified evidence.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "List calculation templates with their inputs and units.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -4535,22 +5730,31 @@
     {
       "name": "wiring.validate",
       "toolName": "wiring_validate",
-      "description": "Run wiring checks",
+      "description": "Run the wiring checks on a wiring artifact: voltage ranges, ground return, shared signal pins, changed components and pins it knows nothing about. Returns the revision checked, findings with severity and what the checks cover. It is not a full electrical rule check and does not prove safety.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "wiring",
+      "summary": "Run wiring checks (voltage, ground, pin conflicts) and list findings.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Wiring artifact."
           },
           "revisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to use. Defaults to the newest draft, else the approved one."
           }
         },
         "required": [
@@ -4563,22 +5767,31 @@
     {
       "name": "wiring.render",
       "toolName": "wiring_render",
-      "description": "Derived wiring table + diagram",
+      "description": "Build the connection table and an SVG diagram for a wiring artifact. Use it to review what was recorded. A diagram is not validation: call wiring_validate for the checks. Returns the table and the diagram.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "wiring",
+      "summary": "Render a wiring artifact as a connection table and SVG diagram.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Wiring artifact."
           },
           "revisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to use. Defaults to the newest draft, else the approved one."
           }
         },
         "required": [
@@ -4591,18 +5804,48 @@
     {
       "name": "wiring.set_pins",
       "toolName": "wiring_set_pins",
-      "description": "Set component pins on a wiring draft",
+      "description": "Set the pin list of a wiring artifact. The list you send replaces every existing pin, so include them all. Create the wiring artifact first with artifact_create_draft (type \"wiring\") and the components before that. Saves a new draft revision and returns it.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "wiring",
+      "summary": "Replace the pin list of a wiring artifact (send every pin).",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "pins": [
+          {
+            "componentArtifactId": "00000000-0000-4000-8000-000000000003",
+            "pin": "VCC",
+            "type": "power",
+            "voltageRange": {
+              "min": {
+                "value": 4.8,
+                "unit": "V"
+              },
+              "max": {
+                "value": 7.2,
+                "unit": "V"
+              }
+            }
+          },
+          {
+            "componentArtifactId": "00000000-0000-4000-8000-000000000003",
+            "pin": "GND",
+            "type": "ground"
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Wiring artifact."
           },
           "pins": {
             "type": "array",
@@ -4618,7 +5861,8 @@
                   "format": "uuid"
                 },
                 "pin": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Pin label as printed on the part or its datasheet, e.g. \"GND\"."
                 },
                 "name": {
                   "type": "string"
@@ -4633,7 +5877,8 @@
                     "mechanical",
                     "unknown"
                   ],
-                  "default": "unknown"
+                  "default": "unknown",
+                  "description": "Electrical role. The ground-return check needs power and ground pins typed."
                 },
                 "voltageRange": {
                   "type": "object",
@@ -4689,7 +5934,8 @@
                     "min",
                     "max"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Allowed voltage as two quantities, e.g. min {\"value\": 4.5, \"unit\": \"V\"}."
                 }
               },
               "required": [
@@ -4697,14 +5943,17 @@
                 "pin"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Every pin of the wiring; replaces the previous list."
           },
           "baseRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to build on. Defaults to the newest draft, else the approved one."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -4718,18 +5967,43 @@
     {
       "name": "wiring.set_connections",
       "toolName": "wiring_set_connections",
-      "description": "Set connections on a wiring draft",
+      "description": "Set the connections of a wiring artifact. The list you send replaces every existing connection, so include them all. Each has a from and to end (component and pin) and a signal role; ids are assigned for you. Saves a new draft revision and returns it; then call wiring_validate.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "wiring",
+      "summary": "Replace the connections of a wiring artifact (send every connection).",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "connections": [
+          {
+            "from": {
+              "componentArtifactId": "00000000-0000-4000-8000-000000000003",
+              "pin": "5V"
+            },
+            "to": {
+              "componentArtifactId": "00000000-0000-4000-8000-000000000005",
+              "pin": "VCC"
+            },
+            "voltage": {
+              "value": 5,
+              "unit": "V"
+            },
+            "signalRole": "power"
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Wiring artifact."
           },
           "connections": {
             "type": "array",
@@ -4738,7 +6012,8 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "format": "uuid"
+                  "format": "uuid",
+                  "description": "Leave it out: one is assigned. Send an id only to keep an existing connection."
                 },
                 "from": {
                   "type": "object",
@@ -4757,10 +6032,10 @@
                   },
                   "required": [
                     "componentArtifactId",
-                    "componentRevisionId",
                     "pin"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "End it starts at: componentArtifactId and the pin label. componentRevisionId is optional and defaults to the approved revision of the component, else its newest."
                 },
                 "to": {
                   "type": "object",
@@ -4779,10 +6054,10 @@
                   },
                   "required": [
                     "componentArtifactId",
-                    "componentRevisionId",
                     "pin"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "End it goes to, same shape as from."
                 },
                 "voltage": {
                   "type": "object",
@@ -4805,10 +6080,12 @@
                     "value",
                     "unit"
                   ],
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Nominal voltage, e.g. {\"value\": 5, \"unit\": \"V\"}."
                 },
                 "signalRole": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "What it carries, e.g. \"power\", \"ground\", \"PWM\", \"UART TX\"."
                 },
                 "polarity": {
                   "type": "string",
@@ -4849,27 +6126,30 @@
                       "additionalProperties": false
                     }
                   },
-                  "additionalProperties": false
+                  "additionalProperties": false,
+                  "description": "Wire gauge, e.g. \"22 AWG\", and its current rating as a quantity."
                 },
                 "notes": {
                   "type": "string"
                 }
               },
               "required": [
-                "id",
                 "from",
                 "to",
                 "signalRole"
               ],
               "additionalProperties": false
-            }
+            },
+            "description": "Every connection of the wiring; replaces the previous list."
           },
           "baseRevisionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Revision to build on. Defaults to the newest draft, else the approved one."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -4883,12 +6163,70 @@
     {
       "name": "proposal.submit",
       "toolName": "proposal_submit",
-      "description": "Submit an immutable proposal",
+      "description": "Ask the human to review draft revisions. Use it only when the person asked for review or approval; a proposal cannot be changed once submitted and you can never approve it yourself. Each change names an artifact and the draft revision to approve: kind is \"new_artifact\" when the artifact has no approved revision yet, otherwise \"baseline_update\" with baseRevisionId set to the currently approved revision. Returns the pending proposal with its downstream impact. Example: {\"changes\":[{\"artifactId\":\"<artifact id>\",\"newRevisionId\":\"<draft revision id>\",\"kind\":\"new_artifact\"}],\"reason\":\"First draft of the payload requirement\"}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "review",
+      "summary": "Ask the human to review draft revisions; only when review was requested.",
+      "example": {
+        "changes": [
+          {
+            "artifactId": "00000000-0000-4000-8000-000000000001",
+            "newRevisionId": "00000000-0000-4000-8000-000000000002",
+            "kind": "new_artifact"
+          }
+        ],
+        "reason": "First draft of the payload requirement"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string"
+                },
+                "newRevisionId": {
+                  "type": "string",
+                  "description": "Draft revision to approve."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "new_artifact",
+                    "baseline_update"
+                  ],
+                  "description": "new_artifact when nothing is approved yet."
+                },
+                "baseRevisionId": {
+                  "type": "string",
+                  "description": "Approved revision, for baseline_update."
+                }
+              },
+              "required": [
+                "artifactId",
+                "newRevisionId",
+                "kind"
+              ]
+            },
+            "minItems": 1
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "reason"
+        ]
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4910,11 +6248,13 @@
                     {
                       "type": "null"
                     }
-                  ]
+                  ],
+                  "description": "Currently approved revision of the artifact. Omit or null when it has none."
                 },
                 "newRevisionId": {
                   "type": "string",
-                  "format": "uuid"
+                  "format": "uuid",
+                  "description": "Draft revision the human is asked to approve."
                 },
                 "kind": {
                   "type": "string",
@@ -4924,7 +6264,8 @@
                     "component_selection",
                     "bom_edit",
                     "archive"
-                  ]
+                  ],
+                  "description": "new_artifact when the artifact has no approved revision yet, baseline_update when it has. The other kinds are made by component_propose_selection and bom_propose_edit."
                 },
                 "replacesArtifactId": {
                   "type": "string",
@@ -5001,13 +6342,16 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "Draft revisions to review, one entry per artifact."
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "What is proposed and why, in a sentence the reviewer can check."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5021,18 +6365,26 @@
     {
       "name": "proposal.read",
       "toolName": "proposal_read",
-      "description": "Read a proposal",
+      "description": "Read one proposal: its state, reason, impact and, for each change, the artifact with its approved revision and the proposed one. Use it to see what the reviewer was asked or what they answered. Returns the proposal and its changes.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "review",
+      "summary": "Read a proposal: state, changes, impact and the reviewer's answer.",
+      "example": {
+        "proposalId": "00000000-0000-4000-8000-000000000008"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "proposalId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Proposal to read."
           }
         },
         "required": [
@@ -5045,28 +6397,38 @@
     {
       "name": "proposal.wait",
       "toolName": "proposal_wait",
-      "description": "Bounded wait for proposal resolution",
+      "description": "Wait until the human resolves a proposal or the timeout passes, whichever comes first. Returns the proposal state; \"pending\" means the wait timed out and nothing was decided. Use it only after proposal_submit, when you were asked to continue after review.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "review",
+      "summary": "Wait for the human to resolve a proposal, up to a timeout.",
+      "example": {
+        "proposalId": "00000000-0000-4000-8000-000000000008"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "proposalId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Proposal to wait for."
           },
           "timeoutMs": {
             "type": "integer",
             "exclusiveMinimum": 0,
             "maximum": 600000,
-            "default": 60000
+            "default": 60000,
+            "description": "Longest time to wait, in milliseconds."
           },
           "cursor": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Cursor from a previous proposal_wait result."
           }
         },
         "required": [
@@ -5079,12 +6441,19 @@
     {
       "name": "proposal.list",
       "toolName": "proposal_list",
-      "description": "List proposals",
+      "description": "List proposals, newest first, optionally only those in one state. Use it to find pending reviews or the ones the reviewer sent back with changes requested. Returns each proposal with its changes, reason and state.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "review",
+      "summary": "List proposals, optionally filtered by state.",
+      "example": {
+        "state": "pending"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5098,7 +6467,8 @@
               "conflicted",
               "cancelled",
               "superseded"
-            ]
+            ],
+            "description": "Only proposals in this state."
           }
         },
         "additionalProperties": false,
@@ -5114,6 +6484,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "review",
+      "summary": "Approve a proposal (human only)",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5133,7 +6508,8 @@
             }
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5152,6 +6528,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "review",
+      "summary": "Reject a proposal (human only)",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5164,7 +6545,8 @@
             "default": ""
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5183,6 +6565,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "review",
+      "summary": "Request changes on a proposal",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5195,12 +6582,102 @@
             "default": ""
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
           "proposalId"
         ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "work.status",
+      "toolName": "work_status",
+      "description": "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Call before your final answer: lists unfinished work and the next call for each.",
+      "example": {},
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "session",
+              "project"
+            ],
+            "description": "session (default): your work. project: everything unfinished."
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "session",
+              "project"
+            ],
+            "description": "session: work from this agent session (the default for agents). project: everything unfinished in the project."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "guide.read",
+      "toolName": "guide_read",
+      "description": "Read a short numbered playbook for one kind of work. Topics: start, requirements, parts, cad, cad-verify, wiring, calculation, tests, review, finish. Read a topic once before your first task of that kind; with no topic it returns the start guide. Returns the text and the list of all topics with when to use each.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Read a short step-by-step playbook for one kind of work.",
+      "example": {
+        "topic": "cad"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "enum": [
+              "start",
+              "requirements",
+              "parts",
+              "cad",
+              "cad-verify",
+              "wiring",
+              "calculation",
+              "tests",
+              "review",
+              "finish"
+            ]
+          }
+        }
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string",
+            "description": "One of: start, requirements, parts, cad, cad-verify, wiring, calculation, tests, review, finish. Omit for start."
+          }
+        },
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
@@ -5214,6 +6691,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Read job status/log",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5238,6 +6720,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Cancel an owned job",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5262,6 +6749,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "List jobs",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5288,6 +6780,11 @@
       "agentVisible": false,
       "agentAllowed": true,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "List agent/tool availability",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5298,17 +6795,23 @@
     {
       "name": "tool.doctor",
       "toolName": "tool_doctor",
-      "description": "Run diagnostics for tools",
+      "description": "Check that the engineering tools are installed and working (currently OpenSCAD): path, version and any error. Use it when a CAD call fails because a tool is missing. Returns one result per tool.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Check that OpenSCAD is installed and working.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "toolId": {
-            "type": "string"
+            "type": "string",
+            "description": "Tool to check, e.g. \"openscad\". Omit for all."
           }
         },
         "additionalProperties": false,
@@ -5318,15 +6821,61 @@
     {
       "name": "tool.describe",
       "toolName": "tool_describe",
-      "description": "Describe an operation: purpose and JSON schema of its input. Use when unsure how to call a tool.",
+      "description": "Look up tools. With no arguments it returns the catalogue: every tool with its pack and a one-line summary. With tool it returns the full input schema of that tool and an example call. Add artifactType to also get the payload fields of that artifact type, which you need before artifact_create_draft or artifact_update_draft. Example: {\"tool\":\"artifact_create_draft\",\"artifactType\":\"requirement\"}",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "List every tool, or with tool get its schema, an example and payload fields.",
+      "example": {
+        "tool": "artifact_create_draft",
+        "artifactType": "requirement"
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Omit to list every tool."
+          },
+          "artifactType": {
+            "type": "string",
+            "enum": [
+              "requirement",
+              "assumption",
+              "architecture",
+              "concept",
+              "component",
+              "source",
+              "mechanical",
+              "wiring",
+              "calculation",
+              "software",
+              "assembly",
+              "test",
+              "note",
+              "subsystem"
+            ],
+            "description": "Also return its payload fields."
+          }
+        }
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
+          "tool": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Tool name, e.g. \"cad_check\". Omit to list every tool."
+          },
+          "op": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Same as tool. Give one of the two, not both."
+          },
           "artifactType": {
             "type": "string",
             "enum": [
@@ -5346,15 +6895,62 @@
               "subsystem"
             ],
             "description": "Include the payload schema for this artifact type when authoring or updating artifacts."
-          },
-          "op": {
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "tool.call",
+      "toolName": "tool_call",
+      "description": "Call any Omen Flow tool by name, including the ones not listed for this session. Take the name from the tool_describe catalogue and its arguments from tool_describe with that tool, then pass them as input. Returns exactly what the named tool returns, including its errors. Tools reserved for the human, such as approving a proposal, are refused. Example: {\"tool\":\"wiring_validate\",\"input\":{\"artifactId\":\"<wiring artifact id>\"}}",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "core",
+      "pack": "core",
+      "summary": "Call any tool by name with its arguments, including tools not listed here.",
+      "example": {
+        "tool": "wiring_validate",
+        "input": {
+          "artifactId": "00000000-0000-4000-8000-000000000001"
+        }
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "tool": {
             "type": "string",
-            "minLength": 1,
-            "description": "Operation name, e.g. \"cad.check\" (tool names use `_` for `.`)."
+            "description": "Tool name from the tool_describe catalogue."
+          },
+          "input": {
+            "type": "object",
+            "description": "That tool's arguments."
           }
         },
         "required": [
-          "op"
+          "tool"
+        ]
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Name of the tool to call, e.g. \"wiring_validate\"."
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "That tool's arguments, as an object. Omit when it takes none."
+          }
+        },
+        "required": [
+          "tool"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -5363,18 +6959,38 @@
     {
       "name": "test.create_draft",
       "toolName": "test_create_draft",
-      "description": "Create a test procedure draft",
+      "description": "Create a test artifact: a numbered procedure with expected outcomes and conditions, linked to the requirements it validates. It records the plan only. Returns the test artifact and its draft revision; record observations later with test_record_result.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "Create a test procedure draft linked to the requirements it validates.",
+      "example": {
+        "title": "Payload lift test",
+        "procedure": [
+          {
+            "step": 1,
+            "instruction": "Load 0.3 kg on the tray and drive 5 m",
+            "expected": "Completes the run without tipping"
+          }
+        ],
+        "requirementRefs": [
+          {
+            "artifactId": "00000000-0000-4000-8000-000000000001"
+          }
+        ]
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Name of the test, e.g. \"Payload lift test\"."
           },
           "procedure": {
             "type": "array",
@@ -5397,7 +7013,8 @@
               ],
               "additionalProperties": false
             },
-            "minItems": 1
+            "minItems": 1,
+            "description": "Ordered steps, each {step, instruction, expected}; step numbers start at 1."
           },
           "requirementRefs": {
             "type": "array",
@@ -5414,18 +7031,20 @@
                 }
               },
               "required": [
-                "artifactId",
-                "revisionId"
+                "artifactId"
               ],
               "additionalProperties": false
             },
-            "default": []
+            "default": [],
+            "description": "Requirements this test validates, each as {artifactId}. revisionId is optional and defaults to the approved revision of the requirement, else its newest."
           },
           "conditions": {
-            "type": "string"
+            "type": "string",
+            "description": "Setup and conditions the test is run under."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5439,18 +7058,29 @@
     {
       "name": "test.record_result",
       "toolName": "test_record_result",
-      "description": "Record a test result/observation",
+      "description": "Record one observation on a test artifact: what was observed, the outcome and the kind of evidence. Record only what was actually observed or measured, and never invent a run. Your result is saved as a draft revision for the human to review; earlier results are kept.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "standard",
+      "pack": "analysis",
+      "summary": "Record an actual observation and outcome on a test artifact.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "evidenceKind": "measured",
+        "observation": "Carried 0.3 kg for 5 m in 12 s without tipping",
+        "result": "passed"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Test artifact the result belongs to."
           },
           "requirementRef": {
             "type": "object",
@@ -5465,10 +7095,10 @@
               }
             },
             "required": [
-              "artifactId",
-              "revisionId"
+              "artifactId"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Requirement the result speaks to, as {artifactId}. It must be one the test validates; revisionId defaults to the revision the test was written for."
           },
           "evidenceKind": {
             "type": "string",
@@ -5478,10 +7108,12 @@
               "calculated",
               "simulated",
               "measured"
-            ]
+            ],
+            "description": "How the result was obtained. measured only for a real physical measurement."
           },
           "observation": {
-            "type": "string"
+            "type": "string",
+            "description": "What was actually observed, with values and units."
           },
           "result": {
             "type": "string",
@@ -5491,10 +7123,12 @@
               "passed",
               "failed",
               "inconclusive"
-            ]
+            ],
+            "description": "Outcome. Use not_run or planned when nothing was observed."
           },
           "conditions": {
-            "type": "string"
+            "type": "string",
+            "description": "Conditions during the run."
           },
           "attachments": {
             "type": "array",
@@ -5516,13 +7150,16 @@
               ],
               "additionalProperties": false
             },
-            "default": []
+            "default": [],
+            "description": "Evidence files such as logs or photos, each {path, contentBase64 or sourcePath}: path is project-relative, sourcePath an existing project file to copy."
           },
           "measurementOrigin": {
-            "type": "string"
+            "type": "string",
+            "description": "File, instrument or person the measurement came from."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5538,12 +7175,17 @@
     {
       "name": "build.preview",
       "toolName": "build_preview",
-      "description": "Preview build package contents/status",
+      "description": "Preview the build package: every artifact with the revision that would be exported and the issues that hold it back (no approved revision, stale inputs, unverified CAD, unresolved assumption, pending proposal). Read-only. Returns the items and counts.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "files",
+      "summary": "Preview the build package and the issues that hold it back.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5554,28 +7196,39 @@
     {
       "name": "build.export",
       "toolName": "build_export",
-      "description": "Export a build package ZIP",
+      "description": "Export the build package as a ZIP file. Use it only when the person asked for an export. It fails while issues remain unless includeDrafts is true, and the package is then labelled DRAFT. Returns the path, file count and status.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "files",
+      "summary": "Export the build package as a ZIP; only when asked.",
+      "example": {
+        "destPath": "exports/rover-build.zip"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "destPath": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "Path of the ZIP file to write."
           },
           "includeDrafts": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Export although issues remain; the package is then labelled DRAFT."
           },
           "label": {
-            "type": "string"
+            "type": "string",
+            "description": "Label recorded in the package manifest."
           },
           "idempotencyKey": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -5588,18 +7241,26 @@
     {
       "name": "ui.open_artifact",
       "toolName": "ui_open_artifact",
-      "description": "Open an artifact in the workspace",
+      "description": "Open an artifact in the person's workspace so they can see it. Use it sparingly, when the person asked to be shown something. Returns ok.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "ui",
+      "summary": "Open an artifact in the person's workspace.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Artifact to show."
           }
         },
         "required": [
@@ -5612,18 +7273,26 @@
     {
       "name": "ui.request_review",
       "toolName": "ui_request_review",
-      "description": "Surface a proposal for user review",
+      "description": "Bring a pending proposal to the person's attention in the workspace. Use it after proposal_submit when review was requested. It does not approve anything. Returns ok.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "ui",
+      "summary": "Bring a pending proposal to the person's attention.",
+      "example": {
+        "proposalId": "00000000-0000-4000-8000-000000000008"
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "proposalId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Pending proposal to bring to the person."
           }
         },
         "required": [
@@ -5636,20 +7305,30 @@
     {
       "name": "ui.suggest_action",
       "toolName": "ui_suggest_action",
-      "description": "Add a suggested next action",
+      "description": "Show the person a short suggested next step in the workspace, with an optional line of detail. Use it for a decision or action only the person can take. Returns ok.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "ui",
+      "summary": "Show the person a suggested next step in the workspace.",
+      "example": {
+        "title": "Weigh the assembled chassis",
+        "detail": "The mass budget uses an estimate."
+      },
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "The suggested step, as a short imperative line."
           },
           "detail": {
-            "type": "string"
+            "type": "string",
+            "description": "One more line of context."
           }
         },
         "required": [
@@ -5662,12 +7341,17 @@
     {
       "name": "ui.focus_terminal",
       "toolName": "ui_focus_terminal",
-      "description": "Focus the agent terminal",
+      "description": "Bring the agent terminal to the front of the workspace. Use it when you need the person to read or answer something there. Returns ok.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
       "agentAllowed": true,
       "agentTool": true,
+      "tier": "full",
+      "pack": "ui",
+      "summary": "Bring the agent terminal to the front.",
+      "example": {},
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5684,6 +7368,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Start an agent session in the PTY",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5698,6 +7387,26 @@
             "items": {
               "type": "string"
             }
+          },
+          "cols": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "compact",
+              "standard",
+              "full"
+            ]
           }
         },
         "required": [
@@ -5716,6 +7425,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Write input bytes to the PTY",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5739,6 +7453,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Resize the PTY",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5768,6 +7487,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Send interrupt to the session",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5784,6 +7508,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Stop the owned session tree",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5800,6 +7529,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Restart the agent session",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5816,6 +7550,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Read terminal/session state",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5832,6 +7571,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "List adapter/tool connection status",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {},
@@ -5848,6 +7592,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Run a live bridge connection test",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5865,12 +7614,17 @@
     {
       "name": "connection.configure",
       "toolName": "connection_configure",
-      "description": "Configure adapter executable/args/env",
+      "description": "Configure adapter executable, args, env, model and capability profile",
       "capability": "user",
       "mutating": true,
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Configure adapter executable, args, env, model and capability profile",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5891,11 +7645,62 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "compact",
+              "standard",
+              "full"
+            ]
           }
         },
         "required": [
           "adapterId"
         ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "agent.activity",
+      "toolName": "agent_activity",
+      "description": "Read the recorded agent calls and per-session summaries",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Read the recorded agent calls and per-session summaries",
+      "example": null,
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 500,
+            "default": 100
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "beforeSeq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
@@ -5909,6 +7714,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Read application settings",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5929,6 +7739,11 @@
       "agentVisible": true,
       "agentAllowed": false,
       "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Write an application setting",
+      "example": null,
+      "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {

@@ -4,7 +4,7 @@
  * propulsion/endurance example: raising the payload requirement must mark
  * the hover-throttle and endurance calculations stale without erasing them.
  */
-import type { CoreApp } from '@omenflow/core';
+import type { FixtureCore } from '../core';
 import type { Origin } from '@omenflow/contracts';
 
 const USER: Origin = { kind: 'user' };
@@ -19,7 +19,7 @@ export interface DroneRefs {
   batteryArtifactId: string;
 }
 
-export async function buildDroneProject(app: CoreApp, dir: string): Promise<DroneRefs> {
+export async function buildDroneProject(app: FixtureCore, dir: string): Promise<DroneRefs> {
   const created = (await app.dispatch(
     'project.create',
     {
@@ -98,13 +98,13 @@ export async function buildDroneProject(app: CoreApp, dir: string): Promise<Dron
     rationale: 'accept estimate',
   });
 
-  // Endurance = usable energy / cruise power (h). Depends on the battery
-  // revision and on the propulsion estimate revision.
+  // Endurance = usable energy / cruise power, reported in hours. Depends on
+  // the battery revision and on the propulsion estimate revision.
   const endurance = await call('calculation.run', {
     expression: 'pack_energy / cruise_power',
     title: 'Endurance estimate',
+    outputUnit: 'h',
     inputs: [
-      { name: 'one_hour', quantity: q(1, 'h'), literal: true },
       {
         name: 'pack_energy',
         quantity: q(19.5, 'Wh'),

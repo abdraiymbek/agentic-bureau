@@ -263,11 +263,22 @@ function approveProposalImpl(
   const changedArtifactIds: string[] = [];
   const newBaseline: RevisionRef[] = [];
   const priorBaseline: RevisionRef[] = [];
+  // The bill of materials changed only if a component, a BOM line or a
+  // replaced part did.
+  let bomChanged = false;
 
   ctx.repo.tx(() => {
     for (const c of p.changes) {
       const artifact = ctx.requireArtifact(c.artifactId);
       const rev = ctx.requireRevision(c.newRevisionId);
+      if (
+        artifact.type === 'component' ||
+        c.bomLines?.length ||
+        c.removeBomLineIds?.length ||
+        c.replacesArtifactId
+      ) {
+        bomChanged = true;
+      }
       if (artifact.selectedRevisionId) {
         priorBaseline.push({ artifactId: artifact.id, revisionId: artifact.selectedRevisionId });
       }
@@ -323,7 +334,7 @@ function approveProposalImpl(
     if (changedArtifactIds.length) {
       const affected = propagateFrom(ctx, changedArtifactIds, seq);
       ctx.emit('impact.propagated', 'user', { changed: newBaseline, affected });
-      ctx.emit('bom.changed', 'system', {});
+      if (bomChanged) ctx.emit('bom.changed', 'system', {});
     }
   });
   return ctx.repo.getProposal(proposalId);

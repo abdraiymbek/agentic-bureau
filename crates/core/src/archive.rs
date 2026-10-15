@@ -9,6 +9,9 @@ const MAX_ZIP: u64 = 128 * 1024 * 1024;
 const MAX_TOTAL: u64 = 512 * 1024 * 1024;
 const MAX_ENTRY: u64 = 128 * 1024 * 1024;
 const MAX_ENTRIES: usize = 10_000;
+/// Prefix of the temporary file an atomic working-file write leaves behind
+/// when it is interrupted.
+const WRITE_LEFTOVER: &str = ".omenflow-write-";
 
 fn bad(message: impl Into<String>) -> ContractError {
     ContractError::new("ARCHIVE_INVALID", message.into())
@@ -27,6 +30,10 @@ fn walk(root: &Path, relative: &str, files: &mut BTreeMap<String, Vec<u8>>) -> C
         if kind.is_symlink() {
             return Err(bad(format!("Cannot archive symbolic link: {path}")));
         }
+        if name.starts_with(WRITE_LEFTOVER) {
+            // An interrupted file write; the file it was replacing is intact.
+            continue;
+        }
         if kind.is_dir() {
             walk(root, &path, files)?;
         } else if kind.is_file() {
@@ -39,11 +46,11 @@ fn walk(root: &Path, relative: &str, files: &mut BTreeMap<String, Vec<u8>>) -> C
 }
 
 fn table_rows(
-    handle: &ProjectHandle,
+    db: &rusqlite::Connection,
     sql: &str,
     mapper: fn(&rusqlite::Row<'_>) -> rusqlite::Result<Value>,
 ) -> CoreResult<Vec<Value>> {
-    let mut stmt = handle.db.prepare(sql).map_err(internal)?;
+    let mut stmt = db.prepare(sql).map_err(internal)?;
     let result = stmt
         .query_map([], mapper)
         .map_err(internal)?
@@ -79,13 +86,16 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
     if include_terminal {
         if input["grantTerminalExportConsent"] == true {
             handle.assert_writable().map_err(storage_error)?;
-            handle.db.execute("INSERT INTO meta(key,value) VALUES('terminal.exportConsent','true') ON CONFLICT(key) DO UPDATE SET value='true'", []).map_err(internal)?;
-            emit(
-                handle,
-                "project.export_consent",
-                &Origin::User,
-                json!({"kind":"terminal_history","granted":true}),
-            )?;
+            txn::atomically(handle, || {
+                handle.db.execute("INSERT INTO meta(key,value) VALUES('terminal.exportConsent','true') ON CONFLICT(key) DO UPDATE SET value='true'", []).map_err(internal)?;
+                emit(
+                    handle,
+                    "project.export_consent",
+                    &Origin::User,
+                    json!({"kind":"terminal_history","granted":true}),
+                )?;
+                Ok(())
+            })?;
         }
         let consent: Option<String> = handle
             .db
@@ -104,13 +114,8 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
         .project()
         .map_err(storage_error)?
         .ok_or_else(|| bad("Project metadata missing"))?;
+    let mut notes = Vec::new();
     let mut files = BTreeMap::new();
-    files.insert(
-        ".omenflow/state.sqlite".to_owned(),
-        handle
-            .archive_snapshot(include_terminal)
-            .map_err(storage_error)?,
-    );
     for name in ["omenflow.project.json", "README.md"] {
         let path =
             omenflow_storage::resolve_project_path(&handle.root, name).map_err(storage_error)?;
@@ -119,51 +124,91 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
         }
     }
     walk(&handle.root, "artifacts", &mut files)?;
-    walk(&handle.root, ".omenflow/objects", &mut files)?;
+    let skipped = collect_objects(&handle.root, &mut files)?;
+    if skipped > 0 {
+        notes.push(format!(
+            "{skipped} file(s) in the object store are not valid objects and were left out."
+        ));
+    }
+
+    // Everything read from the database below comes from a private copy that
+    // has already been cleared of this machine's paths.
+    let staging = tempfile::tempdir().map_err(internal)?;
+    let state_path = staging.path().join("state.sqlite");
+    fs::write(
+        &state_path,
+        handle
+            .archive_snapshot(include_terminal)
+            .map_err(storage_error)?,
+    )
+    .map_err(internal)?;
+    let state = rusqlite::Connection::open(&state_path).map_err(internal)?;
+    Redactor::for_project(&handle.root).scrub(&state)?;
+    let recorded_tool_paths: i64 = state
+        .query_row(
+            "SELECT COUNT(*) FROM revision WHERE payload LIKE '%\"renderIdentity\"%' AND payload LIKE '%exe=%'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(internal)?;
+    if recorded_tool_paths > 0 {
+        notes.push(format!(
+            "{recorded_tool_paths} rendered revision(s) record the path of the OpenSCAD program that produced them. It is part of their render identity and is exported unchanged."
+        ));
+    }
+    let terminal_rows: i64 = state
+        .query_row(
+            "SELECT COUNT(*) FROM event WHERE type='session.data'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(internal)?;
     let artifacts = table_rows(
-        handle,
+        &state,
         "SELECT * FROM artifact ORDER BY created_at",
         artifact_from_row,
     )?;
     let revisions = table_rows(
-        handle,
+        &state,
         "SELECT * FROM revision ORDER BY artifact_id,seq",
         revision_from_row,
     )?;
     let edges = table_rows(
-        handle,
+        &state,
         "SELECT * FROM edge ORDER BY created_at",
         models::edge_from_row,
     )?;
     let proposals = table_rows(
-        handle,
+        &state,
         "SELECT * FROM proposal ORDER BY created_at",
         models::proposal_from_row,
     )?;
     let jobs = table_rows(
-        handle,
+        &state,
         "SELECT * FROM job ORDER BY created_at",
         models::job_from_row,
     )?;
     let events = table_rows(
-        handle,
-        if include_terminal {
-            "SELECT * FROM event ORDER BY seq"
-        } else {
-            "SELECT * FROM event WHERE type!='session.data' ORDER BY seq"
-        },
+        &state,
+        "SELECT * FROM event ORDER BY seq",
         models::event_from_row,
     )?;
     let decisions = table_rows(
-        handle,
+        &state,
         "SELECT * FROM decision ORDER BY ts DESC",
         decision_row,
     )?;
     let bom_lines = table_rows(
-        handle,
+        &state,
         "SELECT * FROM bom_line ORDER BY subsystem,id",
         bom_row,
     )?;
+    assert_objects_present(&revisions, &files)?;
+    drop(state);
+    files.insert(
+        ".omenflow/state.sqlite".to_owned(),
+        fs::read(&state_path).map_err(internal)?,
+    );
     let snapshot = json!({"format":"omenflow-project-snapshot","version":1,"project":project,
         "artifacts":artifacts,"revisions":revisions,"edges":edges,"proposals":proposals,
         "decisions":decisions,"bomLines":bom_lines,"jobs":jobs,"events":events});
@@ -171,14 +216,22 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
         "snapshot.json".into(),
         serde_json::to_vec_pretty(&snapshot).map_err(internal)?,
     );
+    // Terminal history is only "included" when there is some: this build
+    // records none, and saying otherwise would describe an archive it is not.
+    let terminal_history = match (include_terminal, terminal_rows > 0) {
+        (true, true) => "included-with-consent",
+        (true, false) => "none-recorded",
+        (false, _) => "excluded",
+    };
     let manifest = json!({"format":"omenflow-project-archive","version":1,"projectId":project["id"],
         "name":project["name"],"exportedAt":now(),
-        "excludes": if include_terminal { json!(["credentials","machine settings","cache","work"]) } else { json!(["credentials","machine settings","cache","work","terminal logs"]) },
-        "terminalHistory": if include_terminal { "included-with-consent" } else { "excluded" }});
+        "excludes": if include_terminal { json!(["credentials","machine settings","machine paths","cache","work"]) } else { json!(["credentials","machine settings","machine paths","cache","work","terminal logs"]) },
+        "terminalHistory": terminal_history});
     files.insert(
         "archive-manifest.json".into(),
         serde_json::to_vec_pretty(&manifest).map_err(internal)?,
     );
+    assert_importable(&files)?;
     let dest_str = required_str(input, "destPath")?;
     let dest = if Path::new(dest_str).is_absolute() {
         PathBuf::from(dest_str)
@@ -199,6 +252,9 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
             zip.write_all(bytes).map_err(internal)?;
         }
         zip.finish().map_err(internal)?;
+        if fs::metadata(&temp).map_err(internal)?.len() > MAX_ZIP {
+            return Err(too_large("The compressed archive"));
+        }
         fs::rename(&temp, &dest).map_err(internal)?;
         Ok(())
     })();
@@ -206,7 +262,306 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
         let _ = fs::remove_file(&temp);
     }
     write?;
-    Ok(json!({"path": dest, "files": files.len()}))
+    let mut result = json!({"path": dest, "files": files.len()});
+    if !notes.is_empty() {
+        result["notes"] = json!(notes);
+    }
+    Ok(result)
+}
+
+fn too_large(what: &str) -> ContractError {
+    bad(format!(
+        "{what} is larger than an archive may be, so it could not be imported again"
+    ))
+    .with_repair("Remove unneeded large files from the project, or copy the project folder instead of exporting an archive.")
+}
+
+/// Whether `name` is the file name of an object: its lowercase SHA-256 inside
+/// the two-character directory `prefix`.
+fn object_name(prefix: &str, name: &str) -> bool {
+    prefix.len() == 2
+        && name.len() == 64
+        && name.starts_with(prefix)
+        && name
+            .bytes()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+}
+
+/// Adds every intact object to `files` and returns how many other files were
+/// found in the store: interrupted writes, files another program left there,
+/// and objects whose bytes no longer match their name. Import refuses all of
+/// those, so they are never written into an archive.
+fn collect_objects(root: &Path, files: &mut BTreeMap<String, Vec<u8>>) -> CoreResult<usize> {
+    let store =
+        omenflow_storage::resolve_project_path(root, ".omenflow/objects").map_err(storage_error)?;
+    if !store.is_dir() {
+        return Ok(0);
+    }
+    let mut skipped = 0;
+    for shard in fs::read_dir(&store).map_err(internal)? {
+        let shard = shard.map_err(internal)?;
+        let prefix = shard.file_name().to_string_lossy().to_string();
+        if !shard.file_type().map_err(internal)?.is_dir() {
+            skipped += 1;
+            continue;
+        }
+        for entry in fs::read_dir(shard.path()).map_err(internal)? {
+            let entry = entry.map_err(internal)?;
+            let name = entry.file_name().to_string_lossy().to_string();
+            let intact = entry.file_type().map_err(internal)?.is_file()
+                && object_name(&prefix, &name)
+                && fs::read(entry.path())
+                    .ok()
+                    .filter(|bytes| omenflow_storage::sha256_hex(bytes) == name)
+                    .map(|bytes| files.insert(format!(".omenflow/objects/{prefix}/{name}"), bytes))
+                    .is_some();
+            if !intact {
+                skipped += 1;
+            }
+        }
+    }
+    Ok(skipped)
+}
+
+/// Import resolves every object a revision refers to. An archive missing one
+/// would be refused, so the export stops here and says which record is hurt.
+fn assert_objects_present(
+    revisions: &[Value],
+    files: &BTreeMap<String, Vec<u8>>,
+) -> CoreResult<()> {
+    fn referenced(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::Array(items) => items.iter().for_each(|item| referenced(item, out)),
+            Value::Object(map) => {
+                for (key, entry) in map {
+                    match entry.as_str() {
+                        Some(hash) if key == "sha256" || key == "fileHash" => {
+                            out.push(hash.to_owned())
+                        }
+                        _ => referenced(entry, out),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    for revision in revisions {
+        let mut hashes = Vec::new();
+        referenced(&revision["files"], &mut hashes);
+        referenced(&revision["payload"], &mut hashes);
+        for hash in hashes {
+            let present = hash.len() == 64
+                && files.contains_key(&format!(".omenflow/objects/{}/{hash}", &hash[..2]));
+            if !present {
+                return Err(bad(format!(
+                    "Revision {} of artifact {} refers to stored content that is missing or damaged ({hash})",
+                    revision["seq"], revision["artifactId"]
+                ))
+                .with_repair("The project cannot be archived completely. Restore the missing content from a backup, or revert the artifact to a revision whose files are intact, then export again."));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The checks import applies to archive members, applied before anything is
+/// written, so an export never produces a file that import turns away.
+fn assert_importable(files: &BTreeMap<String, Vec<u8>>) -> CoreResult<()> {
+    if files.len() > MAX_ENTRIES {
+        return Err(too_large("The project has more files"));
+    }
+    let mut seen = HashSet::new();
+    let mut total = 0u64;
+    for (name, bytes) in files {
+        safe_name(name, &mut seen).map_err(|error| {
+            bad(format!("Cannot archive this project: {}", error.message)).with_repair(
+                "Rename or remove that file in the project folder (file names must be unique without regard to letter case), then export again.",
+            )
+        })?;
+        if bytes.len() as u64 > MAX_ENTRY {
+            return Err(too_large(name));
+        }
+        total += bytes.len() as u64;
+    }
+    if total > MAX_TOTAL {
+        return Err(too_large("The project"));
+    }
+    Ok(())
+}
+
+/// Removes this machine's paths from a private copy of the project database:
+/// where the project, the home directory and temporary files live, and where
+/// programs are installed. None of it is engineering content, and all of it
+/// describes the computer the archive came from.
+struct Redactor {
+    project: String,
+    /// Longest first, so a project inside the home directory is named as the
+    /// project.
+    prefixes: Vec<(String, &'static str)>,
+}
+
+/// Event fields that hold a path on this machine.
+const PATH_FIELDS: [&str; 6] = [
+    "executablePath",
+    "destPath",
+    "archivePath",
+    "sourcePath",
+    "path",
+    "root",
+];
+
+impl Redactor {
+    fn for_project(root: &Path) -> Self {
+        let project = root.to_string_lossy().into_owned();
+        let mut prefixes = vec![(project.clone(), "<project>")];
+        for (path, label) in [
+            (std::env::var_os("HOME").map(PathBuf::from), "~"),
+            (std::env::var_os("USERPROFILE").map(PathBuf::from), "~"),
+            (Some(std::env::temp_dir()), "<tmp>"),
+        ] {
+            let Some(path) = path else { continue };
+            let canonical = omenflow_storage::canonicalize(&path).ok();
+            for form in [Some(path), canonical].into_iter().flatten() {
+                let form = form
+                    .to_string_lossy()
+                    .trim_end_matches(['/', '\\'])
+                    .to_owned();
+                if form.len() > 1 && !prefixes.iter().any(|(known, _)| *known == form) {
+                    prefixes.push((form, label));
+                }
+            }
+        }
+        prefixes.sort_by_key(|(prefix, _)| std::cmp::Reverse(prefix.len()));
+        Self { project, prefixes }
+    }
+
+    fn text(&self, text: &str) -> String {
+        self.prefixes
+            .iter()
+            .fold(text.to_owned(), |text, (prefix, label)| {
+                text.replace(prefix, label)
+            })
+    }
+
+    /// A path on this machine: relative to the project when it is inside it,
+    /// otherwise only its last component.
+    fn path(&self, path: &str) -> String {
+        if !is_absolute(path) {
+            return self.text(path);
+        }
+        match path.strip_prefix(self.project.as_str()) {
+            Some(rest) if rest.is_empty() || rest.starts_with(['/', '\\']) => {
+                format!("<project>{rest}")
+            }
+            _ => file_name(path).to_owned(),
+        }
+    }
+
+    /// A recorded command line: the program is named, not located.
+    fn command(&self, command: &str) -> String {
+        if !is_absolute(command) {
+            return self.text(command);
+        }
+        let (program, arguments) = match command.find(" -") {
+            Some(split) => command.split_at(split),
+            None => (command, ""),
+        };
+        format!("{}{}", file_name(program), self.text(arguments))
+    }
+
+    fn value(&self, value: &mut Value) {
+        match value {
+            Value::String(text) => *text = self.text(text),
+            Value::Array(items) => items.iter_mut().for_each(|item| self.value(item)),
+            Value::Object(map) => {
+                for (key, entry) in map.iter_mut() {
+                    match entry {
+                        Value::String(path) if PATH_FIELDS.contains(&key.as_str()) => {
+                            *path = self.path(path)
+                        }
+                        _ => self.value(entry),
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn json(&self, raw: &str) -> String {
+        match serde_json::from_str::<Value>(raw) {
+            Ok(mut value) => {
+                self.value(&mut value);
+                value.to_string()
+            }
+            Err(_) => self.text(raw),
+        }
+    }
+
+    /// Rewrites the columns that hold machine paths and compacts the copy so
+    /// the previous bytes do not stay behind in free pages.
+    fn scrub(&self, db: &rusqlite::Connection) -> CoreResult<()> {
+        db.pragma_update(None, "secure_delete", "ON")
+            .map_err(internal)?;
+        self.rewrite(db, "session", "id", "executable_path", |text| {
+            self.path(text)
+        })?;
+        self.rewrite(db, "session", "id", "last_error", |text| self.text(text))?;
+        self.rewrite(db, "job", "id", "command", |text| self.command(text))?;
+        self.rewrite(db, "job", "id", "log", |text| self.text(text))?;
+        self.rewrite(db, "job", "id", "error", |text| self.json(text))?;
+        self.rewrite(db, "event", "seq", "data", |text| self.json(text))?;
+        db.execute_batch("VACUUM").map_err(internal)
+    }
+
+    fn rewrite(
+        &self,
+        db: &rusqlite::Connection,
+        table: &str,
+        key: &str,
+        column: &str,
+        redact: impl Fn(&str) -> String,
+    ) -> CoreResult<()> {
+        let mut stmt = db
+            .prepare(&format!(
+                "SELECT {key},{column} FROM {table} WHERE {column} IS NOT NULL"
+            ))
+            .map_err(internal)?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, rusqlite::types::Value>(0)?,
+                    row.get::<_, String>(1)?,
+                ))
+            })
+            .map_err(internal)?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(internal)?;
+        for (id, text) in rows {
+            let redacted = redact(&text);
+            if redacted != text {
+                db.execute(
+                    &format!("UPDATE {table} SET {column}=?1 WHERE {key}=?2"),
+                    params![redacted, id],
+                )
+                .map_err(internal)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_absolute(path: &str) -> bool {
+    path.starts_with('/')
+        || path.starts_with('\\')
+        || (path.as_bytes().get(1) == Some(&b':')
+            && matches!(path.as_bytes().get(2), Some(b'/' | b'\\')))
+}
+
+fn file_name(path: &str) -> &str {
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or(path)
 }
 
 fn safe_name(name: &str, seen: &mut HashSet<String>) -> CoreResult<()> {
@@ -222,15 +577,7 @@ fn safe_name(name: &str, seen: &mut HashSet<String>) -> CoreResult<()> {
     }
     if name.starts_with(".omenflow/") && name != ".omenflow/state.sqlite" && !name.ends_with('/') {
         let parts = name.split('/').collect::<Vec<_>>();
-        if parts.len() != 4
-            || parts[1] != "objects"
-            || parts[2].len() != 2
-            || parts[3].len() != 64
-            || !parts[3].starts_with(parts[2])
-            || !parts[3]
-                .bytes()
-                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
-        {
+        if parts.len() != 4 || parts[1] != "objects" || !object_name(parts[2], parts[3]) {
             return Err(bad(format!("Reserved archive member: {name}")));
         }
     }
@@ -470,13 +817,12 @@ fn verify_hashes(objects: &omenflow_storage::ObjectStore, value: &Value) -> Core
 mod tests {
     use super::*;
 
-    #[test]
-    fn archive_round_trip_preserves_schema_and_blocks_corrupt_objects() {
+    fn project_with_a_file() -> (tempfile::TempDir, ProjectHandle, Value) {
         let temp = tempfile::tempdir().unwrap();
-        let mut original =
+        let mut handle =
             ProjectHandle::create(temp.path().join("original"), "Archive", "test").unwrap();
         let created = create_draft(
-            &mut original,
+            &mut handle,
             &json!({
                 "type":"note", "title":"Evidence", "payload":{"markdown":"Known sample"},
                 "files":[{"path":"artifacts/research/sample.txt","contentBase64":"c2FtcGxl"}],
@@ -485,6 +831,30 @@ mod tests {
             &Origin::User,
         )
         .unwrap();
+        (temp, handle, created)
+    }
+
+    fn members(archive: &Path) -> BTreeMap<String, Vec<u8>> {
+        let mut zip = zip::ZipArchive::new(fs::File::open(archive).unwrap()).unwrap();
+        (0..zip.len())
+            .map(|index| {
+                let mut member = zip.by_index(index).unwrap();
+                let mut bytes = Vec::new();
+                member.read_to_end(&mut bytes).unwrap();
+                (member.name().to_owned(), bytes)
+            })
+            .collect()
+    }
+
+    fn contains(haystack: &[u8], needle: &str) -> bool {
+        haystack
+            .windows(needle.len())
+            .any(|window| window == needle.as_bytes())
+    }
+
+    #[test]
+    fn archive_round_trip_preserves_schema_and_blocks_corrupt_objects() {
+        let (temp, original, created) = project_with_a_file();
         let archive_path = temp.path().join("saved.zip");
         export_archive(&original, &json!({"destPath":archive_path})).unwrap();
         let imported = import_archive(
@@ -534,6 +904,244 @@ mod tests {
             .unwrap()
             .code,
             "ARCHIVE_INVALID"
+        );
+    }
+
+    #[test]
+    fn export_leaves_out_everything_import_would_refuse() {
+        let (temp, original, created) = project_with_a_file();
+        let hash = created["revision"]["files"][0]["sha256"].as_str().unwrap();
+        let store = original.root.join(".omenflow/objects");
+        // What crashes and other programs leave in a project folder.
+        fs::write(store.join(".DS_Store"), b"finder").unwrap();
+        fs::write(
+            store
+                .join(&hash[..2])
+                .join(format!("{hash}.tmp-interrupted")),
+            b"half an object",
+        )
+        .unwrap();
+        fs::create_dir_all(store.join("zz")).unwrap();
+        fs::write(store.join("zz/not-an-object"), b"stray").unwrap();
+        fs::write(
+            original
+                .root
+                .join("artifacts/research/.omenflow-write-interrupted"),
+            b"half a file",
+        )
+        .unwrap();
+
+        let archive_path = temp.path().join("saved.zip");
+        let exported = export_archive(&original, &json!({"destPath":archive_path})).unwrap();
+        assert_eq!(
+            exported["notes"],
+            json!(["3 file(s) in the object store are not valid objects and were left out."])
+        );
+        let names = members(&archive_path);
+        assert!(names.keys().all(|name| !name.contains("interrupted")
+            && !name.contains("DS_Store")
+            && !name.contains("not-an-object")));
+        assert_eq!(exported["files"], names.len());
+        let imported = import_archive(
+            archive_path.to_str().unwrap(),
+            temp.path().join("restored").to_str().unwrap(),
+            false,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            imported.object_store().unwrap().read(hash).unwrap(),
+            b"sample"
+        );
+    }
+
+    #[test]
+    fn export_refuses_to_write_an_archive_whose_content_is_damaged() {
+        let (temp, original, created) = project_with_a_file();
+        let hash = created["revision"]["files"][0]["sha256"].as_str().unwrap();
+        let object = original
+            .root
+            .join(".omenflow/objects")
+            .join(&hash[..2])
+            .join(hash);
+        // Objects are stored read-only; replace the file to damage it.
+        fs::remove_file(&object).unwrap();
+        fs::write(&object, b"damaged").unwrap();
+
+        let archive_path = temp.path().join("saved.zip");
+        let error = export_archive(&original, &json!({"destPath":archive_path})).unwrap_err();
+        assert_eq!(error.code, "ARCHIVE_INVALID");
+        assert!(error.message.contains(hash), "{}", error.message);
+        assert!(error.repair.is_some());
+        assert!(!archive_path.exists());
+        assert!(fs::read_dir(temp.path()).unwrap().all(|entry| !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".tmp")));
+    }
+
+    #[test]
+    fn members_import_would_reject_stop_the_export_with_a_reason() {
+        let ok = BTreeMap::from([("artifacts/research/Notes.txt".to_owned(), vec![1u8])]);
+        assert!(assert_importable(&ok).is_ok());
+        // Two names that differ only by letter case collide on most filesystems.
+        let clash = BTreeMap::from([
+            ("artifacts/research/Notes.txt".to_owned(), vec![1u8]),
+            ("artifacts/research/notes.txt".to_owned(), vec![2u8]),
+        ]);
+        let error = assert_importable(&clash).unwrap_err();
+        assert_eq!(error.code, "ARCHIVE_INVALID");
+        assert!(error.message.contains("artifacts/research/notes.txt"));
+        assert!(error.repair.unwrap().contains("letter case"));
+        let many = (0..=MAX_ENTRIES)
+            .map(|index| (format!("artifacts/research/{index}.txt"), Vec::new()))
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            assert_importable(&many).unwrap_err().code,
+            "ARCHIVE_INVALID"
+        );
+    }
+
+    #[test]
+    fn an_archive_does_not_carry_the_paths_of_the_machine_it_came_from() {
+        let (temp, original, _) = project_with_a_file();
+        let root = original.root.to_string_lossy().into_owned();
+        original
+            .db
+            .execute(
+                "INSERT INTO session(id,adapter_id,executable_path,state,last_error) VALUES('s-1','custom','/opt/agents/bin/agent-cli','exited',?1)",
+                [format!("could not read {root}/AGENTS.md")],
+            )
+            .unwrap();
+        original
+            .db
+            .execute(
+                "INSERT INTO job(id,kind,tool,inputs,command,status,log,error,created_at) VALUES('j-1','cad_render','openscad','{}','/opt/tools/OpenSCAD -o output.stl input.scad','failed',?1,?2,?3)",
+                params![
+                    format!("ERROR: {root}/artifacts/mechanical/part.scad, line 3"),
+                    json!({"code": "VALIDATION", "message": format!("Parser error in {root}/artifacts/mechanical/part.scad")}).to_string(),
+                    now()
+                ],
+            )
+            .unwrap();
+        emit(
+            &original,
+            "session.state",
+            &Origin::System,
+            json!({"id": "s-1", "executablePath": "/opt/agents/bin/agent-cli", "state": "exited"}),
+        )
+        .unwrap();
+        emit(
+            &original,
+            "build.exported",
+            &Origin::User,
+            json!({"destPath": format!("{root}/exports/build.zip"), "files": 3}),
+        )
+        .unwrap();
+        emit(
+            &original,
+            "build.exported",
+            &Origin::User,
+            json!({"destPath": "/Volumes/usb-stick/build.zip", "files": 3}),
+        )
+        .unwrap();
+
+        let archive_path = temp.path().join("saved.zip");
+        export_archive(&original, &json!({"destPath":archive_path})).unwrap();
+        let names = members(&archive_path);
+        for member in [".omenflow/state.sqlite", "snapshot.json"] {
+            let bytes = &names[member];
+            for leaked in [
+                root.as_str(),
+                "/opt/agents",
+                "/opt/tools",
+                "/Volumes/usb-stick",
+            ] {
+                assert!(!contains(bytes, leaked), "{member} still contains {leaked}");
+            }
+        }
+        let snapshot: Value = serde_json::from_slice(&names["snapshot.json"]).unwrap();
+        let job = &snapshot["jobs"][0];
+        assert_eq!(job["command"], "OpenSCAD -o output.stl input.scad");
+        assert_eq!(
+            job["log"],
+            "ERROR: <project>/artifacts/mechanical/part.scad, line 3"
+        );
+        assert_eq!(
+            job["error"]["message"],
+            "Parser error in <project>/artifacts/mechanical/part.scad"
+        );
+        let exported = snapshot["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|event| event["type"] == "build.exported")
+            .map(|event| event["data"]["destPath"].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            exported,
+            vec![json!("<project>/exports/build.zip"), json!("build.zip")]
+        );
+
+        let imported = import_archive(
+            archive_path.to_str().unwrap(),
+            temp.path().join("restored").to_str().unwrap(),
+            false,
+            &[],
+        )
+        .unwrap();
+        let (program, last_error): (String, String) = imported
+            .db
+            .query_row(
+                "SELECT executable_path,last_error FROM session",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(program, "agent-cli");
+        assert_eq!(last_error, "could not read <project>/AGENTS.md");
+        // The project being exported keeps its own record as it was.
+        let kept: String = original
+            .db
+            .query_row("SELECT executable_path FROM session", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(kept, "/opt/agents/bin/agent-cli");
+    }
+
+    #[test]
+    fn terminal_history_is_only_called_included_when_some_was_recorded() {
+        let (temp, original, _) = project_with_a_file();
+        let manifest = |name: &str, input: Value| -> Value {
+            let path = temp.path().join(name);
+            let mut input = input;
+            input["destPath"] = json!(path);
+            export_archive(&original, &input).unwrap();
+            serde_json::from_slice(&members(&path)["archive-manifest.json"]).unwrap()
+        };
+        assert_eq!(
+            manifest("plain.zip", json!({}))["terminalHistory"],
+            "excluded"
+        );
+        let consented = json!({"includeTerminalHistory": true, "grantTerminalExportConsent": true});
+        assert_eq!(
+            manifest("empty.zip", consented.clone())["terminalHistory"],
+            "none-recorded"
+        );
+        emit(
+            &original,
+            "session.data",
+            &Origin::System,
+            json!({"text": "$ ls"}),
+        )
+        .unwrap();
+        assert_eq!(
+            manifest("history.zip", consented)["terminalHistory"],
+            "included-with-consent"
+        );
+        assert_eq!(
+            manifest("after.zip", json!({}))["terminalHistory"],
+            "excluded"
         );
     }
 }

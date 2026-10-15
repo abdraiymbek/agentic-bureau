@@ -1,354 +1,684 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
-  ArrowBendDownLeft,
-  ChatCircleText,
-  ClockCounterClockwise,
-  Export,
+  AppWindow,
   Archive,
+  ArrowBendDownLeft,
+  ArrowClockwise,
+  At,
+  ChatCircleText,
+  Copy,
+  Export,
   FolderOpen,
+  FolderSimple,
   GearSix,
   GitBranch,
-  Graph,
-  MoonStars,
-  Package,
-  Palette,
-  Files,
-  Robot,
-  TerminalWindow,
+  Globe,
+  HandPalm,
   MagnifyingGlass,
+  MoonStars,
+  Palette,
+  Play,
+  Robot,
+  SignOut,
+  StopCircle,
+  Sun,
 } from '@phosphor-icons/react';
 import { openProposals, useStore } from '../store';
-import { Kbd, State, TypeGlyph, typeMeta } from '../ui/kit';
-import { exportProject, openProjectAt, sendToAgent, showAgent } from '../lib/actions';
+import { needsYou } from '../lib/proposals';
+import { LENSES } from '../project/lenses';
+import { Kbd, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
+import {
+  askAgent,
+  closeProject,
+  exportProject,
+  flushAsks,
+  interruptAgent,
+  openProjectAt,
+  restartAgent,
+  showAgent,
+  startAgent,
+  stopAgent,
+} from '../lib/actions';
 import { errMsg } from '../api';
+import { useAgentUi, type SettingsSection } from './agent/agent-store';
+import { copyText } from './agent/clipboard';
+import { detectAgents } from './agent/feed';
+import { adapterLabel, sessionStatus } from './agent/session-view';
+import { ASK_PREFIX, moveSelection, rank, type Candidate } from './omnibar/rank';
 
-interface Item {
+interface Action {
   id: string;
-  group: string;
   label: string;
-  hint?: React.ReactNode;
-  icon: React.ReactNode;
-  keywords?: string;
+  shortcut?: string;
   run: () => void;
 }
 
-/** Scores at or above this come from a contiguous substring match. */
-const DIRECT = 500;
-
-/** Subsequence match; earlier and contiguous matches score higher. 0 = no match. */
-function score(text: string, query: string): number {
-  if (!query) return 1;
-  const t = text.toLowerCase();
-  const q = query.toLowerCase();
-  const direct = t.indexOf(q);
-  if (direct >= 0) return 1000 - direct * 2 - (t.length - q.length) * 0.1;
-  let ti = 0;
-  let s = 0;
-  let run = 0;
-  for (const ch of q) {
-    const found = t.indexOf(ch, ti);
-    if (found < 0) return 0;
-    run = found === ti ? run + 1 : 0;
-    s += 10 + run * 5 - (found - ti);
-    ti = found + 1;
-  }
-  return Math.max(1, s);
+interface Item extends Candidate {
+  icon: React.ReactNode;
+  /** Right-hand context: shortcut, type and state. */
+  hint?: React.ReactNode;
+  run: () => void;
+  /** Irreversible: the first Return arms it and shows this label, the second runs it. */
+  confirm?: string;
+  /** Secondary actions on the row, reached with Tab. The first is `run`. */
+  actions?: Action[];
+  /** Remembered as a recent command. */
+  command?: boolean;
 }
 
+const RECENT_KEY = 'omen.omni.recent';
+const RECENT_LIMIT = 5;
+
+function readRecentCommands(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+function rememberCommand(id: string) {
+  try {
+    const next = [id, ...readRecentCommands().filter((x) => x !== id)].slice(0, RECENT_LIMIT);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* recents are a convenience */
+  }
+}
+
+function report(action: Promise<unknown>) {
+  void action.catch((e) => useStore.getState().toast('error', errMsg(e)));
+}
+
+function openSettings(section: SettingsSection) {
+  useAgentUi.getState().setSettingsSection(section);
+  useStore.getState().set({ settingsOpen: true });
+}
+
+/** ⌘K: go to an object, run any action, or — explicitly — ask the agent. */
 export function Omnibar() {
   const open = useStore((s) => s.omniOpen);
+  const set = useStore((s) => s.set);
+  return (
+    <Dialog.Root open={open} onOpenChange={(v) => !v && set({ omniOpen: false })}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="overlay motion-fade" />
+        <Dialog.Content className="omnibar motion-rise" aria-describedby={undefined}>
+          <Dialog.Title className="sr-only">Go to, run, or ask</Dialog.Title>
+          {open && <OmniBody />}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function useItems(text: string) {
   const projectId = useStore((s) => s.projectId);
+  const projectPath = useStore((s) => s.projectPath);
+  const readOnly = useStore((s) => s.readOnly);
   const artifacts = useStore((s) => s.artifacts);
   const recentIds = useStore((s) => s.recentIds);
   const proposals = useStore((s) => s.proposals);
   const session = useStore((s) => s.session);
   const adapters = useStore((s) => s.adapters);
-  const { set, go, focus, decide, toast } = useStore.getState();
-  const [q, setQ] = useState('');
-  const [idx, setIdx] = useState(0);
-  const list = useRef<HTMLDivElement>(null);
-  const close = () => set({ omniOpen: false });
+  const agentId = useStore((s) => s.agentId);
+  const view = useStore((s) => s.view);
+  const windowOpen = useStore((s) => s.agentWindowOpen);
+  const theme = useStore((s) => s.theme);
+  const pendingAsks = useAgentUi((s) => s.pending.length);
 
-  useEffect(() => {
-    if (open) {
-      setQ('');
-      setIdx(0);
-    }
-  }, [open]);
+  return useMemo(() => {
+    const { set, go, focus, decide } = useStore.getState();
+    const status = sessionStatus(session);
+    const agentName = session
+      ? adapterLabel(adapters, session.adapterId)
+      : (adapters.find((a) => a.adapterId === agentId)?.label ?? 'the agent');
+    const items: Item[] = [];
+    const recentCommands = readRecentCommands();
+    const commandRank = (id: string) => {
+      const i = recentCommands.indexOf(id);
+      return i >= 0 ? i : undefined;
+    };
 
-  const live = session?.state === 'running';
-  const agentName =
-    adapters.find((a) => a.adapterId === session?.adapterId)?.label ??
-    session?.adapterId ??
-    'agent';
-
-  const items = useMemo(() => {
-    const query = q.trim();
-    const all: Item[] = [];
     if (projectId) {
-      const recent = recentIds
-        .map((id) => artifacts.find((v) => v.artifact.id === id))
-        .filter((v): v is NonNullable<typeof v> => !!v);
-      const objects = (query ? artifacts : recent).map<Item>((v) => ({
-        id: `o:${v.artifact.id}`,
-        group: query ? 'Objects' : 'Recent',
-        label: v.artifact.title,
-        keywords: `${typeMeta(v.artifact.type).label} ${v.artifact.subsystem ?? ''}`,
-        icon: <TypeGlyph type={v.artifact.type} size={15} />,
-        hint:
-          v.freshness !== 'current' ? (
-            <State state={v.freshness} quiet />
-          ) : (
-            <span>{typeMeta(v.artifact.type).label}</span>
+      const recentRank = new Map(recentIds.map((id, i) => [id, i]));
+      for (const v of artifacts) {
+        if (v.artifact.archived) continue;
+        const meta = typeMeta(v.artifact.type);
+        const review = v.revision ? stateLabel(v.revision.reviewState) : 'No baseline';
+        const fresh = v.freshness === 'current' ? null : stateLabel(v.freshness);
+        const state = fresh ?? review;
+        const id = v.artifact.id;
+        const reference = `About the Omen Flow ${meta.label.toLowerCase()} "${v.artifact.title}" (artifact ${id}${v.revision ? `, revision ${v.revision.seq}` : ''}): `;
+        items.push({
+          id: `o:${id}`,
+          group: 'objects',
+          label: v.artifact.title,
+          keywords: [
+            meta.label,
+            v.artifact.subsystem ?? '',
+            review,
+            fresh ?? '',
+            v.freshness === 'stale' ? 'stale outdated changed' : '',
+            v.pendingProposal ? 'in review proposal pending' : '',
+            id,
+          ].join(' '),
+          recent: recentRank.get(id),
+          icon: <TypeGlyph type={v.artifact.type} size={15} />,
+          hint: (
+            <span className="omni-object-meta">
+              <span>{meta.label}</span>
+              <span className={fresh ? 'tone-warn' : undefined}>{state}</span>
+              {v.artifact.subsystem && <span>{v.artifact.subsystem}</span>}
+            </span>
           ),
-        run: () => focus(v.artifact.id),
-      }));
-      all.push(...objects);
-      const pending = openProposals(proposals).length;
-      all.push(
+          run: () => focus(id),
+          actions: [
+            { id: 'open', label: 'Open', shortcut: '↵', run: () => focus(id) },
+            ...(readOnly
+              ? []
+              : [
+                  {
+                    id: 'ask',
+                    label: 'Ask agent about',
+                    shortcut: '⌘↵',
+                    run: () => void askAgent(reference),
+                  },
+                ]),
+            {
+              id: 'copy',
+              label: 'Copy id',
+              run: () =>
+                void copyText(id).then((ok) =>
+                  useStore
+                    .getState()
+                    .toast(
+                      ok ? 'ok' : 'error',
+                      ok ? 'Object id copied' : 'The clipboard did not accept the id.',
+                    ),
+                ),
+            },
+          ],
+        });
+      }
+      for (const id of recentIds) {
+        const v = artifacts.find((x) => x.artifact.id === id);
+        if (!v || v.artifact.archived) continue;
+        const object = items.find((i) => i.id === `o:${id}`)!;
+        items.push({ ...object, id: `r:o:${id}`, group: 'recent' });
+      }
+
+      for (const p of openProposals(proposals))
+        items.push({
+          id: `p:${p.id}`,
+          group: 'decisions',
+          label: `Review: ${p.reason}`,
+          keywords: `proposal decision ${stateLabel(p.state)} ${p.id}`,
+          icon: <GitBranch size={15} />,
+          hint: <span>{stateLabel(p.state)}</span>,
+          run: () => decide(p.id),
+        });
+
+      const pending = needsYou(proposals).length;
+      items.push(
         {
-          id: 'agent-tab',
-          group: 'Go to',
+          id: 'goto:agent',
+          group: 'goto',
           label: 'Agent',
-          icon: <Robot size={15} />,
           keywords: 'terminal cli codex claude session',
+          icon: <Robot size={15} />,
+          command: true,
           run: () => go({ level: 'agent' }),
         },
+        ...LENSES.map<Item>((l) => ({
+          id: `goto:${l.id}`,
+          group: 'goto',
+          label: l.description,
+          keywords: `${l.label} ${l.keywords ?? ''}`,
+          icon: <l.icon size={15} />,
+          hint: <Kbd>{`⌘${l.shortcut}`}</Kbd>,
+          command: true,
+          run: () => go({ level: 'project', lens: l.id }),
+        })),
         {
-          id: 'lens:flow',
-          group: 'Go to',
-          label: 'Project flow',
-          icon: <Graph size={15} />,
-          hint: <Kbd>⌘1</Kbd>,
-          keywords: 'map graph overview system home',
-          run: () => go({ level: 'project', lens: 'flow' }),
-        },
-        {
-          id: 'decide',
-          group: 'Go to',
+          id: 'goto:decide',
+          group: 'goto',
           label: pending
             ? `Review ${pending} proposed ${pending === 1 ? 'change' : 'changes'}`
             : 'Decisions',
+          keywords: 'decisions review proposals approve queue',
           icon: <GitBranch size={15} />,
           hint: <Kbd>⌘⇧D</Kbd>,
-          keywords: 'review proposals approve queue',
+          command: true,
           run: () => decide(null),
         },
-        {
-          id: 'lens:parts',
-          group: 'Go to',
-          label: 'Parts & bill of materials',
-          icon: <Package size={15} />,
-          hint: <Kbd>⌘2</Kbd>,
-          keywords: 'bom components candidates compare cost mass',
-          run: () => go({ level: 'project', lens: 'parts' }),
-        },
-        {
-          id: 'lens:timeline',
-          group: 'Go to',
-          label: 'Timeline of decisions',
-          icon: <ClockCounterClockwise size={15} />,
-          hint: <Kbd>⌘3</Kbd>,
-          keywords: 'history log changes',
-          run: () => go({ level: 'project', lens: 'timeline' }),
-        },
-        {
-          id: 'lens:files',
-          group: 'Go to',
-          label: 'Files',
-          icon: <Files size={15} />,
-          hint: <Kbd>⌘4</Kbd>,
-          keywords: 'source exports',
-          run: () => go({ level: 'project', lens: 'files' }),
-        },
-        {
-          id: 'agent',
-          group: 'Actions',
-          label: 'Show agent terminal',
-          icon: <TerminalWindow size={15} />,
+      );
+
+      if (!readOnly) {
+        if (status.live) {
+          items.push(
+            {
+              id: 'agent:interrupt',
+              group: 'agent',
+              label: `Interrupt ${agentName}`,
+              keywords: 'agent cancel ctrl-c stop current',
+              icon: <HandPalm size={15} />,
+              command: true,
+              run: () => report(interruptAgent()),
+            },
+            {
+              id: 'agent:restart',
+              group: 'agent',
+              label: 'Restart the agent session',
+              keywords: 'agent new session conversation',
+              icon: <ArrowClockwise size={15} />,
+              confirm: 'Press Return again to restart the session',
+              command: true,
+              run: () => report(restartAgent()),
+            },
+            {
+              id: 'agent:stop',
+              group: 'agent',
+              label: 'Stop the agent session',
+              keywords: 'agent end quit kill',
+              icon: <StopCircle size={15} />,
+              confirm: 'Press Return again to stop the session',
+              command: true,
+              run: () => report(stopAgent()),
+            },
+          );
+        } else {
+          for (const a of adapters.filter((x) => x.available))
+            items.push({
+              id: `agent:start:${a.adapterId}`,
+              group: 'agent',
+              label: `Start ${a.label}`,
+              keywords: 'agent run launch session',
+              icon: <Play size={15} />,
+              command: true,
+              run: () => {
+                useStore.getState().setAgent(a.adapterId);
+                showAgent();
+                report(startAgent(a.adapterId));
+              },
+            });
+        }
+        if (pendingAsks && status.live)
+          items.push({
+            id: 'agent:paste',
+            group: 'agent',
+            label: 'Paste the waiting request into the terminal',
+            keywords: 'agent queue pending ask',
+            icon: <ChatCircleText size={15} />,
+            run: () => {
+              showAgent();
+              flushAsks(true);
+            },
+          });
+      }
+      if (view.level !== 'agent')
+        items.push({
+          id: 'agent:window',
+          group: 'agent',
+          label: windowOpen ? 'Hide the agent window' : 'Show the agent window',
+          keywords: 'agent terminal console floating',
+          icon: <AppWindow size={15} />,
           hint: <Kbd>⌘J</Kbd>,
-          keywords: 'codex claude console window',
-          run: showAgent,
-        },
+          command: true,
+          run: () => set({ agentWindowOpen: !windowOpen }),
+        });
+      items.push({
+        id: 'agent:detect',
+        group: 'agent',
+        label: 'Detect agent CLIs again',
+        keywords: 'agent install codex claude find',
+        icon: <ArrowClockwise size={15} />,
+        command: true,
+        run: () => void detectAgents(),
+      });
+
+      items.push(
         {
-          id: 'export-build',
-          group: 'Actions',
+          id: 'act:export-build',
+          group: 'actions',
           label: 'Export build package…',
+          keywords: 'zip deliver',
           icon: <Export size={15} />,
+          command: true,
           run: () => void exportProject('build'),
         },
         {
-          id: 'export-archive',
-          group: 'Actions',
+          id: 'act:export-archive',
+          group: 'actions',
           label: 'Export project archive…',
+          keywords: 'zip backup share',
           icon: <Archive size={15} />,
+          command: true,
           run: () => void exportProject('archive'),
+        },
+        {
+          id: 'act:reveal',
+          group: 'actions',
+          label: 'Reveal project folder',
+          keywords: 'finder files directory show',
+          icon: <FolderSimple size={15} />,
+          command: true,
+          run: () => {
+            if (projectPath) report(window.omenflow.revealPath(projectPath));
+          },
+        },
+        {
+          id: 'act:research',
+          group: 'actions',
+          label: 'Research browser',
+          keywords: 'web sources browse',
+          icon: <Globe size={15} />,
+          command: true,
+          run: () => report(window.omenflow.toggleResearch()),
+        },
+        {
+          id: 'act:close',
+          group: 'actions',
+          label: 'Close project',
+          keywords: 'leave launcher',
+          icon: <SignOut size={15} />,
+          command: true,
+          run: () => report(closeProject()),
         },
       );
     }
-    all.push(
+
+    items.push(
       {
-        id: 'open',
-        group: 'Actions',
+        id: 'act:open',
+        group: 'actions',
         label: 'Open a project folder…',
+        keywords: 'project load',
         icon: <FolderOpen size={15} />,
-        run: () => void openProjectAt().catch((e) => toast('error', errMsg(e))),
+        command: true,
+        run: () => report(openProjectAt()),
       },
       {
-        id: 'theme',
-        group: 'Actions',
-        label: 'Switch light / dark',
-        icon: <MoonStars size={15} />,
-        keywords: 'appearance theme',
-        run: () => set({ theme: useStore.getState().theme === 'dark' ? 'light' : 'dark' }),
+        id: 'act:theme',
+        group: 'actions',
+        label: theme === 'dark' ? 'Switch to Paper (light)' : 'Switch to Graphite (dark)',
+        keywords: 'appearance theme light dark mode',
+        icon: theme === 'dark' ? <Sun size={15} /> : <MoonStars size={15} />,
+        command: true,
+        run: () => set({ theme: theme === 'dark' ? 'light' : 'dark' }),
       },
       {
-        id: 'settings',
-        group: 'Actions',
-        label: 'Settings — agents, tools, appearance',
+        id: 'act:settings-agents',
+        group: 'actions',
+        label: 'Settings: Agents',
+        keywords: 'preferences model profile connection codex claude',
         icon: <GearSix size={15} />,
         hint: <Kbd>⌘,</Kbd>,
-        keywords: 'connections openscad preferences',
-        run: () => set({ settingsOpen: true }),
+        command: true,
+        run: () => openSettings('agents'),
       },
       {
-        id: 'system',
-        group: 'Actions',
+        id: 'act:settings-tools',
+        group: 'actions',
+        label: 'Settings: Engineering tools',
+        keywords: 'preferences openscad cad path',
+        icon: <GearSix size={15} />,
+        command: true,
+        run: () => openSettings('tools'),
+      },
+      {
+        id: 'act:settings-appearance',
+        group: 'actions',
+        label: 'Settings: Appearance',
+        keywords: 'preferences theme',
+        icon: <GearSix size={15} />,
+        command: true,
+        run: () => openSettings('appearance'),
+      },
+      {
+        id: 'act:system',
+        group: 'actions',
         label: 'Design system',
+        keywords: 'components tokens catalogue',
         icon: <Palette size={15} />,
-        keywords: 'components tokens catalog',
+        command: true,
         run: () => go({ level: 'system' }),
       },
     );
-    const matched = all
-      .map((item) => ({ item, s: score(`${item.label} ${item.keywords ?? ''}`, query) }))
-      .filter((x) => x.s > 0);
-    const floor = matched.some((x) => x.s >= DIRECT) ? DIRECT : 1;
-    const scored = matched.filter((x) => x.s >= floor).sort((a, b) => (query ? b.s - a.s : 0));
-    const groupOrder = [...new Set(scored.map((x) => x.item.group))];
-    const ranked = groupOrder
-      .flatMap((g) => scored.filter((x) => x.item.group === g).map((x) => x.item))
-      .slice(0, 40);
-    if (projectId && query && live) {
-      const ask: Item = {
-        id: 'ask',
-        group: 'Agent',
-        label: `Ask ${agentName}: “${query}”`,
-        icon: <ChatCircleText size={15} />,
-        hint: <span>Types into the terminal</span>,
-        run: () =>
-          void sendToAgent(query)
-            .then(showAgent)
-            .catch((e) => toast('error', errMsg(e))),
-      };
-      const sentence = query.split(/\s+/).length >= 3;
-      if (sentence || !ranked.length) ranked.unshift(ask);
-      else ranked.push(ask);
-    }
-    return ranked;
+
+    for (const item of items)
+      if (item.command) {
+        const r = commandRank(item.id);
+        if (r !== undefined) item.recent = r;
+      }
+    if (!text.trim())
+      for (const id of recentCommands) {
+        const item = items.find((i) => i.id === id);
+        if (item) items.push({ ...item, id: `r:${id}`, group: 'recent' });
+      }
+
+    const askText = text.trim().startsWith(ASK_PREFIX)
+      ? text.trim().slice(ASK_PREFIX.length).trim()
+      : text.trim();
+    const ask: Item | null =
+      projectId && !readOnly && askText
+        ? {
+            id: 'ask',
+            group: 'ask',
+            label: `Ask ${agentName}: “${askText}”`,
+            icon: <At size={15} />,
+            hint: <span>Types into the terminal</span>,
+            run: () => void askAgent(askText),
+          }
+        : null;
+    return { items, ask, agentName };
   }, [
-    q,
+    text,
     projectId,
+    projectPath,
+    readOnly,
     artifacts,
     recentIds,
     proposals,
-    live,
-    agentName,
-    set,
-    go,
-    focus,
-    decide,
-    toast,
+    session,
+    adapters,
+    agentId,
+    view.level,
+    windowOpen,
+    theme,
+    pendingAsks,
   ]);
+}
+
+interface Selection {
+  /** The query the selection belongs to; a new query starts from the ranking's default. */
+  q: string;
+  idx: number;
+  /** Which of the active row's actions Return runs. */
+  action: number;
+  /** Item whose confirmation is armed. */
+  armed: string | null;
+}
+
+function OmniBody() {
+  const projectId = useStore((s) => s.projectId);
+  const readOnly = useStore((s) => s.readOnly);
+  const set = useStore((s) => s.set);
+  const [q, setQ] = useState('');
+  const { items, ask, agentName } = useItems(q);
+  const ranking = useMemo(() => rank(items, q, ask), [items, q, ask]);
+  const [sel, setSel] = useState<Selection>({ q: '', idx: -1, action: 0, armed: null });
+  const list = useRef<HTMLDivElement>(null);
+  const close = () => set({ omniOpen: false });
+
+  const flat = ranking.flat;
+  const current =
+    sel.q === q && sel.idx < flat.length
+      ? sel
+      : { q, idx: ranking.initial, action: 0, armed: null };
+  const { idx, action, armed } = current;
+  const active = idx >= 0 ? flat[idx] : undefined;
 
   useEffect(() => {
     list.current?.querySelector(`[data-index="${idx}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [idx]);
 
-  let lastGroup = '';
+  const select = (next: number) => setSel({ q, idx: next, action: 0, armed: null });
+  const setAction = (next: number) => setSel({ ...current, action: next });
+
+  const run = (item: Item, which = 0) => {
+    if (item.confirm && which === 0 && armed !== item.id) {
+      setSel({ ...current, armed: item.id });
+      return;
+    }
+    const chosen = item.actions?.[which];
+    if (item.command) rememberCommand(item.id.replace(/^r:/, ''));
+    close();
+    (chosen?.run ?? item.run)();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    const handled = () => {
+      e.preventDefault();
+      // The omnibar's keys never reach the views behind it.
+      e.stopPropagation();
+    };
+    const move = (delta: number) => select(moveSelection(idx, flat.length, delta));
+    if (e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'n')) {
+      handled();
+      move(1);
+    } else if (e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'p')) {
+      handled();
+      move(-1);
+    } else if (e.key === 'PageDown') {
+      handled();
+      select(Math.min(flat.length - 1, Math.max(0, idx) + 6));
+    } else if (e.key === 'PageUp') {
+      handled();
+      select(Math.max(0, idx - 6));
+    } else if (e.key === 'Tab') {
+      handled();
+      const count = active?.actions?.length ?? 0;
+      if (count > 1) setAction((action + (e.shiftKey ? count - 1 : 1)) % count);
+    } else if (e.key === 'Enter') {
+      handled();
+      if (!active) return;
+      if (e.metaKey || e.ctrlKey) {
+        const askIndex = active.actions?.findIndex((a) => a.id === 'ask') ?? -1;
+        if (askIndex >= 0) run(active, askIndex);
+        return;
+      }
+      run(active, action);
+    }
+  };
+
+  let index = -1;
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && close()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="overlay" />
-        <Dialog.Content className="omnibar" aria-describedby={undefined}>
-          <Dialog.Title className="sr-only">Go to, run, or ask</Dialog.Title>
-          <div className="omni-input">
-            <MagnifyingGlass size={17} />
-            <input
-              autoFocus
-              role="combobox"
-              aria-expanded="true"
-              aria-controls="omni-results"
-              aria-activedescendant={items[idx] ? `omni-${idx}` : undefined}
-              aria-label="Go to an object, run an action, or ask the agent"
-              placeholder={
-                projectId
-                  ? live
-                    ? 'Go to an object, run an action, or ask the agent…'
-                    : 'Go to an object or run an action…'
-                  : 'Search actions…'
-              }
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setIdx(0);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setIdx((i) => Math.min(i + 1, Math.max(items.length - 1, 0)));
-                }
-                if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setIdx((i) => Math.max(i - 1, 0));
-                }
-                if (e.key === 'Enter' && items[idx]) {
-                  e.preventDefault();
-                  items[idx]!.run();
-                  close();
-                }
-              }}
-            />
-            <Kbd>esc</Kbd>
-          </div>
-          <div
-            className="omni-list"
-            ref={list}
-            id="omni-results"
-            role="listbox"
-            aria-label="Results"
-          >
-            {items.map((item, i) => {
-              const header = item.group !== lastGroup ? item.group : null;
-              lastGroup = item.group;
+    <>
+      <div className="omni-input">
+        <MagnifyingGlass size={17} />
+        <input
+          autoFocus
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="omni-results"
+          aria-autocomplete="list"
+          aria-activedescendant={active ? `omni-${idx}` : undefined}
+          aria-label="Go to an object, run an action, or ask the agent"
+          placeholder={
+            projectId
+              ? `Go to an object or run an action · ${ASK_PREFIX} to ask ${agentName}`
+              : 'Search actions…'
+          }
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+        <Kbd>esc</Kbd>
+      </div>
+      <div className="omni-list" ref={list} id="omni-results" role="listbox" aria-label="Results">
+        {ranking.groups.map((g) => (
+          <div key={g.id} role="group" aria-labelledby={`omni-group-${g.id}`}>
+            <div className="omni-group" id={`omni-group-${g.id}`} role="presentation">
+              {g.label}
+            </div>
+            {g.items.map((item) => {
+              index++;
+              const i = index;
+              const isActive = i === idx;
+              const isArmed = armed === item.id;
               return (
-                <React.Fragment key={item.id}>
-                  {header && <div className="omni-group">{header}</div>}
-                  <div
-                    role="option"
-                    id={`omni-${i}`}
-                    aria-selected={i === idx}
-                    data-index={i}
-                    className={`omni-item ${i === idx ? 'active' : ''}`}
-                    onMouseMove={() => setIdx(i)}
-                    onClick={() => {
-                      item.run();
-                      close();
-                    }}
-                  >
-                    <span className="omni-icon">{item.icon}</span>
-                    <span className="grow truncate">{item.label}</span>
-                    <span className="omni-hint">{item.hint}</span>
-                    {i === idx && <ArrowBendDownLeft size={13} className="omni-enter" />}
-                  </div>
-                </React.Fragment>
+                <div
+                  key={item.id}
+                  role="option"
+                  id={`omni-${i}`}
+                  aria-selected={isActive}
+                  data-index={i}
+                  className={`omni-item ${isActive ? 'active' : ''} ${item.group === 'ask' ? 'ask' : ''} ${isArmed ? 'armed' : ''}`}
+                  onMouseMove={() => i !== idx && select(i)}
+                  onClick={() => run(item, isActive ? action : 0)}
+                >
+                  <span className="omni-icon">{item.icon}</span>
+                  <span className="omni-label truncate">{isArmed ? item.confirm : item.label}</span>
+                  <span className="omni-hint">{item.hint}</span>
+                  {isActive && item.actions && item.actions.length > 1 && (
+                    <span className="omni-actions" aria-label="Actions (Tab to choose)">
+                      {item.actions.map((a, n) => (
+                        <button
+                          key={a.id}
+                          type="button"
+                          tabIndex={-1}
+                          className={`omni-action ${n === action ? 'current' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            run(item, n);
+                          }}
+                        >
+                          {a.id === 'ask' ? (
+                            <ChatCircleText size={12} />
+                          ) : a.id === 'copy' ? (
+                            <Copy size={12} />
+                          ) : null}
+                          {a.label}
+                          {a.shortcut && n !== action && <Kbd>{a.shortcut}</Kbd>}
+                        </button>
+                      ))}
+                    </span>
+                  )}
+                  {isActive && <ArrowBendDownLeft size={13} className="omni-enter" />}
+                </div>
               );
             })}
-            {!items.length && <div className="omni-empty">Nothing matches “{q}”.</div>}
+            {g.more > 0 && (
+              <div className="omni-more" role="presentation">
+                {g.more} more — refine your search
+              </div>
+            )}
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        ))}
+        {!flat.some((i) => i.group !== 'ask') && q.trim() && !q.trim().startsWith(ASK_PREFIX) && (
+          <div className="omni-empty" role="status">
+            Nothing matches “{q.trim()}”.
+            {ask && (
+              <span>
+                {' '}
+                Press ↓ to choose “Ask”, or start with {ASK_PREFIX} to ask {agentName} directly.
+              </span>
+            )}
+          </div>
+        )}
+        {q.trim().startsWith(ASK_PREFIX) && !ask && (
+          <div className="omni-empty" role="status">
+            {projectId
+              ? readOnly
+                ? 'This project is read-only, so there is no agent to ask.'
+                : `Type what to ask ${agentName} after ${ASK_PREFIX}.`
+              : 'Open a project to ask an agent.'}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

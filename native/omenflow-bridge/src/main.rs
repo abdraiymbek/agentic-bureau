@@ -3,8 +3,14 @@
 //! Agent CLIs (Codex, Claude Code, custom) inherit per-session credentials in
 //! their environment and call this binary to reach the running Omen Flow app:
 //!
-//!   omenflow call <op> --input <file|'-'> [--idempotency-key k]
 //!   omenflow mcp
+//!   omenflow call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
+//!   omenflow call <tool> --help
+//!   omenflow guide [topic]
+//!   omenflow status [--scope session|project]
+//!
+//! `<tool>` is a tool name (`cad_check`) or an operation name (`cad.check`);
+//! the app resolves either.
 //!
 //! Wire protocol (see packages/contracts/src/protocol.ts):
 //! ```text
@@ -17,7 +23,8 @@
 //!   3b. mcp:  one JSON-RPC message per frame, both directions.
 //! ```
 //!
-//! Exit codes: 0 ok · 2 bridge/app error (JSON on stderr) · 3 usage.
+//! Exit codes: 0 ok · 2 bridge/app error (JSON on stderr, with the app's
+//! `repair` sentence when it gave one) · 3 usage.
 
 use interprocess::TryClone;
 use serde_json::{json, Value};
@@ -98,60 +105,138 @@ fn read_frame(r: &mut impl Read) -> io::Result<Option<Value>> {
 
 /* ------------------------------ args/env ------------------------------- */
 
-struct Args {
-    mode: String, // "call" | "mcp"
-    op: Option<String>,
-    input: Option<String>,
-    idempotency_key: Option<String>,
-    /// `omenflow call <op> --help`: describe this op instead of calling it.
-    help_for: Option<String>,
+const USAGE: &str = "usage:
+  omenflow mcp                         serve the Omen Flow tools over MCP (stdio)
+  omenflow call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
+                                       call a tool; the result is JSON on stdout
+  omenflow call <tool> --help          print a tool's arguments and an example
+  omenflow call tool_describe          list every tool
+  omenflow guide [topic]               print a short playbook (start, cad, parts, finish, …)
+  omenflow status [--scope session|project]
+                                       what is unfinished, and the next call for each item
+<tool> is a tool name (cad_check) or an operation name (cad.check).";
+
+/// What the command line asks for.
+#[derive(Debug, PartialEq)]
+enum Command {
+    Mcp,
+    Help,
+    /// One request to the app.
+    Call {
+        op: String,
+        input: Input,
+        idempotency_key: Option<String>,
+        output: Output,
+    },
 }
 
-fn parse_args(argv: &[String]) -> Result<Args, String> {
-    let mut out = Args {
-        mode: String::new(),
-        op: None,
-        input: None,
-        idempotency_key: None,
-        help_for: None,
-    };
-    let mut it = argv.iter();
-    match it.next().map(|s| s.as_str()) {
-        Some("mcp") => {
-            out.mode = "mcp".into();
-            return Ok(out);
+/// Where a call's input comes from.
+#[derive(Debug, PartialEq)]
+enum Input {
+    /// Given on the command line or built by the helper.
+    Inline(Value),
+    /// A file to read, or `-` for standard input.
+    Source(String),
+}
+
+/// How a call's result is printed.
+#[derive(Debug, PartialEq)]
+enum Output {
+    Json {
+        pretty: bool,
+    },
+    /// A playbook: its text, then the list of topics.
+    Guide,
+}
+
+fn parse_args(argv: &[String]) -> Result<Command, String> {
+    let mut rest = argv.iter().map(String::as_str);
+    match rest.next() {
+        Some("mcp") => Ok(Command::Mcp),
+        Some("help" | "--help" | "-h") => Ok(Command::Help),
+        Some("call") => parse_call(rest),
+        Some("guide") => {
+            let topic = rest.next().filter(|topic| !topic.starts_with('-'));
+            Ok(Command::Call {
+                op: "guide.read".into(),
+                input: Input::Inline(
+                    topic.map_or_else(|| json!({}), |topic| json!({"topic": topic})),
+                ),
+                idempotency_key: None,
+                output: Output::Guide,
+            })
         }
-        Some("call") => out.mode = "call".into(),
-        _ => {
-            return Err(
-                "usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp"
-                    .into(),
-            )
+        Some("status") => {
+            let mut input = json!({});
+            while let Some(arg) = rest.next() {
+                match arg {
+                    "--scope" => {
+                        let scope = rest.next().ok_or("missing value for --scope")?;
+                        input["scope"] = json!(scope);
+                    }
+                    other => return Err(format!("unexpected argument: {other}")),
+                }
+            }
+            Ok(Command::Call {
+                op: "work.status".into(),
+                input: Input::Inline(input),
+                idempotency_key: None,
+                output: Output::Json { pretty: false },
+            })
         }
+        Some(other) => Err(format!("unknown command: {other}\n{USAGE}")),
+        None => Err(USAGE.into()),
     }
+}
+
+fn parse_call<'a>(mut rest: impl Iterator<Item = &'a str>) -> Result<Command, String> {
+    let mut op = None;
+    let mut input = None;
+    let mut idempotency_key = None;
     let mut help = false;
-    while let Some(a) = it.next() {
-        match a.as_str() {
-            "--input" => out.input = it.next().cloned(),
-            "--idempotency-key" => out.idempotency_key = it.next().cloned(),
+    let mut pretty = false;
+    while let Some(arg) = rest.next() {
+        match arg {
+            "--input" => input = Some(rest.next().ok_or("missing value for --input")?),
+            "--idempotency-key" => {
+                idempotency_key = Some(
+                    rest.next()
+                        .ok_or("missing value for --idempotency-key")?
+                        .to_owned(),
+                )
+            }
             "--help" | "-h" => help = true,
-            s if !s.starts_with('-') && out.op.is_none() => out.op = Some(s.to_string()),
-            s => return Err(format!("unexpected argument: {s}")),
+            "--pretty" => pretty = true,
+            name if !name.starts_with('-') && op.is_none() => op = Some(name.to_owned()),
+            other => return Err(format!("unexpected argument: {other}")),
         }
     }
-    if out.op.is_none() {
-        return Err("missing <op>".into());
-    }
+    let op = op.ok_or("missing <tool>")?;
+    let output = Output::Json { pretty };
     if help {
-        // `omenflow call <op> --help` → tool.describe <op>: purpose + input JSON schema.
-        out.help_for = out.op.take();
-        out.op = Some("tool.describe".into());
-        return Ok(out);
+        // `omenflow call <tool> --help` → tool.describe: purpose, input
+        // schema and an example call.
+        return Ok(Command::Call {
+            op: "tool.describe".into(),
+            input: Input::Inline(json!({ "op": op })),
+            idempotency_key: None,
+            output,
+        });
     }
-    if out.input.is_none() {
-        return Err("missing --input <file|-> (or --help for the schema)".into());
-    }
-    Ok(out)
+    let input = match input {
+        // A tool that takes no arguments needs no --input.
+        None => Input::Inline(json!({})),
+        Some(text) if text.trim_start().starts_with('{') => Input::Inline(
+            serde_json::from_str(text).map_err(|e| format!("--input is not valid JSON: {e}"))?,
+        ),
+        Some(source) => Input::Source(source.to_owned()),
+    };
+    Ok(Command::Call {
+        op,
+        input,
+        idempotency_key,
+        output,
+    })
 }
 
 static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -168,8 +253,12 @@ fn request_id() -> String {
 /* -------------------------------- main --------------------------------- */
 
 fn run() -> ExitCode {
-    let args = match parse_args(&env::args().skip(1).collect::<Vec<_>>()) {
-        Ok(a) => a,
+    let command = match parse_args(&env::args().skip(1).collect::<Vec<_>>()) {
+        Ok(Command::Help) => {
+            println!("{USAGE}");
+            return ExitCode::SUCCESS;
+        }
+        Ok(command) => command,
         Err(e) => {
             eprint_json(&json!({"ok": false, "error": {"code": "VALIDATION", "message": e}}));
             return ExitCode::from(3);
@@ -200,7 +289,7 @@ fn run() -> ExitCode {
         "type": "hello",
         "token": token,
         "protocolVersion": PROTOCOL_VERSION,
-        "mode": args.mode,
+        "mode": if command == Command::Mcp { "mcp" } else { "call" },
     });
     if write_frame(&mut stream, &hello).is_err() {
         return fail("APP_NOT_RUNNING", "Bridge write failed during handshake");
@@ -221,44 +310,53 @@ fn run() -> ExitCode {
         return fail(code, msg);
     }
 
-    if args.mode == "mcp" {
+    let Command::Call {
+        op,
+        input,
+        idempotency_key,
+        output,
+    } = command
+    else {
         return mcp_pump(stream);
-    }
+    };
 
     // --- mode "call" ---
-    let payload: Value = if let Some(target) = args.help_for.as_deref() {
-        json!({ "op": target })
-    } else {
-        let raw = match args.input.as_deref() {
-            Some("-") => {
+    let payload = match input {
+        Input::Inline(value) => value,
+        Input::Source(source) => {
+            let raw = if source == "-" {
                 let mut s = String::new();
                 match io::stdin().read_to_string(&mut s) {
                     Ok(_) => s,
                     Err(e) => return fail("VALIDATION", &format!("Cannot read stdin: {e}")),
                 }
-            }
-            Some(p) => match fs::read_to_string(p) {
-                Ok(s) => s,
-                Err(e) => return fail("VALIDATION", &format!("Cannot read --input {p}: {e}")),
-            },
-            None => String::new(),
-        };
-        if raw.trim().is_empty() {
-            json!({})
-        } else {
-            match serde_json::from_str(&raw) {
-                Ok(v) => v,
-                Err(e) => return fail("VALIDATION", &format!("--input is not valid JSON: {e}")),
+            } else {
+                match fs::read_to_string(&source) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return fail("VALIDATION", &format!("Cannot read --input {source}: {e}"))
+                    }
+                }
+            };
+            if raw.trim().is_empty() {
+                json!({})
+            } else {
+                match serde_json::from_str(&raw) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return fail("VALIDATION", &format!("--input is not valid JSON: {e}"))
+                    }
+                }
             }
         }
     };
 
     let mut req = json!({
         "requestId": request_id(),
-        "op": args.op.unwrap(),
+        "op": op,
         "payload": payload,
     });
-    if let Some(k) = args.idempotency_key {
+    if let Some(k) = idempotency_key {
         req["idempotencyKey"] = json!(k);
     }
     if write_frame(&mut stream, &req).is_err() {
@@ -268,12 +366,11 @@ fn run() -> ExitCode {
         Ok(Some(resp)) => {
             if resp.get("ok").and_then(Value::as_bool) == Some(true) {
                 let result = resp.get("result").cloned().unwrap_or(Value::Null);
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&result).unwrap_or_default()
-                );
+                println!("{}", render(&result, &output));
                 ExitCode::SUCCESS
             } else {
+                // The whole error, on one line: code, message, the repair
+                // sentence and the details (issues, example) the app sent.
                 eprint_json(
                     &json!({"ok": false, "error": resp.get("error").cloned().unwrap_or(Value::Null)}),
                 );
@@ -281,6 +378,33 @@ fn run() -> ExitCode {
             }
         }
         _ => fail("APP_NOT_RUNNING", "Bridge closed before responding"),
+    }
+}
+
+/// A result as text for standard output. JSON is compact unless asked
+/// otherwise: the reader is usually a model, and indentation costs tokens.
+fn render(result: &Value, output: &Output) -> String {
+    match output {
+        Output::Json { pretty: true } => serde_json::to_string_pretty(result).unwrap_or_default(),
+        Output::Json { pretty: false } => serde_json::to_string(result).unwrap_or_default(),
+        Output::Guide => {
+            let mut text = result["text"].as_str().unwrap_or_default().to_owned();
+            let topics = result["topics"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            if !topics.is_empty() {
+                text.push_str("\n\nTopics (omenflow guide <topic>):");
+                for topic in topics {
+                    text.push_str(&format!(
+                        "\n  {} — {}",
+                        topic["id"].as_str().unwrap_or_default(),
+                        topic["when"].as_str().unwrap_or_default()
+                    ));
+                }
+            }
+            text
+        }
     }
 }
 

@@ -14,6 +14,8 @@ export interface OmenflowApi {
   onTerminalState(cb: (s: unknown) => void): () => void;
   onJobProgress(cb: (d: unknown) => void): () => void;
   onServiceState?(cb: (data: { available: boolean; message?: string }) => void): () => void;
+  /** One record per agent tool call, as the host ledger writes it. Not every transport has it. */
+  onAgentCall?(cb: (call: unknown) => void): () => void;
   pickDirectory(title?: string): Promise<string | null>;
   pickFile(opts?: {
     title?: string;
@@ -36,9 +38,12 @@ declare global {
 
 export class CommandError extends Error {
   body: OmenflowErrorBody;
-  constructor(body: OmenflowErrorBody) {
+  /** The operation that failed, when the error came from `cmd`. */
+  op: string | undefined;
+  constructor(body: OmenflowErrorBody, op?: string) {
     super(body.message);
     this.body = body;
+    this.op = op;
   }
   get code(): string {
     return this.body.code;
@@ -48,14 +53,13 @@ export class CommandError extends Error {
   }
 }
 
+/** A failed operation as the frame reports it. */
 export interface RecoverableCommandError {
   op: string;
   code: string;
   message: string;
   repair?: string;
 }
-
-export const COMMAND_ERROR_EVENT = 'omenflow:command-error';
 
 /** Error text for toasts: appends the repair hint when the op provided one. */
 export function errMsg(e: unknown): string {
@@ -68,26 +72,32 @@ export function formatRecoverableError(error: RecoverableCommandError): string {
   return error.repair ? `${error.message} — ${error.repair}` : error.message;
 }
 
-/** Invoke a core op; throws CommandError with stable code on failure. */
+/**
+ * Invoke a core op. A refusal from the host and a transport failure both throw a
+ * `CommandError` with a stable code. Nothing is reported globally here: the caller decides
+ * how to tell the person, and a failure no caller handles reaches the frame as an unhandled
+ * rejection, which shows it once.
+ */
 export async function cmd<T = unknown>(
   op: string,
   payload: unknown = {},
   opts?: { idempotencyKey?: string; projectId?: string },
 ): Promise<T> {
-  const res = await window.omenflow.command(op, payload, opts);
+  let res: Awaited<ReturnType<OmenflowApi['command']>>;
+  try {
+    res = await window.omenflow.command(op, payload, opts);
+  } catch (e) {
+    throw new CommandError(
+      { code: 'INTERNAL', message: e instanceof Error ? e.message : String(e) },
+      op,
+    );
+  }
   if (!res.ok) {
     const body = (res.error as OmenflowErrorBody | undefined) ?? {
       code: 'INTERNAL',
       message: 'unknown error',
     };
-    const detail: RecoverableCommandError = {
-      op,
-      code: body.code,
-      message: body.message,
-      repair: body.repair,
-    };
-    window.dispatchEvent(new CustomEvent(COMMAND_ERROR_EVENT, { detail }));
-    throw new CommandError(body);
+    throw new CommandError(body, op);
   }
   return res.result as T;
 }

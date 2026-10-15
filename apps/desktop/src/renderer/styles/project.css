@@ -1,0 +1,313 @@
+/* Project level: identity, Needs you, empty project. */
+.project {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.project-head {
+  position: relative;
+  z-index: var(--z-project-head);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-8) var(--s-4);
+  pointer-events: none;
+}
+.project-head > * {
+  pointer-events: auto;
+}
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 620px;
+  min-width: 0;
+}
+.identity h1 {
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.15;
+}
+.identity-intent {
+  text-align: left;
+  color: var(--text-2);
+  font-size: var(--text-md);
+  line-height: 1.5;
+  border-radius: var(--r-xs);
+  padding: 2px 0;
+  max-width: 560px;
+}
+/* A long intent stays two lines over the canvas; editing shows all of it. */
+.identity-intent > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+button.identity-intent:not(:disabled):hover {
+  color: var(--text);
+}
+textarea.identity-intent.editing {
+  padding: 6px 8px;
+  margin: -2px -9px;
+  width: calc(100% + 18px);
+  resize: none;
+  font-size: var(--text-md);
+}
+.identity-meta {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  margin-top: 2px;
+}
+
+/* ---------------- needs you ---------------- */
+.needs {
+  position: absolute;
+  top: var(--s-4);
+  right: var(--s-4);
+  width: 312px;
+  z-index: var(--z-island);
+  padding: var(--s-1);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 96px);
+  animation: rise var(--t-slow) var(--ease);
+}
+.needs.quiet {
+  width: auto;
+  max-width: min(440px, calc(100% - var(--s-8)));
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  border-radius: var(--r-pill);
+}
+.needs.quiet > svg {
+  flex: none;
+}
+button.needs-pill {
+  transition: color var(--t-fast) var(--ease);
+}
+button.needs-pill:hover {
+  color: var(--text);
+}
+.needs-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.needs-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px 2px 2px var(--s-2);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-2);
+}
+.needs-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.needs-rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.needs-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast) var(--ease);
+}
+.needs-row:hover,
+.needs-row:focus-within {
+  background: var(--raised-2);
+}
+.needs-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px var(--s-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+}
+.needs-row > .icon-btn {
+  flex: none;
+  margin-right: var(--s-1);
+}
+.needs-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-3);
+}
+.needs-icon.warn {
+  color: var(--warn);
+}
+.needs-icon.err {
+  color: var(--err);
+}
+.needs-icon.signal {
+  color: var(--signal-text);
+}
+.needs-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+/* One line each, so the island keeps a known height; the full text is one hover away. */
+.needs-copy strong,
+.needs-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.needs-copy strong {
+  font-weight: 500;
+  font-size: var(--text-sm);
+  line-height: 17px;
+}
+.needs-copy small {
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  line-height: 15px;
+}
+.needs-go {
+  color: var(--text-3);
+  margin-top: 3px;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+  flex: none;
+}
+.needs-row:hover .needs-go,
+.needs-open:focus-visible .needs-go {
+  opacity: 1;
+}
+.needs-section {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+  margin-top: var(--s-1);
+  padding-top: var(--s-1);
+}
+.needs-sub {
+  padding: 6px var(--s-2) 2px;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-3);
+}
+.needs-suggestion {
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0 6px var(--s-2);
+}
+.needs-suggestion .needs-copy strong,
+.needs-suggestion .needs-copy small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* With room beside the project name, a longer queue runs two rows abreast and stays out of the map. */
+@media (min-width: 1360px) {
+  .needs[data-rows='many'] {
+    width: 616px;
+  }
+  .needs[data-rows='many'] .needs-rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--s-1);
+  }
+}
+
+/* ---------------- empty project ---------------- */
+.beginning {
+  margin: auto;
+  max-width: 520px;
+  padding: 0 var(--s-6) 10vh;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+}
+.beginning-flow {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--s-6);
+}
+.beginning-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--line-control);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.beginning-node:first-child {
+  border-style: solid;
+  color: var(--text);
+  background: var(--raised);
+}
+.beginning-link {
+  width: 26px;
+  height: 1px;
+  background: var(--line-control);
+}
+.beginning h2 {
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+}
+.beginning p {
+  color: var(--text-2);
+  margin-bottom: var(--s-3);
+}
+
+@media (max-width: 1120px) {
+  .project-head {
+    padding-left: var(--s-6);
+    padding-right: var(--s-6);
+  }
+  .needs {
+    width: 296px;
+  }
+}
+/* Short windows: the identity takes one compact band so the lens keeps its height. */
+@media (max-height: 760px) {
+  .project-head {
+    padding-top: var(--s-3);
+    padding-bottom: var(--s-2);
+  }
+  .identity {
+    gap: 0;
+  }
+  .identity h1 {
+    font-size: var(--text-xl);
+    letter-spacing: var(--tracking-tight);
+  }
+  .identity-intent {
+    font-size: var(--text-sm);
+  }
+  .identity-intent > span {
+    -webkit-line-clamp: 1;
+  }
+  .identity-meta {
+    display: none;
+  }
+  .needs {
+    top: var(--s-3);
+  }
+}

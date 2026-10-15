@@ -41,6 +41,7 @@ export async function installTauriApi(): Promise<void> {
       callback({ available: true });
       return subscription('omenflow:service-state', callback);
     },
+    onAgentCall: (callback) => subscription('omenflow:agent:call', callback),
     pickDirectory: (title) => open({ directory: true, multiple: false, title }),
     pickFile: (opts) =>
       open({ directory: false, multiple: false, title: opts?.title, filters: opts?.filters }),

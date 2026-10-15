@@ -1,12 +1,14 @@
 [workspace]
-members = ["crates/contracts", "crates/storage", "crates/core", "crates/agent-host", "apps/rust-desktop"]
+members = ["crates/contracts", "crates/storage", "crates/core", "crates/agent-host", "apps/rust-desktop", "apps/headless"]
 exclude = ["native/omenflow-bridge"]
 resolver = "2"
 
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-version = "0.1.0"
+repository = "https://github.com/abdraiymbek/omen-flow"
+homepage = "https://github.com/abdraiymbek/omen-flow"
+version = "1.0.0"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

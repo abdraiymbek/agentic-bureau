@@ -1,7 +1,31 @@
-/** Development-only bridge. Uses real core operations on disposable fixture projects. */
+/**
+ * Development-only bridge. Runs the real Rust host on disposable fixture
+ * projects: commands, project events, agent terminals and agent call records
+ * all come from `omenflow-host` through the preview server.
+ */
 import type { OmenflowApi } from './api';
-import { useStore, type Lens } from './store';
-import type { Project } from '@omenflow/contracts';
+import { useStore } from './store';
+import { lensDef } from './project/lenses';
+import type { Project, SessionInfo } from '@omenflow/contracts';
+
+type Listener<T> = (value: T) => void;
+
+/** Listeners for one kind of host event. */
+function channel<T>() {
+  const listeners = new Set<Listener<T>>();
+  return {
+    emit: (value: T) => {
+      for (const listener of listeners) listener(value);
+    },
+    subscribe: (listener: Listener<T>) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
 export async function installDesignPreview() {
   const bootstrap = (await fetch('/__omen_preview/bootstrap').then((r) => r.json())) as {
     token: string;
@@ -9,11 +33,12 @@ export async function installDesignPreview() {
     projectId: string;
     previewRoot: string;
   };
-  const events = new Set<(event: unknown) => void>();
-  const source = new EventSource(`/__omen_preview/events?token=${bootstrap.token}`);
-  source.onmessage = (message) => {
-    for (const listener of events) listener(JSON.parse(message.data));
-  };
+  const events = channel<unknown>();
+  const terminalData = channel<Parameters<Parameters<OmenflowApi['onTerminalData']>[0]>[0]>();
+  const terminalState = channel<unknown>();
+  const agentCalls = channel<unknown>();
+  const service = channel<{ available: boolean; message?: string }>();
+
   const hint = () => {
     useStore
       .getState()
@@ -33,18 +58,17 @@ export async function installDesignPreview() {
     setActiveProject: async (id) => {
       await api.command('__active', { id });
     },
-    onEvent: (cb) => {
-      events.add(cb);
-      return () => {
-        events.delete(cb);
-      };
-    },
-    onTerminalData: () => () => {},
-    onTerminalState: () => () => {},
+    onEvent: events.subscribe,
+    onTerminalData: terminalData.subscribe,
+    onTerminalState: terminalState.subscribe,
     onJobProgress: () => () => {},
+    onServiceState: service.subscribe,
+    onAgentCall: agentCalls.subscribe,
+    // The launcher picks where a new project folder goes; the preview offers its own root, so a
+    // new project lands beside the fixtures. Opening a project picks the rover.
     pickDirectory: async (title) =>
-      title === 'Choose project folder'
-        ? `${bootstrap.previewRoot}/project-${crypto.randomUUID()}`
+      title === 'Choose where to create the project folder'
+        ? bootstrap.previewRoot
         : bootstrap.path,
     pickFile: async () => {
       await hint();
@@ -60,6 +84,31 @@ export async function installDesignPreview() {
     revealPath: hint,
     toggleResearch: hint,
   };
+
+  const source = new EventSource(`/__omen_preview/events?token=${bootstrap.token}`);
+  const on = <T>(name: string, deliver: Listener<T>) =>
+    source.addEventListener(name, (message) => deliver(JSON.parse(message.data) as T));
+  on('event', events.emit);
+  on('terminal-data', terminalData.emit);
+  on('terminal-state', terminalState.emit);
+  on('agent-call', agentCalls.emit);
+  // The host could not replay what this page missed: read the state again
+  // instead of trusting a stream with a hole in it.
+  on('resync', () => {
+    const state = useStore.getState();
+    void state.refreshAll().catch(() => {});
+    const projectId = state.projectId;
+    if (!projectId) return;
+    void api.command('terminal.state', {}, { projectId }).then((response) => {
+      if (!response.ok) return;
+      const session = (response.result as { session: SessionInfo | null }).session;
+      terminalState.emit({ projectId, session });
+    });
+  });
+  source.onopen = () => service.emit({ available: true });
+  source.onerror = () =>
+    service.emit({ available: false, message: 'The preview host is not answering. Reconnecting.' });
+
   window.omenflow = api;
   document.documentElement.dataset.preview = 'true';
   const params = new URLSearchParams(location.search);
@@ -74,8 +123,8 @@ export async function installDesignPreview() {
   await useStore.getState().refreshAll();
   if (params.get('theme') === 'light' || params.get('theme') === 'dark')
     state.set({ theme: params.get('theme') as 'light' | 'dark' });
-  if (screen && ['parts', 'timeline', 'files'].includes(screen))
-    state.go({ level: 'project', lens: screen as Lens });
+  const lens = screen ? lensDef(screen) : undefined;
+  if (lens) state.go({ level: 'project', lens: lens.id });
   if (screen === 'decide') state.decide(null);
   if (screen === 'agent') state.go({ level: 'agent' });
   if (screen === 'system') state.go({ level: 'system' });

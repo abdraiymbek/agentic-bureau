@@ -1,0 +1,26 @@
+[package]
+name = "omenflow-headless"
+description = "Omen Flow host without a window: the desktop command surface over loopback HTTP"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "omenflow_headless"
+path = "src/lib.rs"
+
+[[bin]]
+name = "omenflow-host"
+path = "src/main.rs"
+
+[dependencies]
+omenflow-agent-host = { path = "../../crates/agent-host" }
+omenflow-contracts = { path = "../../crates/contracts" }
+serde_json.workspace = true
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

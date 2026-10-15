@@ -1,88 +1,133 @@
 import React from 'react';
-import { formatQty, isUnknown } from '@omenflow/contracts';
+import type { DiffEntry, Shown } from '../lib/diff';
+import { LineDiff, ShownValue } from './parts';
 
-export function summarize(payload: unknown): string {
-  const p = (payload ?? {}) as Record<string, unknown>;
-  if (p.statement) return String(p.statement).slice(0, 180);
-  if (p.partNumber) return `${p.partNumber} (${p.manufacturer ?? p.vendor ?? ''})`;
-  if (typeof p.markdown === 'string') return p.markdown.slice(0, 180);
-  if (typeof p.text === 'string') return p.text.slice(0, 180);
-  if (p.url) return String(p.url).slice(0, 180);
-  return JSON.stringify(payload).slice(0, 180);
-}
+const CHANGE_WORD: Record<DiffEntry['change'], string> = {
+  added: 'Added',
+  removed: 'Removed',
+  changed: 'Changed',
+  moved: 'Moved',
+};
 
-const isQty = (v: unknown): v is { value: number; unit: string } =>
-  !!v && typeof v === 'object' && 'value' in v && 'unit' in v;
-
-function fmt(v: unknown): string {
-  if (isQty(v)) return formatQty(v as never);
-  if (v && typeof v === 'object' && isUnknown(v as never)) return 'unknown';
-  if (v === undefined) return 'Not set';
-  if (v === null) return 'None';
-  return typeof v === 'object' ? JSON.stringify(v) : String(v);
-}
-
-function label(path: string) {
-  return path
-    .replace(/\[(.+?)\]/g, ' › $1')
-    .replace(/\./g, ' › ')
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .toLowerCase();
-}
-
-/** Field-level difference; quantities change atomically — 0.3 kg → 0.5 kg. */
-export function PayloadDiff({ from, to }: { from: unknown; to: unknown }) {
-  const diffs: { path: string; from: unknown; to: unknown }[] = [];
-  const walk = (a: unknown, b: unknown, path: string) => {
-    if (a === b) return;
-    if (Array.isArray(a) && Array.isArray(b)) {
-      for (let i = 0; i < Math.max(a.length, b.length); i++) {
-        const item = b[i] ?? a[i];
-        const key =
-          item && typeof item === 'object' && 'name' in item ? String(item.name) : String(i + 1);
-        walk(a[i], b[i], `${path}[${key}]`);
-      }
-      return;
-    }
-    if (isQty(a) && isQty(b)) {
-      if (a.value !== b.value || a.unit !== b.unit) diffs.push({ path, from: a, to: b });
-      return;
-    }
-    if (
-      a &&
-      b &&
-      typeof a === 'object' &&
-      typeof b === 'object' &&
-      !Array.isArray(a) &&
-      !Array.isArray(b)
-    ) {
-      for (const k of new Set([...Object.keys(a), ...Object.keys(b)]))
-        walk(
-          (a as Record<string, unknown>)[k],
-          (b as Record<string, unknown>)[k],
-          path ? `${path}.${k}` : k,
-        );
-      return;
-    }
-    diffs.push({ path: path || '(value)', from: a, to: b });
-  };
-  walk(from, to, '');
-  if (!diffs.length) return <p className="dim">No field changes in the payload.</p>;
+function Was({ value }: { value?: Shown }) {
+  if (!value) return <span className="diff-from review-empty">Not set</span>;
   return (
-    <div className="diff">
-      {diffs.map((d, i) => (
-        <div className="diff-row" key={i}>
-          <span className="diff-field" title={d.path}>
-            {label(d.path)}
-          </span>
-          <span className="diff-from">{fmt(d.from)}</span>
-          <span className="diff-arrow" aria-label="becomes">
-            →
-          </span>
-          <span className="diff-to">{fmt(d.to)}</span>
+    <del className="diff-from">
+      <span className="sr-only">was </span>
+      <ShownValue value={value} />
+    </del>
+  );
+}
+
+function Now({ value }: { value?: Shown }) {
+  if (!value) return <span className="diff-to review-empty">Removed</span>;
+  return (
+    <ins className="diff-to">
+      <span className="sr-only">now </span>
+      <ShownValue value={value} />
+    </ins>
+  );
+}
+
+function Notes({ notes }: { notes: string[] }) {
+  if (!notes.length) return null;
+  return <span className="diff-notes">{notes.join(' · ')}</span>;
+}
+
+/** Old → new on one row while both are short. */
+function ValueRow({ e }: { e: DiffEntry }) {
+  return (
+    <div className="diff-row" role="listitem">
+      <span className="diff-field">{e.label}</span>
+      <Was value={e.from} />
+      <span className="diff-arrow" aria-hidden="true">
+        →
+      </span>
+      <Now value={e.to} />
+      <Notes notes={e.notes} />
+    </div>
+  );
+}
+
+/** Long text gets the full width: a line diff, or the whole text when it appeared or went. */
+function TextRow({ e }: { e: DiffEntry }) {
+  return (
+    <div className="diff-row stacked" role="listitem">
+      <div className="diff-head">
+        <span className="diff-field">{e.label}</span>
+        <span className={`diff-change change-${e.change}`}>{CHANGE_WORD[e.change]}</span>
+      </div>
+      {e.lines ? (
+        <LineDiff lines={e.lines} fold={e.lines.length > 40 ? 3 : null} prose />
+      ) : (
+        <div className="diff-blocks">
+          {e.from && (
+            <div className="diff-block">
+              <span className="diff-block-label">Was</span>
+              <del className="diff-from">
+                <ShownValue value={e.from} />
+              </del>
+            </div>
+          )}
+          {e.to && (
+            <div className="diff-block">
+              <span className="diff-block-label">Now</span>
+              <ins className="diff-to">
+                <ShownValue value={e.to} />
+              </ins>
+            </div>
+          )}
         </div>
-      ))}
+      )}
+      <Notes notes={e.notes} />
+    </div>
+  );
+}
+
+/** A whole list item that was added, removed or moved. */
+function ItemRow({ e }: { e: DiffEntry }) {
+  const value = e.to ?? e.from;
+  return (
+    <div className={`diff-row stacked diff-item item-${e.change}`} role="listitem">
+      <div className="diff-head">
+        <span className="diff-field">{e.label}</span>
+        <span className={`diff-change change-${e.change}`}>{CHANGE_WORD[e.change]}</span>
+      </div>
+      {e.fields ? (
+        <dl className="diff-fields">
+          {e.fields.map((f, i) => (
+            <React.Fragment key={i}>
+              <dt>{f.label}</dt>
+              <dd>
+                <ShownValue value={f.value} />
+              </dd>
+            </React.Fragment>
+          ))}
+        </dl>
+      ) : value ? (
+        <div className="diff-item-value">
+          <ShownValue value={value} />
+        </div>
+      ) : null}
+      <Notes notes={e.notes} />
+    </div>
+  );
+}
+
+/** Field-level differences; quantities change atomically — 0.3 kg → 0.5 kg. */
+export function PayloadDiff({ entries, empty }: { entries: DiffEntry[]; empty?: string }) {
+  if (!entries.length) return <p className="review-muted">{empty ?? 'No field changes.'}</p>;
+  return (
+    <div className="diff" role="list" aria-label="Changes">
+      {entries.map((e) =>
+        e.kind === 'item' ? (
+          <ItemRow key={`${e.path}:${e.change}`} e={e} />
+        ) : e.kind === 'text' || e.from?.long || e.to?.long ? (
+          <TextRow key={`${e.path}:${e.change}`} e={e} />
+        ) : (
+          <ValueRow key={`${e.path}:${e.change}`} e={e} />
+        ),
+      )}
     </div>
   );
 }

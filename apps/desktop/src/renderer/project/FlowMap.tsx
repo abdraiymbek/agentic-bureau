@@ -1,386 +1,337 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import {
-  ReactFlow,
-  ReactFlowProvider,
-  Background,
-  BackgroundVariant,
-  Handle,
-  Position,
-  useReactFlow,
-  type Edge as FlowEdge,
-  type Node,
-  type NodeProps,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { ArrowsOut, Minus, Plus } from '@phosphor-icons/react';
-import type { ArtifactType, ArtifactView, Edge } from '@omenflow/contracts';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { ArtifactView, Edge, ProjectEvent } from '@omenflow/contracts';
 import { useStore } from '../store';
-import { impactIds } from '../lib/graph';
-import { IconButton, TypeGlyph, TYPES, typeMeta, type Layer } from '../ui/kit';
+import { causalAdjacency, impactIds, stalePathSteps } from '../lib/graph';
+import { typeMeta } from '../ui/kit';
+import { Signal } from './flow/chrome';
+import { MapController, type MapStatus } from './flow/controller';
+import { FLAG, flagsOf, groupFlags, groupName, nodeName } from './flow/describe';
+import { collapsedTypes, estimateTextWidth, layoutFlow, type Measure } from './flow/layout';
+import {
+  KEYBOARD_HELP,
+  MapControls,
+  MapEdges,
+  MapLabels,
+  MapLegend,
+  MapNode,
+  MapPeek,
+} from './flow/MapParts';
+import { recall, remember } from './flow/memory';
+import { buildGraph, type FlowGraph } from './flow/model';
+import { agentTouches } from './flow/touch';
 
-/**
- * Causal reading order: human intent and world sources on the left, evidence on the right.
- * A layer may span sub-columns so its internal links run horizontally.
- */
-const COLUMNS: { layer: Layer; label: string; types: ArtifactType[] }[] = [
-  { layer: 'intent', label: 'Intent', types: ['requirement', 'assumption'] },
-  { layer: 'parts', label: 'Parts', types: ['source'] },
-  { layer: 'parts', label: 'Parts', types: ['component'] },
-  {
-    layer: 'design',
-    label: 'Design',
-    types: [
-      'concept',
-      'architecture',
-      'subsystem',
-      'mechanical',
-      'wiring',
-      'software',
-      'assembly',
-      'note',
-    ],
-  },
-  { layer: 'evidence', label: 'Evidence', types: ['calculation', 'test'] },
-];
-const NODE_W = 216;
-const NODE_H = 40;
-const ROW = 50;
-const GROUP_GAP = 30;
-const COL_GAP = 104;
-const LAYER_GAP = 52;
-const CAUSAL = new Set(['depends_on', 'derived_from', 'validates']);
-const TOUCH_WINDOW_MS = 15 * 60 * 1000;
-
-interface ObjectData extends Record<string, unknown> {
-  view: ArtifactView;
-  stale: boolean;
-  touched: boolean;
-  dim: boolean;
-  lit: boolean;
-  impact: boolean;
+/** The same graph object for as long as the shape of the project stays the same. */
+function useGraph(artifacts: ArtifactView[], edges: Edge[]): FlowGraph {
+  const held = useRef<FlowGraph | null>(null);
+  return useMemo(() => {
+    const next = buildGraph(artifacts, edges);
+    if (held.current?.key !== next.key) held.current = next;
+    return held.current;
+  }, [artifacts, edges]);
 }
 
-function columnOf(type: string) {
-  const i = COLUMNS.findIndex((c) => c.types.includes(type as ArtifactType));
-  return i < 0 ? 3 : i;
-}
-
-type Positions = Map<string, { x: number; y: number; col: number }>;
-
-/**
- * Deterministic layered layout: columns by layer, groups by type, rows ordered by the
- * barycentre of upstream neighbours (or downstream ones for pure inputs such as sources).
- */
-function layout(artifacts: ArtifactView[], edges: Edge[]) {
-  const upstream = new Map<string, string[]>();
-  const downstream = new Map<string, string[]>();
-  for (const e of edges) {
-    if (!upstream.has(e.downstreamArtifactId)) upstream.set(e.downstreamArtifactId, []);
-    upstream.get(e.downstreamArtifactId)!.push(e.upstreamArtifactId);
-    if (!downstream.has(e.upstreamArtifactId)) downstream.set(e.upstreamArtifactId, []);
-    downstream.get(e.upstreamArtifactId)!.push(e.downstreamArtifactId);
-  }
-  const active = COLUMNS.map((c, i) => ({ ...c, index: i })).filter((c) =>
-    artifacts.some((v) => columnOf(v.artifact.type) === c.index),
-  );
-  const xs: number[] = [];
-  active.forEach((column, slot) => {
-    const prev = active[slot - 1];
-    xs.push(
-      slot === 0
-        ? 0
-        : xs[slot - 1]! + NODE_W + (prev?.layer === column.layer ? LAYER_GAP : COL_GAP),
-    );
-  });
-  const pass = (previous: Positions | null) => {
-    const pos: Positions = new Map();
-    const labels: {
-      id: string;
-      x: number;
-      y: number;
-      text: string;
-      kind: 'column' | 'type';
-      count?: number;
-    }[] = [];
-    active.forEach((column, slot) => {
-      const x = xs[slot]!;
-      const members = artifacts.filter((v) => columnOf(v.artifact.type) === column.index);
-      if (active[slot - 1]?.layer !== column.layer) {
-        const count = artifacts.filter(
-          (v) => TYPES[v.artifact.type]?.layer === column.layer,
-        ).length;
-        labels.push({
-          id: `col:${column.index}`,
-          x,
-          y: -58,
-          text: column.label,
-          kind: 'column',
-          count,
-        });
-      }
-      let y = 0;
-      for (const type of column.types) {
-        const group = members.filter((v) => v.artifact.type === type);
-        if (!group.length) continue;
-        const mean = (ids: string[] | undefined, from: Positions | null) => {
-          const ys = (ids ?? [])
-            .map((id) => from?.get(id)?.y)
-            .filter((n): n is number => n !== undefined);
-          return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Number.POSITIVE_INFINITY;
-        };
-        const key = (v: ArtifactView) => {
-          const up = mean(upstream.get(v.artifact.id), pos);
-          return Number.isFinite(up) ? up : mean(downstream.get(v.artifact.id), previous);
-        };
-        group.sort((a, b) => {
-          const d = key(a) - key(b);
-          return Number.isFinite(d) && d !== 0
-            ? d
-            : a.artifact.title.localeCompare(b.artifact.title);
-        });
-        labels.push({
-          id: `type:${type}`,
-          x,
-          y,
-          text: TYPES[type].plural,
-          kind: 'type',
-          count: group.length,
-        });
-        y += 24;
-        for (const v of group) {
-          pos.set(v.artifact.id, { x, y, col: slot });
-          y += ROW;
-        }
-        y += GROUP_GAP - (ROW - NODE_H);
-      }
-    });
-    return { pos, labels };
+function createMeasure(): Measure {
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return estimateTextWidth;
+  const style = getComputedStyle(document.documentElement);
+  const size = style.getPropertyValue('--text-sm').trim();
+  const family = style.getPropertyValue('--font-sans').trim();
+  if (!size || !family) return estimateTextWidth;
+  context.font = `400 ${size} ${family}`;
+  const cache = new Map<string, number>();
+  return (text) => {
+    let width = cache.get(text);
+    if (width === undefined) cache.set(text, (width = context.measureText(text).width));
+    return width;
   };
-  return pass(pass(null).pos);
 }
 
-function ObjectNode({ data }: NodeProps<Node<ObjectData>>) {
-  const { view, stale, touched, dim, lit, impact } = data;
-  const noBaseline = !view.revision;
-  return (
-    <div
-      className={`map-node ${stale ? 'stale' : ''} ${touched ? 'touched' : ''} ${dim ? 'dim' : ''} ${lit ? 'lit' : ''} ${impact ? 'impact' : ''}`}
-      title={`${typeMeta(view.artifact.type).label} · ${view.artifact.title}`}
-    >
-      <Handle type="target" id="l" position={Position.Left} />
-      <Handle type="target" id="r-in" position={Position.Right} />
-      <TypeGlyph type={view.artifact.type} size={14} />
-      <span className="map-node-title">{view.artifact.title}</span>
-      {view.pendingProposal ? (
-        <span className="map-mark tone-warn" aria-label="In review" />
-      ) : stale ? (
-        <span className="map-mark tone-warn" aria-label="Out of date" />
-      ) : noBaseline ? (
-        <span className="map-mark hollow" aria-label="No baseline" />
-      ) : null}
-      <Handle type="source" id="r" position={Position.Right} />
-      <Handle type="source" id="l-out" position={Position.Left} />
-    </div>
-  );
+// Measured against the interface typeface, so it is only final once that has loaded.
+let settledMeasure: Measure | null = null;
+
+/** Measures node titles in the type they are drawn in; re-measures once when the font arrives. */
+function useTitleMeasure(): Measure {
+  const [measure, setMeasure] = useState<Measure>(() => settledMeasure ?? createMeasure());
+  useEffect(() => {
+    if (settledMeasure) return;
+    let live = true;
+    void document.fonts.ready.then(() => {
+      settledMeasure ??= createMeasure();
+      if (live) setMeasure(() => settledMeasure!);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return measure;
 }
 
-function LabelNode({ data }: NodeProps<Node<{ text: string; kind: string; count?: number }>>) {
-  return (
-    <div className={`map-label ${data.kind}`}>
-      {data.text}
-      {data.count !== undefined && <span>{data.count}</span>}
-    </div>
-  );
+/**
+ * The previous value while a new one is equal to it, so a store refresh that changes nothing
+ * on the map re-renders nothing on it.
+ */
+function useSame<T>(value: T, equal: (a: T, b: T) => boolean): T {
+  const held = useRef(value);
+  if (held.current !== value && !equal(held.current, value)) held.current = value;
+  return held.current;
 }
 
-const nodeTypes = { object: ObjectNode, label: LabelNode };
+const sameEntries = <K, V>(a: ReadonlyMap<K, V>, b: ReadonlyMap<K, V>) =>
+  a.size === b.size && [...a].every(([key, value]) => b.has(key) && b.get(key) === value);
 
-function FlowCanvas({ reserveRight }: { reserveRight: number }) {
+/** Objects the agent changed in the last 15 minutes. The ring comes off when the time is up. */
+function useAgentTouch(events: ProjectEvent[]): ReadonlySet<string> {
+  const [now, setNow] = useState(() => Date.now());
+  const touches = useMemo(() => agentTouches(events, now), [events, now]);
+  useEffect(() => {
+    if (touches.nextExpiry === null) return;
+    const timer = setTimeout(
+      () => setNow(Date.now()),
+      Math.max(0, touches.nextExpiry - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [touches.nextExpiry]);
+  return useSame(touches.ids, (a, b) => a.size === b.size && [...a].every((id) => b.has(id)));
+}
+
+/** Sequence number of the newest impact event, and the objects it reported as affected. */
+function latestImpact(events: ProjectEvent[]): { seq: number; affected: string[] } | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]!;
+    if (event.type !== 'impact.propagated') continue;
+    const reported = (event.data as { affected?: unknown } | null)?.affected;
+    const affected = (Array.isArray(reported) ? reported : [])
+      .map((a) => (a as { artifactId?: unknown } | null)?.artifactId)
+      .filter((id) => typeof id === 'string');
+    return { seq: event.seq, affected };
+  }
+  return null;
+}
+
+/**
+ * The flow map: every object as a node in its causal column, every recorded link routed between
+ * them. React renders the structure; `MapController` handles pan, zoom, hover and keyboard
+ * without rendering.
+ */
+export function FlowMap({
+  head,
+  island,
+}: {
+  /** The project header, which the map passes beneath. */
+  head: HTMLElement | null;
+  /** A floating island the fitted map keeps clear of, when one is resting on the canvas. */
+  island: HTMLElement | null;
+}) {
+  const projectId = useStore((s) => s.projectId) ?? '';
   const artifacts = useStore((s) => s.artifacts);
   const edges = useStore((s) => s.edges);
   const stale = useStore((s) => s.stale);
   const events = useStore((s) => s.events);
-  const theme = useStore((s) => s.theme);
-  const focus = useStore((s) => s.focus);
-  const [hovered, setHovered] = useState<string | null>(null);
-  const flow = useReactFlow();
+  const helpId = useId();
 
-  const known = useMemo(() => new Set(artifacts.map((v) => v.artifact.id)), [artifacts]);
-  const liveEdges = useMemo(
-    () => edges.filter((e) => known.has(e.upstreamArtifactId) && known.has(e.downstreamArtifactId)),
-    [edges, known],
+  const graph = useGraph(artifacts, edges);
+  const [choices, setChoices] = useState(() => recall(projectId).groups);
+  const collapsed = useMemo(() => collapsedTypes(graph, choices), [graph, choices]);
+  const measure = useTitleMeasure();
+  const layout = useMemo(
+    () => layoutFlow(graph, { collapsed, measure }),
+    [graph, collapsed, measure],
   );
-  const { pos, labels } = useMemo(() => layout(artifacts, liveEdges), [artifacts, liveEdges]);
-  const impact = useMemo(() => impactIds(stale), [stale]);
-
-  const touched = useMemo(() => {
-    const now = Date.now();
-    const ids = new Set<string>();
-    for (const e of events) {
-      if (e.origin !== 'agent' || now - new Date(e.ts).getTime() > TOUCH_WINDOW_MS) continue;
-      const id = (e.data as { artifactId?: string } | null)?.artifactId;
-      if (id) ids.add(id);
-    }
-    return ids;
-  }, [events]);
-
-  /** The full causal thread through the hovered object, both directions. */
-  const thread = useMemo(() => {
-    if (!hovered) return null;
-    const ids = new Set([hovered]);
-    const walk = (dir: 'up' | 'down') => {
-      const queue = [hovered];
-      while (queue.length) {
-        const id = queue.shift()!;
-        for (const e of liveEdges) {
-          if (!CAUSAL.has(e.relationship)) continue;
-          const next =
-            dir === 'up'
-              ? e.downstreamArtifactId === id && e.upstreamArtifactId
-              : e.upstreamArtifactId === id && e.downstreamArtifactId;
-          if (next && !ids.has(next)) {
-            ids.add(next);
-            queue.push(next);
-          }
-        }
-      }
+  const lineage = useMemo(
+    () => ({
+      adjacency: causalAdjacency(graph.links),
+      causal: new Set(graph.links.filter((l) => l.causal).map((l) => l.key)),
+    }),
+    [graph],
+  );
+  const degree = useMemo(() => {
+    const counts = new Map<string, { inputs: number; consequences: number }>();
+    const of = (id: string) => {
+      let entry = counts.get(id);
+      if (!entry) counts.set(id, (entry = { inputs: 0, consequences: 0 }));
+      return entry;
     };
-    walk('up');
-    walk('down');
-    return ids;
-  }, [hovered, liveEdges]);
-
-  const nodes = useMemo<Node[]>(() => {
-    const list: Node[] = labels.map((l) => ({
-      id: l.id,
-      type: 'label',
-      position: { x: l.x, y: l.y },
-      data: { text: l.text, kind: l.kind, count: l.count },
-      selectable: false,
-      draggable: false,
-      focusable: false,
-    }));
-    for (const v of artifacts) {
-      const p = pos.get(v.artifact.id);
-      if (!p) continue;
-      const id = v.artifact.id;
-      list.push({
-        id,
-        type: 'object',
-        position: { x: p.x, y: p.y },
-        width: NODE_W,
-        height: NODE_H,
-        draggable: false,
-        ariaLabel: `${typeMeta(v.artifact.type).label}: ${v.artifact.title}`,
-        data: {
-          view: v,
-          stale: (stale[id] ?? []).length > 0,
-          touched: touched.has(id),
-          dim: !!thread && !thread.has(id),
-          lit: !!thread && thread.has(id),
-          impact: !thread && impact.has(id),
-        } satisfies ObjectData,
-      });
+    for (const link of graph.links) {
+      of(link.to).inputs++;
+      of(link.from).consequences++;
     }
-    return list;
-  }, [artifacts, pos, labels, stale, touched, thread, impact]);
+    return counts;
+  }, [graph]);
 
-  const flowEdges = useMemo<FlowEdge[]>(
+  const touched = useAgentTouch(events);
+  const onPath = useMemo(() => impactIds(stale), [stale]);
+  const flags = useSame(
+    useMemo(
+      () =>
+        new Map(
+          artifacts.map((v) => [
+            v.artifact.id,
+            flagsOf(v, touched.has(v.artifact.id), onPath.has(v.artifact.id)),
+          ]),
+        ),
+      [artifacts, touched, onPath],
+    ),
+    sameEntries,
+  );
+  const impactSteps = useMemo(() => {
+    const steps = stalePathSteps(stale);
+    const drawn = new Map<string, number>();
+    if (steps.size === 0) return drawn;
+    for (const edge of layout.edges) {
+      const step = Math.min(...edge.links.map((key) => steps.get(key) ?? Infinity));
+      if (Number.isFinite(step)) drawn.set(edge.key, step);
+    }
+    return drawn;
+  }, [layout, stale]);
+  const impact = useSame(impactSteps, sameEntries);
+
+  const nodes = useMemo(
     () =>
-      liveEdges.map((e) => {
-        const a = pos.get(e.upstreamArtifactId);
-        const b = pos.get(e.downstreamArtifactId);
-        const same = a && b && a.col === b.col;
-        const backwards = a && b && b.col < a.col;
-        const inThread = thread?.has(e.upstreamArtifactId) && thread?.has(e.downstreamArtifactId);
-        const onImpact = impact.has(e.upstreamArtifactId) && impact.has(e.downstreamArtifactId);
-        return {
-          id: e.id,
-          source: e.upstreamArtifactId,
-          target: e.downstreamArtifactId,
-          sourceHandle: backwards ? 'l-out' : 'r',
-          targetHandle: same || backwards ? 'r-in' : 'l',
-          className: [
-            'map-edge',
-            CAUSAL.has(e.relationship) ? '' : 'weak',
-            thread ? (inThread ? 'lit' : 'dim') : onImpact ? 'impact' : '',
-          ].join(' '),
-          focusable: false,
-        };
+      layout.nodes.map((node) => {
+        if (node.kind === 'group') {
+          const members = node.members.map((id) => flags.get(id) ?? 0);
+          return (
+            <MapNode
+              key={node.id}
+              node={node}
+              flags={groupFlags(members)}
+              name={groupName(typeMeta(node.type).plural, members)}
+            />
+          );
+        }
+        const own = flags.get(node.id) ?? 0;
+        return (
+          <MapNode
+            key={node.id}
+            node={node}
+            flags={own}
+            name={nodeName(typeMeta(node.type).label, node.title, own)}
+          />
+        );
       }),
-    [liveEdges, pos, thread, impact],
+    [layout, flags],
+  );
+  const present = useMemo(() => {
+    let any = 0;
+    for (const f of flags.values()) any |= f;
+    return {
+      flags: any & ~FLAG.impact,
+      edges: {
+        causal: layout.edges.some((e) => e.causal),
+        weak: layout.edges.some((e) => !e.causal),
+        back: layout.edges.some((e) => e.kind === 'back'),
+        impact: impact.size > 0,
+      },
+    };
+  }, [flags, layout, impact]);
+
+  const root = useRef<HTMLDivElement>(null);
+  const world = useRef<HTMLDivElement>(null);
+  const labels = useRef<HTMLDivElement>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const fade = useRef<HTMLDivElement>(null);
+  const controller = useRef<MapController | null>(null);
+  const [signals] = useState(() => ({
+    status: new Signal<MapStatus>({ zoom: 1, outside: 0, canFitAll: false, threadPinned: false }),
+    peek: new Signal<string | null>(null),
+  }));
+
+  const latest = useRef({ choices, collapsed });
+  useLayoutEffect(() => {
+    latest.current = { choices, collapsed };
+  });
+  const toggleGroup = useCallback(
+    (type: string) => {
+      const next = { ...latest.current.choices, [type]: !latest.current.collapsed.has(type) };
+      remember(projectId, { groups: next });
+      setChoices(next);
+    },
+    [projectId],
   );
 
-  const onEnter = useCallback((_: unknown, n: Node) => n.type === 'object' && setHovered(n.id), []);
-  const onLeave = useCallback(() => setHovered(null), []);
+  useLayoutEffect(() => {
+    const memory = recall(projectId);
+    const created = new MapController(
+      {
+        root: root.current!,
+        world: world.current!,
+        labels: labels.current!,
+        grid: grid.current!,
+        fade: fade.current!,
+      },
+      {
+        open: (id) => useStore.getState().focus(id),
+        toggleGroup,
+        status: signals.status.set,
+        peek: signals.peek.set,
+        remember: (patch) => remember(projectId, patch),
+      },
+      { viewport: memory.viewport, focusId: memory.focusId },
+    );
+    controller.current = created;
+    return () => {
+      created.dispose();
+      controller.current = null;
+    };
+  }, [projectId, signals, toggleGroup]);
+  useLayoutEffect(() => {
+    controller.current?.setChrome(head, island ? [island] : []);
+  }, [head, island, projectId]);
+  useLayoutEffect(() => {
+    controller.current?.setLayout(layout, lineage.adjacency, lineage.causal);
+  }, [layout, lineage, projectId]);
+
+  // When an approval has just made objects out of date, the change is shown travelling to them
+  // once. Impact that was already recorded when the map opened is simply shown.
+  const impactSeen = useRef<number | null>(null);
+  const impactDue = useRef<string[] | null>(null);
+  useEffect(() => {
+    const newest = latestImpact(events);
+    if (impactSeen.current === null) impactSeen.current = newest?.seq ?? 0;
+    else if (newest && newest.seq > impactSeen.current) {
+      impactSeen.current = newest.seq;
+      impactDue.current = newest.affected;
+    }
+    const due = impactDue.current;
+    if (!due || impact.size === 0 || !due.some((id) => (stale[id] ?? []).length > 0)) return;
+    impactDue.current = null;
+    controller.current?.playImpact();
+  }, [events, impact, stale]);
 
   return (
-    <div className="map">
-      <ReactFlow
-        colorMode={theme}
-        nodes={nodes}
-        edges={flowEdges}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{
-          padding: { top: '150px', bottom: '32px', left: '48px', right: `${reserveRight}px` },
-          maxZoom: 1.05,
-        }}
-        minZoom={0.2}
-        maxZoom={1.8}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        panOnScroll
-        zoomOnPinch
-        proOptions={{ hideAttribution: true }}
-        onNodeClick={(_, n) => n.type === 'object' && focus(n.id)}
-        onNodeMouseEnter={onEnter}
-        onNodeMouseLeave={onLeave}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1.1} color="var(--map-dot)" />
-      </ReactFlow>
-      <div className="map-legend" aria-hidden="true">
-        <span>
-          <i className="lg-line" /> depends on
-        </span>
-        <span>
-          <i className="lg-dot warn" /> out of date / in review
-        </span>
-        <span>
-          <i className="lg-dot hollow" /> no baseline
-        </span>
-        <span>
-          <i className="lg-ring" /> changed by agent
-        </span>
+    <div
+      className="map"
+      ref={root}
+      role="application"
+      aria-roledescription="flow map"
+      // Recorded links between the same two objects are drawn as one, so this count can be
+      // lower than the project header's count of recorded links.
+      aria-label={`Project flow: ${graph.nodes.length} objects, ${graph.links.length} drawn links`}
+      aria-describedby={helpId}
+    >
+      <div className="map-grid" ref={grid} aria-hidden="true" />
+      <div className="map-world" ref={world}>
+        <MapEdges layout={layout} impact={impact} />
+        <MapLabels labels={layout.labels} ref={labels} />
+        {nodes}
       </div>
-      <div className="map-controls island">
-        <IconButton size="sm" label="Zoom out" onClick={() => void flow.zoomOut({ duration: 160 })}>
-          <Minus size={13} />
-        </IconButton>
-        <IconButton size="sm" label="Zoom in" onClick={() => void flow.zoomIn({ duration: 160 })}>
-          <Plus size={13} />
-        </IconButton>
-        <IconButton
-          size="sm"
-          label="Fit project"
-          onClick={() =>
-            void flow.fitView({
-              duration: 240,
-              padding: { top: '150px', bottom: '32px', left: '48px', right: `${reserveRight}px` },
-            })
-          }
-        >
-          <ArrowsOut size={13} />
-        </IconButton>
+      <div className="map-fade" ref={fade} aria-hidden="true" />
+      <p id={helpId} className="sr-only">
+        {KEYBOARD_HELP}
+      </p>
+      <div className="map-foot" data-map-ui data-toast-avoid>
+        <MapLegend flags={present.flags} edges={present.edges} />
+        <MapPeek target={signals.peek} layout={layout} flags={flags} degree={degree} />
+        <MapControls status={signals.status} controller={controller} />
       </div>
     </div>
-  );
-}
-
-export function FlowMap({ reserveRight = 48 }: { reserveRight?: number }) {
-  return (
-    <ReactFlowProvider>
-      <FlowCanvas reserveRight={reserveRight} />
-    </ReactFlowProvider>
   );
 }

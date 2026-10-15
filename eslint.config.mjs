@@ -10,7 +10,6 @@ export default [
       '**/.vite/**',
       '**/out/**',
       '**/coverage/**',
-      '**/resources/**',
       'native/**/target/**',
       '**/*.config.*',
     ],
