@@ -18,7 +18,8 @@ try {
 }
 const posix = process.platform !== 'win32';
 
-async function waitFor(pred: () => boolean, timeoutMs = 8_000, step = 50): Promise<void> {
+// Generous: shells start slowly on shared CI runners.
+async function waitFor(pred: () => boolean, timeoutMs = 30_000, step = 50): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!pred()) {
     if (Date.now() > deadline) throw new Error('waitFor timed out');

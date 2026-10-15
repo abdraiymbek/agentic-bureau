@@ -32,7 +32,9 @@ const BASE_UNIT: Record<Dim, string> = {
 };
 
 const MAX_EXPRESSION_CHARS = 2000;
-const DEFAULT_TIMEOUT_MS = 2000;
+// Each evaluation starts a worker that loads mathjs; on a shared CI runner that start alone can
+// take seconds, so the default leaves room for it. Tests of the limit pass their own timeoutMs.
+const DEFAULT_TIMEOUT_MS = 10_000;
 const WORKER_HEAP_MB = 64;
 
 /**
@@ -105,7 +107,7 @@ interface WorkerReply {
 }
 
 export interface MathJsCalcEngineOptions {
-  /** Hard wall-clock limit per evaluation, default 2000ms. */
+  /** Hard wall-clock limit per evaluation, default 10 s. */
   timeoutMs?: number;
 }
 
