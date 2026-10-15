@@ -593,9 +593,9 @@ macOS app was not launched.
   about 104 bytes.
 - **Research.** No HTTP status or PDF text from the webview; `research.read_page` has no paging;
   `browser.screenshot` needs the window on screen. None of it exists in the headless host.
-- **Tests.** `pnpm test` runs the legacy calculation worker with a 2-second limit, which has
-  timed out on heavily loaded machines (see the earlier V1 reports); the root config caps
-  workers at 4.
+- **Tests.** The legacy calculation worker's 2-second limit timed out on heavily loaded machines
+  and on GitHub's runners; at release it was raised to 10 s (the limit's own test sets its own),
+  and the root config caps test workers at 4.
 
 ## Incident during V1 work
 
