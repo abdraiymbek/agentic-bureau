@@ -26,19 +26,9 @@ async function waitFor(pred: () => boolean, timeoutMs = 8_000, step = 50): Promi
   }
 }
 
-/**
- * Whether this process ignores SIGINT (Linux only). A shell started from it inherits that, and a
- * shell cannot trap a signal ignored on entry, so ^C cannot be observed there; GitHub's Linux
- * runners start job processes that way.
- */
-function sigintIgnored(): boolean {
-  try {
-    const mask = /^SigIgn:\s*([0-9a-f]+)/m.exec(fs.readFileSync('/proc/self/status', 'utf8'))?.[1];
-    return mask !== undefined && (BigInt(`0x${mask}`) & 2n) !== 0n;
-  } catch {
-    return false;
-  }
-}
+// The interrupt round trip relies on the shell running an INT trap when ^C arrives through the
+// terminal. bash does; dash, Ubuntu's /bin/sh, does not, so prefer bash wherever it exists.
+const shell = fs.existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
 
 describe('PtySessionManager', () => {
   let dir: string;
@@ -82,7 +72,7 @@ describe('PtySessionManager', () => {
     async () => {
       const info = await mgr.start(ctx, {
         adapterId: 'custom',
-        executablePath: '/bin/sh',
+        executablePath: shell,
         args: [],
       });
       expect(info.state).toBe('running');
@@ -103,17 +93,10 @@ describe('PtySessionManager', () => {
       // Wait for the shell to handle ^C before sending the next command. POSIX
       // terminal signal handling may flush input queued immediately after ^C.
       // Split the markers so echoed command text cannot satisfy the checks.
-      if (sigintIgnored()) {
-        console.warn(
-          'SIGINT is ignored in this environment: ^C is sent but its handling is not observed',
-        );
-        mgr.interrupt(ctx);
-      } else {
-        mgr.write(ctx, `trap 'printf "INTERRUPT_%s\\n" HANDLED' INT\nprintf 'TRAP_%s\\n' READY\n`);
-        await waitFor(() => mgr.getScrollback(ctx).includes('TRAP_READY'));
-        mgr.interrupt(ctx);
-        await waitFor(() => mgr.getScrollback(ctx).includes('INTERRUPT_HANDLED'));
-      }
+      mgr.write(ctx, `trap 'printf "INTERRUPT_%s\\n" HANDLED' INT\nprintf 'TRAP_%s\\n' READY\n`);
+      await waitFor(() => mgr.getScrollback(ctx).includes('TRAP_READY'));
+      mgr.interrupt(ctx);
+      await waitFor(() => mgr.getScrollback(ctx).includes('INTERRUPT_HANDLED'));
       mgr.write(ctx, 'echo after-interrupt\n');
       await waitFor(() => mgr.getScrollback(ctx).includes('after-interrupt'));
       expect(mgr.state(ctx)?.state).toBe('running');
