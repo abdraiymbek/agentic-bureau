@@ -1,0 +1,54 @@
+name: Release Linux x86_64
+
+# Builds the x86_64 Linux packages for an existing release tag with the same recipe CI and
+# docs/release.md use, runs each package fresh (packaged smoke under Xvfb), and attaches them to
+# the GitHub release of that tag, adding their checksums to its SHA256SUMS. The release may be a
+# draft; the macOS DMG and the arm64 Linux packages are built locally and attached by hand
+# (docs/release.md). Release assets do not count against the Actions artifact storage quota.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build and attach to (for example v1.0.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  linux-x86_64:
+    name: Linux x86_64 packages for ${{ inputs.tag }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/linux-package.mjs --skip-tests
+      - name: Name the packages like the rest of the release
+        run: |
+          version="${TAG#v}"
+          cd target/release/bundle/linux-amd64
+          mkdir -p ../release
+          mv ./*.deb "../release/omen-flow_${version}_amd64.deb"
+          mv ./*.rpm "../release/omen-flow-${version}-1.x86_64.rpm"
+          mv ./*.AppImage "../release/Omen-Flow-${version}-x86_64.AppImage"
+          ls -l ../release
+      - name: Attach to the release and extend SHA256SUMS
+        working-directory: target/release/bundle/release
+        run: |
+          sha256sum ./*.deb ./*.rpm ./*.AppImage | sed 's#  \./#  #' > linux-x86_64.sha256
+          if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --output existing.sha256; then
+            cat existing.sha256 linux-x86_64.sha256 | sort -k2 -u > SHA256SUMS
+          else
+            mv linux-x86_64.sha256 SHA256SUMS
+          fi
+          cat SHA256SUMS
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber ./*.deb ./*.rpm ./*.AppImage SHA256SUMS

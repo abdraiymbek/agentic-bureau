@@ -57,6 +57,25 @@ flows: before calling a package releasable, run a real agent CLI session in the 
 CAD render, a review approval, export and reopen of an archive, close and quit with an agent
 running, and an upgrade of a populated earlier project.
 
+## Publishing a release
+
+1. On the Mac, from the release commit: `CI=true pnpm make`, then `pnpm smoke:packaged`. Copy
+   `target/release/bundle/dmg/Omen Flow_<version>_aarch64.dmg` as
+   `Omen-Flow-<version>-macos-arm64.dmg`.
+2. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
+--skip-tests`, then copy the packages from `target/release/bundle/linux-arm64/` as
+   `omen-flow_<version>_arm64.deb`, `omen-flow-<version>-1.aarch64.rpm` and
+   `Omen-Flow-<version>-aarch64.AppImage`.
+3. Tag the commit (`git tag v<version> && git push origin v<version>`), create a draft release
+   with those files and a `SHA256SUMS` of them (`shasum -a 256 * > SHA256SUMS`).
+4. Run the **Release Linux x86_64** workflow (`gh workflow run release.yml -f tag=v<version>`):
+   it builds and smoke-tests the x86_64 packages with the same recipe, attaches them to the
+   release and adds them to `SHA256SUMS`.
+5. Check every asset against `SHA256SUMS`, then publish the release.
+
+Release assets do not count against the Actions artifact storage quota; CI's own artifacts are
+kept for seven days.
+
 ## Publishing without notarization
 
 Without an Apple Developer account the app is distributed ad hoc signed: `pnpm make` signs the

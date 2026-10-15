@@ -69,11 +69,12 @@ jobs:
         run: |
           brew install --cask openscad@snapshot
           openscad --version
+      # The desktop crate's build script needs the release helper it bundles, and the
+      # real-helper round trip runs it.
+      - run: cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      # The real-helper round trip needs the release helper.
-      - run: cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml
       - run: cargo test -p omenflow-agent-host --locked -- --ignored
 
   bridge:
@@ -134,6 +135,7 @@ jobs:
           name: omenflow-macos-arm64
           path: target/release/bundle/
           if-no-files-found: error
+          retention-days: 7
 
   package-linux:
     name: Rust packages (deb, rpm, AppImage) + packaged smoke (Linux x86_64)
@@ -165,6 +167,7 @@ jobs:
             target/release/bundle/linux-amd64/*.rpm
             target/release/bundle/linux-amd64/*.AppImage
           if-no-files-found: error
+          retention-days: 7
       - name: Upload smoke screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -172,6 +175,7 @@ jobs:
           name: omenflow-linux-x86_64-smoke
           path: target/release/bundle/linux-amd64/*.png
           if-no-files-found: warn
+          retention-days: 7
 
   legacy-cad:
     name: legacy TypeScript CAD evaluator (OpenSCAD 2021.01)
@@ -221,6 +225,7 @@ jobs:
           name: openscad-linux-version
           path: openscad-version.txt
           if-no-files-found: error
+          retention-days: 7
 
   package-windows:
     name: experimental Rust package (Windows x64; not a release gate)
@@ -244,3 +249,4 @@ jobs:
           name: omenflow-win32-x64
           path: target/release/bundle/
           if-no-files-found: error
+          retention-days: 7
