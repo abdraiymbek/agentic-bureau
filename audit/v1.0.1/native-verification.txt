@@ -1,0 +1,20 @@
+Omen Flow v1.0.1 native shutdown verification — 2026-10-19 (America/Chicago)
+Bundle: target/release/bundle/macos/Omen Flow.app
+Environment: OMENFLOW_APP_DATA_DIR=/tmp/of-ui-lael159e/app
+Disposable project: /tmp/of-ui-lael159e/project
+Stand-in Custom CLI: /tmp/of-ui-lael159e/agent (real PTY, /bin/cat; no model credits)
+
+PASS: Changed requirement target 300→425; red close showed unsaved prompt with Keep editing focused. Repeated red close did not stack prompts. Keep editing retained target425 and running agent.
+PASS: Cmd+Q showed edit consent before native running-agent consent. Choosing Discard then Keep working retained target425, Unsaved changes, and Agent running.
+PASS: Typed test observation “Unsaved disposable test observation 625 g”; Cmd+Q prompt named unrecorded result. Keep editing retained the entire observation.
+PASS: Accepted disposable CAD baseline cube20×20×5, edited source to cube35×20×5. Native red-close prompt named source of Shutdown cube; Keep editing retained source35mm.
+PASS: Cmd+Q then Discard then Stop agent and quit exited status0. Native PID27267 and stand-in agent PID27514 were absent afterwards.
+PASS: Reopened disposable project without agent. Agent idle; CAD baseline remained revision1 and20×20×5. Native red-close with no edits exited status0 without prompts. No Omen Flow processes remained.
+PASS: native.log and native-reopen.log were empty (no native console errors).
+
+No source edits during bundle validation. Parked-edit, stale-ack, coalescing, forced-exit and cancellation semantics additionally covered by automated frontend/native policy tests. Concurrent test-procedure conflict not manually exercised in this native run; covered by project test suite.
+
+Post-build DMG/installed-copy helper verification
+PASS exit0: node scripts/rust-packaged-smoke.mjs '/private/tmp/omenflow-101-dmg-mount/Omen Flow.app'
+PASS exit0: fresh ditto copy, node scripts/rust-packaged-smoke.mjs '/private/tmp/of-install-hqth3o47/Omen Flow.app'
+Both exercised bundled helper usage, bridge read, agent-attributed draft, human-only refusal and SIGTERM cleanup. Initial /tmp launch path was invalid for Tauri on macOS because /tmp is a symlink to /private/tmp; tauri-utils::platform::current_exe intentionally rejects symlinked startup paths. No source/tag changes made; symlink protection retained.

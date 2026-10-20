@@ -1,0 +1,19 @@
+Command: cargo run --release --locked -p omenflow-core --example read_costs -- 600
+Build: d091f0a (1.0.1); macOS arm64, concurrent macOS/Linux package builds.
+Synthetic project; timing is illustrative, not a universal latency guarantee.
+
+600 artifacts, 3000 revisions seeded in 220 ms
+operation         input                                  origin    p50 ms    p95 ms      bytes
+artifact.list     {}                                       user      8.40     25.06     469442
+artifact.list     {"limit":500}                            user     14.44     30.14    1173732
+artifact.list     {"limit":500,"fields":"summary"}         user      9.25     23.39     270928
+artifact.list     {"type":"component"}                    agent      4.12      9.09      65234
+artifact.read     {"artifactId":"6a0d9582-958e-4955-bf8c-aa7d5af27c42"}   user      1.55      1.88      13764
+artifact.read     {"artifactId":"6a0d9582-958e-4955-bf8c-aa7d5af27c42"}  agent      1.88      3.17      11264
+graph.list        {}                                       user      2.19      2.60      80351
+project.summary   {}                                      agent     26.49     37.44       5767
+project.coverage  {}                                       user      9.63     15.74     151645
+work.status       {}                                       user     18.90     30.44      45756
+work.status       {}                                      agent     10.67     15.60      40800
+project.search    {"query":"payload 300 g"}               agent      0.77      0.92       7597
+project.search    {"query":"ayloa"}                       agent     15.86     19.96       7311

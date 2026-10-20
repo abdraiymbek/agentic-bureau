@@ -1,6 +1,6 @@
 # Release
 
-Version **1.0.1** is the current release candidate; its checks and remaining limits belong in
+Version **1.0.1** is the current release; its checks and remaining limits are recorded in
 the [1.0.1 verification record](../audit/v1.0.1/README.md). The previous
 [1.0.0 release](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.0) was published on
 15 October 2026 UTC with a macOS arm64 DMG, Linux arm64 and x86_64 packages, and `SHA256SUMS`.
