@@ -28,17 +28,19 @@ Apache-2.0
 
 ### macOS
 
-Download `Omen-Flow-1.0.1-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is not
-notarized by Apple, so macOS asks you to confirm it once:
+Download `Omen-Flow-1.0.1-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
+but is not notarized by Apple. macOS may require approval on first launch:
 
 1. Open the DMG and drag **Omen Flow** onto **Applications**.
-2. Open Omen Flow from Applications. macOS says it cannot verify the app; choose **Done**.
+2. Eject the DMG and open Omen Flow from Applications. If macOS says it cannot verify the app,
+   dismiss that message.
 3. Open **System Settings → Privacy & Security**, find “Omen Flow was blocked…” and choose
-   **Open Anyway**, then confirm with your password or Touch ID. macOS remembers this; you
-   confirm again after installing an update.
+   **Open Anyway**, then confirm **Open** and authenticate if asked. macOS remembers the
+   exception and may ask again after an update. See [Apple's instructions](https://support.apple.com/en-us/102445).
 
-From a terminal, `xattr -dr com.apple.quarantine "/Applications/Omen Flow.app"` does the same as
-steps 2 and 3.
+The DMG includes these steps in `INSTALL.txt`. If macOS reports the app is damaged, download
+a fresh copy from the official release, verify it against `SHA256SUMS`, and
+[report the problem](https://github.com/abdraiymbek/omen-flow/issues) if it persists.
 
 ### Linux (preview)
 

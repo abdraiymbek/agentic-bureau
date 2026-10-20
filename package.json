@@ -29,6 +29,7 @@
     "package": "pnpm build:rust",
     "make": "pnpm build:rust",
     "release:macos": "node scripts/release-macos.mjs",
+    "release:macos:adhoc": "node scripts/package-macos-adhoc.mjs",
     "smoke:bridge": "vitest run packages/agent-host/src/bridge packages/mcp-server/src/mcp.test.ts",
     "smoke:packaged": "node scripts/rust-packaged-smoke.mjs",
     "smoke:headless": "node scripts/rust-packaged-smoke.mjs --headless",

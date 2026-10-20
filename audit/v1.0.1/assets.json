@@ -4,6 +4,12 @@
   "release": "https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.1",
   "author": "abdraiymbek",
   "publishedAt": "2026-10-20T01:13:29Z",
+  "macosPackagingRefresh": {
+    "at": "2026-10-20T01:30:09+00:00",
+    "appCDHash": "fc95bfb26b88ecce9a30652d50fc38a3a374d54c",
+    "originalDmgSHA256": "a8a59c1ddf6a6bbee780f2a2cf23657d042b3def6979e747e0a87100d3fb6734",
+    "notarized": false
+  },
   "assets": [
     {
       "name": "omen-flow-1.0.1-1.aarch64.rpm",
@@ -25,8 +31,8 @@
     },
     {
       "name": "Omen-Flow-1.0.1-macos-arm64.dmg",
-      "size": 9165239,
-      "digest": "sha256:a8a59c1ddf6a6bbee780f2a2cf23657d042b3def6979e747e0a87100d3fb6734",
+      "size": 9934772,
+      "digest": "sha256:b80b397bd77233fcfab54c05e6cf4f3b52d6f895673328d7c54689c3f539b9e1",
       "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.1/Omen-Flow-1.0.1-macos-arm64.dmg"
     },
     {
@@ -50,7 +56,7 @@
     {
       "name": "SHA256SUMS",
       "size": 670,
-      "digest": "sha256:b8a76372886cfc2a75fe14432265db1c982d7fa88f6f95b9d5ce1cfea22cf1d3",
+      "digest": "sha256:e0239c848748d3db8a259e8ac1e8bd4e01280010efc72669cc88b9e5095c47ca",
       "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.1/SHA256SUMS"
     }
   ]

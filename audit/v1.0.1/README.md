@@ -58,6 +58,14 @@ entries for the other architectures. Its replacement-and-retention regression ch
 | Linux x86_64 release workflow and packaged smoke                    | passed; same five fresh-system checks; workflow 39350699564                                                                                    |
 | Final asset names, checksums and release publication                | passed; 8 assets (7 packages and SHA256SUMS), all re-downloaded and hashed; release author abdraiymbek; latest stable release                  |
 
+## macOS packaging refresh
+
+The v1.0.1 DMG was refreshed after publication with `INSTALL.txt` and a mounted-package
+verification gate. The original app/helper signatures and every app file were preserved;
+no signature corruption was detected in the original package. The app is still ad hoc signed
+and not notarized. [Checks, hashes and limits](macos-packaging-refresh.md) record the refresh.
+The six Linux assets are unchanged; the current manifests below include the refreshed DMG.
+
 ## Release artifacts
 
 Release: [v1.0.1](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.1), published 2026-10-20T01:13:29Z.

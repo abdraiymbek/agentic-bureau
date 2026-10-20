@@ -1,0 +1,22 @@
+Install Omen Flow on macOS
+
+1. Drag Omen Flow.app onto Applications in this window.
+2. Eject the disk image, then open Omen Flow from Applications.
+3. If macOS says Apple cannot verify the app, dismiss that message.
+4. Open System Settings > Privacy & Security. Find the message about
+   Omen Flow and click Open Anyway, then confirm Open. Your Mac may ask
+   for your password or Touch ID.
+
+Omen Flow is ad hoc signed to protect the app's contents against changes.
+It is not signed with an Apple Developer ID or notarized by Apple, so the
+first-launch approval is expected. macOS may ask again after an update.
+
+Download the app only from the official release:
+https://github.com/abdraiymbek/omen-flow/releases/latest
+
+If macOS reports that the app is damaged, download a fresh copy from that
+release and check it against SHA256SUMS. Report a continuing problem at:
+https://github.com/abdraiymbek/omen-flow/issues
+
+Apple's instructions for the Open Anyway button:
+https://support.apple.com/en-us/102445

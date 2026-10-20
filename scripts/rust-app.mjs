@@ -26,8 +26,8 @@ const tauri = path.join(
   process.platform === 'win32' ? 'tauri.cmd' : 'tauri',
 );
 const args = [mode === 'build' ? 'build' : 'dev'];
-// macOS bundles are signed ad hoc (bundle.macOS.signingIdentity "-"): an unsigned bundle downloaded
-// from the web is reported as damaged, while an ad hoc one can be opened with Open Anyway.
+// macOS bundles are signed ad hoc (bundle.macOS.signingIdentity "-") to seal their contents.
+// Users still need Gatekeeper's Open Anyway flow without Developer ID and notarization.
 // `pnpm release:macos` replaces that signature with a Developer ID.
 if (mode === 'build' && process.platform !== 'darwin') args.push('--no-sign');
 if (process.platform === 'win32') args.push('--config', 'tauri.windows.conf.json');

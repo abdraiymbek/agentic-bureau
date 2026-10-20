@@ -69,7 +69,9 @@ running, and an upgrade of a populated earlier project.
    versions, both Cargo lockfiles' local crate versions, and `tauri.conf.json` agree. Commit
    the release changes and push that commit to the default branch so the dispatchable workflow
    and its helper scripts exist there.
-2. On the Mac, from that release commit: `CI=true pnpm make`, then `pnpm smoke:packaged`. Copy
+2. On the Mac, from that release commit: `CI=true pnpm make`, then `pnpm release:macos:adhoc`.
+   This verifies the signed app, packages it with `INSTALL.txt`, mounts the resulting DMG,
+   verifies the app and helper again, compares every file and runs the packaged smoke. Copy
    `target/release/bundle/dmg/Omen Flow_<version>_aarch64.dmg` as
    `Omen-Flow-<version>-macos-arm64.dmg`.
 3. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
@@ -94,25 +96,39 @@ kept for seven days.
 
 ## Publishing without notarization
 
-Without an Apple Developer account the app is distributed ad hoc signed: `pnpm make` signs the
-bundle with the ad hoc identity (`bundle.macOS.signingIdentity` is `-`), which seals every file in
-it. That matters: an unsigned bundle downloaded from the web is reported as **damaged** with no way
-to open it, while an ad hoc signed one is reported as unverified and can be opened once with
-**Open Anyway** in System Settings → Privacy & Security (recent macOS versions no longer offer
-the Control-click → Open shortcut). The install steps for users are in the README.
+Without an Apple Developer account the app is distributed ad hoc signed. `pnpm make` uses
+`bundle.macOS.signingIdentity: "-"` to seal the app's contents. Tauri recommends this for Apple
+Silicon downloads to avoid unsigned-app damage failures, but it does not establish an Apple
+Developer identity or provide notarization. Users still need the per-app **Open Anyway** flow.
+See [Tauri's signing guide](https://v2.tauri.app/distribute/sign/macos/) and
+[Apple's installation instructions](https://support.apple.com/en-us/102445). The exact warning
+text can vary with macOS and its assessment state; a valid signature is not a promise of no
+security warnings.
 
-macOS also kills a quarantined command-line tool that an agent starts, even after the app was
-allowed, and the `omenflow` helper is one. When the bundled helper carries the quarantine flag of
-a download, the app writes a byte-for-byte copy to `bin/omenflow` in its data folder and gives
-agents that copy (`apps/rust-desktop/src/helper.rs`); signed and notarized bundles use the
-bundled helper directly.
+After building, run `pnpm release:macos:adhoc`. It accepts an optional `--app /path/to/Omen Flow.app`
+to repackage an existing release without recompiling or changing its signed contents. It refuses
+a version mismatch, an invalid signature or a non-ad-hoc app; Developer ID releases use the
+separate notarization workflow below. The packager includes `docs/macos-install.txt` as
+`INSTALL.txt` outside the signed bundle, verifies the DMG, mounts it read-only at a canonical
+path, checks the copied signatures and contents, and runs the real helper smoke. Only a passing
+candidate replaces the output DMG.
 
-Checked on macOS 27 with the 1.0.0 DMG: after a simulated browser download (quarantine set on the
-DMG), `codesign --verify --deep --strict` is valid and Gatekeeper rejects the app as unverified
-rather than damaged; the quarantined bundled helper is killed when run (exit 137); with the app
-allowed and its helper still quarantined, the packaged smoke passed through the copy. The real
-Open Anyway prompt was not clicked through here: download the published DMG on another Mac and
-try it before announcing.
+The downloaded app must be copied to Applications before launch. After a blocked launch,
+users open **System Settings → Privacy & Security → Open Anyway**, confirm **Open**, and
+authenticate if asked. Removing quarantine is not the same as Apple's per-app approval and is
+not the installation procedure. No global Gatekeeper changes are needed.
+
+macOS can also block a quarantined command-line helper launched by an agent. When its bundled
+helper is quarantined, Omen Flow writes a byte-for-byte copy into its own `bin/omenflow` data
+folder for the agent (`apps/rust-desktop/src/helper.rs`). This leaves the signed app untouched.
+The packaged smoke checks that helper path and the bridge capability boundaries.
+
+The [1.0.1 verification record](../audit/v1.0.1/README.md) records the current package checks.
+`codesign --verify --deep --strict` validates signature consistency. `syspolicy_check distribution`
+and `spctl` separately report policy: ad hoc signing and a missing notarization ticket remain
+expected blockers, and must not be reported as accepted notarization. A fresh browser download
+and first launch on a clean Mac remain the strongest end-user test; this machine's cached
+assessment state cannot establish the wording every recipient will see.
 
 ## Apple signing handoff
 
