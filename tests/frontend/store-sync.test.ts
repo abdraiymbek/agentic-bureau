@@ -228,6 +228,68 @@ describe('store sync', () => {
     expect(after.artifacts[0]).toBe(before.artifacts[0]);
   });
 
+  it('invalidates same-revision evidence only for finished checks of the relevant object', async () => {
+    await openProject();
+    const before = useStore.getState().artifacts;
+    useStore.getState().pushEvent(
+      event(4, 'job.updated', {
+        kind: 'cad_check',
+        status: 'running',
+        artifactId: 'a1',
+      }),
+    );
+    expect(useStore.getState().evidenceVersions.a1).toBeUndefined();
+    useStore.getState().pushEvent(
+      event(5, 'job.updated', {
+        kind: 'cad_check',
+        status: 'succeeded',
+        artifactId: 'a1',
+      }),
+    );
+    expect(useStore.getState().evidenceVersions).toEqual({ a1: 1 });
+    expect(useStore.getState().artifacts).toBe(before);
+    useStore.getState().pushEvent(
+      event(6, 'job.updated', {
+        kind: 'cad_render',
+        status: 'succeeded',
+        artifactId: 'a2',
+      }),
+    );
+    expect(useStore.getState().evidenceVersions).toEqual({ a1: 1 });
+    useStore.getState().pushEvent(event(7, 'cad.scope.accepted', { artifactId: 'a1' }));
+    useStore.getState().pushEvent(event(7, 'cad.scope.accepted', { artifactId: 'a1' }));
+    expect(useStore.getState().evidenceVersions.a1).toBe(2);
+  });
+
+  it('refreshes proposal input context after a baseline moves and forgets versions on project switch', async () => {
+    await openProject();
+    useStore.getState().pushEvent(event(4, 'baseline.changed', { artifactId: 'a2' }));
+    expect(useStore.getState().baselineVersion).toBe(1);
+    useStore.getState().pushEvent(event(5, 'cad.scope.accepted', { artifactId: 'a1' }));
+    useStore.getState().setActive('p2');
+    expect(useStore.getState().baselineVersion).toBe(0);
+    expect(useStore.getState().evidenceVersions).toEqual({});
+    useStore.getState().pushEvent(event(6, 'cad.scope.accepted', { artifactId: 'a1' }));
+    expect(useStore.getState().evidenceVersions).toEqual({});
+  });
+
+  it('updates the focused view when a draft advances without changing its open-draft count', async () => {
+    host.artifacts[0] = view('a1', 'Payload', {
+      draftCount: 1,
+      head: { id: 'r2', seq: 2, reviewState: 'draft' },
+    });
+    await openProject();
+    const before = useStore.getState().artifacts;
+    host.artifacts[0] = { ...host.artifacts[0]!, head: { id: 'r3', seq: 3, reviewState: 'draft' } };
+    useStore
+      .getState()
+      .pushEvent(event(4, 'revision.committed', { artifactId: 'a1', revisionId: 'r3' }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(useStore.getState().artifacts[0]?.head?.id).toBe('r3');
+    expect(useStore.getState().artifacts[0]).not.toBe(before[0]);
+    expect(useStore.getState().artifacts[1]).toBe(before[1]);
+  });
+
   it('reads every artifact past 500 from a host without paging fields', async () => {
     host.artifacts = Array.from({ length: 1203 }, (_, i) => view(`a${i}`));
     await openProject();

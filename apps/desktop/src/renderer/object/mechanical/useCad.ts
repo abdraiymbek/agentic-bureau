@@ -12,8 +12,8 @@ export type Loaded<T> =
   | { status: 'failed'; error: string; retry: () => void };
 
 /**
- * The mesh a revision records, parsed once per distinct file. Two revisions that carry the
- * same STL share one parse, and returning to a revision costs nothing.
+ * The mesh a revision records. Revisions carrying the same STL share work in flight and
+ * reuse a parsed result while it remains within the mesh cache's memory budget.
  */
 export function useRevisionMesh(revision: Revision | null, file: FileRef | undefined) {
   const projectId = useStore((s) => s.projectId);

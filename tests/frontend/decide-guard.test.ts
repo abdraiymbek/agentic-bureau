@@ -235,7 +235,7 @@ describe('geometry review status', () => {
 
   it('reports what the viewport shows from the parse and the scene', () => {
     const mesh = {} as never;
-    const scene = { ready: true, failure: null };
+    const scene = { ready: true, failure: null, drawnMesh: mesh };
     expect(viewportStatus({ mesh: null, error: null, parsing: true }, scene)).toEqual({
       state: 'parsing',
     });
@@ -243,11 +243,17 @@ describe('geometry review status', () => {
       state: 'shown',
     });
     expect(
-      viewportStatus({ mesh, error: null, parsing: false }, { ready: false, failure: null }),
+      viewportStatus({ mesh, error: null, parsing: false }, { ...scene, ready: false }),
     ).toEqual({ state: 'parsing' });
     expect(
-      viewportStatus({ mesh, error: null, parsing: false }, { ready: false, failure: 'No WebGL' }),
+      viewportStatus({ mesh, error: null, parsing: false }, { ...scene, failure: 'No WebGL' }),
     ).toEqual({ state: 'error', reason: 'The 3D view is not available: No WebGL' });
+    expect(
+      viewportStatus({ mesh, error: null, parsing: false }, { ...scene, drawnMesh: null }),
+    ).toEqual({ state: 'parsing' });
+    expect(viewportStatus({ mesh: {} as never, error: null, parsing: false }, scene)).toEqual({
+      state: 'parsing',
+    });
     expect(viewportStatus({ mesh: null, error: 'truncated', parsing: false }, scene)).toEqual({
       state: 'error',
       reason: 'The file is not a readable STL: truncated',

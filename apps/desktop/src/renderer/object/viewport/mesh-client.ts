@@ -1,14 +1,14 @@
 /**
  * Parsed meshes by content. Parsing happens once per distinct file, in a worker, and the
- * result is kept so that switching views, overlays or revisions never parses it again.
+ * retained results let switching views, overlays or revisions reuse work within a byte budget.
  */
 import { decodeBase64, parseStl, type ParsedMesh } from '../../lib/stl-parse';
 import type { ParseReply, ParseRequest } from './stl.worker';
+import { MeshCache } from './mesh-cache';
 
 export type MeshSource = { bytes: ArrayBuffer } | { base64: string };
 
-const CACHE_LIMIT = 8;
-const byKey = new Map<string, Promise<ParsedMesh>>();
+const byKey = new MeshCache(64 * 1024 * 1024, 8);
 const byBuffer = new WeakMap<ArrayBuffer, Promise<ParsedMesh>>();
 const waiting = new Map<number, { resolve: (m: ParsedMesh) => void; reject: (e: Error) => void }>();
 let worker: Worker | null = null;
@@ -60,31 +60,12 @@ function parse(source: MeshSource): Promise<ParsedMesh> {
   });
 }
 
-function remember(key: string, mesh: Promise<ParsedMesh>) {
-  byKey.delete(key);
-  byKey.set(key, mesh);
-  for (const oldest of byKey.keys()) {
-    if (byKey.size <= CACHE_LIMIT) break;
-    byKey.delete(oldest);
-  }
-}
-
 /**
  * The parsed mesh for a content key (a file's sha256). `load` runs only when that content has
- * not been parsed yet. A failed load or parse is not kept, so it can be tried again.
+ * no retained result or parse in flight. Failed work is not kept, so it can be tried again.
  */
 export function meshByKey(key: string, load: () => Promise<MeshSource>): Promise<ParsedMesh> {
-  const known = byKey.get(key);
-  if (known) {
-    remember(key, known);
-    return known;
-  }
-  const mesh = load().then(parse);
-  remember(key, mesh);
-  mesh.catch(() => {
-    if (byKey.get(key) === mesh) byKey.delete(key);
-  });
-  return mesh;
+  return byKey.get(key, () => load().then(parse));
 }
 
 /** The parsed mesh for bytes already in hand, remembered for as long as the bytes live. */

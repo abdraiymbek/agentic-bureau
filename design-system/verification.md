@@ -4,6 +4,20 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## 1.0.1 · 19 October 2026
+
+The nine audit improvements are tracked in the [1.0.1 verification record](../audit/v1.0.1/README.md).
+The real Rust design preview was reviewed in Paper and Graphite at 1440×900 and 1024×700.
+Open component stages refreshed offers and consecutive draft heads; Files refreshed a newly
+recorded revision; content search opened its matched revision. A concurrent test procedure
+change preserved an observation and required explicit review of the new procedure.
+
+Native macOS validation used an isolated disposable project and a real Custom CLI PTY.
+Requirement, observation and CAD edits survived canceled close/quit; canceling the later
+agent consent preserved both the edit and running agent. Confirmed quit stopped the PTY and
+exited 0; clean close passed. Intentional GPU context loss is covered by automated guards,
+not a native manual exercise. Package and publication checks are recorded separately above.
+
 ## V1 · 14 October 2026
 
 V1 brought eight renderer tracks (sync and frame, object, decision, agent, lenses, flow, visual

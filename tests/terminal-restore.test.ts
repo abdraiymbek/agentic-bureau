@@ -132,4 +132,41 @@ describe('terminal session replacement', () => {
     history.acceptLive({ sessionId: 'new', seq: 2, chunk: 'live' });
     expect(write.mock.calls.flat()).toEqual(['replacement', 'live']);
   });
+
+  it('publishes metadata only after validating the snapshot lifetime and session', async () => {
+    const stale = deferred<{ session: { id: string; scrollback: string } }>();
+    const accepted = vi.fn();
+    const read = vi
+      .fn()
+      .mockReturnValueOnce(stale.promise)
+      .mockResolvedValueOnce({ session: { id: 'new', scrollback: 'replacement' } });
+    const history = createTerminalRestore(read, vi.fn(), vi.fn(), accepted);
+    history.selectSession('old');
+    const pending = history.restore();
+    history.selectSession('new');
+    await history.restore();
+    stale.resolve({ session: { id: 'old', scrollback: 'stale' } });
+    await pending;
+    expect(accepted.mock.calls.map(([snapshot]) => snapshot.session.id)).toEqual(['new']);
+
+    const abandoned = deferred<{ session: null }>();
+    const disposed = createTerminalRestore(() => abandoned.promise, vi.fn(), vi.fn(), accepted);
+    const waiting = disposed.restore();
+    disposed.dispose();
+    abandoned.resolve({ session: null });
+    await waiting;
+    expect(accepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts an empty current snapshot so startup can distinguish no session from an unanswered host', async () => {
+    const accepted = vi.fn();
+    const history = createTerminalRestore(
+      async () => ({ session: null }),
+      vi.fn(),
+      vi.fn(),
+      accepted,
+    );
+    await history.restore();
+    expect(accepted).toHaveBeenCalledWith({ session: null });
+  });
 });

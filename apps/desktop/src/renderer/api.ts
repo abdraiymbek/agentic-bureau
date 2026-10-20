@@ -1,5 +1,10 @@
 import type { ResponseEnvelope, OmenflowErrorBody } from '@omenflow/contracts';
 
+export interface NativeShutdownRequest {
+  requestId: string;
+  action: 'close' | 'quit';
+}
+
 export interface OmenflowApi {
   command(
     op: string,
@@ -16,6 +21,9 @@ export interface OmenflowApi {
   onServiceState?(cb: (data: { available: boolean; message?: string }) => void): () => void;
   /** One record per agent tool call, as the host ledger writes it. Not every transport has it. */
   onAgentCall?(cb: (call: unknown) => void): () => void;
+  /** Desktop-only: native close/quit must ask about edits before destroying the webview. */
+  onShutdownRequest?(cb: (request: NativeShutdownRequest) => void): () => void;
+  replyToShutdown?(requestId: string, decision: 'received' | 'cancel' | 'discard'): Promise<void>;
   pickDirectory(title?: string): Promise<string | null>;
   pickFile(opts?: {
     title?: string;

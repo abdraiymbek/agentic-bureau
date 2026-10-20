@@ -399,6 +399,19 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+.omni-item.has-snippet {
+  height: auto;
+  padding-block: var(--s-2);
+}
+.omni-snippet {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  margin-top: var(--s-1);
+}
 .omni-item.armed .omni-label {
   color: var(--warn);
 }

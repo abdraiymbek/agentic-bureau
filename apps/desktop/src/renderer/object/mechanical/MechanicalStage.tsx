@@ -5,6 +5,7 @@ import { useStore } from '../../store';
 import { Button, Checkbox, Notice, Spinner } from '../../ui/kit';
 import { ErrorBoundary } from '../../ui/ErrorBoundary';
 import { newestActiveRevision } from '../../lib/mechanical-revisions';
+import { geometryReviewBlock, type GeometryReview } from '../../lib/geometry-review';
 import {
   jobErrorText,
   jobIsActive,
@@ -61,6 +62,8 @@ export function MechanicalStage({ view }: StageProps) {
   const editing = openEdits.length > 0;
 
   const mesh = useRevisionMesh(rev, rev ? stlOf(rev.files, p.stl?.path) : undefined);
+  const loadedMesh = mesh.status === 'ready' ? mesh.value : null;
+  const [geometryReview, setGeometryReview] = useState<GeometryReview | null>(null);
   const baselineStl =
     baseline && baseline.id !== rev?.id
       ? stlOf(baseline.files, (baseline.payload as Partial<MechanicalPayload>).stl?.path)
@@ -115,20 +118,33 @@ export function MechanicalStage({ view }: StageProps) {
     ? 'Save or discard your edits first.'
     : provenance === 'none'
       ? 'This draft has no geometry: its render failed or has not run. Render it before accepting.'
-      : mesh.status !== 'ready'
-        ? 'The geometry has to be on screen before this draft can be accepted.'
-        : null;
+      : geometryReviewBlock(rev?.id, loadedMesh, geometryReview);
 
   return (
     <div className="mech">
       <div className="mech-canvas">
-        <ErrorBoundary label="The 3D viewport">
+        <ErrorBoundary
+          resetKey={rev?.id}
+          label="The 3D viewport"
+          onRetry={() => setGeometryReview(null)}
+          onError={(error) =>
+            setGeometryReview({
+              revisionId: rev?.id ?? '',
+              mesh: loadedMesh,
+              status: { state: 'error', reason: error.message },
+            })
+          }
+        >
           <StlViewport
-            mesh={mesh.status === 'ready' ? mesh.value : null}
+            mesh={loadedMesh}
+            reviewKey={rev?.id}
             compareMesh={compare.status === 'ready' ? compare.value : null}
             modelUnit={p.modelUnit ?? 'mm'}
             label={rev ? `Shown r${rev.seq}` : undefined}
             compareLabel={baseline ? `Baseline r${baseline.seq}` : undefined}
+            onStatus={(status) =>
+              setGeometryReview({ revisionId: rev?.id ?? '', mesh: loadedMesh, status })
+            }
             notice={
               provenance === 'illustrative' || provenance === 'unlinked'
                 ? PROVENANCE_NOTE[provenance]

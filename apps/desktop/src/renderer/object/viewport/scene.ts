@@ -136,7 +136,7 @@ export class ViewportScene {
     theme: SceneTheme,
     private readonly events: {
       /** Called after each rendered frame, so overlays can follow the camera. */
-      onFrame: () => void;
+      onFrame: (mesh: ParsedMesh | null) => void;
       onContextLost: () => void;
     },
   ) {
@@ -205,7 +205,7 @@ export class ViewportScene {
 
   private draw() {
     this.renderer.render(this.scene, this.camera);
-    this.events.onFrame();
+    this.events.onFrame(this.part);
   }
 
   private resize() {

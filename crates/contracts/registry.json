@@ -2042,6 +2042,25 @@
             "type": "string",
             "format": "uuid",
             "description": "Artifact to list revisions of."
+          },
+          "fields": {
+            "type": "string",
+            "enum": [
+              "full",
+              "summary"
+            ],
+            "description": "summary: revision headers without payload, files or inputs. Omit for full revisions."
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 500,
+            "description": "Revisions per page. Omit both limit and cursor for the complete history."
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "nextCursor of the previous history page. Continues after that revision; defaults limit to 200."
           }
         },
         "required": [
@@ -7081,6 +7100,11 @@
             "type": "string",
             "format": "uuid",
             "description": "Test artifact the result belongs to."
+          },
+          "expectedRevisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Revision this observation was entered against. Refuse if the revision the result would extend has changed, so the observation can be reviewed before retrying."
           },
           "requirementRef": {
             "type": "object",

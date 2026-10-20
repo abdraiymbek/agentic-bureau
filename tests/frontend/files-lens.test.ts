@@ -89,6 +89,22 @@ describe('working files', () => {
     expect(shortPath('/Rover')).toBe('/Rover');
   });
 
+  it('replaces cached draft files when the draft line advances with the same count and baseline', () => {
+    const before = {
+      ...view(approved, 1),
+      head: { id: 'r3', seq: 3, reviewState: 'draft' as const },
+    };
+    const after = { ...before, head: { id: 'r4', seq: 4, reviewState: 'draft' as const } };
+    expect(historyKey(after)).not.toBe(historyKey(before));
+    expect(
+      draftFiles(after, [
+        approved,
+        revision('r3', 3, { parentId: 'r2' }),
+        revision('r4', 4, { parentId: 'r3' }),
+      ]).map((file) => [file.path, file.revisionId]),
+    ).toEqual([['part-r4.scad', 'r4']]);
+  });
+
   it('previews text with lines and stops at the size limit', () => {
     const small = previewText(new TextEncoder().encode('a\nb\r\nc\n'));
     expect(small).toEqual({ lines: ['a', 'b', 'c'], truncated: false });

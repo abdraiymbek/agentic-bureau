@@ -106,6 +106,22 @@ describe('other inputs the legacy TypeScript core would ignore', () => {
   it.each([
     ['artifact.list', { cursor: 'next-page' }, ['cursor']],
     [
+      'artifact.history',
+      { artifactId: id, fields: 'summary', limit: 20, cursor: '1' },
+      ['fields', 'limit', 'cursor'],
+    ],
+    [
+      'test.record_result',
+      {
+        artifactId: id,
+        expectedRevisionId: id,
+        evidenceKind: 'measured',
+        observation: 'Observed',
+        result: 'passed',
+      },
+      ['expectedRevisionId'],
+    ],
+    [
       'component.add_candidate',
       {
         title: 'Servo',

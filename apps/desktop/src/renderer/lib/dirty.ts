@@ -122,6 +122,8 @@ function askGuards(remaining: LeaveGuard[], proceed: () => void, cancel: () => v
 export interface LeaveOptions {
   action?: string;
   cancel?: () => void;
+  /** Work held outside the active editor, also lost when the whole app closes. */
+  extraLabels?: readonly string[];
   /**
    * The move can still fail or be called off after the person agrees (opening or closing a
    * project), so choosing to discard leaves the work registered; the move clears it once it
@@ -138,8 +140,10 @@ export interface LeaveOptions {
 export function guardLeave(proceed: () => void, options: LeaveOptions = {}): void {
   const cancel = options.cancel ?? (() => {});
   const others = () => askGuards([...guards], proceed, cancel);
-  if (!entries.size) return others();
-  const labels = [...entries.values()].map((e) => e.label);
+  const labels = [
+    ...new Set([...entries.values()].map((e) => e.label).concat(options.extraLabels ?? [])),
+  ];
+  if (!labels.length) return others();
   const resume = () => {
     if (!options.keep) clearAllUnsaved();
     others();
@@ -152,7 +156,7 @@ export function guardLeave(proceed: () => void, options: LeaveOptions = {}): voi
 /** `guardLeave` as a promise: true when the caller may go ahead. */
 export function confirmLeave(
   action?: string,
-  options: Pick<LeaveOptions, 'keep'> = {},
+  options: Pick<LeaveOptions, 'keep' | 'extraLabels'> = {},
 ): Promise<boolean> {
   return new Promise((resolve) =>
     guardLeave(() => resolve(true), { ...options, action, cancel: () => resolve(false) }),

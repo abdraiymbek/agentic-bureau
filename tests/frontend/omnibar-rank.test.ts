@@ -99,6 +99,22 @@ describe('omnibar ranking', () => {
     expect(rank(all, 'camera regulator', null).flat).toEqual([]);
   });
 
+  it('includes recorded content matches without changing command matches or selecting Ask', () => {
+    const content: Candidate = {
+      id: 'c:motor:r4',
+      group: 'content',
+      label: 'Micro Metal Gearmotor HP 6V 100:1',
+      contentQuery: 'POLOLU-2212',
+    };
+    const r = rank([...all, content], 'POLOLU-2212', ask('POLOLU-2212'));
+    expect(r.flat.map((item) => item.id)).toEqual(['c:motor:r4', 'ask']);
+    expect(r.flat[r.initial]?.id).toBe('c:motor:r4');
+    expect(rank([...all, content], 'unrelated', null).flat).toEqual([]);
+    expect(
+      rank([...all, content], '> POLOLU-2212', ask('POLOLU-2212')).flat.map((item) => item.id),
+    ).toEqual(['ask']);
+  });
+
   it('matches part numbers and word prefixes', () => {
     expect(rank(all, 'd24v', null).flat[0]!.id).toBe('o:reg');
     expect(rank(all, 'sett', null).flat[0]!.id).toBe('act:settings');

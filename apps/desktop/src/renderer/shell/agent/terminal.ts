@@ -54,6 +54,8 @@ export class TerminalEngine implements TerminalPort {
   private readonly cleanup: (() => void)[] = [];
   private host: HTMLElement | null = null;
   private sessionId: string | null = null;
+  /** Every host state event outranks snapshots already in flight, even for the same session. */
+  private stateRevision = 0;
   private live = false;
   private sentSize: string | null = null;
   private resizeTimer: number | undefined;
@@ -83,23 +85,27 @@ export class TerminalEngine implements TerminalPort {
     );
     this.history = createTerminalRestore(
       async () => {
+        const stateRevision = this.stateRevision;
         const r = await quiet<{ session: (SessionInfo & TerminalSnapshotFields) | null }>(
           'terminal.state',
           {},
           { projectId },
         );
         if (!r.ok) throw new Error(r.error.message);
-        // The snapshot is also the host's answer about the session, so autostart can decide.
-        if (useStore.getState().projectId === projectId) {
-          useStore.getState().set({ session: r.result.session });
-          useAgentUi.getState().setSessionChecked();
-        }
-        return r.result;
+        return { ...r.result, stateRevision };
       },
       (chunk) => {
         if (chunk) this.term.write(chunk);
       },
       () => this.term.reset(),
+      (snapshot) => {
+        if (useStore.getState().projectId !== projectId) return;
+        // A live event can supersede the metadata without changing the
+        // session ID (for example, running → exited while this read waits).
+        if (snapshot.stateRevision === this.stateRevision)
+          useStore.getState().receiveSession(snapshot.session);
+        useAgentUi.getState().setSessionChecked();
+      },
     );
     this.wire();
     setTerminalPort(this);
@@ -129,6 +135,8 @@ export class TerminalEngine implements TerminalPort {
     const unState = window.omenflow.onTerminalState((value) => {
       const v = value as { projectId?: string; session?: { id?: string } | null };
       if (v.projectId !== this.projectId) return;
+      this.stateRevision++;
+      useAgentUi.getState().setSessionChecked();
       if (v.session?.id) this.history.selectSession(v.session.id);
       void this.history.restore();
     });

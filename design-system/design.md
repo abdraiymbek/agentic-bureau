@@ -1,6 +1,6 @@
 # Omen Flow design system — Lens
 
-Version 2.3 · 14 October 2026 · **See the whole. Focus on one. Decide.**
+Version 2.4 · 19 October 2026 · **See the whole. Focus on one. Decide.**
 
 Lens is the design language and interaction model of Omen Flow. It replaces the previous
 sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
@@ -58,7 +58,9 @@ left edge: the Agent tab first, then the lens tabs and Decisions. There is no da
   effect only once the move happens: opening another project asks after the folder is chosen
   and the project has opened, and a cancelled pick, a failed open, choosing to stay, or a close
   that fails keep the edits. Back or forward with nowhere to go asks nothing. The agent cannot
-  navigate over unsaved work: the view stays and a toast says why.
+  navigate over unsaved work: the view stays and a toast says why. Native window close and
+  application quit use the same prompt, including parked edits; canceling either the edits
+  prompt or the running-agent prompt keeps the work.
 - The titlebar trail names only where you are (`Project › Mechanical › Camera tray`).
 - The launcher is the only screen without a project. It asks one question — _What are you
   building?_ — creates the project in a named folder it shows before anything is written, and
@@ -312,7 +314,9 @@ project so the session, scrollback, and running CLI survive navigation.
   not report them is not guessed at. An agent CLI that is not installed reads neutral; red is
   for a detected one that fails.
 - `⌘K`: “Ask {agent}” is always the last group and never preselected; the `>` prefix asks
-  directly.
+  directly. Project content search finds recorded text and part numbers, shows an excerpt and
+  the matched revision's review state, and opens that exact revision. Its Ask action names the
+  same revision. Local commands remain available while content is loading or fails.
 
 ## 4. Visual language
 

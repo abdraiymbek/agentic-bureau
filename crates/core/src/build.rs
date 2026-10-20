@@ -219,6 +219,116 @@ fn tool_versions(handle: &ProjectHandle) -> CoreResult<Vec<Value>> {
     Ok(versions)
 }
 
+fn document_identity(artifact: &Value) -> String {
+    format!(
+        "Artifact: `{}` · Revision: `{}` · State: **{}** · {}",
+        artifact["artifactId"].as_str().unwrap_or(""),
+        artifact["revisionId"].as_str().unwrap_or(""),
+        artifact["state"].as_str().unwrap_or("unknown"),
+        if artifact["selected"] == true {
+            "Selected baseline"
+        } else {
+            "**DRAFT — not selected as baseline**"
+        }
+    )
+}
+
+/// Generated documents describe the same immutable revisions as the manifest.
+fn documents(manifest: &Value, files: &mut BTreeMap<String, Vec<u8>>) -> CoreResult<()> {
+    let package_note = if manifest["status"] == "draft" {
+        "> DRAFT package — unresolved issues are recorded in manifest.json.\n\n"
+    } else {
+        "> BASELINE package — approval and engineering validity are separate.\n\n"
+    };
+    let mut assemblies = Vec::new();
+    let mut assumptions = Vec::new();
+    let mut wirings = Vec::new();
+    for artifact in manifest["artifacts"].as_array().into_iter().flatten() {
+        let title = artifact["title"].as_str().unwrap_or("Untitled");
+        let identity = document_identity(artifact);
+        let payload = &artifact["payload"];
+        match artifact["type"].as_str() {
+            Some("assembly") => {
+                let mut text = format!("## {title}\n\n{identity}\n\n");
+                for step in payload["steps"].as_array().into_iter().flatten() {
+                    text.push_str(&format!(
+                        "{}. {}\n",
+                        step["order"],
+                        step["instruction"]
+                            .as_str()
+                            .unwrap_or("")
+                            .replace('\n', "\n   ")
+                    ));
+                    let names = |field: &str| {
+                        step[field]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    };
+                    for (label, field) in [("Components", "componentRefs"), ("Tools", "tools")] {
+                        let values = names(field);
+                        if !values.is_empty() {
+                            text.push_str(&format!("\n   {label}: {values}\n"));
+                        }
+                    }
+                    if let Some(calibration) = step["calibration"].as_str() {
+                        text.push_str(&format!(
+                            "\n   Calibration: {}\n",
+                            calibration.replace('\n', "\n   ")
+                        ));
+                    }
+                    text.push('\n');
+                }
+                assemblies.push(text);
+            }
+            Some("assumption") => {
+                let validation = payload["needsValidation"]
+                    .as_bool()
+                    .map(|needed| if needed { "yes" } else { "no" })
+                    .unwrap_or("not recorded");
+                assumptions.push(format!("## {title}\n\n{identity}\n\n{}\n\nReason: {}\n\nOwner: {}\n\nValidation required: {validation}\n",
+                    payload["statement"].as_str().unwrap_or(""),
+                    payload["reason"].as_str().unwrap_or("not recorded"),
+                    payload["owner"].as_str().unwrap_or("not recorded")));
+            }
+            Some("wiring") => {
+                let id = required_str(artifact, "artifactId")?;
+                let path = format!("docs/wiring/{id}.json");
+                files.insert(path, serde_json::to_vec_pretty(artifact).map_err(internal)?);
+                wirings.push(format!(
+                    "## {title}\n\n{identity}\n\n[Recorded wiring](wiring/{id}.json)\n"
+                ));
+                // Preserve the original single-wiring payload entry point. The index names
+                // every wiring artifact and each separate file carries its revision/state.
+                if !files.contains_key("docs/wiring.json") {
+                    files.insert(
+                        "docs/wiring.json".into(),
+                        serde_json::to_vec_pretty(payload).map_err(internal)?,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    for (heading, path, sections) in [
+        ("Assembly", "docs/ASSEMBLY.md", assemblies),
+        ("Wiring", "docs/WIRING.md", wirings),
+        ("Assumptions", "docs/ASSUMPTIONS.md", assumptions),
+    ] {
+        if heading != "Assumptions" && sections.is_empty() {
+            continue;
+        }
+        files.insert(
+            path.into(),
+            format!("# {heading}\n\n{package_note}{}\n", sections.join("\n")).into_bytes(),
+        );
+    }
+    Ok(())
+}
+
 pub(super) fn export(handle: &ProjectHandle, input: &Value, origin: &Origin) -> CoreResult<Value> {
     let destination = required_str(input, "destPath")?;
     let dest = match components::export_target(handle, destination, origin, "exports/build.zip")? {
@@ -322,59 +432,7 @@ pub(super) fn export(handle: &ProjectHandle, input: &Value, origin: &Origin) -> 
         "docs/BOM.csv".into(),
         components::bom_text(handle, "csv")?.into_bytes(),
     );
-    for (artifact_type, file_name) in [
-        ("assembly", "docs/ASSEMBLY.md"),
-        ("wiring", "docs/wiring.json"),
-    ] {
-        let maybe_id: Option<String> = handle.db.query_row("SELECT selected_revision_id FROM artifact WHERE type=?1 AND archived=0 AND selected_revision_id IS NOT NULL ORDER BY created_at LIMIT 1", [artifact_type], |row| row.get(0)).optional().map_err(internal)?;
-        if let Some(id) = maybe_id {
-            let rev = require_revision(handle, &id)?;
-            let content = if artifact_type == "wiring" {
-                serde_json::to_string_pretty(&rev["payload"]).map_err(internal)?
-            } else {
-                let steps = rev["payload"]["steps"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(|step| {
-                        format!(
-                            "{}. {}",
-                            step["order"],
-                            step["instruction"].as_str().unwrap_or("")
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                format!("# Assembly\n\n{steps}\n")
-            };
-            files.insert(file_name.into(), content.into_bytes());
-        }
-    }
-    let mut assumptions = Vec::new();
-    let mut stmt = handle.db.prepare("SELECT title,selected_revision_id FROM artifact WHERE type='assumption' AND archived=0 ORDER BY created_at").map_err(internal)?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-        })
-        .map_err(internal)?;
-    for row in rows {
-        let (title, id) = row.map_err(internal)?;
-        let payload = id
-            .as_deref()
-            .map(|id| require_revision(handle, id))
-            .transpose()?
-            .map(|rev| rev["payload"].clone())
-            .unwrap_or(json!({}));
-        assumptions.push(format!(
-            "- {title}: {} ({})",
-            payload["statement"].as_str().unwrap_or(""),
-            payload["reason"].as_str().unwrap_or("")
-        ));
-    }
-    files.insert(
-        "docs/ASSUMPTIONS.md".into(),
-        format!("# Assumptions\n\n{}\n", assumptions.join("\n")).into_bytes(),
-    );
+    documents(&manifest, &mut files)?;
     files.insert(
         "manifest.json".into(),
         serde_json::to_vec_pretty(&manifest).map_err(internal)?,
@@ -440,6 +498,134 @@ mod tests {
             .read_to_string(&mut text)
             .unwrap();
         (serde_json::from_str(&text).unwrap(), names)
+    }
+
+    fn document(path: &Path, name: &str) -> String {
+        let mut archive = zip::ZipArchive::new(fs::File::open(path).unwrap()).unwrap();
+        let mut text = String::new();
+        archive
+            .by_name(name)
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
+        text
+    }
+
+    #[test]
+    fn generated_documents_include_every_exported_revision_and_all_assembly_fields() {
+        let mut bench = Bench::new();
+        let part = approved(
+            &mut bench,
+            "note",
+            "Part record",
+            json!({"markdown":"part reference"}),
+        );
+        let first = approved(
+            &mut bench,
+            "assembly",
+            "Chassis assembly",
+            json!({"steps":[{
+                "order":1,"instruction":"Install the axle.","componentRefs":[part["artifact"]["id"]],
+                "tools":["2 mm hex key"],"calibration":"Set the gap to 0.2 mm."
+            }]}),
+        );
+        bench
+            .user(
+                "artifact.update_draft",
+                json!({"artifactId": first["artifact"]["id"],
+            "payload":{"steps":[{"order":1,"instruction":"Unselected newer instructions."}]}}),
+            )
+            .unwrap();
+        let second = draft(
+            &mut bench,
+            "assembly",
+            "Sensor assembly",
+            json!({"steps":[{
+                "order":1,"instruction":"Align the sensor.","tools":["Square"],"calibration":"Zero the sensor."
+            }]}),
+        );
+        let first_wiring = approved(
+            &mut bench,
+            "wiring",
+            "Power harness",
+            json!({"coverageNote":"Power wiring only"}),
+        );
+        let second_wiring = draft(
+            &mut bench,
+            "wiring",
+            "Signal harness",
+            json!({"coverageNote":"Signal wiring is a draft"}),
+        );
+        let assumption = draft(
+            &mut bench,
+            "assumption",
+            "Surface friction",
+            json!({
+                "statement":"The floor is dry.","reason":"Indoor operation","owner":"Test team","needsValidation":true
+            }),
+        );
+        let destination = bench.root().join("exports/documents.zip");
+        bench
+            .user(
+                "build.export",
+                json!({"destPath":destination,"includeDrafts":true}),
+            )
+            .unwrap();
+        let (manifest, _) = manifest(&destination);
+        let assembly = document(&destination, "docs/ASSEMBLY.md");
+        for expected in [
+            "DRAFT package",
+            "Chassis assembly",
+            "Install the axle.",
+            "Sensor assembly",
+            "Align the sensor.",
+            "2 mm hex key",
+            "Set the gap to 0.2 mm.",
+            "Zero the sensor.",
+            first["revision"]["id"].as_str().unwrap(),
+            second["revision"]["id"].as_str().unwrap(),
+            part["artifact"]["id"].as_str().unwrap(),
+            "DRAFT — not selected as baseline",
+        ] {
+            assert!(
+                assembly.contains(expected),
+                "{expected} missing from {assembly}"
+            );
+        }
+        assert!(!assembly.contains("Unselected newer instructions."));
+        let assumptions = document(&destination, "docs/ASSUMPTIONS.md");
+        for expected in [
+            "The floor is dry.",
+            "Indoor operation",
+            "Test team",
+            "Validation required: yes",
+            assumption["revision"]["id"].as_str().unwrap(),
+            "DRAFT — not selected as baseline",
+        ] {
+            assert!(
+                assumptions.contains(expected),
+                "{expected} missing from {assumptions}"
+            );
+        }
+        let wiring = document(&destination, "docs/WIRING.md");
+        assert!(wiring.contains("Power harness") && wiring.contains("Signal harness"));
+        for source in [&first_wiring, &second_wiring] {
+            let id = source["artifact"]["id"].as_str().unwrap();
+            let recorded: Value =
+                serde_json::from_str(&document(&destination, &format!("docs/wiring/{id}.json")))
+                    .unwrap();
+            let exported = manifest["artifacts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|artifact| artifact["artifactId"] == id)
+                .unwrap();
+            assert_eq!(&recorded, exported);
+            assert!(wiring.contains(recorded["revisionId"].as_str().unwrap()));
+        }
+        let legacy: Value =
+            serde_json::from_str(&document(&destination, "docs/wiring.json")).unwrap();
+        assert_eq!(legacy, first_wiring["revision"]["payload"]);
     }
 
     /// A project with one of each thing that holds a build back.

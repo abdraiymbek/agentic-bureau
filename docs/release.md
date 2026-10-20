@@ -1,18 +1,20 @@
 # Release
 
-There is no qualified release of the Rust/Tauri app. The latest native acceptance on macOS
-Apple Silicon is the [26 September first-use audit](../audit/v1-readiness/README.md), made
-before V1. V1 itself was verified by automated suites and the browser preview on the Rust
-headless host ([V1 readiness record](../audit/v1/README.md)). Its release bundle and DMG were
-built on macOS arm64; the app opened its main window, and the packaged smoke passed from the
-mounted DMG. That bundle predates the move to version 1.0.0 and the identifier
-`app.omenflow.desktop` (its `Info.plist` still says 0.1.0 and `com.electron.omen-flow`), so it must
-be rebuilt. Nobody has yet used the native interface by hand. Apple signing, notarization,
-clean-machine installation and upgrade, Intel Macs, and Windows packages are still open. Linux
-packages (`.deb`, `.rpm`, AppImage) are built on Ubuntu 22.04, need glibc 2.35 or later, and were
-run on arm64 in fresh containers under a virtual display ([Linux packages](#linux-packages)); no
-Linux desktop has been used by hand. The Electron v0.1 record in `audit/release-v0.1/` is
-historical and does not qualify this build.
+Version **1.0.1** is the current release candidate; its checks and remaining limits belong in
+the [1.0.1 verification record](../audit/v1.0.1/README.md). The previous
+[1.0.0 release](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.0) was published on
+15 October 2026 UTC with a macOS arm64 DMG, Linux arm64 and x86_64 packages, and `SHA256SUMS`.
+Its final macOS bundle carries version 1.0.0 and identifier `app.omenflow.desktop`; the earlier
+0.1.0 bundle described in the [V1 readiness record](../audit/v1/README.md) was replaced.
+
+Publication and automated checks do not establish native manual acceptance. The last recorded
+native walkthrough by hand is the [26 September first-use audit](../audit/v1-readiness/README.md),
+before V1. Apple Developer ID signing, notarization, clean-machine installation and upgrade,
+Intel Macs and Windows packages remain unverified unless a later record says otherwise. Linux
+packages are built on Ubuntu 22.04, need glibc 2.35 or later and are tested in fresh containers
+under a virtual display ([Linux packages](#linux-packages)); no Linux desktop has been used by
+hand. The Electron v0.1 record in `audit/release-v0.1/` is historical and does not qualify this
+build.
 
 ## Local candidate
 
@@ -20,10 +22,12 @@ historical and does not qualify this build.
 pnpm install --frozen-lockfile
 pnpm rebuild:node
 pnpm contracts:check
+pnpm notices:check
+pnpm build:bridge
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
-pnpm build:bridge
+cargo test --manifest-path native/omenflow-bridge/Cargo.toml --locked
 cargo test -p omenflow-agent-host --locked -- --ignored
 pnpm typecheck
 pnpm lint
@@ -38,9 +42,10 @@ pnpm smoke:packaged
 `cargo test --workspace` needs OpenSCAD for its engine tests. `OMENFLOW_OPENSCAD_E2E=1` also runs
 the legacy TypeScript real-engine tests.
 
-`pnpm make` builds the Rust bridge helper, the static React renderer, and the Rust Tauri app
-without signing. On macOS it creates `target/release/bundle/macos/Omen Flow.app` and an
-unsigned DMG under `target/release/bundle/dmg/`. The DMG step lays out its window through
+`pnpm make` builds the Rust bridge helper, the static React renderer and the Rust Tauri app.
+On macOS it signs the app ad hoc and creates `target/release/bundle/macos/Omen Flow.app` and a
+DMG under `target/release/bundle/dmg/`; neither has Apple notarization. Other platforms build
+with `--no-sign`. The DMG step lays out its window through
 Finder with AppleScript, which needs the Finder automation permission of an interactive
 session; where that is unavailable (background shells, CI), `CI=true pnpm make` skips the
 layout and still produces the DMG with the app and an Applications link. The bundle declares
@@ -59,19 +64,30 @@ running, and an upgrade of a populated earlier project.
 
 ## Publishing a release
 
-1. On the Mac, from the release commit: `CI=true pnpm make`, then `pnpm smoke:packaged`. Copy
+1. Finish the candidate checks above and record the results and limits in the version's audit
+   record. Confirm the root and workspace package manifests, workspace and helper Cargo
+   versions, both Cargo lockfiles' local crate versions, and `tauri.conf.json` agree. Commit
+   the release changes and push that commit to the default branch so the dispatchable workflow
+   and its helper scripts exist there.
+2. On the Mac, from that release commit: `CI=true pnpm make`, then `pnpm smoke:packaged`. Copy
    `target/release/bundle/dmg/Omen Flow_<version>_aarch64.dmg` as
    `Omen-Flow-<version>-macos-arm64.dmg`.
-2. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
+3. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
 --skip-tests`, then copy the packages from `target/release/bundle/linux-arm64/` as
    `omen-flow_<version>_arm64.deb`, `omen-flow-<version>-1.aarch64.rpm` and
    `Omen-Flow-<version>-aarch64.AppImage`.
-3. Tag the commit (`git tag v<version> && git push origin v<version>`), create a draft release
-   with those files and a `SHA256SUMS` of them (`shasum -a 256 * > SHA256SUMS`).
-4. Run the **Release Linux x86_64** workflow (`gh workflow run release.yml -f tag=v<version>`):
+4. In a folder containing only those four release assets, generate `SHA256SUMS` with
+   `shasum -a 256 ./*.dmg ./*.deb ./*.rpm ./*.AppImage | sed 's#  \./#  #' > SHA256SUMS`.
+   Name the files before hashing. Tag the exact release commit
+   (`git tag v<version> <release-commit> && git push origin v<version>`) and create a draft
+   release with those files and `SHA256SUMS`.
+5. Run the **Release Linux x86_64** workflow (`gh workflow run release.yml -f tag=v<version>`):
    it builds and smoke-tests the x86_64 packages with the same recipe, attaches them to the
-   release and adds them to `SHA256SUMS`.
-5. Check every asset against `SHA256SUMS`, then publish the release.
+   release and adds them to `SHA256SUMS`. Wait for the run to finish successfully. Rebuilding
+   an asset replaces its checksum while preserving entries for the other architectures.
+6. Download the draft's final assets and `SHA256SUMS` into a fresh folder, check that every
+   expected file is present and verify all checksums, then publish the release. Keep the
+   installation and verification limits in the release notes.
 
 Release assets do not count against the Actions artifact storage quota; CI's own artifacts are
 kept for seven days.
@@ -230,7 +246,7 @@ What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 
 |               | `.deb` / `.rpm`                                                                                                                                                                                                             | AppImage                                 |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Name, version | `omen-flow` 1.0.0 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_1.0.0_<arch>.AppImage`        |
+| Name, version | `omen-flow` 1.0.1 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_1.0.1_<arch>.AppImage`        |
 | App           | `/usr/bin/omen-flow`                                                                                                                                                                                                        | `usr/bin/omen-flow` inside the image     |
 | Helper        | `/usr/lib/Omen Flow/omenflow`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                          | `$APPDIR/usr/lib/Omen Flow/omenflow`     |
 | Menu entry    | `/usr/share/applications/Omen Flow.desktop`: `Name=Omen Flow`, `Exec=omen-flow`, `Icon=omen-flow`, `StartupWMClass=omen-flow` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image          |
@@ -272,16 +288,18 @@ that "Stop agent and close" ended with its process group.
 
 **x86_64**: the `package-linux` job in `.github/workflows/ci.yml` runs
 `node scripts/linux-package.mjs --skip-tests` on `ubuntu-22.04` and uploads the `.deb`, `.rpm` and
-AppImage (`omenflow-linux-x86_64`) and the screenshots. It is the same script that ran on arm64, but
-it has not run: no x86_64 package has been built or launched. The Linux leg of the `rust` job is
-set to run on `ubuntu-22.04` too, installing and requiring Ubuntu's OpenSCAD; it has not run
-either.
+AppImage (`omenflow-linux-x86_64`) and the screenshots. The **Release Linux x86_64** workflow
+uses the same script, attaches packages to an existing release and updates `SHA256SUMS`. Its
+[1.0.0 run](https://github.com/abdraiymbek/omen-flow/actions/runs/38671472644) completed
+successfully on 15 October 2026 UTC; those three assets are attached to the published 1.0.0
+release. This supersedes the earlier statement that no x86_64 package had been built or
+launched. Results for 1.0.1 belong in its [verification record](../audit/v1.0.1/README.md).
 
 Known limits:
 
 - **Unsigned.** No GPG signature on the `.deb` or `.rpm`, no signed AppImage, no update
-  information, no apt or dnf repository. Nothing was installed over an earlier Linux build
-  (there is none).
+  information, no apt or dnf repository. Installation over an earlier Linux build has not been
+  recorded; the fresh-container checks do not verify an upgrade.
 - **Not a desktop.** Every run used Xvfb (X11, no window manager unless stated, Mesa llvmpipe, no
   GPU). Wayland sessions, GPU drivers, HiDPI scaling, input methods and the system tray were not
   exercised. The AppImage's GTK launcher forces `GDK_BACKEND=x11`, so on Wayland it runs through

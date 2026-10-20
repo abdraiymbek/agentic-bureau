@@ -16,10 +16,11 @@ export const MAX_BUFFERED_FRAMES = 4000;
  * cursor are written, so output concurrent with restore cannot duplicate or
  * reorder the snapshot.
  */
-export function createTerminalRestore(
-  read: () => Promise<TerminalSnapshot>,
+export function createTerminalRestore<Snapshot extends TerminalSnapshot>(
+  read: () => Promise<Snapshot>,
   write: (text: string) => void,
   reset: () => void = () => {},
+  acceptSnapshot: (snapshot: Snapshot) => void = () => {},
 ) {
   let disposed = false;
   let restored = false;
@@ -70,8 +71,12 @@ export function createTerminalRestore(
       const requestGeneration = generation;
       try {
         const result = await read();
-        if (disposed || generation !== requestGeneration || !result.session) return;
-        if (sessionId && result.session.id && result.session.id !== sessionId) return;
+        if (disposed || generation !== requestGeneration) return;
+        if (sessionId && result.session?.id && result.session.id !== sessionId) return;
+        // Metadata has the same lifetime as the transcript. Publishing it
+        // inside `read` would run before the stale-request checks above.
+        acceptSnapshot(result);
+        if (!result.session) return;
         sessionId ??= result.session.id;
         write(result.session.scrollback ?? '');
         cursor = result.session.scrollbackCursor ?? 0;

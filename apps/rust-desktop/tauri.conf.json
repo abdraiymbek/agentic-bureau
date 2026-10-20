@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Omen Flow",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "app.omenflow.desktop",
   "build": {
     "beforeDevCommand": "pnpm --filter @omenflow/desktop dev:rust-ui",

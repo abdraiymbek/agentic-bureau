@@ -6,6 +6,7 @@ mod capture;
 mod helper;
 mod instance;
 mod research;
+mod shutdown;
 #[cfg(unix)]
 mod signals;
 mod smoke;
@@ -102,6 +103,109 @@ fn toggle_research(host: State<'_, Arc<Host>>) -> Result<Value, String> {
         Some(repair) => format!("{} — {repair}", error.message),
         None => error.message,
     })
+}
+
+#[tauri::command]
+fn native_shutdown_ready(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != window::MAIN {
+        return Err("Only the workspace may answer a close request".into());
+    }
+    window.app_handle().state::<shutdown::Coordinator>().ready();
+    Ok(())
+}
+
+#[tauri::command]
+fn native_shutdown_reply(
+    window: tauri::WebviewWindow,
+    request_id: String,
+    decision: String,
+) -> Result<(), String> {
+    if window.label() != window::MAIN {
+        return Err("Only the workspace may answer a close request".into());
+    }
+    let app = window.app_handle();
+    let gate = app.state::<shutdown::Coordinator>();
+    match decision.as_str() {
+        "received" if gate.received(&request_id) => Ok(()),
+        "cancel" => {
+            gate.cancel(&request_id);
+            Ok(())
+        }
+        "discard" => {
+            let request = gate
+                .discard(&request_id)
+                .ok_or("Close request is no longer awaiting a decision")?;
+            after_edit_consent(app, request);
+            Ok(())
+        }
+        _ => Err("Close request is no longer pending".into()),
+    }
+}
+
+/// Failures and termination signals must still clean up when the renderer is absent or stuck.
+fn exit_directly(app: &AppHandle, code: i32) {
+    app.state::<shutdown::Coordinator>().force_exit();
+    app.exit(code);
+}
+
+fn request_shutdown(app: &AppHandle, action: shutdown::Action) {
+    let Some((request, ask_renderer)) = app.state::<shutdown::Coordinator>().begin(action) else {
+        return;
+    };
+    if !ask_renderer {
+        return after_edit_consent(app, request);
+    }
+    if let Err(error) = app.emit_to(
+        window::MAIN,
+        "omenflow:shutdown-request",
+        serde_json::json!({ "requestId": request.id, "action": action.name() }),
+    ) {
+        app.state::<shutdown::Coordinator>().cancel(&request.id);
+        eprintln!("omenflow: could not ask about unsaved work: {error}");
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        if app
+            .state::<shutdown::Coordinator>()
+            .expire_unreceived(&request.id)
+        {
+            app.dialog()
+                .message("The workspace did not answer the close request. The window has been kept open to protect unsaved changes. Try closing it again once the workspace responds.")
+                .title("Omen Flow kept the window open")
+                .kind(MessageDialogKind::Warning)
+                .show(|_| {});
+        }
+    });
+}
+
+fn after_edit_consent(app: &AppHandle, request: shutdown::Request) {
+    let cancelled = request.id.clone();
+    after_agent_consent(
+        app,
+        request.action.question(),
+        request.action.agree(),
+        move |app| {
+            if !app.state::<shutdown::Coordinator>().approve(&request.id) {
+                return;
+            }
+            if let Some(host) = app.try_state::<Arc<Host>>() {
+                host.shutdown();
+            }
+            if request.action == shutdown::Action::Close {
+                if let Some(window) = app.get_webview_window(window::MAIN) {
+                    if let Err(error) = window.destroy() {
+                        app.state::<shutdown::Coordinator>().take_exit_permission();
+                        eprintln!("omenflow: could not close the workspace: {error}");
+                    }
+                    return;
+                }
+            }
+            app.exit(0);
+        },
+        move |app| app.state::<shutdown::Coordinator>().cancel(&cancelled),
+    );
 }
 
 fn cli_path(app: &AppHandle) -> PathBuf {
@@ -214,7 +318,7 @@ fn quit_on_termination_signals(app: &AppHandle) {
     let app = app.clone();
     if let Err(error) = signals::on_termination(move |signal| {
         eprintln!("omenflow: {} received, quitting", signals::name(signal));
-        app.exit(0);
+        exit_directly(&app, 0);
     }) {
         eprintln!("omenflow: termination signals will end the app without its exit path: {error}");
     }
@@ -230,7 +334,7 @@ fn report_startup_failure(app: &AppHandle, message: String) {
         .title("Omen Flow could not start")
         .kind(MessageDialogKind::Error)
         .buttons(MessageDialogButtons::OkCustom("Quit".into()))
-        .show(move |_| handle.exit(1));
+        .show(move |_| exit_directly(&handle, 1));
 }
 
 fn focus_main(app: &AppHandle) {
@@ -249,6 +353,7 @@ fn after_agent_consent(
     question: &'static str,
     agree: &'static str,
     proceed: impl FnOnce(&AppHandle) + Send + 'static,
+    cancel: impl FnOnce(&AppHandle) + Send + 'static,
 ) {
     let app = app.clone();
     std::thread::spawn(move || {
@@ -262,7 +367,7 @@ fn after_agent_consent(
             return proceed(&app);
         }
         if app.state::<Asking>().0.swap(true, Ordering::SeqCst) {
-            return;
+            return cancel(&app);
         }
         let handle = app.clone();
         let mut dialog = app
@@ -282,8 +387,9 @@ fn after_agent_consent(
         dialog.show(move |agreed| {
             handle.state::<Asking>().0.store(false, Ordering::SeqCst);
             if agreed {
-                host.shutdown();
                 proceed(&handle);
+            } else {
+                cancel(&handle);
             }
         });
     });
@@ -381,7 +487,7 @@ fn app_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
 
 fn main() {
     let data_override = instance::data_dir_override();
-    let mut builder = tauri::Builder::default();
+    let mut builder = tauri::Builder::default().manage(shutdown::Coordinator::default());
     // Held until the process exits; see `instance`.
     let mut _claim = None;
     match &data_override {
@@ -406,9 +512,7 @@ fn main() {
     {
         builder = builder.menu(app_menu).on_menu_event(|app, event| {
             if event.id().as_ref() == QUIT_MENU_ID {
-                after_agent_consent(app, "Quit Omen Flow?", "Stop agent and quit", |app| {
-                    app.exit(0)
-                });
+                request_shutdown(app, shutdown::Action::Quit);
             }
         });
     }
@@ -423,7 +527,12 @@ fn main() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![omenflow_command, toggle_research])
+        .invoke_handler(tauri::generate_handler![
+            omenflow_command,
+            toggle_research,
+            native_shutdown_ready,
+            native_shutdown_reply
+        ])
         .build(tauri::generate_context!())
         .expect("Omen Flow Rust desktop shell failed")
         .run(|app, event| match event {
@@ -433,11 +542,13 @@ fn main() {
                 ..
             } if label == window::MAIN => {
                 api.prevent_close();
-                after_agent_consent(app, "Close this window?", "Stop agent and close", |app| {
-                    if let Some(window) = app.get_webview_window(window::MAIN) {
-                        let _ = window.destroy();
-                    }
-                });
+                request_shutdown(app, shutdown::Action::Close);
+            }
+            RunEvent::ExitRequested { api, .. } => {
+                if !app.state::<shutdown::Coordinator>().take_exit_permission() {
+                    api.prevent_exit();
+                    request_shutdown(app, shutdown::Action::Quit);
+                }
             }
             RunEvent::WindowEvent {
                 label,

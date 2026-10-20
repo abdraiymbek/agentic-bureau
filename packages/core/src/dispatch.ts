@@ -503,6 +503,8 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
     ),
   ],
   'artifact.list': (input) => (input.cursor === undefined ? [] : ['cursor']),
+  'artifact.history': (input) =>
+    ['fields', 'limit', 'cursor'].filter((field) => input[field] !== undefined),
   'artifact.create_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
   'artifact.update_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
   'wiring.set_connections': (input) => wiringIdsOmitted(input.connections),
@@ -515,10 +517,12 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
     list(input.requirementRefs).flatMap((ref, index) =>
       fields(ref).revisionId === undefined ? [`requirementRefs[${index}].revisionId omitted`] : [],
     ),
-  'test.record_result': (input) =>
-    input.requirementRef !== undefined && fields(input.requirementRef).revisionId === undefined
+  'test.record_result': (input) => [
+    ...(input.expectedRevisionId === undefined ? [] : ['expectedRevisionId']),
+    ...(input.requirementRef !== undefined && fields(input.requirementRef).revisionId === undefined
       ? ['requirementRef.revisionId omitted']
-      : [],
+      : []),
+  ],
 };
 
 function wiringIdsOmitted(connections: unknown): string[] {

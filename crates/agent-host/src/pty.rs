@@ -54,6 +54,9 @@ struct Session {
     /// must not stall the reader or a stop.
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     killer: Box<dyn ChildKiller + Send + Sync>,
+    /// Only owned until the child is reaped. Never signal a remembered PID
+    /// from an ended session: the OS may already have reused its group ID.
+    process_group: Option<u32>,
     last_start: Value,
     plan: LaunchPlan,
     /// Set when a stop was requested, so the exit is not reported as a
@@ -223,6 +226,7 @@ impl PtyHost {
             master: pair.master,
             writer: Arc::new(Mutex::new(writer)),
             killer,
+            process_group: pid,
             last_start: input.clone(),
             plan,
             stopping: false,
@@ -248,7 +252,16 @@ impl PtyHost {
         let project_for_exit = project_id.to_owned();
         let sessions = Arc::clone(&self.sessions);
         thread::spawn(move || {
+            // Keep the leader's PID reserved while its remaining workers
+            // are stopped. Reaping it first would allow the group ID to be
+            // reused before this thread or a concurrent stop signals it.
+            #[cfg(unix)]
+            finish_process_group(&session, pid);
             let status = child.wait();
+            #[cfg(not(unix))]
+            {
+                lock_session(&session).process_group = None;
+            }
             let activity = bridge
                 .upgrade()
                 .map_or_else(SessionActivity::default, |bridge| {
@@ -976,12 +989,9 @@ fn lock_session(session: &Mutex<Session>) -> MutexGuard<'_, Session> {
 /// Ask a session's process group to end, wait `grace` for it, then kill
 /// what is left of the group. The exit itself is observed by the thread that
 /// waits on the child, which marks the session exited; this waits for that
-/// mark, and then for the rest of the group, which the agent's shell may
-/// have started and which can outlive the session leader.
+/// mark. The waiter drains the rest of the group before reaping the leader,
+/// including workers that outlive the CLI when it exits on its own.
 fn terminate(session: &Arc<Mutex<Session>>, grace: Duration) {
-    let Some(pid) = lock_session(session).info["pid"].as_u64() else {
-        return;
-    };
     let deadline = Instant::now() + grace;
     let wait_for = |done: &dyn Fn() -> bool, deadline: Instant| loop {
         if done() {
@@ -993,27 +1003,61 @@ fn terminate(session: &Arc<Mutex<Session>>, grace: Duration) {
         thread::sleep(Duration::from_millis(15));
     };
     let exited = || lock_session(session).info["state"] != "running";
-    signal_group(pid, false);
-    if wait_for(&exited, deadline) && wait_for(&|| !group_alive(pid), deadline) {
+    {
+        let state = lock_session(session);
+        let Some(pid) = state.process_group else {
+            return;
+        };
+        signal_group(u64::from(pid), false);
+    }
+    // The waiter drains the group before reaping the leader and publishing
+    // its exit. A cooperative leader therefore still ends at once.
+    if wait_for(&exited, deadline) {
         return;
     }
-    // The group is this session's own (setsid), so nothing else is in it.
-    signal_group(pid, true);
-    let _ = lock_session(session).killer.kill();
+    {
+        let mut state = lock_session(session);
+        if let Some(pid) = state.process_group {
+            signal_group(u64::from(pid), true);
+            let _ = state.killer.kill();
+        }
+    }
     wait_for(&exited, Instant::now() + KILL_WAIT);
 }
 
-/// Whether any process of the session's group is still running.
-fn group_alive(pid: u64) -> bool {
-    #[cfg(unix)]
-    // SAFETY: signal 0 only checks that the group exists and may be signalled.
-    unsafe {
-        libc::kill(-(pid as i32), 0) == 0
-    }
-    #[cfg(windows)]
-    {
-        let _ = pid;
-        false
+/// Observe the leader's exit without reaping it, then end anything still in
+/// its group. The unreaped leader reserves the PID even if every worker has
+/// already gone. Clearing ownership under the same lock used by `terminate`
+/// ensures no stop, close or drop can signal that ID after `child.wait()`.
+#[cfg(unix)]
+fn finish_process_group(session: &Arc<Mutex<Session>>, pid: Option<u32>) {
+    let Some(pid) = pid else { return };
+    let observed = loop {
+        let mut status = std::mem::MaybeUninit::<libc::siginfo_t>::uninit();
+        // SAFETY: waitid initialises status, which is not read here. WNOWAIT
+        // deliberately leaves this thread's child for portable-pty to reap.
+        let result = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid as libc::id_t,
+                status.as_mut_ptr(),
+                libc::WEXITED | libc::WNOWAIT,
+            )
+        };
+        if result == 0 {
+            break true;
+        }
+        if std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+            // If observing the child failed, there is no safe basis for
+            // signalling its numeric group ID. Let wait report the error.
+            break false;
+        }
+    };
+    let mut state = lock_session(session);
+    if state.process_group.take() == Some(pid) && observed {
+        // The CLI has finished; its orphaned workers must not keep running
+        // against a project or keep the PTY reader alive after that session.
+        signal_group(u64::from(pid), true);
     }
 }
 
@@ -1783,6 +1827,80 @@ mod tests {
             "a process of the session's group survived the stop"
         );
         assert_eq!(terminal.session()["state"], "exited");
+    }
+
+    #[test]
+    fn a_natural_exit_drains_workers_before_stop_restart_or_close() {
+        for action in ["stop", "restart", "close"] {
+            let mut terminal = Terminal::new(&format!("Natural exit {action}"));
+            let pid_file = terminal.workspace.temp.path().join("worker.pid");
+            terminal.configure(
+                "custom",
+                json!({"executablePath": "/bin/sh", "env": {"WORKER_PID": pid_file}}),
+            );
+            let project = terminal.project().to_owned();
+            let first = terminal
+                .host
+                .start(
+                    &project,
+                    &json!({"adapterId": "custom", "args": ["-c", concat!(
+                        "sh -c 'trap \"\" HUP TERM; echo $$ > \"$WORKER_PID\"; exec sleep 333' & ",
+                        "while [ ! -s \"$WORKER_PID\" ]; do sleep 0.01; done; ",
+                        "echo READY; exit 0"
+                    )]}),
+                )
+                .unwrap();
+            terminal.wait_output("READY");
+            let pid = fs::read_to_string(&pid_file)
+                .unwrap()
+                .trim()
+                .parse::<u64>()
+                .unwrap();
+            terminal.wait_state(|state| state["id"] == first["id"] && state["state"] == "exited");
+            let session = terminal.host.session(&project).unwrap();
+            assert!(
+                lock_session(&session).process_group.is_none(),
+                "an ended session must release its numeric group before another lifecycle operation"
+            );
+            match action {
+                "stop" => {
+                    terminal.host.stop(&project).unwrap();
+                }
+                "restart" => {
+                    // The replacement must not be signalled by cleanup of
+                    // the old session, and its own worker must end too.
+                    fs::remove_file(&pid_file).unwrap();
+                    let replacement = terminal.host.restart(&project).unwrap();
+                    assert_ne!(replacement["id"], first["id"]);
+                    terminal.wait_state(|state| {
+                        state["id"] == replacement["id"] && state["state"] == "exited"
+                    });
+                    let next_pid = fs::read_to_string(&pid_file)
+                        .unwrap()
+                        .trim()
+                        .parse::<u64>()
+                        .unwrap();
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    while alive(next_pid) && Instant::now() < deadline {
+                        thread::sleep(Duration::from_millis(20));
+                    }
+                    assert!(!alive(next_pid), "the replacement left a worker behind");
+                }
+                "close" => {
+                    terminal.host.close(&project).unwrap();
+                    assert!(terminal.session().is_null());
+                }
+                _ => unreachable!(),
+            }
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while alive(pid) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(20));
+            }
+            assert!(
+                !alive(pid),
+                "a naturally ended CLI left a worker after {action}"
+            );
+        }
     }
 
     #[test]

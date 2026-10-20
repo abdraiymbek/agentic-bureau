@@ -4,11 +4,13 @@
  * with the ask prefix.
  */
 
-export type GroupId = 'recent' | 'objects' | 'decisions' | 'goto' | 'agent' | 'actions' | 'ask';
+export type GroupId =
+  'recent' | 'objects' | 'content' | 'decisions' | 'goto' | 'agent' | 'actions' | 'ask';
 
 export const GROUP_LABELS: Record<GroupId, string> = {
   recent: 'Recent',
   objects: 'Objects',
+  content: 'Project content',
   decisions: 'Decisions',
   goto: 'Go to',
   agent: 'Agent',
@@ -20,6 +22,7 @@ export const GROUP_LABELS: Record<GroupId, string> = {
 const GROUP_ORDER: GroupId[] = [
   'recent',
   'objects',
+  'content',
   'decisions',
   'goto',
   'agent',
@@ -31,6 +34,7 @@ const GROUP_ORDER: GroupId[] = [
 export const GROUP_CAP: Record<GroupId, number> = {
   recent: 8,
   objects: 12,
+  content: 12,
   decisions: 6,
   goto: 10,
   agent: 8,
@@ -48,6 +52,8 @@ export interface Candidate {
   keywords?: string;
   /** Position among recently used items, 0 = most recent. */
   recent?: number;
+  /** Exact query the host matched inside a revision's content. */
+  contentQuery?: string;
 }
 
 export interface Query {
@@ -98,7 +104,10 @@ export function scoreCandidate(candidate: Candidate, query: Query): number {
     const inLabel = tokenScore(token, label);
     const inExtra = tokenScore(token, extra) * 0.6;
     const best = Math.max(inLabel, inExtra);
-    if (best === 0) return 0;
+    if (best === 0)
+      return candidate.contentQuery === query.text
+        ? 12 - Math.min(candidate.label.length, 80) * 0.02
+        : 0;
     total += best;
   }
   const lower = candidate.label.toLowerCase();

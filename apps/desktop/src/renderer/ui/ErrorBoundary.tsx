@@ -6,6 +6,10 @@ interface Props {
   label: string;
   /** Runs before the retry, to clear whatever led to the failure. */
   onRetry?: () => void;
+  /** Tells a parent that this region is unavailable, for actions that depend on seeing it. */
+  onError?: (error: Error) => void;
+  /** A different object or revision can be tried without remounting a healthy region. */
+  resetKey?: unknown;
   children: React.ReactNode;
 }
 
@@ -26,6 +30,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
     console.error(`${this.props.label} failed to render.`, error, info.componentStack);
+    this.props.onError?.(this.state.error ?? new Error(String(error)));
+  }
+
+  componentDidUpdate(previous: Props) {
+    if (previous.resetKey !== this.props.resetKey && this.state.error)
+      this.setState({ error: null });
   }
 
   retry = () => {

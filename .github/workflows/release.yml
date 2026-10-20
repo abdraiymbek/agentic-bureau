@@ -46,7 +46,7 @@ jobs:
         run: |
           sha256sum ./*.deb ./*.rpm ./*.AppImage | sed 's#  \./#  #' > linux-x86_64.sha256
           if gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --output existing.sha256; then
-            cat existing.sha256 linux-x86_64.sha256 | sort -k2 -u > SHA256SUMS
+            node "$GITHUB_WORKSPACE/scripts/merge-checksums.mjs" existing.sha256 linux-x86_64.sha256 SHA256SUMS
           else
             mv linux-x86_64.sha256 SHA256SUMS
           fi

@@ -603,6 +603,8 @@ export interface ArtifactView {
   staleReasons: StaleRecord[];
   draftCount: number;
   pendingProposal: boolean;
+  /** Newest revision still in play, including unapproved work. Optional for older hosts. */
+  head?: { id: string; seq: number; reviewState: ReviewState } | null;
 }
 
 export interface ImpactPath {

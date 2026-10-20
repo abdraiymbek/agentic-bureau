@@ -179,9 +179,14 @@ pub fn shape_result(op: &Operation, profile: Profile, input: &Value, mut result:
     }
     let shown_page = page_cut(&cuts);
     if let Some(list) = &shown_page {
-        continue_after(&mut result, input, list);
+        continue_after(op, &mut result, input, list);
     }
-    let marker = truncation_marker(op, cap, input, &result, &cuts);
+    let mut marker = truncation_marker(op, cap, input, &result, &cuts);
+    if op.name == "artifact.history" {
+        if let Some(more) = marker.get_mut("more") {
+            route(more, profile);
+        }
+    }
     match &mut result {
         Value::Object(fields) => {
             fields.insert("truncated".into(), marker);
@@ -387,6 +392,9 @@ fn truncation_marker(
                 "Artifact content that was shortened is an object with omitted, shown and total in place of the list or text, and cannot be saved back: artifact_read with that artifactId returns its revision whole."
                     .to_owned(),
             );
+            if op.name == "artifact.history" {
+                how.push("Read that revision whole with artifact_read using its artifactId and revisionId from the history header; fields summary returns headers without content.".to_owned());
+            }
         }
     }
     marker["how"] = json!(how.join(" "));
@@ -440,7 +448,13 @@ fn cursor_after(item: &Value) -> Option<String> {
 /// A page that was cut continues after the last item shown, not after the
 /// last item the core put on it: its continuation fields are rewritten to
 /// match, or cleared when they cannot be.
-fn continue_after(result: &mut Value, input: &Value, list: &Cut) {
+fn continue_after(op: &Operation, result: &mut Value, input: &Value, list: &Cut) {
+    if op.name == "artifact.history" && list.path == "revisions" {
+        let cursor = history_cursor_after(result);
+        result["hasMore"] = json!(true);
+        result["nextCursor"] = json!(cursor);
+        return;
+    }
     let last = result[list.path.as_str()]
         .as_array()
         .and_then(|items| items.last())
@@ -470,6 +484,14 @@ fn continue_after(result: &mut Value, input: &Value, list: &Cut) {
 /// listing that was read with a cursor continues with the cursor after the
 /// last item shown, because a cursor overrides an offset.
 fn next_page(op: &Operation, input: &Value, result: &Value, cuts: &[Cut]) -> Option<Value> {
+    if op.name == "artifact.history" {
+        let list = page_cut(cuts).filter(|list| list.path == "revisions")?;
+        let cursor = history_cursor_after(result)?;
+        let mut args = input.as_object().cloned().unwrap_or_default();
+        args.insert("cursor".into(), json!(cursor));
+        args.insert("limit".into(), json!(list.shown));
+        return Some(json!({"tool": op.tool_name, "args": args}));
+    }
     let properties = op.input_schema["properties"].as_object()?;
     if !(properties.contains_key("limit") && properties.contains_key("offset")) {
         return None;
@@ -492,6 +514,14 @@ fn next_page(op: &Operation, input: &Value, result: &Value, cuts: &[Cut]) -> Opt
     }
     args.insert("limit".into(), json!(list.shown));
     Some(json!({"tool": op.tool_name, "args": args}))
+}
+
+/// History cursors name the final sequence actually shown, including when
+/// the profile kept fewer rows than the core's requested page.
+fn history_cursor_after(result: &Value) -> Option<String> {
+    result["revisions"].as_array()?.last()?["seq"]
+        .as_i64()
+        .map(|seq| seq.to_string())
 }
 
 /// Keep a web page inside a context window. Applied in every profile: one
@@ -1269,6 +1299,125 @@ mod tests {
             json!({"cursor": after, "limit": shown})
         );
         assert!(parse_agent_input(list, shaped["truncated"]["more"]["args"].clone()).is_ok());
+    }
+
+    #[test]
+    fn every_profile_can_continue_history_after_the_final_revision_it_was_shown() {
+        let revisions = (1..=240).map(|seq| json!({
+            "id": format!("00000000-0000-4000-8000-{seq:012}"),
+            "artifactId": "00000000-0000-4000-8000-000000000999",
+            "parentId": Value::Null, "seq": seq, "origin": "user", "originDetail": Value::Null,
+            "createdAt": "2026-10-19T12:00:00.000Z", "reviewState": "draft",
+            "rationale": "A saved engineering change. ".repeat(8),
+        })).collect::<Vec<_>>();
+        for profile in Profile::ALL {
+            for paged in [false, true] {
+                let mut input = json!({"artifactId": "00000000-0000-4000-8000-000000000999", "fields": "summary"});
+                if paged {
+                    input["limit"] = json!(200);
+                }
+                let mut seen = Vec::new();
+                loop {
+                    let after = input["cursor"]
+                        .as_str()
+                        .map(|cursor| cursor.parse::<i64>().unwrap())
+                        .unwrap_or(0);
+                    let limit = input["limit"]
+                        .as_u64()
+                        .map(|limit| limit as usize)
+                        .unwrap_or(revisions.len());
+                    let rows = revisions
+                        .iter()
+                        .filter(|revision| revision["seq"].as_i64().unwrap() > after)
+                        .take(limit)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    let has_more = rows
+                        .last()
+                        .is_some_and(|row| row["seq"].as_i64().unwrap() < 240);
+                    let cursor = rows
+                        .last()
+                        .filter(|_| has_more)
+                        .map(|row| row["seq"].as_i64().unwrap().to_string());
+                    let mut result = json!({"revisions": rows});
+                    if paged || !input["cursor"].is_null() {
+                        result["hasMore"] = json!(has_more);
+                        result["nextCursor"] = json!(cursor);
+                        result["total"] = json!(240);
+                    }
+                    let shaped = shape_result(op("artifact.history"), profile, &input, result);
+                    assert!(
+                        chars(&shaped) <= result_cap(profile),
+                        "{profile}: {}",
+                        chars(&shaped)
+                    );
+                    let shown = shaped["revisions"].as_array().unwrap();
+                    assert!(!shown.is_empty());
+                    seen.extend(
+                        shown
+                            .iter()
+                            .map(|revision| revision["seq"].as_i64().unwrap()),
+                    );
+                    if let Some(more) = shaped["truncated"].get("more") {
+                        assert_eq!(more["tool"], "artifact_history");
+                        if profile == Profile::Full {
+                            assert!(more.get("via").is_none());
+                        } else {
+                            assert_eq!(more["via"], "tool_call");
+                        }
+                        assert_eq!(more["args"]["cursor"], seen.last().unwrap().to_string());
+                        assert_eq!(more["args"]["fields"], "summary");
+                        input = more["args"].clone();
+                    } else if shaped["hasMore"] == true {
+                        input["cursor"] = shaped["nextCursor"].clone();
+                    } else {
+                        break;
+                    }
+                    assert!(parse_agent_input(op("artifact.history"), input.clone()).is_ok());
+                    assert!(seen.len() <= 240);
+                }
+                assert_eq!(
+                    seen,
+                    (1..=240).collect::<Vec<_>>(),
+                    "{profile}, paged={paged}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn one_oversized_history_revision_keeps_its_identity_and_explains_how_to_read_it() {
+        let id = "00000000-0000-4000-8000-000000000001";
+        let artifact = "00000000-0000-4000-8000-000000000002";
+        for profile in Profile::ALL {
+            let shaped = shape_result(
+                op("artifact.history"),
+                profile,
+                &json!({"artifactId": artifact, "limit": 1}),
+                json!({"revisions": [{"id": id, "artifactId": artifact, "seq": 1, "payload": {"markdown": "context ".repeat(25_000)}}],
+                    "hasMore": true, "nextCursor": "1", "total": 2}),
+            );
+            assert!(chars(&shaped) <= result_cap(profile));
+            assert_eq!(shaped["revisions"][0]["id"], id);
+            assert_eq!(shaped["revisions"][0]["seq"], 1);
+            assert_eq!(shaped["nextCursor"], "1");
+            assert_eq!(
+                shaped["revisions"][0]["payload"]["markdown"]["omitted"],
+                "characters"
+            );
+            assert!(shaped["truncated"]["how"]
+                .as_str()
+                .unwrap()
+                .contains("revisionId"));
+            let header = shape_result(
+                op("artifact.history"),
+                profile,
+                &json!({"artifactId": artifact, "fields": "summary", "limit": 1}),
+                json!({"revisions": [{"id": id, "artifactId": artifact, "seq": 1}], "hasMore": true, "nextCursor": "1", "total": 2}),
+            );
+            assert_eq!(header["revisions"][0]["id"], id);
+            assert!(header.get("truncated").is_none());
+        }
     }
 
     #[test]

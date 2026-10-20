@@ -78,14 +78,14 @@ function OffersTable({ offers }: { offers: Offer[] }) {
 
 export function ComponentStage({ view }: StageProps) {
   const projectId = useStore((s) => s.projectId);
+  const partsVersion = useStore((s) => s.partsVersion);
   const p = (view.revision?.payload ?? {}) as Partial<ComponentPayload>;
   const props = Object.entries(p.properties ?? {});
   const attributes = Object.entries(p.attributes ?? {});
   const [offers, setOffers] = useState<Offer[] | null>(null);
   const [offerError, setOfferError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  // Offers belong to the object, not to a revision. `view` is replaced whenever the project
-  // record changes, which is exactly when the list could have grown.
+  // Offers belong to the object, not to a revision; adding one does not replace `view`.
   useEffect(() => {
     let active = true;
     void cmd<{ components: { offers: Offer[] }[] }>(
@@ -102,7 +102,7 @@ export function ComponentStage({ view }: StageProps) {
     return () => {
       active = false;
     };
-  }, [view, projectId, attempt]);
+  }, [view, projectId, partsVersion, attempt]);
   const unpriced = offers?.filter((o) => !o.price).length ?? 0;
   return (
     <div className="doc">

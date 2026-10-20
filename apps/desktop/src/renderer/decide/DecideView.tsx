@@ -282,7 +282,11 @@ export function DecideView() {
       setQueue(projectId, { selected: activeId });
   }, [projectId, activeId]);
   const entry = proposals.find((p) => p.id === activeId);
-  const version = entry ? listVersion(entry, selectedOf) : 'absent';
+  const evidenceVersion = useStore(
+    (s) =>
+      `${s.baselineVersion}:${entry?.changes.map((c) => s.evidenceVersions[c.artifactId] ?? 0).join(',') ?? ''}`,
+  );
+  const version = `${entry ? listVersion(entry, selectedOf) : 'absent'}:${evidenceVersion}`;
   const { detail, load, error, reload } = useProposalDetail(projectId, activeId, version);
   const fp = detail ? fingerprint(detail) : null;
   const phase = detail ? detailPhase(detail) : null;

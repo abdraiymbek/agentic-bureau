@@ -1242,7 +1242,7 @@ function InProduct() {
     needsProject?: boolean;
   }[] = [
     {
-      name: 'Omnibar',
+      name: 'Omnibar · commands and revision content',
       where: 'shell/Omnibar.tsx',
       action: 'Open ⌘K',
       open: () => set({ omniOpen: true }),

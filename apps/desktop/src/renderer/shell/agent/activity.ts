@@ -74,18 +74,23 @@ export function asCallRecord(value: unknown): AgentCallRecord | null {
   };
 }
 
-/** Union by sequence number, oldest first, keeping the newest `limit`. */
+/** Union by sequence number, oldest first; paging back keeps the older edge of the window. */
 export function mergeCalls(
   current: AgentCallRecord[],
   incoming: AgentCallRecord[],
   limit = CALL_LIMIT,
+  keep: 'newest' | 'oldest' = 'newest',
 ): AgentCallRecord[] {
   if (!incoming.length) return current;
   const bySeq = new Map<number, AgentCallRecord>();
   for (const call of current) bySeq.set(call.seq, call);
   for (const call of incoming) bySeq.set(call.seq, call);
   const merged = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
-  return merged.length > limit ? merged.slice(merged.length - limit) : merged;
+  return merged.length > limit
+    ? keep === 'oldest'
+      ? merged.slice(0, limit)
+      : merged.slice(merged.length - limit)
+    : merged;
 }
 
 export interface CallGroup {

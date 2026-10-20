@@ -118,7 +118,10 @@ function sourceFiles() {
     capture: true,
   }).stdout.split('\0');
   return listed.filter(
-    (file) => file && !file.startsWith('videos/') && existsSync(path.join(root, file)),
+    (file) =>
+      file &&
+      !['videos/', '.claude/', '.codex/'].some((prefix) => file.startsWith(prefix)) &&
+      existsSync(path.join(root, file)),
   );
 }
 

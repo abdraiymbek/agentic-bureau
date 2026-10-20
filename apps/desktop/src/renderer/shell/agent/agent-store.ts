@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand';
 import type { AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
-import { mergeCalls } from './activity';
+import { CALL_LIMIT, mergeCalls } from './activity';
 import { parsePrefs, serializePrefs, type WindowPrefs } from './window-geometry';
 
 export type SettingsSection = 'agents' | 'tools' | 'appearance';
@@ -26,6 +26,10 @@ export interface ActivityFeed {
   error: string | null;
   /** Oldest first, unique by `seq`. */
   calls: AgentCallRecord[];
+  /** A separate, bounded window while browsing back; live calls cannot displace it. */
+  history: AgentCallRecord[] | null;
+  /** Changes when browsing is reset, cancelling any older page still in flight. */
+  historyRevision: number;
   sessions: AgentSessionSummary[];
   /** Highest `seq` covered by `sessions` when they were read. */
   summarySeq: number;
@@ -33,6 +37,9 @@ export interface ActivityFeed {
   lastArrival: number | null;
   /** The ledger holds calls older than the oldest loaded one. */
   hasMore: boolean;
+  /** Whether earlier calls exist before the latest window, for returning from history. */
+  latestHasMore: boolean;
+  loadingOlder: boolean;
 }
 
 export interface PendingAsk {
@@ -51,6 +58,8 @@ export type Detection =
 
 interface AgentUi {
   projectId: string | null;
+  /** A request from an earlier visit must not apply after switching away and back. */
+  projectEpoch: number;
   detection: Detection;
   /** The host has answered whether this project has a session, so autostart may decide. */
   sessionChecked: boolean;
@@ -83,7 +92,8 @@ interface AgentUi {
   takePending: () => PendingAsk[];
   discardPending: (id?: number) => void;
   setActivity: (patch: Partial<ActivityFeed>) => void;
-  addCalls: (calls: AgentCallRecord[], live: boolean) => void;
+  addCalls: (calls: AgentCallRecord[], source: 'live' | 'latest' | 'older') => void;
+  showLatestCalls: () => void;
   setRailOpen: (open: boolean) => void;
   setErrorsOnly: (errorsOnly: boolean) => void;
   setWindow: (patch: Partial<WindowPrefs>) => void;
@@ -127,16 +137,21 @@ export const EMPTY_FEED: ActivityFeed = {
   status: 'idle',
   error: null,
   calls: [],
+  history: null,
+  historyRevision: 0,
   sessions: [],
   summarySeq: 0,
   lastArrival: null,
   hasMore: false,
+  latestHasMore: false,
+  loadingOlder: false,
 };
 
 let askSeq = 0;
 
 export const useAgentUi = create<AgentUi>((set, get) => ({
   projectId: null,
+  projectEpoch: 0,
   detection: { status: 'detecting' },
   sessionChecked: false,
   start: { status: 'idle' },
@@ -155,6 +170,7 @@ export const useAgentUi = create<AgentUi>((set, get) => ({
     if (get().projectId === projectId) return;
     set({
       projectId,
+      projectEpoch: get().projectEpoch + 1,
       sessionChecked: false,
       start: { status: 'idle' },
       inputReady: false,
@@ -187,18 +203,50 @@ export const useAgentUi = create<AgentUi>((set, get) => ({
   discardPending: (id) =>
     set((s) => ({ pending: id === undefined ? [] : s.pending.filter((p) => p.id !== id) })),
   setActivity: (patch) => set((s) => ({ activity: { ...s.activity, ...patch } })),
-  addCalls: (calls, live) =>
+  addCalls: (calls, source) =>
     set((s) => {
+      if (source === 'older') {
+        return {
+          activity: {
+            ...s.activity,
+            history: mergeCalls(
+              s.activity.history ?? s.activity.calls,
+              calls,
+              CALL_LIMIT,
+              'oldest',
+            ),
+          },
+        };
+      }
       const merged = mergeCalls(s.activity.calls, calls);
-      if (merged === s.activity.calls && !live) return {};
+      const trimmed =
+        merged.length === CALL_LIMIT &&
+        !!s.activity.calls.length &&
+        merged[0]!.seq > s.activity.calls[0]!.seq;
+      const latestHasMore = s.activity.latestHasMore || trimmed;
       return {
         activity: {
           ...s.activity,
           calls: merged,
-          lastArrival: live ? Date.now() : s.activity.lastArrival,
+          history: source === 'latest' ? null : s.activity.history,
+          historyRevision: s.activity.historyRevision + (source === 'latest' ? 1 : 0),
+          loadingOlder: source === 'latest' ? false : s.activity.loadingOlder,
+          latestHasMore,
+          hasMore: source === 'live' && !s.activity.history ? latestHasMore : s.activity.hasMore,
+          lastArrival: source === 'live' ? Date.now() : s.activity.lastArrival,
         },
       };
     }),
+  showLatestCalls: () =>
+    set((s) => ({
+      activity: {
+        ...s.activity,
+        history: null,
+        historyRevision: s.activity.historyRevision + 1,
+        loadingOlder: false,
+        hasMore: s.activity.latestHasMore,
+      },
+    })),
   setRailOpen: (railOpen) => {
     const { projectId } = get();
     if (projectId) write(railKey(projectId), railOpen ? '1' : '0');

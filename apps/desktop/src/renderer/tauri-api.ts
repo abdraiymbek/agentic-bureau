@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
-import type { OmenflowApi } from './api';
+import type { NativeShutdownRequest, OmenflowApi } from './api';
 
 function subscription<T>(name: string, callback: (value: T) => void): () => void {
   let active = true;
@@ -42,6 +42,25 @@ export async function installTauriApi(): Promise<void> {
       return subscription('omenflow:service-state', callback);
     },
     onAgentCall: (callback) => subscription('omenflow:agent:call', callback),
+    onShutdownRequest: (callback) => {
+      let active = true;
+      let unlisten: (() => void) | undefined;
+      void listen<NativeShutdownRequest>('omenflow:shutdown-request', (event) => {
+        if (active) callback(event.payload);
+      })
+        .then(async (stop) => {
+          if (!active) return stop();
+          unlisten = stop;
+          await invoke('native_shutdown_ready');
+        })
+        .catch((error: unknown) => console.error('Could not register native close guard', error));
+      return () => {
+        active = false;
+        unlisten?.();
+      };
+    },
+    replyToShutdown: (requestId, decision) =>
+      invoke('native_shutdown_reply', { requestId, decision }),
     pickDirectory: (title) => open({ directory: true, multiple: false, title }),
     pickFile: (opts) =>
       open({ directory: false, multiple: false, title: opts?.title, filters: opts?.filters }),

@@ -43,6 +43,7 @@ CREATE TABLE revision (
 );
 CREATE INDEX idx_revision_artifact ON revision(artifact_id);
 CREATE INDEX idx_revision_state ON revision(review_state);
+CREATE INDEX idx_revision_parent_state ON revision(parent_id, review_state);
 
 CREATE TABLE edge (
   id TEXT PRIMARY KEY,

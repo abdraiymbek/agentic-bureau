@@ -14,7 +14,7 @@ export function sameView(a: View, b: View): boolean {
     case 'project':
       return a.lens === (b as typeof a).lens;
     case 'object':
-      return a.id === (b as typeof a).id;
+      return a.id === (b as typeof a).id && a.revisionId === (b as typeof a).revisionId;
     case 'decide':
       return a.proposalId === (b as typeof a).proposalId;
     default:

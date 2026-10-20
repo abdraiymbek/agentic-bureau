@@ -52,7 +52,9 @@ const COMPARE_CHUNK = 20;
 
 /** The project as a bill of materials and the components behind it. Unknown never becomes zero. */
 export function PartsLens() {
+  const projectId = useStore((s) => s.projectId);
   const artifacts = useStore((s) => s.artifacts);
+  const partsVersion = useStore((s) => s.partsVersion);
   const [mode, setMode] = useViewState<'bom' | 'components'>('parts:mode', 'components');
   const [query, setQuery] = useViewState('parts:query', '');
   const [bom, setBom] = useState<Bom | null>(null);
@@ -65,8 +67,9 @@ export function PartsLens() {
   );
 
   useEffect(() => {
+    if (!projectId) return;
     let active = true;
-    void cmd<Bom>('bom.read', {})
+    void cmd<Bom>('bom.read', {}, { projectId })
       .then((r) => {
         if (!active) return;
         setBom(r);
@@ -80,9 +83,10 @@ export function PartsLens() {
     return () => {
       active = false;
     };
-  }, [artifacts]);
+  }, [artifacts, projectId, partsVersion]);
 
   useEffect(() => {
+    if (!projectId) return;
     let active = true;
     const ids = components.map((v) => v.artifact.id);
     if (!ids.length) {
@@ -92,9 +96,11 @@ export function PartsLens() {
     // The comparison includes draft payloads and every offer; artifact.list carries baselines only.
     void Promise.all(
       Array.from({ length: Math.ceil(ids.length / COMPARE_CHUNK) }, (_, i) =>
-        cmd<Comparison>('component.compare', {
-          artifactIds: ids.slice(i * COMPARE_CHUNK, (i + 1) * COMPARE_CHUNK),
-        }),
+        cmd<Comparison>(
+          'component.compare',
+          { artifactIds: ids.slice(i * COMPARE_CHUNK, (i + 1) * COMPARE_CHUNK) },
+          { projectId },
+        ),
       ),
     )
       .then((results) => {
@@ -106,7 +112,7 @@ export function PartsLens() {
     return () => {
       active = false;
     };
-  }, [components]);
+  }, [components, projectId, partsVersion]);
 
   return (
     <div className="lens-page">

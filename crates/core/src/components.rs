@@ -796,13 +796,19 @@ fn table_cell(text: &str) -> String {
     text.replace('|', "\\|").replace(['\r', '\n'], " ")
 }
 
+fn unit_price(row: &Value) -> Option<Value> {
+    let offer = row["offer"].is_object().then_some(&row["offer"]);
+    line_total(offer, &row["line"], 1.0).ok()
+}
+
 fn bom_csv(bom: &Value) -> String {
     let mut rows = vec![
-        "title,part_number,manufacturer,qty,unit_price,currency,seller,url,observed_at,notes"
+        "title,part_number,manufacturer,qty,unit_price,currency,seller,url,observed_at,notes,offer_price,quantity_basis,line_total,price_unknown_reason,mass_unknown_reason"
             .to_owned(),
     ];
     for row in bom["lines"].as_array().into_iter().flatten() {
         let offer = &row["offer"];
+        let unit_price = unit_price(row);
         let text = |value: &Value| csv_cell(value.as_str().unwrap_or(""));
         rows.push(
             [
@@ -810,12 +816,24 @@ fn bom_csv(bom: &Value) -> String {
                 text(&row["partNumber"]),
                 text(&row["manufacturer"]),
                 units::format_number(row["line"]["quantity"].as_f64().unwrap_or(0.0)),
-                offer["price"]["amount"].as_str().unwrap_or("").to_owned(),
+                unit_price
+                    .as_ref()
+                    .and_then(|price| price["amount"].as_str())
+                    .unwrap_or("")
+                    .to_owned(),
                 offer["price"]["currency"].as_str().unwrap_or("").to_owned(),
                 text(&offer["seller"]),
                 text(&offer["url"]),
                 offer["observedAt"].as_str().unwrap_or("").to_owned(),
                 text(&row["line"]["notes"]),
+                text(&offer["price"]["amount"]),
+                offer["quantityBasis"]
+                    .as_f64()
+                    .map(units::format_number)
+                    .unwrap_or_default(),
+                row["lineTotal"]["amount"].as_str().unwrap_or("").to_owned(),
+                text(&row["priceUnknownReason"]),
+                text(&row["massUnknownReason"]),
             ]
             .join(","),
         );
@@ -827,17 +845,33 @@ fn bom_markdown(bom: &Value) -> String {
     let mut rows = vec![
         "# Bill of materials".to_owned(),
         String::new(),
-        "| Part | Part no. | Manufacturer | Qty | Unit price | Mass | Notes |".into(),
-        "| --- | --- | --- | --- | --- | --- | --- |".into(),
+        "| Part | Part no. | Manufacturer | Qty | Unit price | Offer price / basis | Line total | Mass | Notes |".into(),
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |".into(),
     ];
     for row in bom["lines"].as_array().into_iter().flatten() {
         let offer = &row["offer"];
         let quantity = row["line"]["quantity"].as_f64().unwrap_or(0.0);
-        let price = offer["price"]["amount"]
-            .as_str()
-            .zip(offer["price"]["currency"].as_str())
-            .map(|(amount, currency)| format!("{amount} {currency}"))
-            .unwrap_or_else(|| "unknown".into());
+        let unknown = |field: &str| {
+            row[field]
+                .as_str()
+                .map(|reason| format!("unknown ({})", table_cell(reason)))
+                .unwrap_or_else(|| "unknown".into())
+        };
+        let money_text = |price: &Value| {
+            price["amount"]
+                .as_str()
+                .zip(price["currency"].as_str())
+                .map(|(amount, currency)| table_cell(&format!("{amount} {currency}")))
+        };
+        let price = unit_price(row)
+            .as_ref()
+            .and_then(money_text)
+            .unwrap_or_else(|| unknown("priceUnknownReason"));
+        let offer_price = money_text(&offer["price"])
+            .zip(offer["quantityBasis"].as_f64().filter(|basis| *basis > 0.0))
+            .map(|(price, basis)| format!("{price} / {} unit(s)", units::format_number(basis)))
+            .unwrap_or_else(|| unknown("priceUnknownReason"));
+        let total = money_text(&row["lineTotal"]).unwrap_or_else(|| unknown("priceUnknownReason"));
         // A price is evidence of one day: the date it was observed goes with it.
         let observed = offer["observedAt"]
             .as_str()
@@ -847,10 +881,10 @@ fn bom_markdown(bom: &Value) -> String {
             .as_f64()
             .zip(row["unitMass"]["unit"].as_str())
             .map(|(value, unit)| units::format_quantity(value * quantity, unit))
-            .unwrap_or_else(|| "unknown".into());
+            .unwrap_or_else(|| unknown("massUnknownReason"));
         let text = |value: &Value| table_cell(value.as_str().unwrap_or(""));
         rows.push(format!(
-            "| {} | {} | {} | {} | {price}{observed} | {mass} | {} |",
+            "| {} | {} | {} | {} | {price} | {offer_price}{observed} | {total} | {mass} | {} |",
             text(&row["componentTitle"]),
             text(&row["partNumber"]),
             text(&row["manufacturer"]),
@@ -1609,7 +1643,7 @@ mod tests {
         assert_eq!(
             markdown["content"].as_str().unwrap(),
             format!(
-                "# Bill of materials\n\n| Part | Part no. | Manufacturer | Qty | Unit price | Mass | Notes |\n| --- | --- | --- | --- | --- | --- | --- |\n| Motor, \"HP\" \\| 6 V | M-1 | Acme | 3 | 12.50 USD (observed {}) | 0.3 kg | left \\| right |\n\nKnown subtotal: 37.50 USD — 0 line(s) missing price\nKnown mass: 0.3 kg — 0 line(s) missing mass",
+                "# Bill of materials\n\n| Part | Part no. | Manufacturer | Qty | Unit price | Offer price / basis | Line total | Mass | Notes |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| Motor, \"HP\" \\| 6 V | M-1 | Acme | 3 | 12.50 USD | 12.50 USD / 1 unit(s) (observed {}) | 37.50 USD | 0.3 kg | left \\| right |\n\nKnown subtotal: 37.50 USD — 0 line(s) missing price\nKnown mass: 0.3 kg — 0 line(s) missing mass",
                 &observed[..10]
             )
         );
@@ -1617,7 +1651,7 @@ mod tests {
         assert_eq!(
             csv["content"].as_str().unwrap(),
             format!(
-                "title,part_number,manufacturer,qty,unit_price,currency,seller,url,observed_at,notes\n\"Motor, \"\"HP\"\" | 6 V\",\"M-1\",\"Acme\",3,12.50,USD,\"Shop, Inc.\",\"https://shop.example.test/motor?a=1,2\",{observed},\"left | right\""
+                "title,part_number,manufacturer,qty,unit_price,currency,seller,url,observed_at,notes,offer_price,quantity_basis,line_total,price_unknown_reason,mass_unknown_reason\n\"Motor, \"\"HP\"\" | 6 V\",\"M-1\",\"Acme\",3,12.50,USD,\"Shop, Inc.\",\"https://shop.example.test/motor?a=1,2\",{observed},\"left | right\",\"12.50\",1,37.50,\"\",\"\""
             )
         );
         // A person may write the export anywhere; an agent only inside the project.
@@ -1643,5 +1677,53 @@ mod tests {
             fs::read_to_string(&path).unwrap(),
             inside["content"].as_str().unwrap()
         );
+    }
+
+    #[test]
+    fn exports_distinguish_unit_prices_from_packs_and_preserve_unknowns() {
+        let mut bench = Bench::new();
+        for (title, subsystem, quantity, price, basis) in [
+            (
+                "Screws",
+                "a",
+                3.0,
+                json!({"amount":"4.00","currency":"USD"}),
+                10,
+            ),
+            (
+                "Board",
+                "b",
+                2.0,
+                json!({"amount":"9.90","currency":"EUR"}),
+                1,
+            ),
+            ("Header", "c", 1.0, Value::Null, 1),
+        ] {
+            let candidate = bench.agent("component.add_candidate", json!({
+                "title":title,"manufacturer":"Acme","partNumber":title,
+                "properties":{"mass":{"quantity":{"unknown":true,"reason":"not on the product page"}}},
+                "offer":{"seller":"Shop","url":"https://shop.example.test/part","price":price,"quantityBasis":basis}
+            })).unwrap();
+            select(&mut bench, &candidate, subsystem, quantity);
+        }
+        let read = bom(&mut bench);
+        let markdown = bom_markdown(&read);
+        assert!(
+            markdown.contains("| 3 | 0.40 USD | 4.00 USD / 10 unit(s)"),
+            "{markdown}"
+        );
+        assert!(
+            markdown.contains("| 1.20 USD | unknown (mass: not on the product page)"),
+            "{markdown}"
+        );
+        assert!(markdown.contains("unknown (the offer records no price)"));
+        assert!(markdown.contains("1.20 USD + 19.80 EUR"));
+        let csv = bom_csv(&read);
+        let rows = csv.lines().collect::<Vec<_>>();
+        assert!(rows[1].contains(",3,0.40,USD,"), "{}", rows[1]);
+        assert!(rows[1].contains(",\"4.00\",10,1.20,\"\",\"mass: not on the product page\""));
+        assert!(rows[2].contains(",2,9.90,EUR,"));
+        assert!(rows[3].contains(",1,,,"), "{}", rows[3]);
+        assert!(rows[3].contains("\"the offer records no price\""));
     }
 }

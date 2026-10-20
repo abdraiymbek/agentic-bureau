@@ -110,9 +110,10 @@ export function ActivityRail() {
   const projectId = useStore((s) => s.projectId);
   const errorsOnly = useAgentUi((s) => s.errorsOnly);
   const { session, activity, counts, starters, idle } = useRailContent();
+  const calls = activity.history ?? activity.calls;
   const shown = useMemo(
-    () => (errorsOnly ? activity.calls.filter((c) => !c.ok) : activity.calls),
-    [activity.calls, errorsOnly],
+    () => (errorsOnly ? calls.filter((c) => !c.ok) : calls),
+    [calls, errorsOnly],
   );
   const groups = useMemo(() => groupCalls(shown), [shown]);
   // With no record from the host and nothing else to offer, the rail stays out of the way.
@@ -132,7 +133,7 @@ export function ActivityRail() {
           </span>
         )}
         <span className="grow" />
-        {activity.calls.some((c) => !c.ok) && (
+        {calls.some((c) => !c.ok) && (
           <button
             type="button"
             className="activity-rail-filter"
@@ -144,6 +145,11 @@ export function ActivityRail() {
         )}
       </header>
       <div className="activity-rail-body">
+        {activity.history && (
+          <Button size="sm" variant="ghost" onClick={() => useAgentUi.getState().showLatestCalls()}>
+            Back to latest calls
+          </Button>
+        )}
         {session && starters.length > 0 && <Starters sessionId={session.id} starters={starters} />}
         {activity.status === 'loading' && !activity.calls.length && <Skeleton lines={4} />}
         {activity.status === 'unavailable' && (
@@ -177,7 +183,7 @@ export function ActivityRail() {
         {activity.status === 'ready' && !activity.calls.length && (
           <p className="activity-rail-note">No tool calls recorded in this project yet.</p>
         )}
-        {errorsOnly && !shown.length && activity.calls.length > 0 && (
+        {errorsOnly && !shown.length && calls.length > 0 && (
           <p className="activity-rail-note">No failed calls among those loaded.</p>
         )}
         {groups.map((g) => (
@@ -198,7 +204,12 @@ export function ActivityRail() {
           </section>
         ))}
         {activity.hasMore && projectId && (
-          <Button size="sm" variant="ghost" onClick={() => void loadActivity(projectId, true)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            busy={activity.loadingOlder}
+            onClick={() => void loadActivity(projectId, true)}
+          >
             Load earlier calls
           </Button>
         )}

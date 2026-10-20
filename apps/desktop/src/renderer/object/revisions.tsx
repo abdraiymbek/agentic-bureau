@@ -61,9 +61,36 @@ function shareRevisions(previous: Revision[] | null, next: Revision[]): Revision
 /** Loads and resolves the revisions of the object in focus. Used once, by the object view. */
 export function useRevisionHistory(view: ArtifactView | undefined, id: string): ObjectRevisions {
   const projectId = useStore((s) => s.projectId);
+  const requestedRevision = useStore((s) =>
+    s.view.level === 'object' && s.view.id === id ? s.view.revisionId : undefined,
+  );
   const owner = `${projectId}:${id}`;
   const [loaded, setLoaded] = useState<{ owner: string; revisions: Revision[] } | null>(null);
-  const [pick, setPick] = useState<RevisionPick>(LATEST_WORK);
+  const pick = useMemo<RevisionPick>(
+    () =>
+      requestedRevision === null
+        ? { kind: 'baseline' }
+        : requestedRevision
+          ? { kind: 'revision', id: requestedRevision }
+          : LATEST_WORK,
+    [requestedRevision],
+  );
+  const setPick = useCallback(
+    (next: RevisionPick) => {
+      const state = useStore.getState();
+      if (state.projectId !== projectId || state.view.level !== 'object' || state.view.id !== id)
+        return;
+      state.set({
+        view: {
+          level: 'object',
+          id,
+          revisionId:
+            next.kind === 'revision' ? next.id : next.kind === 'baseline' ? null : undefined,
+        },
+      });
+    },
+    [id, projectId],
+  );
   const [holds, setHolds] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
@@ -139,12 +166,12 @@ export function useRevisionHistory(view: ArtifactView | undefined, id: string): 
       if (resolveDisplayedRevision(history, baseline, LATEST_WORK).revision?.id !== revisionId)
         setPick({ kind: 'revision', id: revisionId });
     },
-    [fetchHistory, id],
+    [fetchHistory, id, setPick],
   );
 
   const choose = useCallback(
     (next: RevisionPick) => requestLeave(() => setPick(next), 'show another revision'),
-    [],
+    [setPick],
   );
   const hold = useCallback((slot: string, revisionId: string | null) => {
     setHolds((current) => {

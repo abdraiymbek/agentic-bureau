@@ -26,6 +26,8 @@ mod review;
 mod txn;
 
 #[cfg(test)]
+mod history_tests;
+#[cfg(test)]
 mod lifecycle_tests;
 
 // The read side: artifact views and lists, search, the completion gate and
@@ -803,15 +805,76 @@ fn dispatch_project(
 
 fn artifact_history(handle: &ProjectHandle, payload: &Value) -> CoreResult<Value> {
     let id = required_str(payload, "artifactId")?;
+    let summary = payload["fields"] == "summary";
+    let after = payload["cursor"]
+        .as_str()
+        .map(|cursor| {
+            cursor.parse::<i64>().ok().filter(|seq| *seq > 0).ok_or_else(|| {
+                ContractError::validation("Unknown revision history cursor").with_repair(
+                    "Pass nextCursor exactly as the previous artifact_history page returned it, or omit cursor to start from the first revision.",
+                )
+            })
+        })
+        .transpose()?;
+    let limit = payload["limit"].as_i64().or(after.map(|_| 200));
+    let columns = if summary {
+        "id,artifact_id,parent_id,seq,origin,origin_detail,created_at,rationale,review_state"
+    } else {
+        "*"
+    };
     let mut stmt = handle
         .db
-        .prepare("SELECT * FROM revision WHERE artifact_id=?1 ORDER BY seq")
+        .prepare_cached(&format!(
+            "SELECT {columns} FROM revision WHERE artifact_id=?1 AND seq>?2 ORDER BY seq LIMIT ?3"
+        ))
         .map_err(internal)?;
-    let revisions = stmt
-        .query_map([id], revision_from_row)
+    let mut revisions = stmt
+        .query_map(
+            params![id, after.unwrap_or(0), limit.map_or(-1, |limit| limit + 1)],
+            |row| {
+                if summary {
+                    Ok(json!({
+                        "id": row.get::<_, String>("id")?,
+                        "artifactId": row.get::<_, String>("artifact_id")?,
+                        "parentId": row.get::<_, Option<String>>("parent_id")?,
+                        "seq": row.get::<_, i64>("seq")?,
+                        "origin": row.get::<_, String>("origin")?,
+                        "originDetail": row.get::<_, Option<String>>("origin_detail")?,
+                        "createdAt": row.get::<_, String>("created_at")?,
+                        "rationale": row.get::<_, String>("rationale")?,
+                        "reviewState": row.get::<_, String>("review_state")?,
+                    }))
+                } else {
+                    revision_from_row(row)
+                }
+            },
+        )
         .map_err(internal)?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(internal)?;
+    if summary || limit.is_some() {
+        let has_more = limit.is_some_and(|limit| revisions.len() as i64 > limit);
+        if let Some(limit) = limit {
+            revisions.truncate(limit as usize);
+        }
+        let next_cursor = revisions
+            .last()
+            .filter(|_| has_more)
+            .and_then(|revision| revision["seq"].as_i64())
+            .map(|seq| seq.to_string());
+        let total: i64 = handle
+            .db
+            .query_row(
+                "SELECT COUNT(*) FROM revision WHERE artifact_id=?1",
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(internal)?;
+        return Ok(
+            json!({"revisions": revisions, "fields": if summary { "summary" } else { "full" },
+            "total": total, "hasMore": has_more, "nextCursor": next_cursor}),
+        );
+    }
     Ok(json!({"revisions": revisions}))
 }
 

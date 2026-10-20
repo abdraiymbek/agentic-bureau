@@ -124,6 +124,20 @@ pub(super) fn record_result(
                 .ok_or_else(|| ContractError::validation("Test has no revision"))?,
         },
     };
+    if let Some(expected) = input["expectedRevisionId"].as_str() {
+        if current["id"] != expected {
+            return Err(ContractError::new(
+                "REVISION_CONFLICT",
+                "The test changed while this observation was being entered",
+            )
+            .with_repair("Read the current test revision and review its procedure and conditions before recording the observation again with that expectedRevisionId.")
+            .with_details(json!({
+                "artifactId": artifact_id,
+                "expectedRevisionId": expected,
+                "currentRevisionId": current["id"],
+            })));
+        }
+    }
     let promote = baseline.is_some() && !by_agent;
     // The working draft a person's result would otherwise retire.
     let pending = match (&baseline, promote) {
@@ -416,6 +430,92 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn stale_expected_revisions_refuse_before_observations_or_evidence_are_written() {
+        let mut bench = Bench::new();
+        let (_, test) = planned(&mut bench);
+        let id = test["artifact"]["id"].as_str().unwrap().to_owned();
+        let expected = test["revision"]["id"].clone();
+        let mut first = observation(&test, "First actual run", "passed");
+        first["expectedRevisionId"] = expected.clone();
+        let saved = bench.user("test.record_result", first).unwrap();
+        let before = bench
+            .user("artifact.history", json!({"artifactId": id}))
+            .unwrap();
+        let events: i64 = bench.app.projects[&bench.project]
+            .db
+            .query_row("SELECT COUNT(*) FROM event", [], |row| row.get(0))
+            .unwrap();
+        let mut stale = observation(&test, "Old procedure run", "failed");
+        stale["expectedRevisionId"] = expected.clone();
+        // Invalid evidence would fail during ingestion if the conflict guard ran too late.
+        stale["attachments"] = json!([{"path": "tests/stale.log", "contentBase64": "not-base64!"}]);
+        for by_agent in [false, true] {
+            let error = if by_agent {
+                bench.agent("test.record_result", stale.clone())
+            } else {
+                bench.user("test.record_result", stale.clone())
+            }
+            .unwrap_err();
+            assert_eq!(error.code, "REVISION_CONFLICT");
+            assert_eq!(
+                error.details.as_ref().unwrap()["currentRevisionId"],
+                saved["revision"]["id"]
+            );
+            assert_eq!(
+                error.details.as_ref().unwrap()["expectedRevisionId"],
+                expected
+            );
+            assert!(error.repair.unwrap().contains("review"));
+        }
+        assert_eq!(
+            bench
+                .user("artifact.history", json!({"artifactId": id}))
+                .unwrap(),
+            before
+        );
+        let after_events: i64 = bench.app.projects[&bench.project]
+            .db
+            .query_row("SELECT COUNT(*) FROM event", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(after_events, events);
+        assert!(!bench.root().join("tests/stale.log").exists());
+    }
+
+    #[test]
+    fn expected_revision_uses_the_append_target_and_keeps_agent_drafts_for_review() {
+        let mut bench = Bench::new();
+        let (_, test) = planned(&mut bench);
+        bench.accept(&test);
+        let mut agent = observation(&test, "Agent recorded run", "passed");
+        agent["expectedRevisionId"] = test["revision"]["id"].clone();
+        let agent_saved = bench.agent("test.record_result", agent).unwrap();
+        assert_eq!(agent_saved["approved"], false);
+        let mut person = observation(&test, "Person recorded run", "failed");
+        person["expectedRevisionId"] = test["revision"]["id"].clone();
+        let person_saved = bench.user("test.record_result", person).unwrap();
+        assert_eq!(person_saved["approved"], true);
+        assert_eq!(
+            person_saved["carriedDraft"]["from"],
+            agent_saved["revision"]["id"]
+        );
+        let mut more = observation(&test, "Agent follow-up", "inconclusive");
+        more["expectedRevisionId"] = person_saved["carriedDraft"]["revisionId"].clone();
+        let followed = bench.agent("test.record_result", more).unwrap();
+        assert_eq!(followed["approved"], false);
+        assert_eq!(
+            followed["revision"]["parentId"],
+            person_saved["carriedDraft"]["revisionId"]
+        );
+        assert_eq!(
+            followed["revision"]["payload"]["results"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
     }
 
     #[test]

@@ -47,6 +47,8 @@ export interface StlViewportProps {
   notice?: string | null;
   /** Told what the viewport shows of the part, whenever that changes. */
   onStatus?: (status: ViewportStatus) => void;
+  /** Report again for a different revision, even when its mesh bytes are identical. */
+  reviewKey?: string;
 }
 
 /**
@@ -63,7 +65,7 @@ export type ViewportStatus =
 /** The status for a parse result and the scene's state. */
 export function viewportStatus(
   part: { mesh: ParsedMesh | null; error: string | null; parsing: boolean },
-  scene: { ready: boolean; failure: string | null },
+  scene: { ready: boolean; failure: string | null; drawnMesh: ParsedMesh | null },
 ): ViewportStatus {
   if (scene.failure)
     return { state: 'error', reason: `The 3D view is not available: ${scene.failure}` };
@@ -71,7 +73,7 @@ export function viewportStatus(
     return { state: 'error', reason: `The file is not a readable STL: ${part.error}` };
   if (part.parsing) return { state: 'parsing' };
   if (!part.mesh) return { state: 'empty' };
-  return scene.ready ? { state: 'shown' } : { state: 'parsing' };
+  return scene.ready && scene.drawnMesh === part.mesh ? { state: 'shown' } : { state: 'parsing' };
 }
 
 const ORBIT_STEP = Math.PI / 12;
@@ -160,6 +162,7 @@ export function StlViewport(props: StlViewportProps) {
   const axes = useRef<(SVGGElement | null)[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
   const [sceneReady, setSceneReady] = useState(false);
+  const [drawnMesh, setDrawnMesh] = useState<ParsedMesh | null>(null);
   const [generation, setGeneration] = useState(0);
   const [ortho, setOrtho] = useState(false);
   const [display, setDisplay] = useState(DEFAULT_DISPLAY);
@@ -228,7 +231,10 @@ export function StlViewport(props: StlViewportProps) {
     let scene: ViewportScene;
     try {
       scene = new ViewportScene(element, readTheme(), {
-        onFrame: layout,
+        onFrame: (mesh) => {
+          layout();
+          setDrawnMesh(mesh);
+        },
         onContextLost: () => setFailure('The graphics context was lost.'),
       });
     } catch (error) {
@@ -280,18 +286,19 @@ export function StlViewport(props: StlViewportProps) {
       themeWatch.disconnect();
       sceneRef.current = null;
       setSceneReady(false);
+      setDrawnMesh(null);
       scene.dispose();
     };
   }, [layout, generation]);
 
-  const status = viewportStatus(part, { ready: sceneReady, failure });
+  const status = viewportStatus(part, { ready: sceneReady, failure, drawnMesh });
   const report = useRef(props.onStatus);
   report.current = props.onStatus;
   const { state } = status;
   const reason = status.state === 'error' ? status.reason : '';
   useEffect(() => {
     report.current?.(state === 'error' ? { state, reason } : { state });
-  }, [state, reason]);
+  }, [state, reason, part.mesh, props.reviewKey]);
 
   useEffect(() => {
     sceneRef.current?.setMesh(part.mesh);

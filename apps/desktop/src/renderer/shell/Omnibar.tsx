@@ -27,7 +27,7 @@ import {
 import { openProposals, useStore } from '../store';
 import { needsYou } from '../lib/proposals';
 import { LENSES } from '../project/lenses';
-import { Kbd, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
+import { Button, Kbd, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
 import {
   askAgent,
   closeProject,
@@ -45,7 +45,16 @@ import { useAgentUi, type SettingsSection } from './agent/agent-store';
 import { copyText } from './agent/clipboard';
 import { detectAgents } from './agent/feed';
 import { adapterLabel, sessionStatus } from './agent/session-view';
-import { ASK_PREFIX, moveSelection, rank, type Candidate } from './omnibar/rank';
+import {
+  ASK_PREFIX,
+  moveSelection,
+  parseQuery,
+  rank,
+  scoreCandidate,
+  type Candidate,
+} from './omnibar/rank';
+import { useContentSearch } from './omnibar/useContentSearch';
+import { contentExcerpt } from './omnibar/content';
 
 interface Action {
   id: string;
@@ -65,6 +74,7 @@ interface Item extends Candidate {
   actions?: Action[];
   /** Remembered as a recent command. */
   command?: boolean;
+  snippet?: string;
 }
 
 const RECENT_KEY = 'omen.omni.recent';
@@ -499,6 +509,7 @@ interface Selection {
   action: number;
   /** Item whose confirmation is armed. */
   armed: string | null;
+  itemId?: string;
 }
 
 function OmniBody() {
@@ -507,15 +518,67 @@ function OmniBody() {
   const set = useStore((s) => s.set);
   const [q, setQ] = useState('');
   const { items, ask, agentName } = useItems(q);
-  const ranking = useMemo(() => rank(items, q, ask), [items, q, ask]);
+  const { state: content, retry: retryContent } = useContentSearch(projectId, q);
+  const combined = useMemo(() => {
+    if (content.status !== 'ready') return items;
+    const next = [...items];
+    const query = parseQuery(q);
+    for (const hit of content.value.results) {
+      const index = next.findIndex((item) => item.id === `o:${hit.artifactId}`);
+      const existing = index >= 0 ? next[index] : undefined;
+      const open = () =>
+        useStore.getState().go({
+          level: 'object',
+          id: hit.artifactId,
+          revisionId: hit.revisionId,
+        });
+      const localMatch = existing && scoreCandidate(existing, query) > 0;
+      const reference = `About the Omen Flow ${typeMeta(hit.type).label.toLowerCase()} "${hit.title}" (artifact ${hit.artifactId}, revision ${hit.revisionId}): `;
+      const match: Item = {
+        ...(localMatch ? existing : {}),
+        id: localMatch ? existing.id : `c:${hit.artifactId}:${hit.revisionId}`,
+        group: localMatch ? 'objects' : 'content',
+        label: hit.title,
+        icon: <TypeGlyph type={hit.type} size={15} />,
+        contentQuery: query.text,
+        snippet: contentExcerpt(hit.snippet),
+        hint: (
+          <span>
+            {typeMeta(hit.type).label} · Matched{' '}
+            {hit.reviewState ? stateLabel(hit.reviewState) : 'revision'}
+          </span>
+        ),
+        run: open,
+        actions: [
+          { id: 'open', label: 'Open', shortcut: '↵', run: open },
+          ...(readOnly
+            ? []
+            : [
+                {
+                  id: 'ask',
+                  label: 'Ask agent about',
+                  shortcut: '⌘↵',
+                  run: () => void askAgent(reference),
+                },
+              ]),
+          ...(existing?.actions?.filter((action) => action.id === 'copy') ?? []),
+        ],
+      };
+      if (localMatch) next[index] = match;
+      else next.push(match);
+    }
+    return next;
+  }, [items, content, q, readOnly]);
+  const ranking = useMemo(() => rank(combined, q, ask), [combined, q, ask]);
   const [sel, setSel] = useState<Selection>({ q: '', idx: -1, action: 0, armed: null });
   const list = useRef<HTMLDivElement>(null);
   const close = () => set({ omniOpen: false });
 
   const flat = ranking.flat;
+  const selectedIndex = sel.itemId ? flat.findIndex((item) => item.id === sel.itemId) : sel.idx;
   const current =
-    sel.q === q && sel.idx < flat.length
-      ? sel
+    sel.q === q && selectedIndex < flat.length
+      ? { ...sel, idx: selectedIndex }
       : { q, idx: ranking.initial, action: 0, armed: null };
   const { idx, action, armed } = current;
   const active = idx >= 0 ? flat[idx] : undefined;
@@ -524,12 +587,13 @@ function OmniBody() {
     list.current?.querySelector(`[data-index="${idx}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [idx]);
 
-  const select = (next: number) => setSel({ q, idx: next, action: 0, armed: null });
-  const setAction = (next: number) => setSel({ ...current, action: next });
+  const select = (next: number) =>
+    setSel({ q, idx: next, itemId: flat[next]?.id, action: 0, armed: null });
+  const setAction = (next: number) => setSel({ ...current, itemId: active?.id, action: next });
 
   const run = (item: Item, which = 0) => {
     if (item.confirm && which === 0 && armed !== item.id) {
-      setSel({ ...current, armed: item.id });
+      setSel({ ...current, itemId: item.id, armed: item.id });
       return;
     }
     const chosen = item.actions?.[which];
@@ -616,12 +680,15 @@ function OmniBody() {
                   id={`omni-${i}`}
                   aria-selected={isActive}
                   data-index={i}
-                  className={`omni-item ${isActive ? 'active' : ''} ${item.group === 'ask' ? 'ask' : ''} ${isArmed ? 'armed' : ''}`}
+                  className={`omni-item ${isActive ? 'active' : ''} ${item.group === 'ask' ? 'ask' : ''} ${isArmed ? 'armed' : ''} ${item.snippet ? 'has-snippet' : ''}`}
                   onMouseMove={() => i !== idx && select(i)}
                   onClick={() => run(item, isActive ? action : 0)}
                 >
                   <span className="omni-icon">{item.icon}</span>
-                  <span className="omni-label truncate">{isArmed ? item.confirm : item.label}</span>
+                  <span className="omni-label truncate">
+                    <span className="truncate">{isArmed ? item.confirm : item.label}</span>
+                    {item.snippet && <span className="omni-snippet">{item.snippet}</span>}
+                  </span>
                   <span className="omni-hint">{item.hint}</span>
                   {isActive && item.actions && item.actions.length > 1 && (
                     <span className="omni-actions" aria-label="Actions (Tab to choose)">
@@ -658,9 +725,27 @@ function OmniBody() {
             )}
           </div>
         ))}
+        {content.status === 'loading' && (
+          <div className="omni-more" role="status">
+            Searching project content…
+          </div>
+        )}
+        {content.status === 'error' && (
+          <div className="omni-more" role="status">
+            Project content search failed: {content.message}{' '}
+            <Button size="sm" variant="ghost" onClick={retryContent}>
+              Try again
+            </Button>
+          </div>
+        )}
+        {content.status === 'ready' && content.value.matched === 'any_term' && (
+          <div className="omni-more">Content results match some of the search words.</div>
+        )}
         {!flat.some((i) => i.group !== 'ask') && q.trim() && !q.trim().startsWith(ASK_PREFIX) && (
           <div className="omni-empty" role="status">
-            Nothing matches “{q.trim()}”.
+            {content.status === 'loading'
+              ? 'No title or action matches yet.'
+              : `Nothing matches “${q.trim()}”.`}
             {ask && (
               <span>
                 {' '}

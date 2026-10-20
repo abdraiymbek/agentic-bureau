@@ -45,7 +45,7 @@ export function hasDraftWork(v: ArtifactView): boolean {
 
 /** Identifies what a history read depends on, so unchanged objects are not read again. */
 export const historyKey = (v: ArtifactView) =>
-  `${v.artifact.id}:${v.artifact.selectedRevisionId ?? '-'}:${v.draftCount}:${v.pendingProposal}`;
+  `${v.artifact.id}:${v.artifact.selectedRevisionId ?? '-'}:${v.draftCount}:${v.pendingProposal}${v.head ? `:${v.head.id}:${v.head.reviewState}` : ''}`;
 
 /** Files of the newest draft that builds on the approved revision (the object's latest work). */
 export function draftFiles(view: ArtifactView, revisions: Revision[]): FileRow[] {

@@ -126,6 +126,7 @@ impl ProjectHandle {
                 format!("Unsupported project schema version {db_version}"),
             ));
         }
+        ensure_read_indexes(&db)?;
         let mut handle = Self {
             root,
             file,
@@ -331,6 +332,15 @@ impl ProjectHandle {
     }
 }
 
+/// Additive schema-1 indexes for existing projects. Only the writable,
+/// supported-version open path reaches this; newer snapshots stay untouched.
+fn ensure_read_indexes(db: &Connection) -> Result<(), StorageError> {
+    db.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_revision_parent_state ON revision(parent_id, review_state)",
+    )?;
+    Ok(())
+}
+
 fn current_schema_version(db: &Connection) -> Result<i64, StorageError> {
     match db.query_row(
         "SELECT value FROM meta WHERE key='schema_version'",
@@ -381,6 +391,75 @@ mod tests {
         let reopened = ProjectHandle::open(temp.path().join("project")).unwrap();
         assert!(!reopened.read_only);
         assert_eq!(reopened.file.version, 1);
+    }
+
+    #[test]
+    fn writable_open_adds_the_covering_parent_index_to_existing_schema_one_projects() {
+        let temp = tempdir().unwrap();
+        let root = temp.path().join("project");
+        let project = ProjectHandle::create(&root, "History", "").unwrap();
+        let indexed = |db: &Connection| -> bool {
+            db.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='idx_revision_parent_state' AND type='index')", [], |row| row.get(0)).unwrap()
+        };
+        assert!(indexed(&project.db));
+        project
+            .db
+            .execute_batch("DROP INDEX idx_revision_parent_state")
+            .unwrap();
+        assert!(!indexed(&project.db));
+        drop(project);
+        let reopened = ProjectHandle::open(&root).unwrap();
+        assert!(indexed(&reopened.db));
+        assert_eq!(current_schema_version(&reopened.db).unwrap(), 1);
+        let plans = reopened.db.prepare("EXPLAIN QUERY PLAN SELECT 1 FROM revision later WHERE later.parent_id=?1 AND later.review_state IN ('draft','proposed','approved')").unwrap()
+            .query_map(["parent"], |row| row.get::<_, String>(3)).unwrap()
+            .collect::<Result<Vec<_>, _>>().unwrap();
+        assert!(
+            plans
+                .iter()
+                .any(|plan| plan.contains("COVERING INDEX idx_revision_parent_state")),
+            "{plans:?}"
+        );
+    }
+
+    #[test]
+    fn newer_projects_do_not_gain_indexes_or_change_source_files() {
+        for newer_marker in [false, true] {
+            let temp = tempdir().unwrap();
+            let root = temp.path().join("project");
+            let project = ProjectHandle::create(&root, "Future", "").unwrap();
+            project
+                .db
+                .execute_batch("DROP INDEX idx_revision_parent_state")
+                .unwrap();
+            if newer_marker {
+                let mut marker = project.file.clone();
+                marker.version = 2;
+                atomic_json_write(&root.join(PROJECT_FILE), &marker).unwrap();
+            } else {
+                project
+                    .db
+                    .execute("UPDATE meta SET value='2' WHERE key='schema_version'", [])
+                    .unwrap();
+            }
+            drop(project);
+            let db_path = root.join(".omenflow/state.sqlite");
+            let before = fs::read(&db_path).unwrap();
+            let opened = ProjectHandle::open(&root).unwrap();
+            assert!(opened.read_only);
+            let count: i64 = opened
+                .db
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE name='idx_revision_parent_state'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 0);
+            assert_eq!(fs::read(&db_path).unwrap(), before);
+            assert!(!db_path.with_file_name("state.sqlite-wal").exists());
+            assert!(!db_path.with_file_name("state.sqlite-shm").exists());
+        }
     }
 
     /// The README says only what this core puts in the folder: no readable
@@ -444,13 +523,12 @@ mod tests {
     }
 
     #[test]
-    fn opens_existing_typescript_fixture_without_mutating_it() {
+    fn opens_existing_typescript_fixture_with_additive_schema_one_indexes() {
         let Ok(root) = std::env::var("OMENFLOW_COMPAT_FIXTURE") else {
             return;
         };
         let root = PathBuf::from(root);
         let db_path = root.join(".omenflow/state.sqlite");
-        let before = fs::read(&db_path).unwrap();
         let project = ProjectHandle::open(&root).unwrap();
         assert_eq!(project.artifact_count().unwrap(), 500);
         assert!(project.fts_available().unwrap());
@@ -466,8 +544,9 @@ mod tests {
             .read(&object)
             .unwrap()
             .is_empty());
+        assert_eq!(current_schema_version(&project.db).unwrap(), 1);
         drop(project);
-        assert_eq!(fs::read(&db_path).unwrap(), before);
+        assert!(db_path.is_file());
     }
 
     #[test]

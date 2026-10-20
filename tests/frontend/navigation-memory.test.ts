@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import type { View } from '../../apps/desktop/src/renderer/store';
-import type { ProjectEvent } from '@omenflow/contracts';
+import type { ProjectEvent, Revision } from '@omenflow/contracts';
 import {
   pushHistory,
   sameView,
@@ -35,6 +35,11 @@ import {
 } from '../../apps/desktop/src/renderer/frame/load-copy';
 import { IDLE_LOAD } from '../../apps/desktop/src/renderer/lib/sync';
 import { lazyView } from '../../apps/desktop/src/renderer/lib/lazy-view';
+import {
+  parseProjectPrefs,
+  serializeProjectPrefs,
+} from '../../apps/desktop/src/renderer/lib/preferences';
+import { resolveDisplayedRevision } from '../../apps/desktop/src/renderer/lib/mechanical-revisions';
 
 const flow: View = { level: 'project', lens: 'flow' };
 const parts: View = { level: 'project', lens: 'parts' };
@@ -46,6 +51,7 @@ describe('history', () => {
     expect(sameView(obj('a'), obj('b'))).toBe(false);
     expect(sameView(flow, parts)).toBe(false);
     expect(sameView({ level: 'agent' }, { level: 'agent' })).toBe(true);
+    expect(sameView(obj('a'), { level: 'object', id: 'a', revisionId: 'r3' })).toBe(false);
   });
 
   it('walks back and forward and clears forward on a new move', () => {
@@ -60,6 +66,73 @@ describe('history', () => {
     expect(pushHistory(back, back.view).forward).toEqual([]);
     expect(stepBack({ back: [], forward: [] }, flow)).toBeNull();
     expect(stepForward({ back: [], forward: [] }, flow)).toBeNull();
+  });
+
+  it('returns to the exact content-search revision after another object and a lens', () => {
+    const matched: View = { level: 'object', id: 'a', revisionId: 'a-r2' };
+    const history = pushHistory(
+      pushHistory(pushHistory({ back: [], forward: [] }, flow), matched),
+      obj('b'),
+    );
+    const otherObject = stepBack(history, parts)!;
+    expect(otherObject.view).toEqual(obj('b'));
+    const returned = stepBack(otherObject, otherObject.view)!;
+    expect(returned.view).toEqual(matched);
+
+    // A newer draft may arrive while the search result is away; Back must still show its hit.
+    const revisions = [
+      { id: 'a-r1', seq: 1, parentId: null, reviewState: 'approved' },
+      { id: 'a-r2', seq: 2, parentId: 'a-r1', reviewState: 'draft' },
+      { id: 'a-r3', seq: 3, parentId: 'a-r2', reviewState: 'draft' },
+    ] as Revision[];
+    if (returned.view.level !== 'object' || !returned.view.revisionId)
+      throw new Error('The content-search revision was lost from history');
+    expect(
+      resolveDisplayedRevision(revisions, 'a-r1', {
+        kind: 'revision',
+        id: returned.view.revisionId,
+      }).revision?.id,
+    ).toBe('a-r2');
+    const forward = stepForward(returned, returned.view)!;
+    expect(forward.view).toEqual(obj('b'));
+    expect(stepBack(forward, forward.view)!.view).toEqual(matched);
+
+    const reopened = parseProjectPrefs(
+      serializeProjectPrefs({ view: matched, lens: 'parts', agentWindowOpen: false }),
+      (id) => id === 'parts',
+    );
+    expect(reopened.view).toEqual(matched);
+  });
+
+  it('preserves baseline-following null separately from latest work and pinned revisions', () => {
+    const baseline: View = { level: 'object', id: 'a', revisionId: null };
+    const saved = parseProjectPrefs(
+      serializeProjectPrefs({ view: baseline, lens: 'parts', agentWindowOpen: false }),
+      (id) => id === 'parts',
+    );
+    expect(saved.view).toEqual(baseline);
+    expect(sameView(baseline, obj('a'))).toBe(false);
+    expect(sameView(baseline, { level: 'object', id: 'a', revisionId: 'a-r1' })).toBe(false);
+    const back = stepBack(pushHistory({ back: [], forward: [] }, baseline), parts)!;
+    expect(back.view).toEqual(baseline);
+
+    const revisions = [
+      { id: 'a-r1', seq: 1, parentId: null, reviewState: 'superseded' },
+      { id: 'a-r2', seq: 2, parentId: 'a-r1', reviewState: 'approved' },
+      { id: 'a-r3', seq: 3, parentId: 'a-r2', reviewState: 'draft' },
+    ] as Revision[];
+    expect(resolveDisplayedRevision(revisions, 'a-r1', { kind: 'baseline' }).revision?.id).toBe(
+      'a-r1',
+    );
+    expect(resolveDisplayedRevision(revisions, 'a-r2', { kind: 'baseline' }).revision?.id).toBe(
+      'a-r2',
+    );
+    expect(resolveDisplayedRevision(revisions, 'a-r2', { kind: 'latest' }).revision?.id).toBe(
+      'a-r3',
+    );
+    expect(
+      resolveDisplayedRevision(revisions, 'a-r2', { kind: 'revision', id: 'a-r1' }).revision?.id,
+    ).toBe('a-r1');
   });
 
   it('bounds the history', () => {

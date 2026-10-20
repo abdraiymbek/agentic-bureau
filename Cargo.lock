@@ -3199,7 +3199,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-agent-host"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "interprocess",
@@ -3216,7 +3216,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-contracts"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "jsonschema",
  "serde",
@@ -3225,7 +3225,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -3246,7 +3246,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-headless"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "libc",
  "omenflow-agent-host",
@@ -3258,7 +3258,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-rust-desktop"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "cairo-rs",
@@ -3281,7 +3281,7 @@ dependencies = [
 
 [[package]]
 name = "omenflow-storage"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "omenflow-contracts",

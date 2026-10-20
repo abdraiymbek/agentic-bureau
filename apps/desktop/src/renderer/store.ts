@@ -65,6 +65,7 @@ import {
 } from './lib/preferences';
 import { clearViewMemory } from './lib/view-memory';
 import { perfSync } from './lib/perf';
+import { evidenceArtifactIds } from './lib/evidence-invalidation';
 
 export type { Lens };
 export type { LoadStatus, ResourceLoad, SyncResource } from './lib/sync';
@@ -77,7 +78,7 @@ export type { LoadStatus, ResourceLoad, SyncResource } from './lib/sync';
 export type View =
   | { level: 'agent' }
   | { level: 'project'; lens: Lens }
-  | { level: 'object'; id: string }
+  | { level: 'object'; id: string; revisionId?: string | null }
   | { level: 'decide'; proposalId: string | null }
   | { level: 'system' };
 
@@ -142,6 +143,10 @@ interface State {
   heldUpdates: string[];
   /** Increases whenever the bill of materials or offers may have changed. */
   partsVersion: number;
+  /** Completed checks and accepted scope can change a proposal without changing its revisions. */
+  evidenceVersions: Record<string, number>;
+  /** A proposed revision may depend on any baseline, including an input not yet on the graph. */
+  baselineVersion: number;
   /** The last failed operation nothing else reported; shown once by the frame. */
   frameError: RecoverableCommandError | null;
 
@@ -259,6 +264,8 @@ const emptyProject = {
   heldUpdates: [],
   firstLoadComplete: false,
   frameError: null,
+  evidenceVersions: {},
+  baselineVersion: 0,
 };
 
 export const openProposals = (proposals: Proposal[]) =>
@@ -495,6 +502,8 @@ export const useStore = create<State>((set, get) => {
     olderEvents: 'idle',
     heldUpdates: [],
     partsVersion: 0,
+    evidenceVersions: {},
+    baselineVersion: 0,
     frameError: null,
     view: HOME,
     back: [],
@@ -692,6 +701,13 @@ export const useStore = create<State>((set, get) => {
       if (liveSeqs.size > LIVE_SEQ_MEMORY) liveSeqs.delete(liveSeqs.values().next().value!);
       const next = insertEvent(eventWindow, e, EVENT_WINDOW);
       if (next !== eventWindow) setEventWindow(next);
+      const evidenceIds = evidenceArtifactIds(e);
+      if (evidenceIds.length) {
+        const versions = { ...get().evidenceVersions };
+        for (const id of evidenceIds) versions[id] = (versions[id] ?? 0) + 1;
+        set({ evidenceVersions: versions });
+      }
+      if (e.type === 'baseline.changed') set({ baselineVersion: get().baselineVersion + 1 });
       if (PARTS_EVENTS.has(e.type)) {
         renewArtifactList = true;
         set({ partsVersion: get().partsVersion + 1 });

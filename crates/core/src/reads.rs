@@ -278,24 +278,23 @@ fn view_from_row(row: &Row<'_>, shape: Shape, state: &ViewState) -> rusqlite::Re
     } else {
         "stale"
     };
-    let mut view = json!({
+    let head = match row.get::<_, Option<String>>(20)? {
+        Some(head) => json!({
+            "id": head,
+            "seq": row.get::<_, i64>(21)?,
+            "reviewState": row.get::<_, String>(22)?,
+        }),
+        None => Value::Null,
+    };
+    let view = json!({
         "artifact": artifact,
         "revision": revision,
         "freshness": freshness,
         "staleReasons": stale,
         "draftCount": state.drafts.get(&id).copied().unwrap_or(0),
         "pendingProposal": state.pending.contains(&id),
+        "head": head,
     });
-    if shape == Shape::Summary {
-        view["head"] = match row.get::<_, Option<String>>(20)? {
-            Some(head) => json!({
-                "id": head,
-                "seq": row.get::<_, i64>(21)?,
-                "reviewState": row.get::<_, String>(22)?,
-            }),
-            None => Value::Null,
-        };
-    }
     Ok(view)
 }
 
@@ -608,6 +607,36 @@ mod tests {
     }
 
     #[test]
+    fn full_views_identify_consecutive_drafts_when_the_baseline_and_count_stay_the_same() {
+        let mut project = TestProject::new();
+        let (artifact, baseline) = project.approved(
+            "note",
+            "Working note",
+            json!({"markdown": "approved"}),
+            json!([]),
+        );
+        let first = project.redraft(
+            Origin::User,
+            &artifact,
+            json!({"payload": {"markdown": "first"}}),
+        );
+        let before = project.user("artifact.list", json!({}))["artifacts"][0].clone();
+        let second = project.redraft(
+            Origin::User,
+            &artifact,
+            json!({"payload": {"markdown": "second"}}),
+        );
+        let after = project.user("artifact.list", json!({}))["artifacts"][0].clone();
+        assert_eq!(before["revision"]["id"], baseline);
+        assert_eq!(after["revision"], before["revision"]);
+        assert_eq!(before["draftCount"], 1);
+        assert_eq!(after["draftCount"], 1);
+        assert_eq!(before["head"]["id"], first);
+        assert_eq!(after["head"]["id"], second);
+        assert_ne!(before, after);
+    }
+
+    #[test]
     fn list_pages_through_every_artifact_in_a_stable_order() {
         let mut project = TestProject::new();
         let expected = seed(project.handle(), 650);
@@ -792,7 +821,9 @@ mod tests {
             full["artifacts"][0]["revision"]["payload"]["statement"],
             "Carry a 300 g camera"
         );
-        assert!(full["artifacts"][0].get("head").is_none());
+        // Full views also identify work beyond their baseline so two saves
+        // with the same open-draft count still invalidate renderer caches.
+        assert_eq!(full["artifacts"][0]["head"]["id"], draft);
 
         for summary in [
             project.user("artifact.list", json!({"fields": "summary"})),

@@ -183,6 +183,26 @@ const artifactRead = z.object({
 });
 const artifactHistory = z.object({
   artifactId: idSchema.describe('Artifact to list revisions of.'),
+  fields: z
+    .enum(['full', 'summary'])
+    .optional()
+    .describe(
+      'summary: revision headers without payload, files or inputs. Omit for full revisions.',
+    ),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(500)
+    .optional()
+    .describe('Revisions per page. Omit both limit and cursor for the complete history.'),
+  cursor: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      'nextCursor of the previous history page. Continues after that revision; defaults limit to 200.',
+    ),
 });
 const artifactCompare = z.object({
   artifactId: idSchema.describe('Artifact both revisions belong to.'),
@@ -980,6 +1000,11 @@ const testCreateDraft = z.object({
 });
 const testRecordResult = z.object({
   artifactId: idSchema.describe('Test artifact the result belongs to.'),
+  expectedRevisionId: idSchema
+    .optional()
+    .describe(
+      'Revision this observation was entered against. Refuse if the revision the result would extend has changed, so the observation can be reviewed before retrying.',
+    ),
   requirementRef: requirementRef
     .optional()
     .describe(

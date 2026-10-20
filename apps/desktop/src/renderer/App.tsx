@@ -17,6 +17,7 @@ import { resolveShortcut, type ShortcutAction } from './lib/shortcuts';
 import { hasSavedScroll, recordScroll, restoreScroll, viewKey } from './lib/view-memory';
 import { lazyView } from './lib/lazy-view';
 import { perfMeasure } from './lib/perf';
+import { installNativeShutdownGuard } from './lib/native-shutdown';
 
 // Heavy, rarely-first views load on demand: three.js and the stages, the decision view,
 // the catalogue, xterm, the omnibar and settings. The launcher and the project lenses' frame
@@ -99,6 +100,7 @@ export default function App() {
   const workspaceFocus = useRef<HTMLElement | null>(null);
   /** Where the last press in the stage landed, as a transform origin for the next zoom in. */
   const press = useRef<{ origin: string; at: number } | null>(null);
+  useEffect(() => installNativeShutdownGuard(window.omenflow), []);
   // Arriving at a deeper level zooms in (from the press that asked for it), arriving at a wider
   // one zooms out; moving across a level does not move the stage.
   const motion = useRef<{ key: string; depth: number; zoom?: 'in' | 'out'; origin?: string }>({

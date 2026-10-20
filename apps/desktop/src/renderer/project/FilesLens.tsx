@@ -82,6 +82,7 @@ export function FilesLens() {
   // Draft files live on revisions the store does not hold; read each object's history once per
   // change to its drafts or baseline.
   useEffect(() => {
+    if (!projectId) return;
     const wanted = artifacts.filter(hasDraftWork);
     const keys = new Set(wanted.map(historyKey));
     const missing = wanted.filter((v) => !drafts.has(historyKey(v)));
@@ -97,9 +98,12 @@ export function FilesLens() {
       await Promise.all(
         Array.from({ length: Math.min(HISTORY_CONCURRENCY, queue.length) }, async () => {
           for (let v = queue.shift(); v; v = queue.shift()) {
-            const r = await cmd<{ revisions: Revision[] }>('artifact.history', {
-              artifactId: v.artifact.id,
-            });
+            if (!active) return;
+            const r = await cmd<{ revisions: Revision[] }>(
+              'artifact.history',
+              { artifactId: v.artifact.id },
+              { projectId },
+            );
             found.set(historyKey(v), draftFiles(v, r.revisions));
           }
         }),
@@ -116,7 +120,7 @@ export function FilesLens() {
     return () => {
       active = false;
     };
-  }, [artifacts, drafts]);
+  }, [artifacts, drafts, projectId]);
 
   const files = useMemo(() => {
     const q = query.trim().toLowerCase();

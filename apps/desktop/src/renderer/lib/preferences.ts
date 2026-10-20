@@ -20,7 +20,7 @@ export const PREF_KEYS = {
 export type SavedView =
   | { level: 'agent' }
   | { level: 'project'; lens: Lens }
-  | { level: 'object'; id: string }
+  | { level: 'object'; id: string; revisionId?: string | null }
   | { level: 'decide'; proposalId: string | null };
 
 export interface ProjectPrefs {
@@ -85,7 +85,16 @@ export function parseView(value: unknown, isLens: (id: string) => boolean): Save
         ? { level: 'project', lens: value.lens as Lens }
         : null;
     case 'object':
-      return typeof value.id === 'string' && value.id ? { level: 'object', id: value.id } : null;
+      return typeof value.id === 'string' && value.id
+        ? {
+            level: 'object',
+            id: value.id,
+            ...(value.revisionId === null ||
+            (typeof value.revisionId === 'string' && value.revisionId)
+              ? { revisionId: value.revisionId }
+              : {}),
+          }
+        : null;
     case 'decide':
       return {
         level: 'decide',

@@ -12,8 +12,18 @@ type ResultForm = {
   observation: string;
   result: Outcome | '';
   evidence: EvidenceKind | '';
+  revisionId: string | null;
+  revisionSeq: number | null;
+  conditions: string | undefined;
 };
-const EMPTY: ResultForm = { observation: '', result: '', evidence: '' };
+const EMPTY: ResultForm = {
+  observation: '',
+  result: '',
+  evidence: '',
+  revisionId: null,
+  revisionSeq: null,
+  conditions: undefined,
+};
 const EVIDENCE: EvidenceKind[] = ['measured', 'simulated', 'calculated', 'sourced', 'assumed'];
 
 export function TestStage({ view }: StageProps) {
@@ -46,18 +56,32 @@ export function TestStage({ view }: StageProps) {
         ? `A result is recorded onto r${recordsOnto.seq}. Show r${recordsOnto.seq} to record one.`
         : null;
   const ready = !!form.result && !!form.evidence && !!form.observation.trim();
+  const contextChanged = !!form.revisionId && form.revisionId !== recordsOnto?.id;
+  const editResult = (patch: Partial<ResultForm>) => {
+    edit(
+      form.revisionId
+        ? patch
+        : {
+            revisionId: view.revision?.id ?? null,
+            revisionSeq: view.revision?.seq ?? null,
+            conditions: p.conditions,
+            ...patch,
+          },
+    );
+  };
 
   const record = async () => {
-    if (!ready) return;
+    if (!ready || block || contextChanged || !form.revisionId) return;
     setBusy(true);
     setError(null);
     try {
       const r = await cmd<{ revision: Revision }>('test.record_result', {
         artifactId: view.artifact.id,
+        expectedRevisionId: form.revisionId,
         result: form.result,
         observation: form.observation.trim(),
         evidenceKind: form.evidence,
-        conditions: p.conditions,
+        conditions: form.conditions,
         attachments: [],
       });
       clear();
@@ -130,12 +154,37 @@ export function TestStage({ view }: StageProps) {
 
       <Block title="Record a result" className="record-result">
         {block && <p className="footnote">{block}</p>}
+        {contextChanged && (
+          <Notice
+            tone="warn"
+            action={
+              !block &&
+              recordsOnto && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    edit({
+                      revisionId: recordsOnto.id,
+                      revisionSeq: recordsOnto.seq,
+                      conditions: p.conditions,
+                    })
+                  }
+                >
+                  I reviewed r{recordsOnto.seq}; use this procedure
+                </Button>
+              )
+            }
+          >
+            This observation was entered against r{form.revisionSeq}. The test has changed. Your
+            observation is kept; review the current procedure and conditions before recording it.
+          </Notice>
+        )}
         <fieldset disabled={!!block || busy} className="bare stack">
           <div className="field-row">
             <Field label="Outcome">
               <select
                 value={form.result}
-                onChange={(e) => edit({ result: e.target.value as Outcome })}
+                onChange={(e) => editResult({ result: e.target.value as Outcome })}
               >
                 <option value="" disabled>
                   Choose
@@ -149,7 +198,7 @@ export function TestStage({ view }: StageProps) {
             <Field label="Evidence">
               <select
                 value={form.evidence}
-                onChange={(e) => edit({ evidence: e.target.value as EvidenceKind })}
+                onChange={(e) => editResult({ evidence: e.target.value as EvidenceKind })}
               >
                 <option value="" disabled>
                   Choose
@@ -169,7 +218,7 @@ export function TestStage({ view }: StageProps) {
             <textarea
               rows={3}
               value={form.observation}
-              onChange={(e) => edit({ observation: e.target.value })}
+              onChange={(e) => editResult({ observation: e.target.value })}
             />
           </Field>
           {error && (
@@ -178,7 +227,12 @@ export function TestStage({ view }: StageProps) {
             </Notice>
           )}
           <div className="row">
-            <Button variant="primary" busy={busy} onClick={() => void record()} disabled={!ready}>
+            <Button
+              variant="primary"
+              busy={busy}
+              onClick={() => void record()}
+              disabled={!ready || contextChanged || !form.revisionId}
+            >
               Record result
             </Button>
             <span className="footnote">
