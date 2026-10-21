@@ -15,7 +15,7 @@ if '--version' in sys.argv:
     print('codex-cli 0.156.1')
     sys.exit(0)
 prompt = sys.stdin.read()
-helper = os.environ.get('OMEN_INLINE_HELPER', str(Path(__file__).resolve().parents[2] / 'native/omenflow-bridge/target/release/omenflow'))
+helper = os.environ.get('OMEN_INLINE_HELPER', str(Path(__file__).resolve().parents[3] / 'native/omenflow-bridge/target/release/omenflow'))
 
 def call(op, payload):
     result = subprocess.run([helper, 'call', op, '--input', '-'], input=json.dumps(payload), capture_output=True, text=True)

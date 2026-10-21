@@ -65,6 +65,8 @@
   overflow-y: auto;
   min-height: 0;
   overscroll-behavior: contain;
+  /* Absolutely placed descendants (screen-reader text) stay inside the scroller, not the page. */
+  position: relative;
 }
 .chat-column {
   width: min(100% - 64px, 748px);

@@ -93,6 +93,7 @@ export function Conversation({
   const following = useRef(true);
   const deliverySequence = useRef(0);
   const followOnDelivery = useRef<number | null>(null);
+  const lastTop = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const [stopping, setStopping] = useState(false);
   const [query, setQuery] = useState('');
@@ -165,6 +166,21 @@ export function Conversation({
     return () => window.removeEventListener('omenflow:open-card', reveal);
   }, [projectId]);
   const last = turns.at(-1);
+  // Text and cards that finish loading after a render (a returning pane, a card's 3D or chart)
+  // keep a reader who is following at the latest response.
+  const hasTurns = useRef(false);
+  hasTurns.current = turns.length > 0;
+  useEffect(() => {
+    const el = scroll.current;
+    const column = el?.firstElementChild;
+    if (!el || !column || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      if (hasTurns.current && following.current && !window.getSelection()?.toString())
+        el.scrollTop = el.scrollHeight;
+    });
+    observer.observe(column);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (
       turns.length > 0 &&
@@ -248,8 +264,13 @@ export function Conversation({
           onScroll={() => {
             if (followOnDelivery.current) return;
             const el = scroll.current!;
-            following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-            setAtBottom(following.current);
+            const near = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+            const up = el.scrollTop < lastTop.current;
+            lastTop.current = el.scrollTop;
+            // Content growing below a reader is not the reader scrolling away; scrolling up is.
+            if (!near && !up) return;
+            following.current = near;
+            setAtBottom(near);
           }}
         >
           <div className="chat-column">

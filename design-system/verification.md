@@ -4,6 +4,32 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## Conversation pane · 20 October 2026
+
+The Agent tab gained a conversation pane beside the terminal, ported from the
+`codex/inline-candidate-05` experiment without its chat shell. Checks on the working tree:
+`pnpm typecheck`, `pnpm lint` (no new warnings), `pnpm test` (104 files, 1041 passed, 2
+existing skips), `cargo test --workspace`, `cargo clippy --workspace --all-targets -D warnings`,
+`cargo fmt --check`, `pnpm test:conformance` (8 files, 62 tests, including the one-agent gate
+in both directions and a real OpenSCAD render from exact inputs), `pnpm contracts:export` and
+`pnpm notices:check` with no difference.
+
+The Rust design preview was reviewed in Graphite and Paper at 1440×900 and 1024×700: the Agent
+tab opens on the conversation; a part card prepares exact values; Send is refused while preview
+agents are off; the terminal pane is unchanged; the floating window and the dock show the
+compact conversation beside the Flow lens; a pending proposal opens as a review card and
+zooms to Decisions. With `OMEN_PREVIEW_AGENTS=1`, the deterministic fixture
+(`tests/conformance/fixtures/inline-agent.py`) streamed text and presented a record, a chart,
+a quantity form and choices; Stop response from the terminal pane cancelled a held run; a
+running Custom CLI terminal disabled Send and the host answered `BUSY`. One real Claude Code
+run read the Camera tray and presented its card; it changed nothing.
+
+The preview found and fixed two defects: screen-reader text inside the thread enlarged the page
+so a press scrolled the whole frame, and a returning pane stopped short of the latest response.
+
+Not covered: native `pnpm dev` validation in WKWebView, a real Codex run, VoiceOver, Windows and
+Linux.
+
 ## 1.0.1 · 19 October 2026
 
 The nine audit improvements are tracked in the [1.0.1 verification record](../audit/v1.0.1/README.md).
