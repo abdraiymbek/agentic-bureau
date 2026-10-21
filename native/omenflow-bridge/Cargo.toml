@@ -1,6 +1,6 @@
 [package]
 name = "omenflow-bridge"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 description = "omenflow CLI helper — connects agent sessions to the Omen Flow app bridge"
 license = "Apache-2.0"

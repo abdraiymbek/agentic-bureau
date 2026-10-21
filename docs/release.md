@@ -1,7 +1,9 @@
 # Release
 
-Version **1.0.1** is the current release; its checks and remaining limits are recorded in
-the [1.0.1 verification record](../audit/v1.0.1/README.md). The previous
+Version **1.0.2** is the current release; its checks and remaining limits are recorded in
+the [1.0.2 verification record](../audit/v1.0.2/README.md). The previous
+[1.0.1 release](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.1) is recorded in the
+[1.0.1 verification record](../audit/v1.0.1/README.md), and the
 [1.0.0 release](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.0) was published on
 15 October 2026 UTC with a macOS arm64 DMG, Linux arm64 and x86_64 packages, and `SHA256SUMS`.
 Its final macOS bundle carries version 1.0.0 and identifier `app.omenflow.desktop`; the earlier
@@ -123,7 +125,7 @@ helper is quarantined, Omen Flow writes a byte-for-byte copy into its own `bin/o
 folder for the agent (`apps/rust-desktop/src/helper.rs`). This leaves the signed app untouched.
 The packaged smoke checks that helper path and the bridge capability boundaries.
 
-The [1.0.1 verification record](../audit/v1.0.1/README.md) records the current package checks.
+The [1.0.2 verification record](../audit/v1.0.2/README.md) records the current package checks.
 `codesign --verify --deep --strict` validates signature consistency. `syspolicy_check distribution`
 and `spctl` separately report policy: ad hoc signing and a missing notarization ticket remain
 expected blockers, and must not be reported as accepted notarization. A fresh browser download
@@ -262,7 +264,7 @@ What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 
 |               | `.deb` / `.rpm`                                                                                                                                                                                                             | AppImage                                 |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Name, version | `omen-flow` 1.0.1 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_1.0.1_<arch>.AppImage`        |
+| Name, version | `omen-flow` 1.0.2 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_1.0.2_<arch>.AppImage`        |
 | App           | `/usr/bin/omen-flow`                                                                                                                                                                                                        | `usr/bin/omen-flow` inside the image     |
 | Helper        | `/usr/lib/Omen Flow/omenflow`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                          | `$APPDIR/usr/lib/Omen Flow/omenflow`     |
 | Menu entry    | `/usr/share/applications/Omen Flow.desktop`: `Name=Omen Flow`, `Exec=omen-flow`, `Icon=omen-flow`, `StartupWMClass=omen-flow` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image          |
@@ -309,7 +311,7 @@ uses the same script, attaches packages to an existing release and updates `SHA2
 [1.0.0 run](https://github.com/abdraiymbek/omen-flow/actions/runs/38671472644) completed
 successfully on 15 October 2026 UTC; those three assets are attached to the published 1.0.0
 release. This supersedes the earlier statement that no x86_64 package had been built or
-launched. Results for 1.0.1 belong in its [verification record](../audit/v1.0.1/README.md).
+launched. Results for 1.0.2 belong in its [verification record](../audit/v1.0.2/README.md).
 
 Known limits:
 
