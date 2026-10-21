@@ -1,0 +1,57 @@
+{
+  "assets": [
+    {
+      "digest": "sha256:3829dddf04292024453389685264975b7fdbdfe35b8f29a0c8f29d2b56d2e619",
+      "name": "Omen-Flow-1.0.2-aarch64.AppImage",
+      "size": 87091720,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/Omen-Flow-1.0.2-aarch64.AppImage"
+    },
+    {
+      "digest": "sha256:c068200018197fcb95a9590fe0435dadc0c7fcce16a4af7a9ba43c1ad7719081",
+      "name": "Omen-Flow-1.0.2-macos-arm64.dmg",
+      "size": 10303729,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/Omen-Flow-1.0.2-macos-arm64.dmg"
+    },
+    {
+      "digest": "sha256:e01533e6572b498881b7c408b6f5d1e9d01eda5bdd2bdfabfb49e1e58a39cf46",
+      "name": "Omen-Flow-1.0.2-x86_64.AppImage",
+      "size": 89061880,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/Omen-Flow-1.0.2-x86_64.AppImage"
+    },
+    {
+      "digest": "sha256:0abbefa0f6a44b948e93415af19f88d03b4e604224bb8cb13b8c3236c8671fc5",
+      "name": "SHA256SUMS",
+      "size": 670,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/SHA256SUMS"
+    },
+    {
+      "digest": "sha256:8303cbc751d7c02f9f93dd3d7ffae21b67ed1a0c67704afbf98b201318c4a52c",
+      "name": "omen-flow-1.0.2-1.aarch64.rpm",
+      "size": 11710690,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/omen-flow-1.0.2-1.aarch64.rpm"
+    },
+    {
+      "digest": "sha256:c543fe6ed7cf2f382258d749770c5b11651bb134be1a2d9b3c368b73af96c25f",
+      "name": "omen-flow-1.0.2-1.x86_64.rpm",
+      "size": 11772241,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/omen-flow-1.0.2-1.x86_64.rpm"
+    },
+    {
+      "digest": "sha256:3f546654c55bd986874b0bc30301a1bf95cbc987ba14ec26443872d9828f0b7c",
+      "name": "omen-flow_1.0.2_amd64.deb",
+      "size": 11770880,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/omen-flow_1.0.2_amd64.deb"
+    },
+    {
+      "digest": "sha256:c14d30edbb9015007239e26cabf6f314d6018a8eb896af66be51f1e24e98ed33",
+      "name": "omen-flow_1.0.2_arm64.deb",
+      "size": 11707738,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v1.0.2/omen-flow_1.0.2_arm64.deb"
+    }
+  ],
+  "author": "abdraiymbek",
+  "commit": "c6c4d8ef735c7b411b8e8a8870ee67276db6e787",
+  "publishedAt": "2026-10-21T02:07:07Z",
+  "release": "https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.2",
+  "tag": "v1.0.2"
+}

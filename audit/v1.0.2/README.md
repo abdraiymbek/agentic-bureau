@@ -1,6 +1,6 @@
 # Omen Flow 1.0.2 verification record
 
-Date: 20 October 2026 (America/Chicago). Status: **release candidate**.
+Date: 20 October 2026 (America/Chicago). Status: **published; supported-platform release gates passed**.
 
 This record covers release 1.0.2. Earlier test counts and packages do not qualify this build;
 1.0.1 evidence remains in the [1.0.1 record](../v1.0.1/README.md).
@@ -50,3 +50,30 @@ release commit's tree on macOS arm64 with OpenSCAD:
 | Headless helper smoke                                  | passed read, agent draft and capability refusal                                                                                                                              |
 | Renderer design-preview review                         | passed Graphite and Paper at 1440×900 and 1024×700 ([conversation pane](../../design-system/verification.md))                                                                |
 | Real agent run in the preview                          | one Claude Code run read a part and presented its card; it changed nothing                                                                                                   |
+
+Package and publication checks:
+
+| Check                                                             | Result                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS arm64 build, bundle metadata, signatures and packaged smoke | passed; 1.0.2, `app.omenflow.desktop`, arm64, minimum macOS 13.3; DMG verified with `hdiutil verify`, mounted read-only; ad hoc app and helper signatures valid; packaged smoke passed from the mounted path                                                                                                                                            |
+| Linux arm64 build, tests, declared floors and packaged smoke      | passed in 694 s; in-container Rust workspace 596 passed, 1 ignored; helper tests and real-helper round trip; conformance 63 passed; floors app `GLIBC_2.35`, helper `GLIBC_2.34`, AppImage at most `GLIBC_2.35`; .deb on Ubuntu 22.04/24.04 and Debian 12, AppImage on Ubuntu 22.04 without GTK/WebKitGTK, .rpm on Fedora 42, all fresh Xvfb containers |
+| CI on the release commit                                          | passed all eight supported-platform gates ([run 39528399368](https://github.com/abdraiymbek/omen-flow/actions/runs/39528399368)); the experimental Windows job failed during legacy `better-sqlite3` installation, as in 1.0.1, and is not a release gate                                                                                               |
+| Linux x86_64 release workflow and packaged smoke                  | passed ([run 39529932596](https://github.com/abdraiymbek/omen-flow/actions/runs/39529932596))                                                                                                                                                                                                                                                           |
+| Final asset names, checksums and publication                      | passed; 8 assets (7 packages and SHA256SUMS), all re-downloaded; each matched GitHub's SHA-256 digest and `shasum -a 256 -c SHA256SUMS`; names match the manifest exactly                                                                                                                                                                               |
+
+## Release artifacts
+
+Release: [v1.0.2](https://github.com/abdraiymbek/omen-flow/releases/tag/v1.0.2), published 2026-10-21T02:07:07Z, latest stable release.
+Tag `v1.0.2` (annotated, “Omen Flow 1.0.2”) points at `c6c4d8ef735c7b411b8e8a8870ee67276db6e787`.
+Commit author/committer and release author: **abdraiymbek** (`abraiymbek@gmail.com` for Git).
+
+The first CI run on `78b0b9e` (“Prepare Omen Flow 1.0.2”) failed its conformance job: the new
+conversation cases need the `omenflow` helper and OpenSCAD, which that job did not provide. The tagged
+commit `c6c4d8e` changes only `.github/workflows/ci.yml` to build the helper first and install the
+pinned OpenSCAD 2021.01; `git diff --stat 78b0b9e c6c4d8e` lists that file alone. The macOS DMG and
+the arm64 Linux packages were built from `78b0b9e`, whose application sources are identical to the
+tag's; the x86_64 packages were built by the release workflow from the tag.
+
+[SHA256SUMS](SHA256SUMS) and [assets.json](assets.json) preserve the published hashes and sizes. The
+limits above remain: no notarization, native manual walkthrough of the conversation pane,
+clean-machine macOS installation or upgrade, real Codex run, or physical Linux desktop use is claimed.
