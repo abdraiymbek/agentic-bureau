@@ -28,8 +28,9 @@ around the three things a person actually does:
    through the project means moving along its recorded links.
 3. **The interface takes the shape of the work.** A part becomes a 3D stage, a calculation an
    equation, a requirement a statement with a target, a proposal a decision.
-4. **Agents propose, people decide.** The agent types into a real terminal. Nothing becomes
-   the baseline until a person approves it. Approval never means validated.
+4. **Agents propose, people decide.** The agent works in a real terminal or a real headless
+   run, never a scripted one. Nothing becomes the baseline until a person approves it.
+   Approval never means validated.
 5. **Calm until it matters.** State appears when it asks something of you. Colour always comes
    with a word. Empty means genuinely nothing waiting.
 
@@ -38,12 +39,12 @@ around the three things a person actually does:
 Omen Flow has three zoom levels plus the agent. Navigation is a 48 px **activity bar** on the
 left edge: the Agent tab first, then the lens tabs and Decisions. There is no dashboard.
 
-| Level        | What fills the stage                                                                                  | How you get here                                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Agent        | The real agent terminal (PTY) under a slim session bar, with a collapsible activity rail on the right | The first activity-bar tab, “Agent” in `⌘K`                      |
-| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files, Evidence                  | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–5`           |
-| 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right                       | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
-| 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below                       | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
+| Level        | What fills the stage                                                                               | How you get here                                                 |
+| ------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Agent        | The conversation or the real agent terminal (PTY) under a slim session bar, with the activity rail | The first activity-bar tab, “Agent” in `⌘K`                      |
+| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files, Evidence               | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–5`           |
+| 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right                    | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
+| 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below                    | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
 
 - `Esc` closes the topmost layer (menu, dialog, sheet, omnibar) and only then zooms out one
   level, to where you came from: an object returns to the lens it was opened from, a decision
@@ -266,9 +267,38 @@ The same three-part grammar: **queue · proposal · impact**.
 
 ### The agent
 
-The agent is one real PTY terminal with three presentations, mounted for the life of the open
-project so the session, scrollback, and running CLI survive navigation.
+The agent surface has two panes and three presentations, mounted for the life of the open
+project so the conversation, the terminal session, its scrollback and running CLI survive
+navigation.
 
+- **Panes**: the **Conversation** (Codex CLI or Claude Code run headless, once per message) and
+  the **Terminal** (any agent CLI, interactive, in a real PTY). A `Segmented` switch leads the
+  session bar; the window header carries the same in its menu. A project not used before opens
+  on the conversation, and the choice is remembered per project. The terminal stays attached
+  while the conversation shows.
+- **One agent works in a project at a time.** The host refuses a conversation send while a
+  terminal session runs, and a terminal start while a response runs (`BUSY`). The composer says
+  so with Switch to Terminal and Stop terminal session; the terminal pane says so with Switch to
+  Conversation and Stop response.
+- **Conversation**: one durable thread per conversation, recorded in
+  `.omenflow/chat/conversations.json` (local, not part of a project archive). Each turn shows
+  the request with any exact inputs, the response as it arrives (Claude Code streams partial
+  text; Codex reports completed items), and the cards the run presented with `chat.present`:
+  a part (3D, three ordinary dimensions, the rest under More), a recorded object, quantities
+  (unit and unknown reason kept), an **illustrative** chart with a table and keyboard readout,
+  choices, and human review. Charts are never evidence. A run's `ui.open_artifact` and
+  `ui.request_review` become cards in its own turn instead of moving the stage; a terminal
+  agent's still move it. Cards you open from the project record or `+` read “Opened by you”.
+  Recorded activity under each turn lists the host's call ledger for that run. An empty
+  conversation asks “What are we making?” with three starters and the project's first objects.
+- **Prepare → Send**: editing a card's values and pressing Prepare attaches the exact literal
+  values, units, artifact and revision to a readable request in the composer. Only Send starts
+  the agent; an attachment pinned to an older revision is refused. Approval stays a separate
+  human decision on the review card or in Decisions, with every changed file opened, every mesh
+  shown, and the changed check scope accepted.
+- **Zoom in from a card**: Open object focuses the object between its rails; Open in Decisions
+  opens the proposal. In the floating window and the dock, cards stack in one column and 3D
+  renders only on Show 3D.
 - **Agent tab**: the first activity-bar tab. A slim **session bar** (status word, a pulse only
   while running, agent, model, tool profile with its source, tools listed, elapsed, recorded
   calls and failures; interrupt, restart and stop as two-press buttons, search `⌘F`, copy
@@ -294,11 +324,12 @@ project so the session, scrollback, and running CLI survive navigation.
   installed, starting, “did not start” with the host's error and Try again, read-only, and
   ended (the transcript stays readable and copyable, with Start again on the same CLI; it never
   restarts on its own).
-- **Autostart** happens only for an unambiguous choice, the first time the surface is visible
-  with no session.
+- **Autostart** happens only on the terminal pane, only for an unambiguous choice, the first
+  time the surface is visible with no session, and never while a response runs.
 - **Ask**: every “Ask agent” entry point (stage header, Needs you, Evidence gaps, Parts
-  alternatives, rebase and handoff in decisions, the launcher brief, `⌘K`) hands its text to
-  one queue. It is pasted with bracketed paste once the CLI shows its prompt and is never
+  alternatives, rebase and handoff in decisions, the launcher brief, `⌘K`) follows the pane. On
+  the conversation it joins the composer's draft and waits for Send. On the terminal it goes to
+  one queue: it is pasted with bracketed paste once the CLI shows its prompt and is never
   submitted; until then it waits visibly as “Waiting to type” with **Paste now** and
   **Discard**. Any paste into a CLI that has not turned bracketed paste on (**Paste now**
   included) joins the lines with spaces, so it never presses Enter. Object references arrive as
@@ -440,7 +471,9 @@ Composite patterns: map node, map legend and peek, Needs-you row, rail link node
 stage header, revision banner, underneath notice, save bar, viewport tool island, render job
 row, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
 bar, handoff card, lens table row, totals strip, evidence chip, activity bar, session bar,
-activity rail and call row, agent onboarding panel, waiting-to-type bar, terminal search,
+pane switch, conversation turn and composer, input attachment, inline card (part, record,
+quantities, chart, choices, review), activity rail and call row, agent onboarding panel,
+waiting-to-type bar, terminal search,
 agent window (dock, collapse), island, sheet, omnibar, unsaved-work prompt, project loading
 state, frame strip (failures to act on, with Retry or Dismiss), toast. The catalogue's “In the
 product” section opens each one where it lives.
@@ -460,10 +493,12 @@ These rules outrank aesthetics.
   recorded input shows its relationship and whether it is pinned.
 - **Illustrative data is labelled** (e.g. the preview mesh). A calculation marks itself
   experimental where the engine is.
-- **No fabricated agent activity.** The agent surface is the real PTY; “Ask” writes to it with
-  bracketed paste; running state comes from the session. The activity rail shows only recorded
-  ledger calls; counts come from the host or the ledger, never estimated. Starters and asks are
-  typed, never sent. An ended session shows only an exit code the process returned.
+- **No fabricated agent activity.** The terminal pane is the real PTY; “Ask” writes to it with
+  bracketed paste; running state comes from the session. The conversation shows only text and
+  cards a real run produced, with its run state from the host's record; a run that ends without
+  a completion event is Failed, never Completed. The activity rail shows only recorded ledger
+  calls; counts come from the host or the ledger, never estimated. Starters and asks are typed
+  or drafted, never sent. An ended session shows only an exit code the process returned.
 - **The record states only what happened**: a Timeline row, an approval effect or a re-run
   message says a baseline moved, a bill of materials changed or a proposal waits only when the
   host recorded it.
@@ -540,7 +575,9 @@ action is, what evidence must be visible, and which states apply. Then:
    `verification.md`, and the catalogue together.
 
 Never add: metric-card dashboards, decorative charts, gradient heroes, glowing
-purple, fake chat bubbles, unlabelled colour, or collaboration features that don't exist.
+purple, fake chat bubbles, unlabelled colour, or collaboration features that don't exist. The
+conversation pane is not a chat bubble: every message in it is a recorded request or a real
+run's output.
 
 ## 10. Implementation map
 
@@ -556,6 +593,7 @@ purple, fake chat bubbles, unlabelled colour, or collaboration features that don
 | Frame: strip, unsaved-work prompt, loading, toasts | `renderer/frame/`                                                                                                          |
 | Titlebar, activity bar, omnibar, sheet             | `renderer/shell/`, `renderer/shell/omnibar/rank.ts`                                                                        |
 | Agent surface                                      | `renderer/shell/Agent.tsx`, `renderer/shell/agent/` (terminal engine, session bar, activity rail, onboarding, view-models) |
+| Conversation pane and inline cards                 | `renderer/chat/` (chat store, `Conversation`, `InlineCards` and their parts); host side `crates/agent-host/src/chat.rs`    |
 | Lens registry                                      | `renderer/project/lenses.ts`                                                                                               |
 | Project lenses                                     | `renderer/project/` (`EvidenceLens`, `PartsLens`, `TimelineLens`, `FilesLens` and their pure models)                       |
 | Flow map                                           | `renderer/project/FlowMap.tsx`, `renderer/project/flow/` (model, layout, routing, fit, keyboard, controller)               |
@@ -571,27 +609,28 @@ purple, fake chat bubbles, unlabelled colour, or collaboration features that don
 so the order is the cascade order. Responsive and reduced-motion rules sit in the file of the
 surface they style.
 
-| File            | Styles                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------- |
-| `base.css`      | Reset, document defaults, form controls, scrollbars, utilities                                    |
-| `kit.css`       | Everything `ui/kit.tsx` renders, plus shared patterns: island, menus, tables                      |
-| `shell.css`     | App frame, stage zoom motion, activity bar, titlebar, omnibar, settings sheet, toasts             |
-| `app-frame.css` | The frame strip, the unsaved-work prompt, the project loading state                               |
-| `agent.css`     | The agent surface, as a tab and as a floating window                                              |
-| `project.css`   | Project identity, Needs you, the empty project                                                    |
-| `flow.css`      | The flow map: canvas, nodes, links, headers, legend, peek, controls                               |
-| `lenses.css`    | Lens page chrome and tables, then Parts (with the part card), Timeline, Files, Evidence           |
-| `launcher.css`  | The launcher                                                                                      |
-| `object.css`    | The three-part grid, folding rails and stage shell that Object and Decide share, then every stage |
-| `viewport.css`  | The mechanical stage and the STL viewport                                                         |
-| `decide.css`    | Queue, proposal, diff, decision bar, CAD review                                                   |
-| `system.css`    | The catalogue                                                                                     |
+| File               | Styles                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------- |
+| `base.css`         | Reset, document defaults, form controls, scrollbars, utilities                                    |
+| `kit.css`          | Everything `ui/kit.tsx` renders, plus shared patterns: island, menus, tables                      |
+| `shell.css`        | App frame, stage zoom motion, activity bar, titlebar, omnibar, settings sheet, toasts             |
+| `app-frame.css`    | The frame strip, the unsaved-work prompt, the project loading state                               |
+| `agent.css`        | The agent surface, as a tab and as a floating window                                              |
+| `conversation.css` | The conversation pane: thread, composer, and inline cards                                         |
+| `project.css`      | Project identity, Needs you, the empty project                                                    |
+| `flow.css`         | The flow map: canvas, nodes, links, headers, legend, peek, controls                               |
+| `lenses.css`       | Lens page chrome and tables, then Parts (with the part card), Timeline, Files, Evidence           |
+| `launcher.css`     | The launcher                                                                                      |
+| `object.css`       | The three-part grid, folding rails and stage shell that Object and Decide share, then every stage |
+| `viewport.css`     | The mechanical stage and the STL viewport                                                         |
+| `decide.css`       | Queue, proposal, diff, decision bar, CAD review                                                   |
+| `system.css`       | The catalogue                                                                                     |
 
 A lens is one entry in `LENSES` (`renderer/project/lenses.ts`) plus its component. The activity
 bar, `⌘n`, the omnibar, the preview's `screen=` parameter, and the catalogue read that list.
 The Object, Decision, Design system and Agent views, the omnibar and the sheet are code-split
 and fetched once the first screen is up; three.js, xterm and the markdown renderer have chunks
-of their own. The renderer imports only types and `@omenflow/contracts/format` from the
+of their own, and so do the conversation's markdown stream and chart. The renderer imports only types and `@omenflow/contracts/format` from the
 contracts package, never its runtime barrel.
 
 Class names are global. Name a class for its surface (`object-view`, `lens-check`,

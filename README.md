@@ -1,7 +1,8 @@
 # Omen Flow
 
 Omen Flow is a local desktop engineering workspace. You bring an agent CLI (Codex CLI, Claude
-Code, or another), it runs in a real terminal inside the app, and it drafts engineering work —
+Code, or another), it runs inside the app — as a conversation or in a real terminal — and it
+drafts engineering work —
 requirements, parts, CAD, calculations, wiring, tests — through Omen Flow's MCP tools. Nothing it
 writes becomes the baseline until a person approves it. Approval records a decision; it does not
 establish engineering validity.
@@ -81,9 +82,11 @@ and [release](docs/release.md).
 1. Install OpenSCAD (macOS: `brew install --cask openscad@snapshot`; the engine is not bundled)
    and an agent CLI, signed in.
 2. Open Omen Flow, answer _What are you building?_ and choose an empty folder.
-3. Open the Agent tab. When exactly one agent CLI is found (or the one you chose before is), it
-   starts; with several you choose once; with none, the tab lists each with its install guide
-   and **Set path…**. Settings (`⌘,`) holds each agent's model, tool profile and executable.
+3. The project opens on the Agent tab's **Conversation**: write what you want and press Send;
+   Codex CLI or Claude Code runs once per message. Switch to **Terminal** to run any agent CLI
+   interactively: when exactly one is found (or the one you chose before is), it starts; with
+   several you choose once; with none, the tab lists each with its install guide and **Set
+   path…**. Settings (`⌘,`) holds each agent's model, tool profile and executable.
 4. Ask the agent for work. Watch its calls in the activity rail; review its proposals under
    Decisions (`⌘⇧D`). Check what is still unproven in the Evidence lens (`⌘5`).
 5. Export a project archive from the project menu in the titlebar (or the Files lens) to keep the
@@ -98,11 +101,17 @@ Closing a project stops its agent. A project written by a newer build opens read
   **Evidence** (`⌘1`–`⌘5`) — then one object on a stage between the rails of what it depends on
   and what it affects, then one decision. A left activity bar carries the Agent tab first. There
   is no dashboard. See [the design specification](design-system/design.md).
-- **The agent surface.** One real PTY terminal per open project, shown as the Agent tab or a
-  floating window (`⌘J`). A session bar shows status, agent, model, tool profile, tools listed,
-  and the calls and failures the host recorded. The activity rail lists only calls from the
-  host's ledger. “Ask agent” anywhere pastes an editable request into the terminal once the CLI
-  is ready; it never presses Enter for you.
+- **The agent surface.** One per open project, shown as the Agent tab, a floating window or a
+  dock (`⌘J`), with two panes. The **Conversation** runs Codex CLI or Claude Code headless once
+  per message and shows the cards the run presents: a part in 3D with its dimensions, recorded
+  objects, quantities, illustrative charts, choices and human review. Edit a card's values and
+  Prepare attaches the exact values to your request; only Send runs the agent. The
+  **Terminal** is one real PTY running any agent CLI, with a session bar of status, agent,
+  model, tool profile, tools listed, and the calls and failures the host recorded. One agent
+  works in a project at a time. The activity rail lists only calls from the host's ledger.
+  “Ask agent” anywhere drafts an editable request in the active pane; it never sends for you.
+  Conversations are kept in `.omenflow/chat/conversations.json` in the project folder; project
+  archives do not include them.
 - **Adaptive capability profiles.** Each session is fixed to `compact`, `standard` or `full`. A
   small model (Haiku, Luna, mini, local models) gets 13 flat tools, playbooks on demand
   (`guide_read`), reported input repairs and a server-owned completion gate (`work_status`). A

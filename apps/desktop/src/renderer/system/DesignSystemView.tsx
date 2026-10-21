@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useLayoutEffect, useRef, useState } from 'react';
 import {
   Archive,
   ArrowRight,
@@ -17,6 +17,8 @@ import {
 import appIcon from '../../../../../design-system/brand/app-icon.png';
 import { PayloadDiff } from '../decide/PayloadDiff';
 import { diffPayload } from '../lib/diff';
+import { InlineVerification } from '../chat/InlineVerification';
+import { useAgentUi } from '../shell/agent/agent-store';
 import { ActivityBar } from '../shell/ActivityBar';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { ExternalLink } from '../ui/ExternalLink';
@@ -237,6 +239,8 @@ const SHORTCUTS = [
   ['⌘,', 'settings'],
 ] as const;
 
+const InlineChart = lazy(() => import('../chat/InlineChart'));
+
 const SECTIONS = [
   'Principles',
   'Colour',
@@ -249,6 +253,7 @@ const SECTIONS = [
   'Values',
   'Content',
   'Engineering objects',
+  'Conversation',
   'In the product',
 ] as const;
 
@@ -644,6 +649,105 @@ export function DesignSystemView() {
               </div>
             ))}
           </div>
+        </Section>
+
+        <Section
+          title="Conversation"
+          note="The Agent tab's conversation pane. These labelled specimens never start an agent: only Send runs one, and every message in the product is a recorded request or a real run's output."
+        >
+          <Themes label="Composer and delivery · specimens">
+            {() => (
+              <>
+                <div className="chat-composer">
+                  <textarea
+                    aria-label="Specimen conversation message"
+                    placeholder="Describe what you want to make…"
+                    rows={3}
+                  />
+                  <div className="chat-composer-tools">
+                    <IconButton label="Specimen add context" disabled>
+                      <Plus size={16} />
+                    </IconButton>
+                    <span className="chat-muted">Codex CLI · specimen</span>
+                    <span className="grow" />
+                    <IconButton label="Specimen send (disabled)" disabled>
+                      <ArrowRight size={16} />
+                    </IconButton>
+                  </div>
+                </div>
+                <p className="chat-composer-note">
+                  Agents draft. You decide. · No agent runs in this specimen.
+                </p>
+                <div className="chat-delivery">
+                  <strong>Message needs attention</strong>
+                  <p>
+                    Unconfirmed delivery stays visible. Retry preserves the original request ID and
+                    newer text in the composer.
+                  </p>
+                  <Button size="sm" disabled>
+                    Retry original request · specimen
+                  </Button>
+                </div>
+                <div className="chat-call-ledger">
+                  <span className="chat-eyebrow">Host call ledger</span>
+                  <p>Only real recorded calls appear here. No activity is fabricated.</p>
+                </div>
+              </>
+            )}
+          </Themes>
+          <Themes label="Inline chart · illustrative specimen">
+            {() => (
+              <Suspense fallback={<p>Loading chart specimen…</p>}>
+                <InlineChart
+                  part={{
+                    kind: 'chart',
+                    title: 'A focused engineering scenario',
+                    xLabel: 'Width',
+                    xUnit: 'mm',
+                    yLabel: 'Illustrative volume',
+                    yUnit: 'cm³',
+                    source: 'Design-system specimen; no engine was run',
+                    provenance: 'illustrative',
+                    points: [
+                      { x: 50, y: 18 },
+                      { x: 60, y: 24 },
+                      { x: 70, y: 33 },
+                      { x: 80, y: 45 },
+                    ],
+                  }}
+                />
+              </Suspense>
+            )}
+          </Themes>
+          <Themes label="Human review evidence · labelled specimen">
+            {() => (
+              <InlineVerification
+                verification={{
+                  status: 'passed',
+                  evidenceHash: 'specimen-only-no-engine-run',
+                  evidence: {
+                    pass: true,
+                    checks: [
+                      {
+                        name: 'overall size · specimen',
+                        pass: true,
+                        detail: '64 × 46 × 4.5 mm — illustrative recorded-result layout',
+                      },
+                    ],
+                    integrity: { pass: true, detail: 'Specimen only; no geometry was checked.' },
+                    coverage: {
+                      units: 'mm',
+                      assertions: ['overall size · specimen'],
+                      limitations: ['This design-system example is not engineering evidence.'],
+                    },
+                  },
+                }}
+                accepted={false}
+                onAccept={() => {}}
+                disabled
+              />
+            )}
+          </Themes>
         </Section>
 
         <Section
@@ -1267,10 +1371,23 @@ function InProduct() {
       needsProject: true,
     },
     {
+      name: 'Agent tab: conversation, inline cards, pane switch',
+      where: 'chat/Conversation.tsx, chat/InlineCards.tsx, shell/agent/SessionBar.tsx',
+      action: 'Open the conversation',
+      open: () => {
+        useAgentUi.getState().setPane('conversation');
+        go({ level: 'agent' });
+      },
+      needsProject: true,
+    },
+    {
       name: 'Agent tab: session bar, terminal, activity rail',
       where: 'shell/agent/SessionBar.tsx, shell/agent/ActivityRail.tsx',
-      action: 'Open the agent',
-      open: () => go({ level: 'agent' }),
+      action: 'Open the terminal',
+      open: () => {
+        useAgentUi.getState().setPane('terminal');
+        go({ level: 'agent' });
+      },
       needsProject: true,
     },
     {
@@ -1364,8 +1481,8 @@ function InProduct() {
         </table>
       </div>
       <p className="footnote">
-        <Robot size={12} aria-hidden="true" /> The agent surface is the real PTY. The catalogue
-        never shows a scripted session.
+        <Robot size={12} aria-hidden="true" /> The terminal pane is the real PTY and the
+        conversation shows only real runs. The catalogue never shows a scripted session.
       </p>
     </div>
   );
