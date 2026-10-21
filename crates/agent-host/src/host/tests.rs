@@ -644,3 +644,326 @@ fn the_host_answers_guide_activity_and_tool_call_for_the_person() {
         .unwrap();
     assert_eq!(recursive.code, "VALIDATION");
 }
+
+#[cfg(unix)]
+fn chat_agent(f: &Fixture, body: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let path = f._temp.path().join("structured-agent");
+    std::fs::write(&path, format!("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'codex-cli 0.100.0'; exit 0; fi\n{body}\n")).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    ok(f.host.command(
+        "connection.configure",
+        json!({"adapterId":"codex","executablePath":path}),
+        None,
+        None,
+    ));
+    path
+}
+#[cfg(unix)]
+fn chat_send(f: &Fixture, conversation: &str, request: &str, text: &str) -> Value {
+    ok(f.host.command(
+        "chat.send",
+        json!({"conversationId":conversation,"requestId":request,"text":text,"adapterId":"codex"}),
+        Some(&f.project_id),
+        None,
+    ))
+}
+#[cfg(unix)]
+fn chat_settled(f: &Fixture) -> Value {
+    let until = Instant::now() + Duration::from_secs(8);
+    loop {
+        let value = ok(f
+            .host
+            .command("chat.read", json!({}), Some(&f.project_id), None));
+        if value["conversations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|c| c["turns"].as_array().unwrap())
+            .all(|t| t["state"] != "running")
+        {
+            return value;
+        }
+        assert!(Instant::now() < until, "chat did not settle: {value}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+#[test]
+#[cfg(unix)]
+fn chat_structured_runs_are_durable_deduplicated_and_project_scoped() {
+    let f = fixture();
+    let count = f._temp.path().join("executions");
+    chat_agent(&f, &format!("cat >/dev/null\necho run >> '{}'\nprintf '%s\\n' '{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"Width is 20 mm; load remains unknown.\"}}}}' '{{\"type\":\"turn.completed\"}}'", count.display()));
+    let accepted = chat_send(&f, "conversation-one", "request-one", "Inspect dimensions");
+    assert_eq!(accepted["conversations"][0]["turns"][0]["state"], "running");
+    let settled = chat_settled(&f);
+    assert_eq!(
+        settled["conversations"][0]["turns"][0]["state"],
+        "completed"
+    );
+    assert!(settled["conversations"][0]["turns"][0]["response"]
+        .as_str()
+        .unwrap()
+        .contains("20 mm"));
+    chat_send(&f, "conversation-one", "request-one", "Inspect dimensions");
+    assert_eq!(std::fs::read_to_string(&count).unwrap().lines().count(), 1);
+    let second = ok(f.host.command(
+        "project.create",
+        json!({"path":f._temp.path().join("second"),"name":"Other"}),
+        None,
+        None,
+    ));
+    let other = ok(f
+        .host
+        .command("chat.read", json!({}), second["projectId"].as_str(), None));
+    assert!(other["conversations"].as_array().unwrap().is_empty());
+    let project_id = f.project_id.clone();
+    let root = f._temp.path().join("project");
+    f.host.shutdown();
+    let Fixture { host, _temp, .. } = f;
+    drop(host);
+    let restarted = Host::start(
+        HostPaths {
+            app_data_dir: _temp.path().join("app"),
+            cli_path: PathBuf::from("/bin/echo"),
+        },
+        Arc::new(Recorder::default()),
+        Arc::new(RecordingShell::default()),
+        Arc::new(ScriptedSurface::default()),
+    )
+    .unwrap();
+    ok(restarted.command("project.open", json!({"path":root}), None, None));
+    let replay = ok(restarted.command("chat.send",json!({"conversationId":"conversation-one","requestId":"request-one","text":"Inspect dimensions","adapterId":"codex"}),Some(&project_id),None));
+    assert_eq!(
+        replay["conversations"][0]["turns"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(std::fs::read_to_string(&count).unwrap().lines().count(), 1);
+    assert_eq!(code(restarted.command("chat.send",json!({"conversationId":"conversation-two","requestId":"request-one","text":"Changed","adapterId":"codex"}),Some(&project_id),None)),"VALIDATION");
+    restarted.shutdown();
+}
+#[test]
+#[cfg(unix)]
+fn chat_cancel_settles_the_owned_process_group_and_preserves_partial_text() {
+    let f = fixture();
+    let pidfile = f._temp.path().join("child-pid");
+    chat_agent(&f,&format!("cat >/dev/null\nprintf '%s\\n' '{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"Draft started.\"}}}}'\n(sh -c 'trap \"\" TERM; while :; do sleep 1; done') &\necho $! > '{}'\nwait",pidfile.display()));
+    chat_send(&f, "conversation", "request", "Start");
+    let until = Instant::now() + Duration::from_secs(5);
+    while !pidfile.exists() {
+        assert!(Instant::now() < until);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let pid: i32 = std::fs::read_to_string(pidfile)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let cancelled = ok(f.host.command(
+        "chat.cancel",
+        json!({"conversationId":"conversation"}),
+        Some(&f.project_id),
+        None,
+    ));
+    assert_eq!(
+        cancelled["conversations"][0]["turns"][0]["state"],
+        "cancelled"
+    );
+    assert_eq!(
+        cancelled["conversations"][0]["turns"][0]["response"],
+        "Draft started."
+    );
+    let until = Instant::now() + Duration::from_secs(3);
+    loop {
+        let alive = unsafe { libc::kill(pid, 0) == 0 };
+        if !alive {
+            break;
+        }
+        assert!(
+            Instant::now() < until,
+            "descendant {pid} still exists after cancellation"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!f.host.agent_running());
+    f.host.shutdown();
+}
+#[test]
+#[cfg(unix)]
+fn chat_invalid_output_never_becomes_a_success_or_terminal_session() {
+    let f = fixture();
+    chat_agent(&f, "cat >/dev/null; printf 'not a JSON stream\\n'");
+    chat_send(&f, "conversation", "request", "Start");
+    let result = chat_settled(&f);
+    assert_eq!(result["conversations"][0]["turns"][0]["state"], "failed");
+    assert_eq!(result["conversations"][0]["turns"][0]["response"], "");
+    let terminal = ok(f
+        .host
+        .command("terminal.state", json!({}), Some(&f.project_id), None));
+    assert!(terminal["session"].is_null());
+    let root = f._temp.path().join("project");
+    let saved = std::fs::read_to_string(root.join(".omenflow/chat/conversations.json")).unwrap();
+    assert!(!saved.contains("OMENFLOW_BRIDGE_TOKEN"));
+    f.host.shutdown();
+}
+
+#[test]
+#[cfg(unix)]
+fn chat_clean_leader_exit_settles_inherited_pipe_descendant_before_publishing_completion() {
+    let f = fixture();
+    let pidfile = f._temp.path().join("orphan-pid");
+    chat_agent(&f, &format!("cat >/dev/null\nprintf '%s\\n' '{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"Leader finished.\"}}}}' '{{\"type\":\"turn.completed\"}}'\n(sh -c 'trap \"\" TERM; while :; do sleep 1; done') &\necho $! > '{}'\nexit 0",pidfile.display()));
+    let accepted = chat_send(&f, "conversation", "request", "Start");
+    let session = accepted["conversations"][0]["turns"][0]["sessionId"]
+        .as_str()
+        .unwrap();
+    let result = chat_settled(&f);
+    assert_eq!(result["conversations"][0]["turns"][0]["state"], "completed");
+    let pid: i32 = std::fs::read_to_string(pidfile)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    let until = Instant::now() + Duration::from_secs(3);
+    while unsafe { libc::kill(pid, 0) == 0 } {
+        assert!(
+            Instant::now() < until,
+            "pipe-holding descendant survived clean leader exit"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let activity = ok(f.host.command(
+        "agent.activity",
+        json!({"sessionId":session}),
+        Some(&f.project_id),
+        None,
+    ));
+    assert!(activity["sessions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["sessionId"] == session && s["endedAt"].is_string()));
+    assert!(!f.host.agent_running());
+    f.host.shutdown();
+}
+
+/// One call from an agent session on the bridge, as the `omenflow` helper makes it.
+#[cfg(unix)]
+fn agent_call(f: &Fixture, session: &str, op: &str, payload: Value) -> Value {
+    use omenflow_contracts::{read_frame, write_frame};
+    let token = f.host.bridge().issue_token(&f.project_id, session);
+    let mut stream =
+        std::os::unix::net::UnixStream::connect(f.host.bridge().socket_path()).unwrap();
+    write_frame(
+        &mut stream,
+        &json!({"type": "hello", "protocolVersion": 1, "mode": "call", "token": token}),
+    )
+    .unwrap();
+    assert_eq!(read_frame(&mut stream).unwrap().unwrap()["type"], "welcome");
+    write_frame(
+        &mut stream,
+        &json!({"requestId": op, "op": op, "payload": payload}),
+    )
+    .unwrap();
+    read_frame(&mut stream).unwrap().unwrap()
+}
+
+#[test]
+#[cfg(unix)]
+fn one_agent_works_in_a_project_at_a_time() {
+    let f = fixture();
+    chat_agent(
+        &f,
+        "cat >/dev/null\nprintf '%s\\n' '{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Working.\"}}'\nwhile :; do sleep 1; done",
+    );
+    ok(f.host.command(
+        "connection.configure",
+        json!({ "adapterId": "custom", "executablePath": "/bin/cat" }),
+        None,
+        None,
+    ));
+    chat_send(&f, "conversation", "request-one", "Start");
+    let refused = f
+        .host
+        .command(
+            "terminal.start",
+            json!({ "adapterId": "custom" }),
+            Some(&f.project_id),
+            None,
+        )
+        .error
+        .unwrap();
+    assert_eq!(refused.code, "BUSY", "{}", refused.message);
+    assert!(f.host.pty().state(&f.project_id)["session"].is_null());
+
+    ok(f.host.command(
+        "chat.cancel",
+        json!({"conversationId":"conversation"}),
+        Some(&f.project_id),
+        None,
+    ));
+    let session = ok(f.host.command(
+        "terminal.start",
+        json!({ "adapterId": "custom" }),
+        Some(&f.project_id),
+        None,
+    ));
+    assert_eq!(session["state"], "running");
+    let busy = f
+        .host
+        .command(
+            "chat.send",
+            json!({"conversationId":"conversation","requestId":"request-two","text":"Again","adapterId":"codex"}),
+            Some(&f.project_id),
+            None,
+        )
+        .error
+        .unwrap();
+    assert_eq!(busy.code, "BUSY", "{}", busy.message);
+    let record = ok(f
+        .host
+        .command("chat.read", json!({}), Some(&f.project_id), None));
+    assert_eq!(
+        record["conversations"][0]["turns"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "a refused send records nothing"
+    );
+
+    ok(f.host
+        .command("terminal.stop", json!({}), Some(&f.project_id), None));
+    assert!(f.events.wait_for("terminal-state", |state| {
+        state["session"]["id"] == session["id"] && state["session"]["state"] == "exited"
+    }));
+    chat_send(&f, "conversation", "request-two", "Again");
+    f.host.shutdown();
+}
+
+#[test]
+#[cfg(unix)]
+fn an_agent_terminals_ui_requests_still_move_the_workspace() {
+    let f = fixture();
+    let missing = uuid::Uuid::new_v4().to_string();
+    let reply = agent_call(
+        &f,
+        "terminal-session",
+        "ui.request_review",
+        json!({ "proposalId": missing }),
+    );
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert!(f.events.wait_for("event", |event| {
+        event["type"] == "ui.request_review" && event["data"]["proposalId"] == missing.as_str()
+    }));
+    let reply = agent_call(
+        &f,
+        "terminal-session",
+        "chat.present",
+        json!({"part": {"kind": "chart", "title": "Load", "xLabel": "Time", "xUnit": "s", "yLabel": "Load", "yUnit": "N", "source": "Estimate", "provenance": "illustrative", "points": [{"x": 0, "y": 1}, {"x": 1, "y": 2}]}}),
+    );
+    assert_eq!(reply["ok"], false, "{reply}");
+}

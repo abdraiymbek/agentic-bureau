@@ -672,6 +672,19 @@ mod tests {
             link(&untested, &untested_at, "validates"),
         );
 
+        // This fixture asserts creation order. Dispatches can share one millisecond,
+        // when the production order intentionally falls back to the random UUID.
+        // Give every inserted artifact an explicit, distinct fixture timestamp;
+        // evidence order is deterministic too, without changing the ordering contract.
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', \
+                 '2026-10-14T12:00:00Z', printf('+%d seconds', rowid))",
+                [],
+            )
+            .unwrap();
         let (report, statements) =
             statements_during(|| project.user("project.coverage", json!({})));
         assert_eq!(statements, 4);
@@ -1109,5 +1122,47 @@ mod tests {
             linked["reason"],
             "1 part and 1 calculation are current; 1 test is a draft."
         );
+    }
+
+    #[test]
+    fn requirements_order_by_creation_time_then_id_even_when_timestamps_tie() {
+        let mut project = TestProject::new();
+        let (first, _) =
+            project.approved("requirement", "First need", requirement("First"), json!([]));
+        let (second, _) = project.approved(
+            "requirement",
+            "Second need",
+            requirement("Second"),
+            json!([]),
+        );
+        let mut ids = [first, second];
+        ids.sort();
+        let [low, high] = ids;
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at = CASE WHEN id=?1 THEN \
+             '2026-10-14T12:00:00.000Z' ELSE '2026-10-14T12:00:01.000Z' END",
+                [&high],
+            )
+            .unwrap();
+        let report = project.user("project.coverage", json!({}));
+        assert_eq!(report["requirements"][0]["artifactId"], high);
+        assert_eq!(report["requirements"][1]["artifactId"], low);
+        assert_eq!(report["totals"]["none"], 2);
+
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at='2026-10-14T12:00:00.000Z'",
+                [],
+            )
+            .unwrap();
+        let tied = project.user("project.coverage", json!({}));
+        assert_eq!(tied["requirements"][0]["artifactId"], low);
+        assert_eq!(tied["requirements"][1]["artifactId"], high);
+        assert_eq!(tied["totals"], report["totals"]);
     }
 }

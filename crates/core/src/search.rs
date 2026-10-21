@@ -584,10 +584,70 @@ mod tests {
                 json!([]),
             );
         }
+        // This fixture asserts creation order. Dispatches can share one millisecond,
+        // when the production order intentionally falls back to the random UUID.
+        // Give every inserted artifact an explicit, distinct fixture timestamp;
+        // the separate tie case below preserves the UUID tie-break contract.
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', \
+                 '2026-10-14T12:00:00Z', printf('+%d seconds', rowid))",
+                [],
+            )
+            .unwrap();
         let limited = project.user("project.search", json!({"query": "bracket", "limit": 3}));
         assert_eq!(limited["results"].as_array().unwrap().len(), 3);
         let scanned = project.user("project.search", json!({"query": "racke", "limit": 2}));
         assert_eq!(scanned["matched"], "substring");
         assert_eq!(found(&scanned), ["Bracket 0", "Bracket 1"]);
+    }
+
+    #[test]
+    fn substring_results_order_by_creation_time_then_id_even_when_timestamps_tie() {
+        let mut project = TestProject::new();
+        let (first, _) = project.draft(
+            Origin::User,
+            "note",
+            "Bracket first",
+            json!({"markdown": "bracket"}),
+            json!([]),
+        );
+        let (second, _) = project.draft(
+            Origin::User,
+            "note",
+            "Bracket second",
+            json!({"markdown": "bracket"}),
+            json!([]),
+        );
+        let mut ids = [first, second];
+        ids.sort();
+        let [low, high] = ids;
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at = CASE WHEN id=?1 THEN \
+             '2026-10-14T12:00:00.000Z' ELSE '2026-10-14T12:00:01.000Z' END",
+                [&high],
+            )
+            .unwrap();
+        let result = project.user("project.search", json!({"query": "racke", "limit": 2}));
+        assert_eq!(result["matched"], "substring");
+        assert_eq!(result["results"][0]["artifactId"], high);
+        assert_eq!(result["results"][1]["artifactId"], low);
+
+        project
+            .handle()
+            .db
+            .execute(
+                "UPDATE artifact SET created_at='2026-10-14T12:00:00.000Z'",
+                [],
+            )
+            .unwrap();
+        let tied = project.user("project.search", json!({"query": "racke", "limit": 1}));
+        assert_eq!(tied["results"].as_array().unwrap().len(), 1);
+        assert_eq!(tied["results"][0]["artifactId"], low);
     }
 }

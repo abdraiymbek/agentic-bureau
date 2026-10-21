@@ -67,8 +67,11 @@ profile it returns the executable, arguments, environment, the files to
 write, the guidance text and whether `AGENTS.md` carries the block. The
 terminal host spawns the plan in a PTY; a headless host can spawn the same
 plan with `LaunchMode::Headless` (`codex exec --json --skip-git-repo-check …
--`, `claude -p … --output-format stream-json --verbose --permission-mode
-dontAsk`), writing the prompt to standard input.
+-`, `claude -p … --output-format stream-json --include-partial-messages
+--verbose --permission-mode dontAsk`), writing the prompt to standard input.
+The Agent tab's Conversation pane runs these plans through `chat.send`, one
+fresh process per turn; Claude Code's partial messages let its text appear as
+it arrives, while Codex reports completed items.
 
 - Files live in `.omenflow/work/<session>/`, are written `0600`, and are
   removed when the session ends however it ends. Only Claude Code's

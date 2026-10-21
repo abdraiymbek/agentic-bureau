@@ -288,6 +288,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
             trailing: &[
                 "--output-format",
                 "stream-json",
+                "--include-partial-messages",
                 "--verbose",
                 "--permission-mode",
                 "dontAsk",

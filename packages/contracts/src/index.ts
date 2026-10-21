@@ -8,3 +8,4 @@ export * from './session.js';
 export * from './cad.js';
 export * from './agent.js';
 export * from './registry.js';
+export * from './chat.js';

@@ -1074,6 +1074,95 @@ const terminalStart = z.object({
   /** Capability profile for this session. Defaults to the adapter's setting. */
   profile: profileSettingSchema.optional(),
 });
+const richText = z.string().min(1).max(240);
+const chatPart = z.discriminatedUnion('kind', [
+  z
+    .object({ kind: z.literal('artifact'), artifactId: idSchema, revisionId: idSchema.optional() })
+    .strict(),
+  z.object({ kind: z.literal('review'), proposalId: idSchema }).strict(),
+  z
+    .object({
+      kind: z.literal('chart'),
+      title: richText,
+      xLabel: richText,
+      xUnit: z.string().max(32),
+      yLabel: richText,
+      yUnit: z.string().max(32),
+      source: richText,
+      provenance: z.literal('illustrative'),
+      points: z
+        .array(z.object({ x: z.number().finite(), y: z.number().finite() }).strict())
+        .min(2)
+        .max(100),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('form'),
+      title: richText,
+      fields: z
+        .array(
+          z
+            .object({
+              name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
+              label: richText,
+              unit: z.string().max(32),
+              value: z.number().finite().nullable(),
+              reason: z.string().max(500).optional(),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(16),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal('choices'),
+      title: richText,
+      options: z
+        .array(z.object({ label: richText, prompt: z.string().min(1).max(2000) }).strict())
+        .min(1)
+        .max(8),
+    })
+    .strict(),
+]);
+const chatPresent = z.object({ part: chatPart });
+const chatOpen = z.object({
+  conversationId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
+  part: chatPart,
+});
+const chatInput = z
+  .object({
+    artifactId: idSchema.optional(),
+    revisionId: idSchema.optional(),
+    title: richText,
+    intent: z.enum(['render', 'evaluate']),
+    fields: z
+      .array(
+        z
+          .object({
+            name: z.string().min(1).max(100),
+            text: z.string().max(2000),
+            unit: z.string().max(32),
+            unknown: z.boolean(),
+            reason: z.string().max(500).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(64),
+  })
+  .strict();
+const chatRead = z.object({});
+const chatSend = z.object({
+  conversationId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
+  requestId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/),
+  adapterId: z.enum(['codex', 'claude-code']),
+  text: z.string().min(1).max(32000).regex(/\S/),
+  input: chatInput.optional(),
+});
+const chatCancel = z.object({ conversationId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/) });
 const terminalWrite = z.object({ data: z.string() });
 const terminalResize = z.object({
   cols: z.number().int().positive(),
@@ -1235,6 +1324,7 @@ const PACK_BY_PREFIX: Record<string, OpPack> = {
   terminal: 'system',
   connection: 'system',
   agent: 'system',
+  chat: 'system',
   settings: 'system',
 };
 
@@ -2211,6 +2301,47 @@ export const OPS: OpDef[] = [
     { summary: 'Bring the agent terminal to the front.', example: {} },
   ),
 
+  def(
+    'chat.present',
+    chatPresent,
+    'both',
+    true,
+    'Present a safe inline card in your owning conversation turn. Artifact references are resolved to exact project revisions. Charts are explicitly illustrative, never evidence. Only supported declarative kinds are accepted; no HTML or code. Does not launch work or approve anything.',
+    {
+      agentVisible: false,
+      pack: 'ui',
+      summary: 'Present an inline artifact, chart, form, choice or human review.',
+      example: { part: { kind: 'artifact', artifactId: EX.artifact } },
+    },
+  ),
+  def(
+    'chat.open',
+    chatOpen,
+    'user',
+    true,
+    'Add a compact recorded card to a conversation without starting an agent',
+  ),
+  def(
+    'chat.read',
+    chatRead,
+    'user',
+    false,
+    'Read durable project conversations and actual run state',
+  ),
+  def(
+    'chat.send',
+    chatSend,
+    'user',
+    true,
+    'Accept one deduplicated request and run a structured headless agent',
+  ),
+  def(
+    'chat.cancel',
+    chatCancel,
+    'user',
+    true,
+    'Cancel and settle the owned conversation process tree',
+  ),
   def('terminal.start', terminalStart, 'user', true, 'Start an agent session in the PTY'),
   def('terminal.write', terminalWrite, 'user', true, 'Write input bytes to the PTY'),
   def('terminal.resize', terminalResize, 'user', true, 'Resize the PTY'),
@@ -2259,6 +2390,11 @@ export const RUST_HOST_OPS: ReadonlySet<string> = new Set([
   'tool.call',
   'agent.activity',
   'graph.remove_edges',
+  'chat.read',
+  'chat.present',
+  'chat.open',
+  'chat.send',
+  'chat.cancel',
 ]);
 
 /** JSON-schema view of an op's input (for CLI --help and tool_describe). Accepts either name form. */

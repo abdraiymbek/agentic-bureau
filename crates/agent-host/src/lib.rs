@@ -8,6 +8,7 @@
 //! session's capability profile and records the call in the ledger.
 
 mod adapters;
+mod chat;
 mod guide;
 mod ledger;
 mod mcp;
@@ -592,7 +593,12 @@ fn run_agent_call(
     let mut input = parse_agent(op, payload, trace)?;
     present::prefer_brief_detail(op, grant.profile, &mut input);
 
-    let hosted = op.name.starts_with("research.") || op.name.starts_with("browser.");
+    let hosted = op.name.starts_with("research.")
+        || op.name.starts_with("browser.")
+        || matches!(
+            op.name.as_str(),
+            "chat.present" | "ui.open_artifact" | "ui.request_review"
+        );
     let result = match (op.name.as_str(), &shared.host_dispatch) {
         ("guide.read", _) => guide::read(&input),
         ("proposal.wait", _) => wait_for_review(shared, grant, &input),

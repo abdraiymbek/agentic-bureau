@@ -664,14 +664,15 @@ mod tests {
         );
         assert_eq!(headless.args[0], "-p");
         assert_eq!(
-            headless.args[1..headless.args.len() - 5],
+            headless.args[1..headless.args.len() - 6],
             interactive.args[..]
         );
         assert_eq!(
-            headless.args[headless.args.len() - 5..],
+            headless.args[headless.args.len() - 6..],
             strings(&[
                 "--output-format",
                 "stream-json",
+                "--include-partial-messages",
                 "--verbose",
                 "--permission-mode",
                 "dontAsk"

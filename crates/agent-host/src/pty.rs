@@ -818,6 +818,12 @@ impl PtyHost {
         self.start_session(project_id, &input, conversation.as_deref())
     }
 
+    /// True while this project's agent terminal session is running.
+    pub fn running(&self, project_id: &str) -> bool {
+        self.session(project_id)
+            .is_some_and(|session| session.lock().is_ok_and(|s| s.info["state"] == "running"))
+    }
+
     pub fn state(&self, project_id: &str) -> Value {
         let Some(session) = self.session(project_id) else {
             return json!({"session":null});

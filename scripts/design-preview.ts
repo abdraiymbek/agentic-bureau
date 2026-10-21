@@ -28,13 +28,15 @@ import { buildHost, RustCore, type Envelope } from '../tests/conformance/rust-co
 
 const MAX_REQUEST_CHARS = 8_000_000;
 /**
- * Terminals and adapter settings start processes, so the preview offers them
- * only when it was started with OMEN_PREVIEW_AGENTS=1: an agent CLI runs
- * models and may update itself, and a Custom CLI runs any executable.
+ * Terminals, conversation sends and adapter settings start processes, so the
+ * preview offers them only when it was started with OMEN_PREVIEW_AGENTS=1: an
+ * agent CLI runs models and may update itself, and a Custom CLI runs any
+ * executable.
  */
 const AGENTS_ENABLED = process.env.OMEN_PREVIEW_AGENTS === '1';
 /** Operations that start or configure a process; reading state stays open. */
 const PROCESS_OPS = new Set([
+  'chat.send',
   'terminal.start',
   'terminal.restart',
   'connection.configure',
@@ -199,8 +201,8 @@ async function main() {
       throw new Refused('Open project archives in the desktop app.');
     if (PROCESS_OPS.has(op) && !AGENTS_ENABLED)
       throw new Refused(
-        'Terminals and agent settings are off in the design preview unless it was started with OMEN_PREVIEW_AGENTS=1.',
-        'Restart the preview with OMEN_PREVIEW_AGENTS=1 to run a terminal here, or use the desktop app.',
+        'Agents are off in the design preview unless it was started with OMEN_PREVIEW_AGENTS=1: terminals, conversation sends and agent settings.',
+        'Restart the preview with OMEN_PREVIEW_AGENTS=1 to run an agent here, or use the desktop app.',
       );
     if (op === 'project.export_archive' || op === 'build.export') {
       fs.mkdirSync(path.join(previewRoot, 'exports'), { recursive: true });
@@ -356,8 +358,8 @@ async function main() {
   console.log(`Disposable project data (removed when the preview stops): ${previewRoot}`);
   console.log(
     AGENTS_ENABLED
-      ? 'Terminals start for real from the Agent tab, agent CLIs included (OMEN_PREVIEW_AGENTS=1).'
-      : 'Terminals are off. Set OMEN_PREVIEW_AGENTS=1 to run a Custom CLI, Codex or Claude Code.',
+      ? 'Agents run for real from the Agent tab, terminal and conversation (OMEN_PREVIEW_AGENTS=1).'
+      : 'Agents are off. Set OMEN_PREVIEW_AGENTS=1 to run a Custom CLI, Codex or Claude Code.',
   );
   const stop = async () => {
     for (const stream of streams) stream.destroy();

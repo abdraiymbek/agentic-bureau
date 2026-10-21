@@ -43,8 +43,9 @@ credits and are never run by CI.
    harness never answers one. The harness adds only these flags:
    - Claude Code: `--strict-mcp-config`, `--no-session-persistence`,
      `--max-turns 40` and `--max-budget-usd 2`. The plan already has `-p`,
-     `--output-format stream-json`, `--verbose`, `--permission-mode dontAsk`
-     and `--allowedTools mcp__omenflow`.
+     `--output-format stream-json`, `--include-partial-messages`, `--verbose`,
+     `--permission-mode dontAsk` and `--allowedTools mcp__omenflow`. The
+     parser ignores the partial `stream_event` records.
    - Codex: `--ephemeral` and `--ignore-user-config`. The plan already has
      `exec --json` and its `-c` overrides. The MCP servers, plugins and
      notify hooks in the person's `config.toml` stay out, and authentication

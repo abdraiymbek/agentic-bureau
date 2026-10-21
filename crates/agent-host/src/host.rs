@@ -123,10 +123,75 @@ impl CoreGate {
     }
 }
 
+/// Resolve only local record IDs. Never trust a model-supplied path or revision from another artifact.
+fn resolve_card(gate: &CoreGate, project: &str, mut part: Value) -> Result<Value, ContractError> {
+    if part.to_string().len() > 24 * 1024 {
+        return Err(ContractError::validation("Inline card exceeds 24 KiB"));
+    }
+    match part["kind"].as_str() {
+        Some("artifact") => {
+            let mut input = json!({"artifactId":part["artifactId"], "detail":"full"});
+            if let Some(id) = part.get("revisionId") {
+                input["revisionId"] = id.clone();
+            }
+            let view = gate.call("artifact.read", input, Origin::User, Some(project), None)?;
+            let id = if part.get("revisionId").is_some() {
+                view["revision"]["id"].as_str()
+            } else {
+                view["view"]["head"]["id"]
+                    .as_str()
+                    .or(view["revision"]["id"].as_str())
+            }
+            .ok_or_else(|| ContractError::validation("This artifact has no recorded revision"))?;
+            if part
+                .get("revisionId")
+                .is_some_and(|wanted| wanted.as_str() != Some(id))
+                || view["revision"]["artifactId"] != part["artifactId"]
+            {
+                return Err(ContractError::validation(
+                    "The requested revision does not belong to this artifact",
+                ));
+            }
+            part["revisionId"] = json!(id);
+            part["title"] = view["view"]["artifact"]["title"].clone();
+        }
+        Some("review") => {
+            let proposal = gate.call(
+                "proposal.read",
+                json!({"proposalId":part["proposalId"]}),
+                Origin::User,
+                Some(project),
+                None,
+            )?;
+            part["title"] = proposal["proposal"]["reason"].clone();
+        }
+        Some("form") => {
+            let fields = part["fields"].as_array().unwrap();
+            let mut names = std::collections::HashSet::new();
+            for f in fields {
+                if !names.insert(f["name"].as_str())
+                    || (f["value"].is_null()
+                        && f["reason"].as_str().is_none_or(|s| s.trim().is_empty()))
+                {
+                    return Err(ContractError::validation(
+                        "Form fields need unique names, and unknown values need a reason",
+                    ));
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(part)
+}
+
 pub struct Host {
     gate: Arc<CoreGate>,
     bridge: Arc<BridgeServer>,
     pty: PtyHost,
+    chat: crate::chat::ChatHost,
+    /// Held from the check to the start of an agent, so a terminal session and a conversation
+    /// run never both start in one project.
+    agent_start: Mutex<()>,
     shell: Arc<dyn Shell>,
     research: Arc<Research>,
 }
@@ -165,6 +230,9 @@ impl Host {
             events: Arc::clone(&events),
         });
         let research = Arc::new(Research::new(surface, Arc::clone(&gate)));
+        let chat_state = Arc::new(Mutex::new(crate::chat::State::default()));
+        let agent_chat = Arc::clone(&chat_state);
+        let agent_gate = Arc::clone(&gate);
         let agent_events = Arc::clone(&events);
         let agent_research = Arc::clone(&research);
         let bridge = BridgeServer::start_with_host(
@@ -172,6 +240,39 @@ impl Host {
             &paths.app_data_dir,
             Arc::new(move |event| agent_events.emit(HostEvent::Project(event))),
             Some(Arc::new(move |op, payload, origin, project_id, key| {
+                if matches!(
+                    op.as_str(),
+                    "chat.present" | "ui.open_artifact" | "ui.request_review"
+                ) {
+                    let root = agent_gate.lock().project_root(&project_id)?;
+                    let session = origin.session_id().unwrap_or_default();
+                    // An agent terminal's requests move the workspace as before; only a
+                    // conversation run's become cards in the turn it owns.
+                    if op != "chat.present"
+                        && !crate::chat::owns_running_turn(&agent_chat, &root, session)
+                    {
+                        return agent_gate.call(&op, payload, origin, Some(&project_id), key.as_deref());
+                    }
+                    let part = match op.as_str() {
+                        "ui.open_artifact" => {
+                            json!({"kind":"artifact", "artifactId":payload["artifactId"]})
+                        }
+                        "ui.request_review" => {
+                            json!({"kind":"review", "proposalId":payload["proposalId"]})
+                        }
+                        _ => payload["part"].clone(),
+                    };
+                    let part = resolve_card(&agent_gate, &project_id, part)?;
+                    if crate::chat::present(&agent_chat, &root, session, part)? {
+                        return Ok(json!({"ok":true, "presentation":"owning conversation turn"}));
+                    }
+                    if op == "chat.present" {
+                        return Err(ContractError::validation(
+                            "This session has no running conversation turn",
+                        ));
+                    }
+                    return agent_gate.call(&op, payload, origin, Some(&project_id), key.as_deref());
+                }
                 agent_research.dispatch(&op, payload, origin, &project_id, key.as_deref())
             })),
         )
@@ -206,8 +307,10 @@ impl Host {
         );
         Ok(Self {
             gate,
-            bridge,
+            bridge: Arc::clone(&bridge),
             pty,
+            chat: crate::chat::ChatHost::new(Arc::clone(&bridge), chat_state),
+            agent_start: Mutex::new(()),
             shell,
             research,
         })
@@ -246,7 +349,16 @@ impl Host {
         let definition = registry()
             .operation(op)
             .ok_or_else(|| ContractError::validation(format!("Unknown operation: {op}")))?;
-        let payload = parse_input(definition, payload)?;
+        let mut payload = parse_input(definition, payload)?;
+        if op == "chat.present" {
+            return Err(ContractError::validation(
+                "chat.present requires an owning agent session; use chat.open to open a card",
+            ));
+        }
+        if op == "chat.open" {
+            payload["part"] =
+                resolve_card(&self.gate, required(project_id)?, payload["part"].clone())?;
+        }
         if research::handles(op) {
             return self.research.dispatch(
                 op,
@@ -259,11 +371,59 @@ impl Host {
         if op == "tool.call" {
             return self.tool_call(&payload, project_id, idempotency_key);
         }
+        // One agent works in a project at a time: an agent terminal or a conversation run.
+        let _starting = matches!(op, "terminal.start" | "terminal.restart" | "chat.send")
+            .then(|| self.agent_start.lock().unwrap_or_else(|e| e.into_inner()));
+        if matches!(op, "terminal.start" | "terminal.restart") {
+            let id = required(project_id)?;
+            let root = self.gate.lock().project_root(id)?;
+            if self.chat.running_in(&root) {
+                return Err(ContractError::new(
+                    "BUSY",
+                    "A conversation response is running in this project",
+                )
+                .with_repair(
+                    "Stop the response in the Conversation pane, or wait until it finishes.",
+                ));
+            }
+        }
         if let Some(result) = self.host_operation(op, &payload, project_id) {
             return result;
         }
+        if op.starts_with("chat.") {
+            let id = required(project_id)?;
+            let (root, read_only) = {
+                let core = self.gate.lock();
+                let root = core.project_root(id)?;
+                let writable = core.assert_project_writable(id);
+                let read_only = writable.is_err();
+                if op != "chat.read" {
+                    writable?;
+                }
+                (root, read_only)
+            };
+            return self.chat.command(op, &root, &payload, read_only, || {
+                if self.pty.running(id) {
+                    return Err(ContractError::new(
+                        "BUSY",
+                        "A terminal session is running in this project",
+                    )
+                    .with_repair("Stop the terminal session, or ask from the Terminal pane."));
+                }
+                if let Some(input) = payload.get("input") {
+                    if let Some(artifact) = input["artifactId"].as_str() {
+                        let view = self.gate.call("artifact.read", json!({"artifactId":artifact, "detail":"full"}), Origin::User, Some(id), None)?;
+                        let head = view["view"]["head"]["id"].as_str().or(view["revision"]["id"].as_str());
+                        if head != input["revisionId"].as_str() { return Err(ContractError::validation("The attached revision is stale. Open the newer card, then prepare and send again.")); }
+                    }
+                }
+                self.pty.prepare_headless(id, &payload)
+            });
+        }
         if op == "project.close" {
             if let Some(id) = project_id {
+                self.chat
+                    .stop_project(&self.gate.lock().project_root(id)?)?;
                 self.pty.close(id)?;
             }
         }
@@ -385,6 +545,9 @@ impl Host {
 
     /// True while any project has a running agent terminal session.
     pub fn agent_running(&self) -> bool {
+        if self.chat.running() {
+            return true;
+        }
         let open = self
             .gate
             .lock()
@@ -397,13 +560,14 @@ impl Host {
             .into_iter()
             .flatten()
             .filter_map(|project| project["id"].as_str())
-            .any(|id| self.pty.state(id)["session"]["state"] == "running")
+            .any(|id| self.pty.running(id))
     }
 
     /// Stop every agent terminal and revoke its bridge grant, and stop any
     /// OpenSCAD process still running. Call before the process exits; a
     /// dropped host does not get the chance.
     pub fn shutdown(&self) {
+        self.chat.shutdown();
         self.pty.shutdown();
         stop_engines();
     }

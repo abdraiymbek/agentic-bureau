@@ -7384,6 +7384,687 @@
       }
     },
     {
+      "name": "chat.present",
+      "toolName": "chat_present",
+      "description": "Present a safe inline card in your owning conversation turn. Artifact references are resolved to exact project revisions. Charts are explicitly illustrative, never evidence. Only supported declarative kinds are accepted; no HTML or code. Does not launch work or approve anything.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": false,
+      "agentAllowed": true,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "ui",
+      "summary": "Present an inline artifact, chart, form, choice or human review.",
+      "example": {
+        "part": {
+          "kind": "artifact",
+          "artifactId": "00000000-0000-4000-8000-000000000001"
+        }
+      },
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "artifact"
+                  },
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "artifactId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "review"
+                  },
+                  "proposalId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "proposalId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "chart"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "xLabel": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "xUnit": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "yLabel": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "yUnit": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "const": "illustrative"
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 2,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "xLabel",
+                  "xUnit",
+                  "yLabel",
+                  "yUnit",
+                  "source",
+                  "provenance",
+                  "points"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "form"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "label",
+                        "unit",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "fields"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "choices"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "prompt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "options"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "part"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "chat.open",
+      "toolName": "chat_open",
+      "description": "Add a compact recorded card to a conversation without starting an agent",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Add a compact recorded card to a conversation without starting an agent",
+      "example": null,
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "artifact"
+                  },
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revisionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "artifactId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "review"
+                  },
+                  "proposalId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "proposalId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "chart"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "xLabel": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "xUnit": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "yLabel": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "yUnit": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "provenance": {
+                    "type": "string",
+                    "const": "illustrative"
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 2,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "xLabel",
+                  "xUnit",
+                  "yLabel",
+                  "yUnit",
+                  "source",
+                  "provenance",
+                  "points"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "form"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "unit": {
+                          "type": "string",
+                          "maxLength": 32
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "label",
+                        "unit",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "fields"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "choices"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 240
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "prompt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1,
+                    "maxItems": 8
+                  }
+                },
+                "required": [
+                  "kind",
+                  "title",
+                  "options"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "conversationId",
+          "part"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "chat.read",
+      "toolName": "chat_read",
+      "description": "Read durable project conversations and actual run state",
+      "capability": "user",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Read durable project conversations and actual run state",
+      "example": null,
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "chat.send",
+      "toolName": "chat_send",
+      "description": "Accept one deduplicated request and run a structured headless agent",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Accept one deduplicated request and run a structured headless agent",
+      "example": null,
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          },
+          "adapterId": {
+            "type": "string",
+            "enum": [
+              "codex",
+              "claude-code"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000,
+            "pattern": "\\S"
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "artifactId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "revisionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 240
+              },
+              "intent": {
+                "type": "string",
+                "enum": [
+                  "render",
+                  "evaluate"
+                ]
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "unit": {
+                      "type": "string",
+                      "maxLength": 32
+                    },
+                    "unknown": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "text",
+                    "unit",
+                    "unknown"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 64
+              }
+            },
+            "required": [
+              "title",
+              "intent",
+              "fields"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "conversationId",
+          "requestId",
+          "adapterId",
+          "text"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "chat.cancel",
+      "toolName": "chat_cancel",
+      "description": "Cancel and settle the owned conversation process tree",
+      "capability": "user",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": false,
+      "agentTool": false,
+      "tier": "full",
+      "pack": "system",
+      "summary": "Cancel and settle the owned conversation process tree",
+      "example": null,
+      "compactSchema": null,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "terminal.start",
       "toolName": "terminal_start",
       "description": "Start an agent session in the PTY",
