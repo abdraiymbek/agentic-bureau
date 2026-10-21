@@ -118,7 +118,10 @@ export async function installDesignPreview() {
   document.documentElement.dataset.preview = 'true';
   const params = new URLSearchParams(location.search);
   const screen = params.get('screen');
-  if (screen === 'launcher') return;
+  // The preview's browser profile may have seen the introduction: `screen=intro` plays it over
+  // the launcher regardless, and every other screen starts without it.
+  useStore.getState().set({ introOpen: screen === 'intro' });
+  if (screen === 'launcher' || screen === 'intro') return;
   const result = await api.command('project.open', { path: bootstrap.path });
   if (!result.ok) throw new Error('Could not open preview project');
   const opened = result.result as { project: Project; projectId: string };

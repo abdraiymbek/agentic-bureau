@@ -354,6 +354,7 @@ async function main() {
   await server.listen();
   console.log(`Omen Flow design preview: http://127.0.0.1:${port}/?design-preview&key=${key}`);
   console.log(`Launcher: http://127.0.0.1:${port}/?design-preview&screen=launcher&key=${key}`);
+  console.log(`Introduction: http://127.0.0.1:${port}/?design-preview&screen=intro&key=${key}`);
   console.log('Open one of these addresses; the key lets only that browser use the preview.');
   console.log(`Disposable project data (removed when the preview stops): ${previewRoot}`);
   console.log(

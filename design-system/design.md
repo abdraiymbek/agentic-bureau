@@ -1,6 +1,6 @@
 # Omen Flow design system — Lens
 
-Version 2.4 · 19 October 2026 · **See the whole. Focus on one. Decide.**
+Version 2.5 · 21 October 2026 · **See the whole. Focus on one. Decide.**
 
 Lens is the design language and interaction model of Omen Flow. It replaces the previous
 sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
@@ -66,6 +66,16 @@ left edge: the Agent tab first, then the lens tabs and Decisions. There is no da
 - The launcher is the only screen without a project. It asks one question — _What are you
   building?_ — creates the project in a named folder it shows before anything is written, and
   lists recent work.
+- The **introduction** plays over the launcher once on first launch, and again from Settings
+  (Appearance), the launcher's footer, `⌘K` or the catalogue. It is the one place that stretches
+  the language: four acts play the product on the rover's own map (arrive; _see the whole_, the
+  map draws itself left to right and its thread lights; _focus on one_, the camera tray zooms
+  into its stage and renders live; _decide_, the person approves a proposal themselves and the
+  impact travels the recorded links), then five setup steps do the real thing (detect and choose
+  the agent CLI, probe OpenSCAD, pick Graphite or Paper, press the shortcuts, see where
+  everything lives). One causal rail along the bottom is the progress; `→` and `←` move, `Esc`
+  skips, nothing in it reaches a record, and it is remembered as the version seen
+  (`omen.intro`), so a reworked introduction plays again for everyone.
 - Settings is a sheet (`⌘,`) with three remembered sections (Agents, Engineering tools,
   Appearance), never a destination.
 - The Design system view is reachable from the launcher and `⌘K`.
@@ -389,6 +399,7 @@ terminal. Both are vendored in `fonts/`.
 
 | Token        | Size | Role                                  |
 | ------------ | ---- | ------------------------------------- |
+| `--text-4xl` | 56   | The introduction's act titles         |
 | `--text-3xl` | 38   | Launcher question, calculation result |
 | `--text-2xl` | 26   | Project and object titles             |
 | `--text-xl`  | 19   | Statements, target values, totals     |
@@ -411,12 +422,15 @@ Numbers use tabular figures (`.num`, `.tabular`). Sentence case everywhere; no a
   Needs you, the agent window, viewport tools, map controls, omnibar, sheet. Menus use
   `--shadow-menu`, tooltips `--shadow-pop`.
 - Layers are tokens (`--z-raised` … `--z-tooltip`): sticky heads, stage tools, the save bar,
-  canvas tools, the project head, islands, the agent tab and window, the titlebar, the scrim,
-  dialogs, menus, toasts, tooltips.
+  canvas tools, the project head, islands, the agent tab and window, the titlebar, the
+  introduction, the scrim, dialogs, menus, toasts, tooltips.
 - Pressed is `--pressed` with `--press-scale` at once (other controls fall back to
   `--press-filter`); disabled is `--disabled-opacity`.
 - Motion is functional: 120 ms feedback and exits (`--ease-in`), 200 ms state and enters,
-  320 ms zoom and sheet. Five utilities carry it: `.motion-fade` (scrims), `.motion-rise`
+  320 ms zoom and sheet. Two longer durations belong to the introduction alone: 560 ms scene
+  changes (`--t-scene`) and 900 ms draws (`--t-draw`: one link, one stage zoom, one wave of
+  impact); its choreography is staggered delays over those two, never other durations. Five
+  utilities carry it: `.motion-fade` (scrims), `.motion-rise`
   (omnibar, menus, toasts, prompts), `.motion-sheet`, `.motion-zoom-in`, `.motion-zoom-out`.
   Each plays on mount and exits while Radix marks it `data-state='closed'` or the surface sets
   `data-leaving`. Only live things pulse. `prefers-reduced-motion` zeroes every duration and
@@ -434,7 +448,8 @@ vectorised from the supplied artwork (`brand/source-mark-*.png`) as `brand/omen-
 (`currentColor`) and rendered in code by `Mark`.
 
 - Monochrome only: `--text` on Graphite, black on Paper. Never tinted with signal.
-- Sizes: 17 px titlebar button, 18–22 px lockup, 30–34 px launcher and catalogue hero.
+- Sizes: 17 px titlebar button, 18–22 px lockup, 30–34 px launcher and catalogue hero, 40 px
+  introduction.
 - Wordmark **Omen Flow** in Geist; “Omen” semibold, “Flow” regular and secondary.
 - The app icon (`brand/app-icon.svg` → `apps/rust-desktop/icons/`) places the Paper mark on a
   graphite squircle with a faint rim.
@@ -476,7 +491,8 @@ pane switch, conversation turn and composer, input attachment, inline card (part
 quantities, chart, choices, review), activity rail and call row, agent onboarding panel,
 waiting-to-type bar, terminal search,
 agent window (dock, collapse), island, sheet, omnibar, unsaved-work prompt, project loading
-state, frame strip (failures to act on, with Retry or Dismiss), toast. The catalogue's “In the
+state, frame strip (failures to act on, with Retry or Dismiss), toast, introduction (acts on
+the rover map, setup card, progress rail). The catalogue's “In the
 product” section opens each one where it lives.
 
 ## 6. Engineering integrity
@@ -601,6 +617,7 @@ run's output.
 | Object focus and stages                            | `renderer/object/` (`stages/`, `mechanical/`, `viewport/`, `revisions.tsx`, `rails.tsx`, `useRevisionDraft.ts`)            |
 | Decisions                                          | `renderer/decide/` (model, guard, memory, handoff, diff rendering, CAD review)                                             |
 | Launcher                                           | `renderer/launcher/`                                                                                                       |
+| Introduction                                       | `renderer/intro/` (scene model and keys, the rover map, the acts, the setup steps, the rail)                               |
 | Catalogue                                          | `renderer/system/DesignSystemView.tsx`                                                                                     |
 | Lineage, actions, proposals, diffs, edits          | `renderer/lib/` (`graph`, `actions`, `proposals`, `diff`, `revision-draft`, `unsaved-edits`, …)                            |
 | Disposable preview                                 | `scripts/design-preview.ts` (the Rust headless host), `renderer/preview.ts`                                                |
@@ -626,6 +643,7 @@ surface they style.
 | `viewport.css`     | The mechanical stage and the STL viewport                                                         |
 | `decide.css`       | Queue, proposal, diff, decision bar, CAD review                                                   |
 | `system.css`       | The catalogue                                                                                     |
+| `intro.css`        | The introduction: the map's draw-in and impact, the acts, the setup card, the rail                |
 
 A lens is one entry in `LENSES` (`renderer/project/lenses.ts`) plus its component. The activity
 bar, `⌘n`, the omnibar, the preview's `screen=` parameter, and the catalogue read that list.

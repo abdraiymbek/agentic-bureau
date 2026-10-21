@@ -1358,6 +1358,12 @@ function InProduct() {
       open: () => set({ settingsOpen: true }),
     },
     {
+      name: 'Introduction: acts on the rover map, setup steps, progress rail',
+      where: 'intro/Intro.tsx, intro/',
+      action: 'Play it',
+      open: () => set({ introOpen: true }),
+    },
+    {
       name: 'Toast (clears the decision bar and map controls)',
       where: 'frame/Toasts.tsx',
       action: 'Show one',

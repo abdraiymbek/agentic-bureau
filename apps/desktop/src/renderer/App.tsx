@@ -32,6 +32,8 @@ const AgentSurface = lazyView(() => import('./shell/Agent').then((m) => m.AgentS
 // ahead with the views above.
 const Omnibar = lazyView(() => import('./shell/Omnibar').then((m) => m.Omnibar));
 const Settings = lazyView(() => import('./shell/Settings').then((m) => m.Settings));
+// The introduction: once on first launch, over the launcher, and again on request.
+const Intro = lazyView(() => import('./intro/Intro').then((m) => m.Intro));
 
 /** True from the first time `open` is true: a layer stays mounted so it can animate closed. */
 function useOpened(open: boolean): boolean {
@@ -91,6 +93,7 @@ export default function App() {
   const firstLoadComplete = useStore((s) => s.firstLoadComplete);
   const omnibarOpened = useOpened(useStore((s) => s.omniOpen));
   const settingsOpened = useOpened(useStore((s) => s.settingsOpen));
+  const introOpen = useStore((s) => s.introOpen);
   const [serviceError, setServiceError] = useState<string | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   const key = viewKey(view);
@@ -336,6 +339,13 @@ export default function App() {
         <ErrorBoundary label="Settings">
           <Suspense fallback={null}>
             <Settings.Component />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {introOpen && (
+        <ErrorBoundary label="The introduction">
+          <Suspense fallback={null}>
+            <Intro.Component />
           </Suspense>
         </ErrorBoundary>
       )}

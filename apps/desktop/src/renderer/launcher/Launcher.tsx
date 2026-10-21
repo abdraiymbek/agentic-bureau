@@ -385,9 +385,18 @@ export function Launcher() {
 
         <footer className="launcher-foot">
           <span>Local by design. No account, no cloud copy.</span>
-          <button type="button" className="link" onClick={() => go({ level: 'system' })}>
-            Design system
-          </button>
+          <span className="row">
+            <button
+              type="button"
+              className="link"
+              onClick={() => useStore.getState().set({ introOpen: true })}
+            >
+              Introduction
+            </button>
+            <button type="button" className="link" onClick={() => go({ level: 'system' })}>
+              Design system
+            </button>
+          </span>
         </footer>
       </div>
     </div>

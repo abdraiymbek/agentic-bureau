@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowClockwise, Cube, FolderOpen, TerminalWindow, X } from '@phosphor-icons/react';
+import { ArrowClockwise, Cube, FolderOpen, Play, TerminalWindow, X } from '@phosphor-icons/react';
 import type { AdapterStatus, ProfileSetting } from '@omenflow/contracts';
 import { preferredAdapter, useStore } from '../store';
 import { restartAgent, startAgent } from '../lib/actions';
@@ -664,6 +664,19 @@ function AppearanceSection() {
             { value: 'light', label: 'Paper' },
           ]}
         />
+      </div>
+      <div className="setting-row">
+        <div>
+          <strong>Introduction</strong>
+          <small>The four acts and the setup steps that played on first launch.</small>
+        </div>
+        <Button
+          size="sm"
+          icon={<Play size={12} weight="fill" />}
+          onClick={() => set({ settingsOpen: false, introOpen: true })}
+        >
+          Play again
+        </Button>
       </div>
     </section>
   );

@@ -1,5 +1,5 @@
 /*
- * Omen Flow tokens · Lens 2.2
+ * Omen Flow tokens · Lens 2.5
  * One graphite field, one signal colour, three engineering states.
  * Every colour, font, radius, shadow, layer and duration in the renderer comes from here.
  * Text roles meet WCAG AA (4.5:1) on every surface they sit on; line and dot roles meet 3:1.
@@ -19,6 +19,7 @@
   --text-xl: 19px;
   --text-2xl: 26px;
   --text-3xl: 38px;
+  --text-4xl: 56px; /* the introduction's act titles */
   --text-mono: 12px; /* code editors and source */
   --leading-display: 1.15; /* titles at xl and above */
   --leading-tight: 1.35; /* rows, labels, two-line metadata */
@@ -68,6 +69,7 @@
   --z-agent-tab: 8;
   --z-agent-window: 12;
   --z-titlebar: 20;
+  --z-intro: 40; /* the introduction: over the workspace and titlebar, under the scrim */
   --z-overlay: 50;
   --z-dialog: 51; /* omnibar, sheet */
   --z-menu: 60;
@@ -81,6 +83,8 @@
   --t-fast: 120ms; /* feedback: hover, press, exit */
   --t: 200ms; /* state, enter */
   --t-slow: 320ms; /* zoom, sheet */
+  --t-scene: 560ms; /* the introduction: a scene gives way to the next */
+  --t-draw: 900ms; /* the introduction: a link draws, a stage zooms, an impact travels one link */
   --t-spin: 800ms;
   --t-pulse: 1800ms;
 
@@ -277,6 +281,8 @@
     --t-fast: 0ms;
     --t: 0ms;
     --t-slow: 0ms;
+    --t-scene: 0ms;
+    --t-draw: 0ms;
     --press-scale: 1;
   }
 }

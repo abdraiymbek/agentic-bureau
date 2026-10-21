@@ -22,7 +22,7 @@ Run `pnpm design:preview` (set `OMEN_PREVIEW_PORT` to use a port other than 5173
 Rust headless host (`omenflow-host`) with disposable rover and drone projects; its Agent tab runs
 a real terminal (a Custom CLI, or Codex CLI and Claude Code when started with
 `OMEN_PREVIEW_AGENTS=1`). Preview parameters:
-`screen=launcher|agent|flow|parts|timeline|files|evidence|decide|system`, `object=<artifact type>`,
+`screen=intro|launcher|agent|flow|parts|timeline|files|evidence|decide|system`, `object=<artifact type>`,
 `theme=light|dark`, `console=open` (opens the agent window).
 
 The in-app **Design system** view (launcher footer or `⌘K`, or `screen=system`) is the live

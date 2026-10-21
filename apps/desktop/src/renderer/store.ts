@@ -52,12 +52,16 @@ import {
 } from './lib/navigation';
 import {
   DEFAULT_PROJECT_PREFS,
+  INTRO_VERSION,
   PREF_KEYS,
+  introDue,
+  parseIntroSeen,
   parseProjectPrefs,
   parseRails,
   parseRecents,
   parseTheme,
   readRaw,
+  serializeIntroSeen,
   serializeProjectPrefs,
   writeRaw,
   type RailPrefs,
@@ -161,6 +165,8 @@ interface State {
   agentWindowOpen: boolean;
   omniOpen: boolean;
   settingsOpen: boolean;
+  /** The introduction is on screen: once on first launch, and whenever it is played again. */
+  introOpen: boolean;
   theme: 'dark' | 'light';
   /** Folded object rails; persisted as `omen.rails`. */
   rails: RailPrefs;
@@ -183,6 +189,8 @@ interface State {
    */
   askAbout: (text?: string) => void;
   setAgent: (adapterId: string) => void;
+  /** Closes the introduction and remembers that this version of it was seen. */
+  endIntro: () => void;
   setRailCollapsed: (rail: keyof RailPrefs, collapsed: boolean) => void;
   /** Saves the project intent, showing it at once and restoring the old text if the save fails. */
   updateIntent: (intent: string) => Promise<void>;
@@ -513,6 +521,7 @@ export const useStore = create<State>((set, get) => {
     agentWindowOpen: false,
     omniOpen: false,
     settingsOpen: false,
+    introOpen: introDue(parseIntroSeen(readRaw(PREF_KEYS.intro))),
     theme: parseTheme(readRaw(PREF_KEYS.theme)),
     rails: parseRails(readRaw(PREF_KEYS.rails)),
     agentId: readRaw(PREF_KEYS.agent),
@@ -598,6 +607,10 @@ export const useStore = create<State>((set, get) => {
     },
     askAbout: (text = '') => {
       askAgent(text);
+    },
+    endIntro: () => {
+      writeRaw(PREF_KEYS.intro, serializeIntroSeen(INTRO_VERSION, new Date().toISOString()));
+      set({ introOpen: false });
     },
     setAgent: (adapterId) => {
       writeRaw(PREF_KEYS.agent, adapterId);

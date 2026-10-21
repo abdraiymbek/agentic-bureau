@@ -4,6 +4,50 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## Introduction · 21 October 2026
+
+A first-run introduction over the launcher (`renderer/intro/`, `styles/intro.css`): four acts on
+the rover's own map, then five setup steps. Arrive: the lockup rises letter by letter under one
+neutral ring; the mark itself is never animated. See the whole: the map draws left to right by
+column and lights the payload thread with pulses; while it is lit, hovering any node lights that
+node's own thread. Focus on one: the camera tray's node grows into a stage with a live three.js
+tray built under a scan plane, its dimensions typed and its parameters counted up, between its
+two rails. Decide: the proposal to raise the payload to 500 g; Approve (button or `⌘↵`) flips it
+to Approved, the impact draws the four dependent links in the attention colour wave by wave, marks
+each dependent Out of date and brings in the Needs-you strip, then “Approval never means
+validated.” The steps do the real thing: agent CLI detection and choice (`connection.list`,
+`setAgent`, Set path through `connection.configure`), the OpenSCAD probe (`tool.doctor`, Locate
+through `settings.set`), Graphite or Paper live, the shortcut primer lit by real presses, and
+where projects and settings live by platform. Replayable from Settings → Appearance, the
+launcher's footer, `⌘K` (Introduction) and the catalogue; `screen=intro` in the design preview.
+Remembered as the version seen (`omen.intro`), so skipping counts and a reworked introduction
+plays again for everyone. New tokens: `--text-4xl`, `--z-intro`, `--t-scene`, `--t-draw` (both
+zeroed under reduced motion, where the pulses and the ring are hidden too).
+
+Checks on the working tree: `pnpm typecheck`, `pnpm lint` (0 errors, no warnings in changed
+files), `pnpm format:check`, `pnpm test` (106 files, 1057 passed, 2 existing skips) including the
+new `tests/frontend/intro-model.test.ts` (scene order and navigation, what each key does, the
+primer, map fit at 1440 × 900 and 1024 × 700, rover columns, links and thread waves, platform copy,
+the seen-version preference).
+
+The Rust design preview was reviewed in Graphite at 1440 × 900 and in Paper at 1024 × 700 through
+every act and step: the map fit both windows with its titles clear; the stage and the decision
+grew into place; approval, the travelling impact and the Needs-you strip played; the agent step
+detected Codex CLI and Claude Code with their versions and the engine step found the installed
+OpenSCAD and its path; Paper switched the whole scene, backdrop included; the keys step lit `⌘J`,
+`⌘⇧D` and `Esc` as they were pressed (the preview's browser took `⌘K` and `⌘1` before the page
+saw them; the native webview has no such chrome); Start dissolved into the launcher with the
+name field focused and the Introduction link in its footer. Found and fixed during the review:
+the object and decision frames sat under the act titles; the Needs-you island covered the
+Evidence column at 1440 and the Intent column at 1024, so it became a strip under the map; the
+layer announced itself as a dialog, which the shortcut model reads as someone else's, so the
+keys step ignored every press.
+
+Not covered: native `pnpm dev` in WKWebView, reduced motion (the durations are tokens and the
+moving parts are hidden, but no run with the setting on), VoiceOver, Windows and Linux, and a
+machine without agent CLIs or OpenSCAD (the not-detected rows, Set path, Locate and the install
+notice were not seen live).
+
 ## Conversation updates pushed by the host · 20 October 2026
 
 The conversation pane no longer polls `chat.read` (every 200 ms while a response ran, every 5 s

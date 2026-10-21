@@ -12,6 +12,7 @@ export const PREF_KEYS = {
   theme: 'omen.theme',
   agent: 'omen.agent',
   rails: 'omen.rails',
+  intro: 'omen.intro',
   project: (projectId: string) => `omen.project.${projectId}`,
   recent: (projectId: string) => `omen.recent.${projectId}`,
 } as const;
@@ -134,4 +135,27 @@ export function parseRecents(raw: string | null, limit: number): string[] {
   return Array.isArray(value)
     ? value.filter((x): x is string => typeof x === 'string' && x.length > 0).slice(0, limit)
     : [];
+}
+
+/**
+ * The introduction plays once per version of itself. Raising this number plays a reworked
+ * introduction again for everyone; it is remembered as the version seen, never as "done".
+ */
+export const INTRO_VERSION = 1;
+
+/** The introduction version this person has seen; 0 when none is recorded. */
+export function parseIntroSeen(raw: string | null): number {
+  const value = parseJson(raw);
+  if (!isRecord(value)) return 0;
+  const version = value.version;
+  return typeof version === 'number' && Number.isInteger(version) && version > 0 ? version : 0;
+}
+
+export function serializeIntroSeen(version: number, at: string): string {
+  return JSON.stringify({ version, at });
+}
+
+/** The current introduction has not been seen (or an earlier one was). */
+export function introDue(seenVersion: number): boolean {
+  return seenVersion < INTRO_VERSION;
 }

@@ -489,6 +489,15 @@ function useItems(text: string) {
         command: true,
         run: () => go({ level: 'system' }),
       },
+      {
+        id: 'act:intro',
+        group: 'actions',
+        label: 'Introduction',
+        keywords: 'onboarding welcome tour first run setup',
+        icon: <Play size={15} />,
+        command: true,
+        run: () => useStore.getState().set({ introOpen: true }),
+      },
     );
 
     for (const item of items)
