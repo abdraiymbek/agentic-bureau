@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ChatRecord } from '@omenflow/contracts';
-import { RustCore } from './rust-core';
+import { RustCore, type HostEvent } from './rust-core';
 const USER = { kind: 'user' as const };
 const roots: string[] = [];
 const apps: RustCore[] = [];
@@ -72,6 +72,36 @@ describe.skipIf(process.platform === 'win32')('structured chat host contract', (
     await expect(
       restarted.dispatch('chat.send', { ...send, text: 'Different request' }, USER, projectId),
     ).rejects.toMatchObject({ code: 'VALIDATION' });
+  });
+  it('announces each change to the record on the event stream, never the record itself', async () => {
+    const { app, projectId } = await setup();
+    const seen: HostEvent[] = [];
+    const stop = app.subscribe((event) => seen.push(event));
+    // The stream is live once an event recorded after subscribing shows up.
+    await expect
+      .poll(async () => {
+        await app.dispatch(
+          'artifact.create_draft',
+          { type: 'note', title: 'Probe', payload: { markdown: 'Probe.' } },
+          USER,
+          projectId,
+        );
+        return seen.some((event) => event.name === 'event');
+      })
+      .toBe(true);
+    const changes = () => seen.filter((event) => event.name === 'chat').map((event) => event.data);
+    await app.dispatch('chat.send', send, USER, projectId);
+    // Acceptance, the agent's text and the settled turn.
+    await expect.poll(() => changes().length).toBe(3);
+    stop();
+    const record = (await app.dispatch('chat.read', {}, USER, projectId)) as ChatRecord;
+    expect(record.conversations[0]?.turns[0]?.state).toBe('completed');
+    const seqs = changes().map((change) => {
+      expect(change).toEqual({ projectId, seq: expect.any(Number) });
+      return (change as { seq: number }).seq;
+    });
+    expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
+    expect(new Set(seqs).size).toBe(3);
   });
   it('lets one agent work in a project at a time', async () => {
     const { root, app, projectId } = await setup();

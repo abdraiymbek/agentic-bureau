@@ -1,10 +1,11 @@
 /**
  * Development-only bridge. Runs the real Rust host on disposable fixture
- * projects: commands, project events, agent terminals and agent call records
- * all come from `omenflow-host` through the preview server.
+ * projects: commands, project events, agent terminals, agent call records and
+ * conversation changes all come from `omenflow-host` through the preview server.
  */
-import type { OmenflowApi } from './api';
+import type { ChatChange, OmenflowApi } from './api';
 import { useStore } from './store';
+import { useChat } from './chat/chat-store';
 import { lensDef } from './project/lenses';
 import type { Project, SessionInfo } from '@omenflow/contracts';
 
@@ -37,6 +38,7 @@ export async function installDesignPreview() {
   const terminalData = channel<Parameters<Parameters<OmenflowApi['onTerminalData']>[0]>[0]>();
   const terminalState = channel<unknown>();
   const agentCalls = channel<unknown>();
+  const chatChanges = channel<ChatChange>();
   const service = channel<{ available: boolean; message?: string }>();
 
   const hint = () => {
@@ -64,6 +66,7 @@ export async function installDesignPreview() {
     onJobProgress: () => () => {},
     onServiceState: service.subscribe,
     onAgentCall: agentCalls.subscribe,
+    onChat: chatChanges.subscribe,
     // The launcher picks where a new project folder goes; the preview offers its own root, so a
     // new project lands beside the fixtures. Opening a project picks the rover.
     pickDirectory: async (title) =>
@@ -92,6 +95,7 @@ export async function installDesignPreview() {
   on('terminal-data', terminalData.emit);
   on('terminal-state', terminalState.emit);
   on('agent-call', agentCalls.emit);
+  on('chat', chatChanges.emit);
   // The host could not replay what this page missed: read the state again
   // instead of trusting a stream with a hole in it.
   on('resync', () => {
@@ -99,6 +103,7 @@ export async function installDesignPreview() {
     void state.refreshAll().catch(() => {});
     const projectId = state.projectId;
     if (!projectId) return;
+    if (useChat.getState().projects[projectId]) void useChat.getState().refresh(projectId);
     void api.command('terminal.state', {}, { projectId }).then((response) => {
       if (!response.ok) return;
       const session = (response.result as { session: SessionInfo | null }).session;

@@ -1,40 +1,57 @@
 import { useEffect } from 'react';
-import { useChat, type ProjectChat } from './chat-store';
+import { useChat } from './chat-store';
 
-/** A response is running or a send is unconfirmed: read the record often. */
-export function chatBusy(state: ProjectChat | undefined): boolean {
-  return (
-    !!state &&
-    (Object.keys(state.pending).length > 0 ||
-      state.record.conversations.some((c) => c.turns.some((t) => t.state === 'running')))
-  );
-}
+/** While the host reports changes, such as streamed text, the record is read at most this often. */
+export const CHANGE_GAP_MS = 100;
+/** Without a change the record is still read this often, to catch anything an event missed. */
+export const FALLBACK_MS = 30_000;
 
 /**
- * Keep the project's conversation record current while the agent surface is mounted: every 200 ms
- * while a response runs, every 5 s otherwise.
+ * Keep the project's conversation record current while the agent surface is mounted. The host
+ * says when the record changes (`onChat`) and the record is read again: one read at a time, at
+ * most every 100 ms however fast the agent streams, and every 30 s without a change.
  */
 export function useChatSync(projectId: string | null) {
-  const busy = useChat((s) => chatBusy(projectId ? s.projects[projectId] : undefined));
   useEffect(() => {
     if (!projectId) return;
-    useChat.getState().ensure(projectId);
-    void useChat.getState().refresh(projectId);
+    const chat = useChat.getState;
+    chat().ensure(projectId);
     let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {
+    let reading = false;
+    /** A change arrived after the latest read started. */
+    let stale = false;
+    let lastRead = 0;
+    let soon: ReturnType<typeof setTimeout> | undefined;
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      soon = undefined;
+      reading = true;
+      stale = false;
+      lastRead = Date.now();
+      clearTimeout(fallback);
+      try {
+        await chat().refresh(projectId);
+      } finally {
+        reading = false;
+      }
       if (!alive) return;
-      await useChat.getState().refresh(projectId);
-      if (alive)
-        timer = setTimeout(
-          () => void poll(),
-          chatBusy(useChat.getState().projects[projectId]) ? 200 : 5000,
-        );
+      fallback = setTimeout(changed, FALLBACK_MS);
+      if (stale) changed();
     };
-    timer = setTimeout(() => void poll(), busy ? 50 : 900);
+    const changed = () => {
+      stale = true;
+      if (!alive || reading || soon !== undefined) return;
+      soon = setTimeout(() => void read(), Math.max(0, lastRead + CHANGE_GAP_MS - Date.now()));
+    };
+    const unsubscribe = window.omenflow.onChat?.((change) => {
+      if (change.projectId === projectId) changed();
+    });
+    void read();
     return () => {
       alive = false;
-      clearTimeout(timer);
+      clearTimeout(soon);
+      clearTimeout(fallback);
+      unsubscribe?.();
     };
-  }, [projectId, busy]);
+  }, [projectId]);
 }

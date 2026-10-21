@@ -1,9 +1,9 @@
 //! Durable project conversations over adapter-native JSON streams, never terminal redraws.
 //! Acceptance is journaled before spawn. Request IDs stay deduplicated across host restarts.
-use crate::BridgeServer;
+use crate::{BridgeServer, EventSink, HostEvent};
 use omenflow_contracts::ContractError;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -60,6 +60,28 @@ struct Process {
 pub(crate) struct State {
     books: HashMap<PathBuf, Book>,
     active: HashMap<PathBuf, Arc<Process>>,
+    /// Grows with every change to a record; each change event carries it.
+    seq: u64,
+    /// Where change events go. Unit tests run without one.
+    events: Option<Arc<dyn EventSink>>,
+}
+impl State {
+    pub(crate) fn new(events: Arc<dyn EventSink>) -> Self {
+        Self {
+            events: Some(events),
+            ..Self::default()
+        }
+    }
+    /// Tell the interface that `project`'s record changed, never what changed: it reads the
+    /// record again with `chat.read`. Called with the lock held, so events leave in `seq` order.
+    fn changed(&mut self, project: &str) {
+        self.seq += 1;
+        if let Some(events) = &self.events {
+            events.emit(HostEvent::Chat(
+                json!({"projectId": project, "seq": self.seq}),
+            ));
+        }
+    }
 }
 pub(crate) struct ChatHost {
     state: Arc<Mutex<State>>,
@@ -184,6 +206,7 @@ pub(crate) fn owns_running_turn(state: &Arc<Mutex<State>>, root: &Path, session:
 }
 pub(crate) fn present(
     state: &Arc<Mutex<State>>,
+    project: &str,
     root: &Path,
     session: &str,
     part: Value,
@@ -204,6 +227,7 @@ pub(crate) fn present(
     append_card(&mut turn.parts, part, "agent")?;
     save(root, &next)?;
     state.books.insert(root.to_owned(), next);
+    state.changed(project);
     Ok(true)
 }
 impl ChatHost {
@@ -213,6 +237,7 @@ impl ChatHost {
     pub fn command(
         &self,
         op: &str,
+        project: &str,
         root: &Path,
         input: &Value,
         read_only: bool,
@@ -249,6 +274,7 @@ impl ChatHost {
             append_card(&mut c.cards, input["part"].clone(), "user")?;
             save(root, &next)?;
             state.books.insert(root.to_owned(), next);
+            state.changed(project);
         }
         if op != "chat.send" {
             return serde_json::to_value(&state.books[root]).map_err(failure);
@@ -366,6 +392,7 @@ impl ChatHost {
             return Err(e);
         }
         state.books.insert(root.to_owned(), next);
+        state.changed(project);
         match spawn(&plan) {
             Ok(child) => {
                 let process = Arc::new(Process {
@@ -377,13 +404,14 @@ impl ChatHost {
                 state.active.insert(root.to_owned(), Arc::clone(&process));
                 let shared = Arc::clone(&self.state);
                 let bridge = Arc::clone(&self.bridge);
+                let project = project.to_owned();
                 let root = root.to_owned();
                 let request_id = request_id.to_owned();
                 let adapter_id = adapter_id.to_owned();
                 thread::spawn(move || {
                     run(
-                        shared, process, bridge, root, request_id, adapter_id, session_id, plan,
-                        prompt,
+                        shared, process, bridge, project, root, request_id, adapter_id, session_id,
+                        plan, prompt,
                     )
                 });
             }
@@ -393,6 +421,7 @@ impl ChatHost {
                 let turn = find_turn(&mut state, root, request_id).unwrap();
                 turn.state = "failed".into();
                 turn.error = Some(e.message);
+                state.changed(project);
                 save(root, &state.books[root])?;
             }
         }
@@ -640,11 +669,21 @@ fn read_stderr(mut stderr: impl Read) -> String {
     }
     normalize_diagnostic(&String::from_utf8_lossy(&retained))
 }
-fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
+/// Replace the response from `start` on with `text`. False when it already reads so.
+fn replace_from(response: &mut String, start: usize, text: &str) -> bool {
+    if response.get(start..) == Some(text) {
+        return false;
+    }
+    response.truncate(start);
+    response.push_str(text);
+    true
+}
+/// Apply one line of the agent's stream to its turn. True when the response text changed.
+fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) -> bool {
     output.bytes += line.len();
     if output.bytes > OUTPUT_LIMIT {
         output.error = Some("Agent output exceeded 1 MiB. Response stopped.".into());
-        return;
+        return false;
     }
     let value: Value = match serde_json::from_str(line) {
         Ok(v) => v,
@@ -653,7 +692,7 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
                 "The agent returned invalid structured output. Check the CLI version in Settings."
                     .into(),
             );
-            return;
+            return false;
         }
     };
     // Claude emits subagent records on the same stdout stream. They have their own
@@ -663,8 +702,11 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
             .get("parent_tool_use_id")
             .is_some_and(|id| !id.is_null())
     {
-        return;
+        return false;
     }
+    // Every other edit appends, so a rewrite in place is the only change the length can miss.
+    let before = turn.response.len();
+    let mut rewritten = false;
     match (adapter, value["type"].as_str().unwrap_or("")) {
         ("codex", "item.updated" | "item.completed")
             if value["item"]["type"] == "agent_message" =>
@@ -676,14 +718,14 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
                     .as_ref()
                     .filter(|(old, _)| Some(old.as_str()) == id)
                 {
-                    turn.response.truncate(*start);
+                    rewritten = replace_from(&mut turn.response, *start, text);
                 } else {
                     if !turn.response.is_empty() {
                         turn.response.push_str("\n\n");
                     }
                     output.codex_item = id.map(|id| (id.to_owned(), turn.response.len()));
+                    turn.response.push_str(text);
                 }
-                turn.response.push_str(text);
             }
         }
         ("codex", "turn.completed") => output.complete = true,
@@ -730,11 +772,13 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
                 .join("\n\n");
             if !aggregate.is_empty() {
                 if let Some(start) = output.claude_start.take() {
-                    turn.response.truncate(start);
-                } else if !turn.response.is_empty() {
-                    turn.response.push_str("\n\n");
+                    rewritten = replace_from(&mut turn.response, start, &aggregate);
+                } else {
+                    if !turn.response.is_empty() {
+                        turn.response.push_str("\n\n");
+                    }
+                    turn.response.push_str(&aggregate);
                 }
-                turn.response.push_str(&aggregate);
             }
         }
         ("claude-code", "result") => {
@@ -754,12 +798,14 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) {
         }
         _ => {}
     }
+    rewritten || turn.response.len() != before
 }
 #[allow(clippy::too_many_arguments)]
 fn run(
     state: Arc<Mutex<State>>,
     process: Arc<Process>,
     bridge: Arc<BridgeServer>,
+    project: String,
     root: PathBuf,
     request: String,
     adapter: String,
@@ -783,6 +829,7 @@ fn run(
     let stderr_reader = thread::spawn(move || read_stderr(stderr));
     let stream_state = Arc::clone(&state);
     let stream_process = Arc::clone(&process);
+    let stream_project = project.clone();
     let stream_root = root.clone();
     let stream_request = request.clone();
     let reader = thread::spawn(move || {
@@ -804,11 +851,18 @@ fn run(
                 _ => {}
             }
             if let Ok(mut state) = stream_state.lock() {
-                if let Some(t) = find_turn(&mut state, &stream_root, &stream_request) {
-                    match std::str::from_utf8(&bytes) {
-                        Ok(line) => ingest(t, &mut out, &adapter, line.trim()),
-                        Err(_) => out.error = Some("Agent output was not UTF-8".into()),
-                    }
+                let changed =
+                    find_turn(&mut state, &stream_root, &stream_request).is_some_and(|t| {
+                        match std::str::from_utf8(&bytes) {
+                            Ok(line) => ingest(t, &mut out, &adapter, line.trim()),
+                            Err(_) => {
+                                out.error = Some("Agent output was not UTF-8".into());
+                                false
+                            }
+                        }
+                    });
+                if changed {
+                    state.changed(&stream_project);
                 }
                 // Readers see each line from memory; the record file follows a few times a second
                 // and is written once more when the run settles.
@@ -896,6 +950,7 @@ fn run(
             }
         }
         state.active.remove(&root);
+        state.changed(&project);
     }
     *process.done.lock().unwrap() = true;
     process.settled.notify_all();
@@ -943,7 +998,7 @@ mod tests {
         assert!(!out.complete);
         assert!(out.error.is_none());
         assert_eq!(out.claude_start, Some(0));
-        ingest(&mut t, &mut out, "claude-code", &serde_json::json!({"type":"assistant","message":{"content":[{"type":"text","text":"Parent corrected: 12.40 mm Ω"}]}}).to_string());
+        assert!(ingest(&mut t, &mut out, "claude-code", &serde_json::json!({"type":"assistant","message":{"content":[{"type":"text","text":"Parent corrected: 12.40 mm Ω"}]}}).to_string()));
         assert_eq!(t.response, "Parent corrected: 12.40 mm Ω");
         ingest(
             &mut t,
@@ -974,7 +1029,10 @@ mod tests {
         }
         assert_eq!(t.response, "Width 12.40 mm; Ω\n\nLoad unknown — 机");
         assert!(!out.complete, "Partial EOF must not imply completion");
-        ingest(&mut t, &mut out, "claude-code", &serde_json::json!({"type":"assistant","message":{"content":[{"type":"text","text":"Width 12.40 mm; Ω"},{"type":"text","text":"Load unknown — 机"}]}}).to_string());
+        assert!(
+            !ingest(&mut t, &mut out, "claude-code", &serde_json::json!({"type":"assistant","message":{"content":[{"type":"text","text":"Width 12.40 mm; Ω"},{"type":"text","text":"Load unknown — 机"}]}}).to_string()),
+            "an aggregate that repeats the streamed text changes nothing"
+        );
         assert_eq!(t.response, "Width 12.40 mm; Ω\n\nLoad unknown — 机");
         assert!(!out.complete);
         ingest(

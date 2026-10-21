@@ -37,6 +37,10 @@ pub enum HostEvent {
     TerminalState(Value),
     /// One agent call record, as the ledger wrote it.
     AgentCall(Value),
+    /// `{ projectId, seq }` when a project's conversation record changes: a turn starts or
+    /// settles, streamed text arrives, or a card is opened or presented. Never the record
+    /// itself; `chat.read` stays the source of truth.
+    Chat(Value),
 }
 
 impl HostEvent {
@@ -47,6 +51,7 @@ impl HostEvent {
             Self::TerminalData(_) => "omenflow:terminal:data",
             Self::TerminalState(_) => "omenflow:terminal:state",
             Self::AgentCall(_) => "omenflow:agent:call",
+            Self::Chat(_) => "omenflow:chat",
         }
     }
 
@@ -57,6 +62,7 @@ impl HostEvent {
             Self::TerminalData(_) => "terminal-data",
             Self::TerminalState(_) => "terminal-state",
             Self::AgentCall(_) => "agent-call",
+            Self::Chat(_) => "chat",
         }
     }
 
@@ -65,7 +71,8 @@ impl HostEvent {
             Self::Project(value)
             | Self::TerminalData(value)
             | Self::TerminalState(value)
-            | Self::AgentCall(value) => value,
+            | Self::AgentCall(value)
+            | Self::Chat(value) => value,
         }
     }
 }
@@ -230,7 +237,7 @@ impl Host {
             events: Arc::clone(&events),
         });
         let research = Arc::new(Research::new(surface, Arc::clone(&gate)));
-        let chat_state = Arc::new(Mutex::new(crate::chat::State::default()));
+        let chat_state = Arc::new(Mutex::new(crate::chat::State::new(Arc::clone(&events))));
         let agent_chat = Arc::clone(&chat_state);
         let agent_gate = Arc::clone(&gate);
         let agent_events = Arc::clone(&events);
@@ -263,7 +270,7 @@ impl Host {
                         _ => payload["part"].clone(),
                     };
                     let part = resolve_card(&agent_gate, &project_id, part)?;
-                    if crate::chat::present(&agent_chat, &root, session, part)? {
+                    if crate::chat::present(&agent_chat, &project_id, &root, session, part)? {
                         return Ok(json!({"ok":true, "presentation":"owning conversation turn"}));
                     }
                     if op == "chat.present" {
@@ -402,7 +409,7 @@ impl Host {
                 }
                 (root, read_only)
             };
-            return self.chat.command(op, &root, &payload, read_only, || {
+            return self.chat.command(op, id, &root, &payload, read_only, || {
                 if self.pty.running(id) {
                     return Err(ContractError::new(
                         "BUSY",

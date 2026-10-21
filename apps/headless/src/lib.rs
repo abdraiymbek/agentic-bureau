@@ -6,7 +6,7 @@
 //! | --- | --- | --- |
 //! | `GET /api/health` | | liveness and where the agent bridge listens |
 //! | `POST /api/command` | `{ op, payload?, projectId?, idempotencyKey? }` | the desktop command, same response envelope |
-//! | `GET /api/events` | `?token=` or the header | server-sent events: `event`, `terminal-data`, `terminal-state`, `agent-call`, and `resync` after a gap |
+//! | `GET /api/events` | `?token=` or the header | server-sent events: `event`, `terminal-data`, `terminal-state`, `agent-call`, `chat`, and `resync` after a gap |
 //! | `POST /api/agent/session` | `{ projectId, sessionId? }` | bridge credentials for an agent process |
 //! | `POST /api/agent/revoke` | `{ sessionId }` | end those credentials |
 //! | `POST /api/shutdown` | | stop agent terminals and exit |

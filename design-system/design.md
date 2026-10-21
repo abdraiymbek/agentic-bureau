@@ -283,7 +283,8 @@ navigation.
 - **Conversation**: one durable thread per conversation, recorded in
   `.omenflow/chat/conversations.json` (local, not part of a project archive). Each turn shows
   the request with any exact inputs, the response as it arrives (Claude Code streams partial
-  text; Codex reports completed items), and the cards the run presented with `chat.present`:
+  text; Codex reports completed items; the host announces each change and the pane reads the
+  record again), and the cards the run presented with `chat.present`:
   a part (3D, three ordinary dimensions, the rest under More), a recorded object, quantities
   (unit and unknown reason kept), an **illustrative** chart with a table and keyboard readout,
   choices, and human review. Charts are never evidence. A run's `ui.open_artifact` and

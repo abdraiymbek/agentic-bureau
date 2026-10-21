@@ -5,6 +5,11 @@ export interface NativeShutdownRequest {
   action: 'close' | 'quit';
 }
 
+export interface ChatChange {
+  projectId: string;
+  seq: number;
+}
+
 export interface OmenflowApi {
   command(
     op: string,
@@ -21,6 +26,11 @@ export interface OmenflowApi {
   onServiceState?(cb: (data: { available: boolean; message?: string }) => void): () => void;
   /** One record per agent tool call, as the host ledger writes it. Not every transport has it. */
   onAgentCall?(cb: (call: unknown) => void): () => void;
+  /**
+   * A project's conversation record changed. Carries no record: read it with `chat.read`. `seq`
+   * grows with every change the host makes. Not every transport has it.
+   */
+  onChat?(cb: (change: ChatChange) => void): () => void;
   /** Desktop-only: native close/quit must ask about edits before destroying the webview. */
   onShutdownRequest?(cb: (request: NativeShutdownRequest) => void): () => void;
   replyToShutdown?(requestId: string, decision: 'received' | 'cancel' | 'discard'): Promise<void>;

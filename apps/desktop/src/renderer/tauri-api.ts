@@ -42,6 +42,7 @@ export async function installTauriApi(): Promise<void> {
       return subscription('omenflow:service-state', callback);
     },
     onAgentCall: (callback) => subscription('omenflow:agent:call', callback),
+    onChat: (callback) => subscription('omenflow:chat', callback),
     onShutdownRequest: (callback) => {
       let active = true;
       let unlisten: (() => void) | undefined;

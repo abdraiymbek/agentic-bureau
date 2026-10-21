@@ -49,7 +49,7 @@ export interface Envelope {
 
 /** One server-sent event from the host. */
 export interface HostEvent {
-  /** `event`, `terminal-data`, `terminal-state`, `agent-call` or `resync`. */
+  /** `event`, `terminal-data`, `terminal-state`, `agent-call`, `chat` or `resync`. */
   name: string;
   data: unknown;
 }

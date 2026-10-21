@@ -4,6 +4,27 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## Conversation updates pushed by the host · 20 October 2026
+
+The conversation pane no longer polls `chat.read` (every 200 ms while a response ran, every 5 s
+otherwise). The host emits a `chat` event, `{ projectId, seq }`, when a turn starts or settles,
+streamed text changes the response, or a card is opened or presented. The pane reads the record
+again on that event: one read at a time, at most every 100 ms. Without an event it reads every
+30 s. Checks on the working tree: `pnpm typecheck`, `pnpm lint` (no warnings in changed files),
+`pnpm test` (105 files, 1044 passed, 2 existing skips), `pnpm test:conformance` (8 files, 63
+tests, including `chat` events on the server-sent stream), `cargo clippy --workspace
+--all-targets -D warnings`, `cargo fmt --check`, and `cargo test --workspace` (598 passed). One
+existing test, `a_relative_data_folder_gives_an_absolute_endpoint`, could not run here: the
+worktree's socket path is 116 bytes, above macOS's 104-byte limit.
+
+In the Rust design preview with `OMEN_PREVIEW_AGENTS=1`, the deterministic fixture
+(`tests/conformance/fixtures/inline-agent.py`) was configured as the Codex executable. Each of its
+three chunks appeared as it arrived and was read once, in the millisecond its event landed. Its
+five card presentations and the settled turn, six events within 100 ms, needed two reads. An
+idle pane made no reads in 12 s of watching, and read once 30 s after its last read.
+
+Not covered: native `pnpm dev` validation in WKWebView and a real Codex or Claude Code run.
+
 ## Conversation pane · 20 October 2026
 
 The Agent tab gained a conversation pane beside the terminal, ported from the

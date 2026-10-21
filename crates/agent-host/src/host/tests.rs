@@ -850,6 +850,70 @@ fn chat_clean_leader_exit_settles_inherited_pipe_descendant_before_publishing_co
     f.host.shutdown();
 }
 
+#[test]
+#[cfg(unix)]
+fn a_conversation_run_announces_each_change_to_its_record() {
+    let f = fixture();
+    let lines = [
+        json!({"type":"item.updated","item":{"id":"m","type":"agent_message","text":"Width"}}),
+        json!({"type":"item.started","item":{"id":"t","type":"command_execution","command":"ls"}}),
+        json!({"type":"item.completed","item":{"id":"m","type":"agent_message","text":"Width is 20 mm."}}),
+        json!({"type":"item.completed","item":{"id":"m","type":"agent_message","text":"Width is 20 mm."}}),
+    ]
+    .iter()
+    .map(|line| format!("'{line}'"))
+    .collect::<Vec<_>>()
+    .join(" ");
+    let finish = f._temp.path().join("finish");
+    chat_agent(
+        &f,
+        &format!(
+            "cat >/dev/null\nprintf '%s\\n' {lines}\nwhile [ ! -e '{}' ]; do sleep 0.05; done\nprintf '%s\\n' '{}'",
+            finish.display(),
+            json!({"type":"turn.completed"})
+        ),
+    );
+    let accepted = chat_send(&f, "conversation", "request", "Inspect dimensions");
+    let session = accepted["conversations"][0]["turns"][0]["sessionId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let reply = agent_call(
+        &f,
+        &session,
+        "chat.present",
+        json!({"part": {"kind": "chart", "title": "Load", "xLabel": "Time", "xUnit": "s", "yLabel": "Load", "yUnit": "N", "source": "Estimate", "provenance": "illustrative", "points": [{"x": 0, "y": 1}, {"x": 1, "y": 2}]}}),
+    );
+    assert_eq!(reply["ok"], true, "{reply}");
+    std::fs::write(&finish, "").unwrap();
+    let settled = chat_settled(&f);
+    let turn = &settled["conversations"][0]["turns"][0];
+    assert_eq!(turn["state"], "completed");
+    assert_eq!(turn["response"], "Width is 20 mm.");
+    assert_eq!(turn["parts"].as_array().unwrap().len(), 1);
+
+    let changes = f.events.named("chat");
+    for change in &changes {
+        assert_eq!(
+            *change,
+            json!({"projectId": f.project_id, "seq": change["seq"]}),
+            "a change names the project and its sequence, never the record"
+        );
+    }
+    let seqs = changes
+        .iter()
+        .map(|change| change["seq"].as_u64().unwrap())
+        .collect::<Vec<_>>();
+    assert!(seqs.windows(2).all(|pair| pair[0] < pair[1]), "{seqs:?}");
+    assert_eq!(
+        changes.len(),
+        5,
+        "acceptance, two text changes, the presented card and the settled turn; the tool line and the repeated item change nothing: {changes:?}"
+    );
+    assert_eq!(HostEvent::Chat(json!({})).channel(), "omenflow:chat");
+    f.host.shutdown();
+}
+
 /// One call from an agent session on the bridge, as the `omenflow` helper makes it.
 #[cfg(unix)]
 fn agent_call(f: &Fixture, session: &str, op: &str, payload: Value) -> Value {
