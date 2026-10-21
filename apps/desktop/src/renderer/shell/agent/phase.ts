@@ -16,6 +16,8 @@ export type Phase =
   | { kind: 'starting'; adapterId: string }
   | { kind: 'start-failed'; adapterId: string; error: string }
   | { kind: 'live' }
+  /** A conversation response runs in this project; one agent works at a time. */
+  | { kind: 'conversation-running' }
   | { kind: 'ended' };
 
 export interface PhaseInput {
@@ -25,12 +27,15 @@ export interface PhaseInput {
   detection: Detection;
   start: StartState;
   agentId: string | null;
+  /** A turn in this project's conversation pane is running. */
+  conversationRunning?: boolean;
 }
 
 export function surfacePhase(input: PhaseInput): Phase {
   const { session, start } = input;
   const running = session?.state === 'running' || session?.state === 'starting';
   if (running) return { kind: 'live' };
+  if (input.conversationRunning) return { kind: 'conversation-running' };
   if (start.status === 'starting') return { kind: 'starting', adapterId: start.adapterId };
   if (start.status === 'failed')
     return { kind: 'start-failed', adapterId: start.adapterId, error: start.error };

@@ -1,6 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { flushAsks, startAgentFromSurface as startAdapter } from '../lib/actions';
+import { Conversation } from '../chat/Conversation';
+import { useChat } from '../chat/chat-store';
+import { conversationRunning } from '../chat/threads';
+import { useChatSync } from '../chat/useChatSync';
 import { useAgentUi } from './agent/agent-store';
 import { ActivityRail, ActivityTicker } from './agent/ActivityRail';
 import { detectAgents, loadActivity, subscribeCalls } from './agent/feed';
@@ -17,7 +21,8 @@ type Mode = 'tab' | 'window' | 'docked' | 'hidden';
 /**
  * The one agent surface. It stays mounted for the life of the open project so the terminal, the
  * PTY listeners and the scrollback survive navigation; only its presentation changes — the Agent
- * tab, a floating or docked window, or hidden.
+ * tab, a floating or docked window, or hidden. It shows one of two panes: the conversation, or
+ * the agent CLI's terminal, which stays attached while the conversation shows.
  */
 export function AgentSurface() {
   const projectId = useStore((s) => s.projectId)!;
@@ -34,6 +39,10 @@ export function AgentSurface() {
   const inputReady = useAgentUi((s) => s.inputReady);
   const pending = useAgentUi((s) => s.pending.length);
   const railOpen = useAgentUi((s) => s.railOpen);
+  const pane = useAgentUi((s) => s.pane);
+  const chat = useChat((s) => s.projects[projectId]);
+  const conversationBusy = conversationRunning(chat);
+  useChatSync(projectId);
 
   const root = useRef<HTMLElement>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -45,7 +54,16 @@ export function AgentSurface() {
   const mode: Mode =
     view.level === 'agent' ? 'tab' : windowOpen ? (docked ? 'docked' : 'window') : 'hidden';
   const status = sessionStatus(session);
-  const phase = surfacePhase({ readOnly, session, adapters, detection, start, agentId });
+  const phase = surfacePhase({
+    readOnly,
+    session,
+    adapters,
+    detection,
+    start,
+    agentId,
+    conversationRunning: conversationBusy,
+  });
+  const terminal = pane === 'terminal';
   const autoId = autostartAdapter(phase);
   const restartable =
     adapters.find((a) => a.adapterId === session?.adapterId && a.available) ??
@@ -64,7 +82,11 @@ export function AgentSurface() {
     const created = new TerminalEngine(projectId);
     created.open(host.current!);
     setEngine(created);
-    const onFocus = () => requestAnimationFrame(() => created.focus());
+    const onFocus = () =>
+      requestAnimationFrame(() => {
+        if (useAgentUi.getState().pane === 'terminal') created.focus();
+        else window.dispatchEvent(new CustomEvent('omenflow:focus-composer'));
+      });
     window.addEventListener('omenflow:focus-terminal', onFocus);
     void detectAgents();
     void loadActivity(projectId);
@@ -84,12 +106,14 @@ export function AgentSurface() {
   }, [engine, sessionId, sessionState]);
 
   /* ---------------- autostart and the ask queue ---------------- */
+  // Only the terminal pane starts its CLI on its own; the conversation runs a CLI per message.
   const autostarted = useRef(false);
   useEffect(() => {
-    if (autostarted.current || !sessionChecked || mode === 'hidden' || !autoId || !engine) return;
+    if (autostarted.current || !sessionChecked || mode === 'hidden' || !terminal) return;
+    if (!autoId || !engine) return;
     autostarted.current = true;
     startAdapter(autoId);
-  }, [sessionChecked, mode, autoId, engine]);
+  }, [sessionChecked, mode, terminal, autoId, engine]);
 
   useEffect(() => {
     if (status.live && inputReady && pending) flushAsks();
@@ -107,8 +131,10 @@ export function AgentSurface() {
     const inside = !!active && !!root.current?.contains(active);
     if (before === 'hidden') {
       if (active && active !== document.body && !inside) returnFocus.current = active;
-      engine?.fit();
-      if (live) requestAnimationFrame(() => engine?.focus());
+      if (useAgentUi.getState().pane === 'terminal') {
+        engine?.fit();
+        if (live) requestAnimationFrame(() => engine?.focus());
+      }
     } else if (mode === 'hidden') {
       setSearching(false);
       // Closing the window must not strand focus on a terminal nobody can see.
@@ -119,23 +145,29 @@ export function AgentSurface() {
         back?.focus();
       }
       returnFocus.current = null;
-    } else {
+    } else if (useAgentUi.getState().pane === 'terminal') {
       engine?.fit();
     }
   }, [mode, engine, live]);
 
+  // The terminal was hidden while the conversation showed: size it to its area again.
+  useLayoutEffect(() => {
+    if (terminal) engine?.fit();
+    else setSearching(false);
+  }, [terminal, engine]);
+
   // A session going live takes focus only if nothing else has it.
   useEffect(() => {
-    if (!live || mode === 'hidden') return;
+    if (!live || mode === 'hidden' || !terminal) return;
     const active = document.activeElement;
     if (active && active !== document.body && !root.current?.contains(active)) return;
     const frame = requestAnimationFrame(() => engine?.focus());
     return () => cancelAnimationFrame(frame);
-  }, [live, mode, engine]);
+  }, [live, mode, terminal, engine]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const key = e.key.toLowerCase();
-    if (session && key === 'f' && (e.metaKey || (e.ctrlKey && e.shiftKey))) {
+    if (terminal && session && key === 'f' && (e.metaKey || (e.ctrlKey && e.shiftKey))) {
       e.preventDefault();
       setSearching(true);
     }
@@ -161,6 +193,7 @@ export function AgentSurface() {
         'agent-surface',
         `mode-${mode}`,
         status.live ? 'live' : '',
+        `pane-${pane}`,
         mode === 'window' && collapsed ? 'collapsed' : '',
         win.dragging ? 'dragging' : '',
       ].join(' ')}
@@ -188,7 +221,12 @@ export function AgentSurface() {
       )}
       {floating && <ActivityTicker />}
       <div className="agent-body">
-        <div className="agent-screen">
+        {!terminal && (
+          <div className="agent-conversation">
+            <Conversation projectId={projectId} state={chat} compact={floating} />
+          </div>
+        )}
+        <div className="agent-screen" hidden={!terminal}>
           <div
             ref={host}
             className="terminal-host"

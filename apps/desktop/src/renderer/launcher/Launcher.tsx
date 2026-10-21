@@ -149,10 +149,9 @@ export function Launcher() {
       return;
     }
     await enterProject(r.value, plan.path);
-    if (brief.trim()) {
-      offerFirstPrompt(r.value.projectId, firstPromptFor(brief));
-      useStore.getState().go({ level: 'agent' });
-    }
+    // A new project starts on the Agent tab, with the brief as the agent's first prompt.
+    useStore.getState().go({ level: 'agent' });
+    if (brief.trim()) offerFirstPrompt(r.value.projectId, firstPromptFor(brief));
   };
 
   const visible = recents.filter((r) =>

@@ -6,6 +6,7 @@ import {
   ArrowBendDownLeft,
   ArrowClockwise,
   At,
+  ChatCircle,
   ChatCircleText,
   Copy,
   Export,
@@ -21,10 +22,13 @@ import {
   Play,
   Robot,
   SignOut,
+  Square,
   StopCircle,
   Sun,
+  TerminalWindow,
 } from '@phosphor-icons/react';
 import { openProposals, useStore } from '../store';
+import { useChat } from '../chat/chat-store';
 import { needsYou } from '../lib/proposals';
 import { LENSES } from '../project/lenses';
 import { Button, Kbd, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
@@ -137,6 +141,13 @@ function useItems(text: string) {
   const windowOpen = useStore((s) => s.agentWindowOpen);
   const theme = useStore((s) => s.theme);
   const pendingAsks = useAgentUi((s) => s.pending.length);
+  const pane = useAgentUi((s) => s.pane);
+  const responding = useChat((s) => {
+    const record = projectId ? s.projects[projectId]?.record : undefined;
+    return (
+      record?.conversations.find((c) => c.turns.some((t) => t.state === 'running'))?.id ?? null
+    );
+  });
 
   return useMemo(() => {
     const { set, go, focus, decide } = useStore.getState();
@@ -236,7 +247,7 @@ function useItems(text: string) {
           id: 'goto:agent',
           group: 'goto',
           label: 'Agent',
-          keywords: 'terminal cli codex claude session',
+          keywords: 'terminal conversation chat cli codex claude session',
           icon: <Robot size={15} />,
           command: true,
           run: () => go({ level: 'agent' }),
@@ -265,6 +276,28 @@ function useItems(text: string) {
         },
       );
 
+      items.push({
+        id: 'agent:pane',
+        group: 'agent',
+        label: pane === 'conversation' ? 'Show the agent terminal' : 'Show the agent conversation',
+        keywords: 'agent pane switch terminal conversation chat cli',
+        icon: pane === 'conversation' ? <TerminalWindow size={15} /> : <ChatCircle size={15} />,
+        command: true,
+        run: () => {
+          useAgentUi.getState().setPane(pane === 'conversation' ? 'terminal' : 'conversation');
+          showAgent();
+        },
+      });
+      if (responding && projectId)
+        items.push({
+          id: 'agent:stop-response',
+          group: 'agent',
+          label: 'Stop the current response',
+          keywords: 'agent conversation cancel stop response',
+          icon: <Square size={15} />,
+          command: true,
+          run: () => report(useChat.getState().cancel(projectId, responding)),
+        });
       if (!readOnly) {
         if (status.live) {
           items.push(
@@ -309,6 +342,7 @@ function useItems(text: string) {
               command: true,
               run: () => {
                 useStore.getState().setAgent(a.adapterId);
+                useAgentUi.getState().setPane('terminal');
                 showAgent();
                 report(startAgent(a.adapterId));
               },
@@ -478,7 +512,11 @@ function useItems(text: string) {
             group: 'ask',
             label: `Ask ${agentName}: “${askText}”`,
             icon: <At size={15} />,
-            hint: <span>Types into the terminal</span>,
+            hint: (
+              <span>
+                {pane === 'conversation' ? 'Adds to the conversation' : 'Types into the terminal'}
+              </span>
+            ),
             run: () => void askAgent(askText),
           }
         : null;
@@ -498,6 +536,8 @@ function useItems(text: string) {
     windowOpen,
     theme,
     pendingAsks,
+    pane,
+    responding,
   ]);
 }
 

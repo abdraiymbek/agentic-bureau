@@ -1004,7 +1004,7 @@ CLIs are installed separately by the user and are not part of this distribution.
 
 ## JavaScript packages (interface)
 
-57 components.
+213 components.
 
 - **@floating-ui/core** 1.8.0 — MIT — https://github.com/floating-ui/floating-ui
   - Copyright (c) 2021-present Floating UI contributors
@@ -1078,10 +1078,54 @@ CLIs are installed separately by the user and are not part of this distribution.
   - Copyright (c) 2022 WorkOS
 - **@radix-ui/rect** 1.1.3 — MIT — https://github.com/radix-ui/primitives
   - Copyright (c) 2022 WorkOS
+- **@reduxjs/toolkit** 2.13.0 — MIT — https://github.com/reduxjs/redux-toolkit
+  - Copyright (c) 2018 Mark Erikson
+- **@standard-schema/spec** 1.1.0 — MIT — https://github.com/standard-schema/standard-schema
+  - Copyright (c) 2024 Colin McDonnell
+- **@standard-schema/utils** 0.3.0 — MIT — https://github.com/standard-schema/standard-schema
+  - Copyright (c) 2024 Fabian Hiller
 - **@tauri-apps/api** 2.11.1 — Apache-2.0 OR MIT — https://github.com/tauri-apps/tauri
   - Copyright (c) 2017 - Present Tauri Apps Contributors
 - **@tauri-apps/plugin-dialog** 2.7.3 — MIT OR Apache-2.0 — https://github.com/tauri-apps/plugins-workspace
 - **@tauri-apps/plugin-opener** 2.5.5 — MIT OR Apache-2.0 — https://github.com/tauri-apps/plugins-workspace
+- **@types/d3-array** 3.2.2 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-color** 3.1.3 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-ease** 3.0.2 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-interpolate** 3.0.4 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-path** 3.1.1 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-scale** 4.0.9 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-shape** 3.2.0 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-time** 3.0.4 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/d3-timer** 3.0.2 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/debug** 4.1.13 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/estree** 1.0.9 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/estree-jsx** 1.0.5 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/hast** 3.0.5 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/mdast** 4.0.4 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/ms** 2.1.0 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/unist** 2.0.11 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/unist** 3.0.3 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@types/use-sync-external-store** 0.0.6 — MIT — https://github.com/DefinitelyTyped/DefinitelyTyped
+  - Copyright (c) Microsoft Corporation.
+- **@ungap/structured-clone** 1.4.0 — ISC — https://github.com/ungap/structured-clone
+  - Copyright (c) 2021, Andrea Giammarchi, @WebReflection
 - **@xterm/addon-fit** 0.11.0 — MIT — https://github.com/xtermjs/xterm.js/tree/master/addons/addon-fit
   - Copyright (c) 2019, The xterm.js authors (https://github.com/xtermjs/xterm.js)
 - **@xterm/xterm** 6.0.0 — MIT — https://github.com/xtermjs/xterm.js
@@ -1090,40 +1134,313 @@ CLIs are installed separately by the user and are not part of this distribution.
   - Copyright (c) 2012-2013, Christopher Jeffrey (https://github.com/chjj/)
 - **aria-hidden** 1.2.6 — MIT — https://github.com/theKashey/aria-hidden
   - Copyright (c) 2017 Anton Korzunov
+- **bail** 2.0.2 — MIT — wooorm/bail
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **ccount** 2.0.1 — MIT — wooorm/ccount
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **character-entities** 2.0.2 — MIT — wooorm/character-entities
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **character-entities-html4** 2.1.0 — MIT — wooorm/character-entities-html4
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **character-entities-legacy** 3.0.0 — MIT — wooorm/character-entities-legacy
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **character-reference-invalid** 2.0.1 — MIT — wooorm/character-reference-invalid
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **clsx** 2.1.1 — MIT — lukeed/clsx
+  - Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
+- **comma-separated-tokens** 2.0.3 — MIT — wooorm/comma-separated-tokens
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **d3-array** 3.2.4 — ISC — https://github.com/d3/d3-array
+  - Copyright 2010-2023 Mike Bostock
+- **d3-color** 3.1.0 — ISC — https://github.com/d3/d3-color
+  - Copyright 2010-2022 Mike Bostock
+- **d3-ease** 3.0.1 — BSD-3-Clause — https://github.com/d3/d3-ease
+  - Copyright 2010-2021 Mike Bostock
+  - Copyright 2001 Robert Penner
+- **d3-format** 3.1.2 — ISC — https://github.com/d3/d3-format
+  - Copyright 2010-2026 Mike Bostock
+- **d3-interpolate** 3.0.1 — ISC — https://github.com/d3/d3-interpolate
+  - Copyright 2010-2021 Mike Bostock
+- **d3-path** 3.1.0 — ISC — https://github.com/d3/d3-path
+  - Copyright 2015-2022 Mike Bostock
+- **d3-scale** 4.0.2 — ISC — https://github.com/d3/d3-scale
+  - Copyright 2010-2021 Mike Bostock
+- **d3-shape** 3.2.0 — ISC — https://github.com/d3/d3-shape
+  - Copyright 2010-2022 Mike Bostock
+- **d3-time** 3.1.0 — ISC — https://github.com/d3/d3-time
+  - Copyright 2010-2022 Mike Bostock
+- **d3-time-format** 4.1.0 — ISC — https://github.com/d3/d3-time-format
+  - Copyright 2010-2021 Mike Bostock
+- **d3-timer** 3.0.1 — ISC — https://github.com/d3/d3-timer
+  - Copyright 2010-2021 Mike Bostock
+- **debug** 4.4.3 — MIT — git://github.com/debug-js/debug
+  - Copyright (c) 2014-2017 TJ Holowaychuk <tj@vision-media.ca>
+  - Copyright (c) 2018-2021 Josh Junon
+- **decimal.js-light** 2.5.1 — MIT — https://github.com/MikeMcl/decimal.js-light
+  - Copyright (c) 2020 Michael Mclaughlin
+- **decode-named-character-reference** 1.3.0 — MIT — wooorm/decode-named-character-reference
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **dequal** 2.0.3 — MIT — lukeed/dequal
+  - Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)
 - **detect-node-es** 1.1.0 — MIT — https://github.com/thekashey/detect-node
   - Copyright (c) 2017 Ilya Kantor
+- **devlop** 1.1.0 — MIT — wooorm/devlop
+  - Copyright (c) 2023 Titus Wormer <tituswormer@gmail.com>
 - **dompurify** 3.4.15 — (MPL-2.0 OR Apache-2.0) — git://github.com/cure53/DOMPurify
+- **entities** 6.0.1 — BSD-2-Clause — git://github.com/fb55/entities
+  - Copyright (c) Felix Böhm
+- **es-toolkit** 1.52.0 — MIT — https://github.com/toss/es-toolkit
+  - Copyright (c) 2024 Viva Republica, Inc.
+  - Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+- **escape-string-regexp** 5.0.0 — MIT — sindresorhus/escape-string-regexp
+  - Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+- **estree-util-is-identifier-name** 3.0.0 — MIT — syntax-tree/estree-util-is-identifier-name
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **eventemitter3** 5.0.4 — MIT — git://github.com/primus/eventemitter3
+  - Copyright (c) 2014 Arnout Kazemier
+- **extend** 3.0.2 — MIT — https://github.com/justmoon/node-extend
+  - Copyright (c) 2014 Stefan Thomas
 - **get-nonce** 1.0.1 — MIT — git@github.com:theKashey/get-nonce
   - Copyright (c) 2020 Anton Korzunov
+- **hast-util-from-parse5** 8.0.3 — MIT — syntax-tree/hast-util-from-parse5
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **hast-util-parse-selector** 4.0.0 — MIT — syntax-tree/hast-util-parse-selector
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **hast-util-raw** 9.1.0 — MIT — syntax-tree/hast-util-raw
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **hast-util-sanitize** 5.0.2 — MIT — syntax-tree/hast-util-sanitize
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **hast-util-to-jsx-runtime** 2.3.6 — MIT — syntax-tree/hast-util-to-jsx-runtime
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **hast-util-to-parse5** 8.0.1 — MIT — syntax-tree/hast-util-to-parse5
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **hast-util-whitespace** 3.0.0 — MIT — syntax-tree/hast-util-whitespace
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **hastscript** 9.0.1 — MIT — syntax-tree/hastscript
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **html-url-attributes** 3.0.1 — MIT — https://github.com/rehypejs/rehype-minify/tree/main/packages/html-url-attributes
+  - Copyright (c) Titus Wormer
+- **html-void-elements** 3.0.0 — MIT — wooorm/html-void-elements
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **immer** 11.1.21 — MIT — https://github.com/immerjs/immer
+  - Copyright (c) 2017 Michel Weststrate
+- **inline-style-parser** 0.2.7 — MIT — https://github.com/remarkablemark/inline-style-parser
+  - Copyright (c) 2012 TJ Holowaychuk <tj@vision-media.ca>
+- **internmap** 2.0.3 — ISC — https://github.com/mbostock/internmap
+  - Copyright 2021 Mike Bostock
+- **is-alphabetical** 2.0.1 — MIT — wooorm/is-alphabetical
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **is-alphanumerical** 2.0.1 — MIT — wooorm/is-alphanumerical
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **is-decimal** 2.0.1 — MIT — wooorm/is-decimal
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **is-hexadecimal** 2.0.1 — MIT — wooorm/is-hexadecimal
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **is-plain-obj** 4.1.0 — MIT — sindresorhus/is-plain-obj
+  - Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 - **js-tokens** 4.0.0 — MIT — lydell/js-tokens
   - Copyright (c) 2014, 2015, 2016, 2017, 2018 Simon Lydell
+- **longest-streak** 3.1.0 — MIT — wooorm/longest-streak
+  - Copyright (c) 2015 Titus Wormer <mailto:tituswormer@gmail.com>
 - **loose-envify** 1.4.0 — MIT — git://github.com/zertosh/loose-envify
   - Copyright (c) 2015 Andres Suarez <zertosh@gmail.com>
+- **markdown-table** 3.0.4 — MIT — wooorm/markdown-table
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
 - **marked** 16.4.2 — MIT — git://github.com/markedjs/marked
   - Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/)
   - Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
   - Copyright © 2004, John Gruber
+- **marked** 18.1.1 — MIT — https://github.com/markedjs/marked
+  - Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/)
+  - Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
+  - Copyright © 2004, John Gruber
+- **mdast-util-find-and-replace** 3.0.3 — MIT — syntax-tree/mdast-util-find-and-replace
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-from-markdown** 2.1.0 — MIT — syntax-tree/mdast-util-from-markdown
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm** 3.1.0 — MIT — syntax-tree/mdast-util-gfm
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm-autolink-literal** 2.0.1 — MIT — syntax-tree/mdast-util-gfm-autolink-literal
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm-footnote** 2.1.0 — MIT — syntax-tree/mdast-util-gfm-footnote
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm-strikethrough** 2.0.1 — MIT — syntax-tree/mdast-util-gfm-strikethrough
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm-table** 2.0.0 — MIT — syntax-tree/mdast-util-gfm-table
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-gfm-task-list-item** 2.0.0 — MIT — syntax-tree/mdast-util-gfm-task-list-item
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-mdx-expression** 2.0.1 — MIT — syntax-tree/mdast-util-mdx-expression
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-mdx-jsx** 3.2.0 — MIT — syntax-tree/mdast-util-mdx-jsx
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-mdxjs-esm** 2.0.1 — MIT — syntax-tree/mdast-util-mdxjs-esm
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-phrasing** 4.1.0 — MIT — syntax-tree/mdast-util-phrasing
+  - Copyright (c) 2017 Titus Wormer <tituswormer@gmail.com>
+  - Copyright (c) 2017 Victor Felder <victor@draft.li>
+- **mdast-util-to-hast** 13.2.1 — MIT — syntax-tree/mdast-util-to-hast
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-to-markdown** 2.2.0 — MIT — syntax-tree/mdast-util-to-markdown
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **mdast-util-to-string** 4.0.0 — MIT — syntax-tree/mdast-util-to-string
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **micromark** 4.0.3 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-core-commonmark** 2.0.4 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-core-commonmark
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm** 3.0.0 — MIT — micromark/micromark-extension-gfm
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-autolink-literal** 2.1.0 — MIT — micromark/micromark-extension-gfm-autolink-literal
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-footnote** 2.1.0 — MIT — micromark/micromark-extension-gfm-footnote
+  - Copyright (c) 2021 Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-strikethrough** 2.1.0 — MIT — micromark/micromark-extension-gfm-strikethrough
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-table** 2.1.2 — MIT — micromark/micromark-extension-gfm-table
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-tagfilter** 2.0.0 — MIT — micromark/micromark-extension-gfm-tagfilter
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **micromark-extension-gfm-task-list-item** 2.1.0 — MIT — micromark/micromark-extension-gfm-task-list-item
+  - Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+- **micromark-factory-destination** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-factory-destination
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-factory-label** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-factory-label
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-factory-space** 2.1.0 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-factory-space
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-factory-title** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-factory-title
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-factory-whitespace** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-factory-whitespace
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-character** 2.1.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-character
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-chunked** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-chunked
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-classify-character** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-classify-character
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-combine-extensions** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-combine-extensions
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-decode-numeric-character-reference** 2.0.2 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-numeric-character-reference
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-decode-string** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-decode-string
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-edit-map** 1.0.0 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-edit-map
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-encode** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-encode
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-html-tag-name** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-html-tag-name
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-normalize-identifier** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-normalize-identifier
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-resolve-all** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-resolve-all
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-sanitize-uri** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-sanitize-uri
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-subtokenize** 2.1.0 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-subtokenize
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-symbol** 2.0.1 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-symbol
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **micromark-util-types** 2.0.3 — MIT — https://github.com/micromark/micromark/tree/main/packages/micromark-util-types
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **ms** 2.1.3 — MIT — vercel/ms
+  - Copyright (c) 2020 Vercel, Inc.
+- **parse-entities** 4.0.2 — MIT — wooorm/parse-entities
+  - Copyright (c) Titus Wormer <mailto:tituswormer@gmail.com>
+- **parse5** 7.3.0 — MIT — git://github.com/inikulin/parse5
+  - Copyright (c) 2013-2019 Ivan Nikulin (ifaaan@gmail.com, https://github.com/inikulin)
+- **property-information** 7.2.0 — MIT — wooorm/property-information
+  - Copyright (c) Titus Wormer <mailto:tituswormer@gmail.com>
 - **react** 18.3.1 — MIT — https://github.com/facebook/react
   - Copyright (c) Facebook, Inc. and its affiliates.
 - **react-dom** 18.3.1 — MIT — https://github.com/facebook/react
   - Copyright (c) Facebook, Inc. and its affiliates.
+- **react-redux** 9.3.0 — MIT — github:reduxjs/react-redux
+  - Copyright (c) 2015-present Dan Abramov
 - **react-remove-scroll** 2.7.2 — MIT — https://github.com/theKashey/react-remove-scroll
   - Copyright (c) 2017 Anton Korzunov
 - **react-remove-scroll-bar** 2.3.8 — MIT — https://github.com/theKashey/react-remove-scroll-bar
 - **react-style-singleton** 2.2.3 — MIT — https://github.com/theKashey/react-style-singleton
   - Copyright (c) 2017 Anton Korzunov
+- **recharts** 3.10.1 — MIT — https://github.com/recharts/recharts
+  - Copyright (c) 2015-present recharts
+- **redux** 5.0.1 — MIT — github:reduxjs/redux
+  - Copyright (c) 2015-present Dan Abramov
+- **redux-thunk** 3.1.0 — MIT — github:reduxjs/redux-thunk
+  - Copyright (c) 2015-present Dan Abramov
+- **rehype-harden** 1.1.8 — MIT — https://github.com/vercel-labs/markdown-sanitizers
+  - Copyright (c) 2025 Vercel Inc.
+- **rehype-raw** 7.0.0 — MIT — rehypejs/rehype-raw
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **rehype-sanitize** 6.0.0 — MIT — rehypejs/rehype-sanitize
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **remark-gfm** 4.0.1 — MIT — remarkjs/remark-gfm
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **remark-parse** 11.0.0 — MIT — https://github.com/remarkjs/remark/tree/main/packages/remark-parse
+  - Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
+- **remark-rehype** 11.1.2 — MIT — remarkjs/remark-rehype
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **remark-stringify** 11.0.0 — MIT — https://github.com/remarkjs/remark/tree/main/packages/remark-stringify
+  - Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
+- **remend** 1.4.0 — Apache-2.0 — https://github.com/vercel/streamdown
+  - Copyright 2023 Vercel, Inc.
+- **reselect** 5.2.0 — MIT — https://github.com/reduxjs/reselect
+  - Copyright (c) 2015-2018 Reselect Contributors
 - **scheduler** 0.23.2 — MIT — https://github.com/facebook/react
   - Copyright (c) Facebook, Inc. and its affiliates.
+- **space-separated-tokens** 2.0.2 — MIT — wooorm/space-separated-tokens
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **streamdown** 2.7.1 — Apache-2.0 — https://github.com/vercel/streamdown
+  - Copyright 2023 Vercel, Inc.
+- **stringify-entities** 4.0.4 — MIT — wooorm/stringify-entities
+  - Copyright (c) 2015 Titus Wormer <mailto:tituswormer@gmail.com>
+- **style-to-js** 1.1.21 — MIT — https://github.com/remarkablemark/style-to-js
+  - Copyright (c) 2020 Menglin "Mark" Xu <mark@remarkablemark.org>
+- **style-to-object** 1.0.14 — MIT — https://github.com/remarkablemark/style-to-object
+  - Copyright (c) 2017 Menglin "Mark" Xu <mark@remarkablemark.org>
+- **tailwind-merge** 3.7.0 — MIT — https://github.com/dcastil/tailwind-merge
+  - Copyright (c) 2021 Dany Castillo
 - **three** 0.180.0 — MIT — https://github.com/mrdoob/three.js
   - Copyright © 2010-2025 three.js authors
+- **tiny-invariant** 1.3.3 — MIT — https://github.com/alexreardon/tiny-invariant
+  - Copyright (c) 2019 Alexander Reardon
+- **trim-lines** 3.0.1 — MIT — wooorm/trim-lines
+  - Copyright (c) 2015 Titus Wormer <mailto:tituswormer@gmail.com>
+- **trough** 2.2.0 — MIT — wooorm/trough
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - **tslib** 2.8.1 — 0BSD — https://github.com/Microsoft/tslib
   - Copyright (c) Microsoft Corporation.
+- **unified** 11.0.5 — MIT — unifiedjs/unified
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **unist-util-is** 6.0.1 — MIT — syntax-tree/unist-util-is
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **unist-util-position** 5.0.0 — MIT — syntax-tree/unist-util-position
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **unist-util-stringify-position** 4.0.0 — MIT — syntax-tree/unist-util-stringify-position
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **unist-util-visit** 5.1.0 — MIT — syntax-tree/unist-util-visit
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **unist-util-visit-parents** 6.0.2 — MIT — syntax-tree/unist-util-visit-parents
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - **use-callback-ref** 1.3.3 — MIT — https://github.com/theKashey/use-callback-ref/
   - Copyright (c) 2017 Anton Korzunov
 - **use-sidecar** 1.1.3 — MIT — https://github.com/theKashey/use-sidecar
   - Copyright (c) 2017 Anton Korzunov
+- **use-sync-external-store** 1.7.0 — MIT — https://github.com/react/react
+  - Copyright (c) Meta Platforms, Inc. and affiliates.
+- **vfile** 6.0.3 — MIT — vfile/vfile
+  - Copyright (c) 2015 Titus Wormer <tituswormer@gmail.com>
+- **vfile-location** 5.0.3 — MIT — vfile/vfile-location
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+- **vfile-message** 4.0.3 — MIT — vfile/vfile-message
+  - Copyright (c) Titus Wormer <tituswormer@gmail.com>
+- **victory-vendor** 37.3.6 — MIT AND ISC — https://github.com/FormidableLabs/victory
+- **web-namespaces** 2.0.1 — MIT — wooorm/web-namespaces
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 - **zustand** 5.0.15 — MIT — https://github.com/pmndrs/zustand
   - Copyright (c) 2019 Paul Henschel
+- **zwitch** 2.0.4 — MIT — wooorm/zwitch
+  - Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
 
 ## Fonts
 

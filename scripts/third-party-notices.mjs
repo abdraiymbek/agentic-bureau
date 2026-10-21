@@ -95,6 +95,13 @@ function packageDir(name, fromDir) {
   try {
     return path.dirname(require.resolve(`${name}/package.json`));
   } catch {
+    // ESM-only packages can export only an import condition. Node's CJS resolver
+    // cannot select it; locate the same installed package via its normal lookup roots.
+    for (const lookup of require.resolve.paths(name) ?? []) {
+      const manifest = path.join(lookup, name, 'package.json');
+      if (existsSync(manifest) && JSON.parse(readFileSync(manifest, 'utf8')).name === name)
+        return path.dirname(manifest);
+    }
     let current = path.dirname(require.resolve(name));
     while (current !== path.dirname(current)) {
       const manifest = path.join(current, 'package.json');

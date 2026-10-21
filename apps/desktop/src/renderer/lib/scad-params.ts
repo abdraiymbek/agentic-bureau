@@ -108,18 +108,39 @@ export function scanScadParameters(source: string): ScadParameter[] {
 
 const UNIT_WORD = 'mm|cm|m|in|deg|°|rad|%';
 // Only unambiguous placements count: the whole comment or its lead-in ("mm", "mm, outer"),
-// a bracketed unit ("wall (mm)"), or the phrase "in mm". Anything looser could mislabel a value.
+// a bracketed unit ("wall (mm)"), "in mm", or a delimiter annotation ("X size, mm").
+// Anything looser could mislabel a value; conflicting unit mentions are never resolved by guessing.
 const COMMENT_UNIT = new RegExp(
-  `(?:^\\s*(${UNIT_WORD})\\s*(?:$|[,;:–—-])|[\\[(]\\s*(${UNIT_WORD})\\s*[\\])]|\\bin\\s+(${UNIT_WORD})(?![A-Za-z0-9_]))`,
-  'i',
+  `(?:^\\s*(${UNIT_WORD})\\s*(?=$|[,;:–—-])|[\\[(]\\s*(${UNIT_WORD})\\s*[\\])]|\\bin\\s+(${UNIT_WORD})(?![A-Za-z0-9_])|[,;]\\s*(${UNIT_WORD})\\s*(?=$|[,;]))`,
+  'gi',
 );
+const MENTIONED_UNIT = new RegExp(
+  `(?:^|[^A-Za-z0-9_])(?:[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[+-]?\\d+)?\\s*)?(${UNIT_WORD})(?![A-Za-z0-9_])`,
+  'gi',
+);
+const normalizedUnit = (unit: string) => (unit === '°' ? 'deg' : unit.toLowerCase());
 
 /** A unit the source author wrote beside the value: `// mm`, `// wall (mm)`, `// in deg`. */
 export function unitFromComment(comment: string | undefined): string | null {
-  const match = comment ? COMMENT_UNIT.exec(comment) : null;
-  const unit = match?.[1] ?? match?.[2] ?? match?.[3];
-  if (!unit) return null;
-  return unit === '°' ? 'deg' : unit.toLowerCase();
+  if (!comment) return null;
+  const units = new Set(
+    [...comment.matchAll(COMMENT_UNIT)].map((match) =>
+      normalizedUnit((match[1] ?? match[2] ?? match[3] ?? match[4])!),
+    ),
+  );
+  if (!units.size) return null;
+  for (const match of comment.matchAll(MENTIONED_UNIT)) {
+    const unit = normalizedUnit(match[1]!);
+    // "in" also occurs as prose. A numeric suffix or a final/delimited token is inches;
+    // "in mm" and "in the middle" are prepositions, not a second unit declaration.
+    const at = match.index! + match[0].lastIndexOf(match[1]!);
+    const inches =
+      unit === 'in' &&
+      (/\d\s*$/.test(comment.slice(0, at)) ||
+        /^\s*(?:$|[,;)\]])/.test(comment.slice(at + match[1]!.length)));
+    if (unit !== 'in' || inches) units.add(unit);
+  }
+  return units.size === 1 ? [...units][0]! : null;
 }
 
 export interface ParameterRow {
@@ -267,6 +288,8 @@ export function parameterOverrides(rows: ParameterRow[], form: ParameterForm): P
       if (!NUMBER.test(text.trim()))
         return { ok: false, name: row.name, message: `${row.name} needs a number, got “${text}”.` };
       value = Number(text.trim());
+      if (!Number.isFinite(value))
+        return { ok: false, name: row.name, message: `${row.name} needs a finite number.` };
     } else if (row.declared.kind === 'boolean') {
       if (text !== 'true' && text !== 'false')
         return { ok: false, name: row.name, message: `${row.name} is true or false.` };

@@ -3,7 +3,8 @@ import type { Project } from '@omenflow/contracts';
 import { cmd, CommandError, errMsg } from '../api';
 import { useStore } from '../store';
 import { confirmLeave, guardLeave } from './dirty';
-import { useAgentUi } from '../shell/agent/agent-store';
+import { useChat } from '../chat/chat-store';
+import { paneFor, useAgentUi } from '../shell/agent/agent-store';
 import { sanitizePaste } from '../shell/agent/buffer';
 import { surfacePhase, autostartAdapter } from '../shell/agent/phase';
 import { quiet } from '../shell/agent/quiet';
@@ -128,13 +129,21 @@ function liveSession() {
 }
 
 /**
- * Ask the agent: the text is pasted into the CLI's input for the person to finish and send.
- * With no session ready for input it waits in a visible queue — the surface opens, a chosen CLI
- * starts, and the text is pasted once the CLI shows its prompt. It is never dropped.
+ * Ask the agent. On the conversation pane the text joins the composer's draft and waits for Send.
+ * On the terminal pane it is pasted into the CLI's input for the person to finish and send; with
+ * no session ready for input it waits in a visible queue — the surface opens, a chosen CLI starts,
+ * and the text is pasted once the CLI shows its prompt. It is never dropped or sent.
  */
-export type AskOutcome = 'pasted' | 'queued' | 'shown';
+export type AskOutcome = 'pasted' | 'queued' | 'drafted' | 'shown';
 
 export function askAgent(text: string): AskOutcome {
+  const { projectId: current } = useStore.getState();
+  if (current && paneFor(current) === 'conversation') {
+    showAgent();
+    if (!text.trim()) return 'shown';
+    useChat.getState().offer(current, text);
+    return 'drafted';
+  }
   showAgent();
   const clean = sanitizePaste(text);
   if (!clean.trim()) return 'shown';
@@ -151,9 +160,11 @@ export function askAgent(text: string): AskOutcome {
 
 /** What became of an ask, as a sentence about `what` ("The rebase request"). */
 export function askedWords(outcome: AskOutcome, what: string): string {
-  return outcome === 'pasted'
-    ? `${what} is typed into the agent’s input, not sent. Read it there and press Enter to send it.`
-    : `${what} waits beside the agent’s input and is typed once the agent is ready. Nothing is sent.`;
+  return outcome === 'drafted'
+    ? `${what} is in the conversation’s message box, not sent. Read it there and press Send.`
+    : outcome === 'pasted'
+      ? `${what} is typed into the agent’s input, not sent. Read it there and press Enter to send it.`
+      : `${what} waits beside the agent’s input and is typed once the agent is ready. Nothing is sent.`;
 }
 
 /**
@@ -187,6 +198,7 @@ function startIfUnambiguous() {
       detection: ui.detection,
       start: ui.start,
       agentId: s.agentId,
+      conversationRunning: !!s.projectId && conversationBusy(s.projectId),
     }),
   );
   if (adapterId) void startAgent(adapterId).catch(() => {});
@@ -211,7 +223,19 @@ export async function sendToAgent(text: string) {
   await port.write('\r');
 }
 
-/** Reveal the one agent terminal: its tab when already there, else the floating window. */
+/** A conversation response is running in this project. */
+function conversationBusy(projectId: string): boolean {
+  return !!useChat
+    .getState()
+    .projects[projectId]?.record.conversations.some((c) =>
+      c.turns.some((t) => t.state === 'running'),
+    );
+}
+
+/**
+ * Reveal the agent: its tab when already there, else the floating window. Focus goes to the pane
+ * that shows, the terminal or the conversation's composer.
+ */
 export function showAgent() {
   const s = useStore.getState();
   if (s.view.level !== 'agent') s.set({ agentWindowOpen: true });

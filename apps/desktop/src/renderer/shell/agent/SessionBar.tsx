@@ -3,9 +3,11 @@ import {
   ArrowClockwise,
   ArrowLineRight,
   ArrowsOut,
+  BookOpen,
   Broom,
   CaretDown,
   CaretUp,
+  ChatCircle,
   CopySimple,
   DotsThree,
   GearSix,
@@ -14,14 +16,20 @@ import {
   Minus,
   PictureInPicture,
   Play,
+  Plus,
   SidebarSimple,
+  Square,
   StopCircle,
+  TerminalWindow,
 } from '@phosphor-icons/react';
 import { useStore } from '../../store';
 import { errMsg } from '../../api';
 import { interruptAgent, restartAgent, stopAgent } from '../../lib/actions';
-import { Button, ConfirmButton, IconButton, Menu, Pulse } from '../../ui/kit';
-import { useAgentUi } from './agent-store';
+import { Button, ConfirmButton, IconButton, Menu, Pulse, Segmented } from '../../ui/kit';
+import type { MenuItem } from '../../ui/kit';
+import { useChat } from '../../chat/chat-store';
+import { conversationThreads } from '../../chat/threads';
+import { useAgentUi, type AgentPane } from './agent-store';
 import { sessionCounts } from './activity';
 import { useRailContent } from './useRailContent';
 import { copyText } from './clipboard';
@@ -48,6 +56,102 @@ function useSessionView() {
 
 function report(action: Promise<unknown>) {
   void action.catch((e) => useStore.getState().toast('error', errMsg(e)));
+}
+
+/** The conversation pane's record: its threads, the one shown, and whether a response runs. */
+function useConversationView() {
+  const projectId = useStore((s) => s.projectId);
+  const state = useChat((s) => (projectId ? s.projects[projectId] : undefined));
+  const threads = conversationThreads(state);
+  const active = threads.find((t) => t.id === state?.activeId);
+  const running = threads.find((t) => t.turns.some((turn) => turn.state === 'running'));
+  return {
+    projectId,
+    threads,
+    title: active?.title ?? 'New conversation',
+    activeRunning: !!active && running?.id === active.id,
+    running,
+  };
+}
+
+/** Show a conversation, or start a new one when `id` is null. Drafts stay with their thread. */
+function pickConversation(projectId: string | null, id: string | null) {
+  if (!projectId) return;
+  if (id === null) useChat.getState().newConversation(projectId);
+  else useChat.getState().select(projectId, id);
+  useAgentUi.getState().setRecordOpen(false);
+}
+
+function conversationItems(view: ReturnType<typeof useConversationView>): MenuItem[] {
+  return [
+    {
+      label: 'New conversation',
+      icon: <Plus size={14} />,
+      onSelect: () => pickConversation(view.projectId, null),
+    },
+    ...[...view.threads].reverse().map((t) => ({
+      label: `${t.title}${t.turns.some((turn) => turn.state === 'running') ? ' · running' : ''}`,
+      icon: <ChatCircle size={14} />,
+      onSelect: () => pickConversation(view.projectId, t.id),
+    })),
+  ];
+}
+
+function stopResponse(projectId: string | null, conversationId: string | undefined) {
+  if (projectId && conversationId) report(useChat.getState().cancel(projectId, conversationId));
+}
+
+const PANES: { value: AgentPane; label: string }[] = [
+  { value: 'conversation', label: 'Conversation' },
+  { value: 'terminal', label: 'Terminal' },
+];
+
+/** The conversation's side of the session bar: which thread, and whether it is responding. */
+function ConversationMain() {
+  const view = useConversationView();
+  return (
+    <div className="session-main">
+      <span className={`session-status tone-${view.running ? 'signal' : 'neutral'}`}>
+        {view.running ? <Pulse /> : <span className="state-dot" aria-hidden="true" />}
+        {view.running ? 'Responding' : 'Ready'}
+      </span>
+      <Menu
+        items={conversationItems(view)}
+        trigger={
+          <button type="button" className="session-thread" aria-label="Conversations">
+            <strong className="truncate">{view.title}</strong>
+            <CaretDown size={11} />
+          </button>
+        }
+      />
+    </div>
+  );
+}
+
+function ConversationControls() {
+  const view = useConversationView();
+  const recordOpen = useAgentUi((s) => s.recordOpen);
+  return (
+    <>
+      {view.running && (
+        <Button
+          size="sm"
+          icon={<Square size={11} weight="fill" />}
+          onClick={() => stopResponse(view.projectId, view.running?.id)}
+        >
+          Stop response
+        </Button>
+      )}
+      <IconButton
+        size="sm"
+        label="Project record"
+        aria-pressed={recordOpen}
+        onClick={() => useAgentUi.getState().setRecordOpen(!recordOpen)}
+      >
+        <BookOpen size={14} />
+      </IconButton>
+    </>
+  );
 }
 
 function Elapsed({
@@ -100,7 +204,10 @@ function CopyTranscript({ engine }: { engine: TerminalEngine | null }) {
   );
 }
 
-/** The slim bar above the terminal on the Agent tab. Every value comes from the session record. */
+/**
+ * The slim bar above the agent on the Agent tab: which pane shows, then that pane's state and
+ * controls. Every value comes from the session or conversation record.
+ */
 export function SessionBar({
   engine,
   onSearch,
@@ -110,6 +217,7 @@ export function SessionBar({
 }) {
   const { session, status, name, facts } = useSessionView();
   const railOpen = useAgentUi((s) => s.railOpen);
+  const pane = useAgentUi((s) => s.pane);
   const railIdle = useRailContent().idle;
   const set = useStore((s) => s.set);
   // A CLI that ignores the polite stop is ended a few seconds later; until then the press shows.
@@ -118,31 +226,43 @@ export function SessionBar({
     setPending(which);
     report(action().finally(() => setPending(null)));
   };
+  const terminal = pane === 'terminal';
   return (
     <header className="session-bar" aria-label="Agent session">
-      <div className="session-main">
-        <span className={`session-status tone-${status.tone}`}>
-          {status.live ? <Pulse /> : <span className="state-dot" aria-hidden="true" />}
-          {status.word}
-          {status.over && status.exit && <span className="session-exit"> · {status.exit}</span>}
-        </span>
-        {name && <strong className="session-name truncate">{name}</strong>}
-        {facts.map((f) => (
-          <span
-            key={f.key}
-            data-key={f.key}
-            className={`session-fact ${f.tone ? `tone-${f.tone}` : ''}`}
-          >
-            <span className="sr-only">{f.label}: </span>
-            {f.key === 'model' ? <span className="mono">{f.value}</span> : f.value}
+      <Segmented
+        label="Agent pane"
+        value={pane}
+        options={PANES}
+        onChange={(next) => useAgentUi.getState().setPane(next)}
+      />
+      {terminal ? (
+        <div className="session-main">
+          <span className={`session-status tone-${status.tone}`}>
+            {status.live ? <Pulse /> : <span className="state-dot" aria-hidden="true" />}
+            {status.word}
+            {status.over && status.exit && <span className="session-exit"> · {status.exit}</span>}
           </span>
-        ))}
-        {session && (
-          <Elapsed startedAt={session.startedAt} endedAt={session.endedAt} live={status.live} />
-        )}
-      </div>
+          {name && <strong className="session-name truncate">{name}</strong>}
+          {facts.map((f) => (
+            <span
+              key={f.key}
+              data-key={f.key}
+              className={`session-fact ${f.tone ? `tone-${f.tone}` : ''}`}
+            >
+              <span className="sr-only">{f.label}: </span>
+              {f.key === 'model' ? <span className="mono">{f.value}</span> : f.value}
+            </span>
+          ))}
+          {session && (
+            <Elapsed startedAt={session.startedAt} endedAt={session.endedAt} live={status.live} />
+          )}
+        </div>
+      ) : (
+        <ConversationMain />
+      )}
       <div className="session-controls">
-        {status.live && (
+        {!terminal && <ConversationControls />}
+        {terminal && status.live && (
           <>
             <IconButton
               size="sm"
@@ -173,7 +293,7 @@ export function SessionBar({
             />
           </>
         )}
-        {session && (
+        {terminal && session && (
           <>
             <span className="session-sep" aria-hidden="true" />
             <IconButton size="sm" label="Search scrollback (⌘F)" onClick={onSearch}>
@@ -248,11 +368,43 @@ export function WindowHeader({
   onStart: () => void;
 }) {
   const { session, status, name, facts } = useSessionView();
+  const conversation = useConversationView();
+  const pane = useAgentUi((s) => s.pane);
   const go = useStore((s) => s.go);
   const set = useStore((s) => s.set);
   const [confirm, setConfirm] = useState<'stop' | 'restart' | null>(null);
   const model = facts.find((f) => f.key === 'model');
-  const items = [
+  const terminal = pane === 'terminal';
+  const recordOpen = useAgentUi((s) => s.recordOpen);
+  const paneItem: MenuItem = terminal
+    ? {
+        label: 'Show the conversation',
+        icon: <ChatCircle size={14} />,
+        onSelect: () => useAgentUi.getState().setPane('conversation'),
+      }
+    : {
+        label: 'Show the terminal',
+        icon: <TerminalWindow size={14} />,
+        onSelect: () => useAgentUi.getState().setPane('terminal'),
+      };
+  const conversationMenu: MenuItem[] = [
+    ...(conversation.running
+      ? [
+          {
+            label: 'Stop response',
+            icon: <Square size={14} />,
+            onSelect: () => stopResponse(conversation.projectId, conversation.running?.id),
+          },
+        ]
+      : []),
+    {
+      label: recordOpen ? 'Close the project record' : 'Project record',
+      icon: <BookOpen size={14} />,
+      onSelect: () => useAgentUi.getState().setRecordOpen(!recordOpen),
+    },
+    ...conversationItems(conversation),
+  ];
+  const terminalMenu: MenuItem[] = [
     ...(status.live
       ? [
           {
@@ -296,6 +448,10 @@ export function WindowHeader({
           { label: 'Clear screen', icon: <Broom size={14} />, onSelect: () => engine?.clear() },
         ]
       : []),
+  ];
+  const items: MenuItem[] = [
+    paneItem,
+    ...(terminal ? terminalMenu : conversationMenu),
     {
       label: 'Agent settings',
       icon: <GearSix size={14} />,
@@ -309,22 +465,37 @@ export function WindowHeader({
   return (
     <>
       <header className="agent-head" onPointerDown={onPointerDown}>
-        <span
-          className={`agent-light ${status.live ? 'live' : session ? 'ready' : 'off'}`}
-          aria-hidden="true"
-        />
-        <span className="agent-name truncate">{name ?? 'Agent'}</span>
-        <span className={`agent-status tone-${status.tone}`}>
-          {status.word}
-          {status.over && status.exit ? ` · ${status.exit}` : ''}
-        </span>
-        {model && <span className="agent-model mono truncate">{model.value}</span>}
+        {terminal ? (
+          <>
+            <span
+              className={`agent-light ${status.live ? 'live' : session ? 'ready' : 'off'}`}
+              aria-hidden="true"
+            />
+            <span className="agent-name truncate">{name ?? 'Agent'}</span>
+            <span className={`agent-status tone-${status.tone}`}>
+              {status.word}
+              {status.over && status.exit ? ` · ${status.exit}` : ''}
+            </span>
+            {model && <span className="agent-model mono truncate">{model.value}</span>}
+          </>
+        ) : (
+          <>
+            <span
+              className={`agent-light ${conversation.running ? 'live' : 'ready'}`}
+              aria-hidden="true"
+            />
+            <span className="agent-name truncate">{conversation.title}</span>
+            <span className={`agent-status tone-${conversation.running ? 'signal' : 'neutral'}`}>
+              {conversation.running ? 'Responding' : 'Conversation'}
+            </span>
+          </>
+        )}
         <span className="grow" />
         <Menu
           align="end"
           items={items}
           trigger={
-            <IconButton size="sm" label="Session actions">
+            <IconButton size="sm" label={terminal ? 'Session actions' : 'Conversation actions'}>
               <DotsThree size={15} weight="bold" />
             </IconButton>
           }

@@ -329,6 +329,19 @@ describe('surface phase', () => {
     expect(missing.kind === 'choose' && missing.missing?.adapterId).toBe('claude-code');
   });
 
+  it('waits for a running conversation response instead of starting a terminal', () => {
+    const busy = surfacePhase({ ...input, conversationRunning: true });
+    expect(busy.kind).toBe('conversation-running');
+    expect(autostartAdapter(busy)).toBeNull();
+    const ended = { state: 'exited', adapterId: 'codex' } as const;
+    expect(surfacePhase({ ...input, session: ended, conversationRunning: true }).kind).toBe(
+      'conversation-running',
+    );
+    // A live terminal is shown as live; the host refuses the second agent either way.
+    const live = { state: 'running', adapterId: 'codex' } as const;
+    expect(surfacePhase({ ...input, session: live, conversationRunning: true }).kind).toBe('live');
+  });
+
   it('shows a failed start even over an ended transcript, and never autostarts after an end', () => {
     const ended = { state: 'exited' as const, adapterId: 'codex' };
     expect(surfacePhase({ ...input, session: ended }).kind).toBe('ended');

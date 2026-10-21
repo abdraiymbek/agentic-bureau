@@ -19,6 +19,7 @@ import {
 } from '../../apps/desktop/src/renderer/launcher/first-prompt';
 import { useStore } from '../../apps/desktop/src/renderer/store';
 import { useAgentUi } from '../../apps/desktop/src/renderer/shell/agent/agent-store';
+import { useChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 import { setTerminalPort } from '../../apps/desktop/src/renderer/shell/agent/terminal-port';
 
 describe('project folder resolution', () => {
@@ -113,6 +114,7 @@ describe('the brief as the first prompt', () => {
   let data: ((d: { projectId: string; sessionId: string; chunk: string }) => void) | null = null;
   const initial = useStore.getState();
   const initialUi = useAgentUi.getState();
+  const initialChat = useChat.getState();
   const toast = vi.fn();
   const session = (state: SessionInfo['state']) => ({ state }) as SessionInfo;
   // The terminal the brief is pasted into: xterm adds the bracketed-paste markers itself.
@@ -147,7 +149,7 @@ describe('the brief as the first prompt', () => {
       },
     });
     useStore.setState({ ...initial, projectId: 'p1', session: null, toast });
-    useAgentUi.setState({ ...initialUi, projectId: 'p1' });
+    useAgentUi.setState({ ...initialUi, projectId: 'p1', pane: 'terminal' });
     pastes = [];
     ready = true;
     setTerminalPort(port);
@@ -208,6 +210,19 @@ describe('the brief as the first prompt', () => {
     expect(pasted()).toEqual([]);
     expect(useAgentUi.getState().pending.map((p) => p.text)).toEqual(['brief']);
     expect(toast).toHaveBeenCalledWith('info', expect.stringContaining('once the agent is ready'));
+  });
+
+  it('puts the brief in the conversation composer at once on the conversation pane', async () => {
+    useAgentUi.setState({ pane: 'conversation' });
+    offerFirstPrompt('p1', firstPromptFor('A rover'));
+    const chat = useChat.getState().projects.p1!;
+    expect(chat.drafts[chat.activeId]?.text).toBe(firstPromptFor('A rover'));
+    expect(toast).toHaveBeenCalledWith('info', expect.stringContaining('press Send'));
+    useStore.setState({ session: session('running') });
+    await vi.advanceTimersByTimeAsync(MAX_WAIT_MS);
+    expect(pasted()).toEqual([]);
+    expect(command).not.toHaveBeenCalled();
+    useChat.setState(initialChat, true);
   });
 
   it('types it anyway after the longest wait when the CLI keeps drawing', async () => {

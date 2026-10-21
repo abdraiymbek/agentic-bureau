@@ -1,7 +1,7 @@
 import React, { useContext, useState } from 'react';
 import { ArrowRight, Play } from '@phosphor-icons/react';
 import { useStore } from '../store';
-import { showAgent } from '../lib/actions';
+import { useAgentUi } from '../shell/agent/agent-store';
 import { Button, TypeGlyph } from '../ui/kit';
 import { FlowMap } from './FlowMap';
 import { ProjectHead } from './flow/chrome';
@@ -29,7 +29,10 @@ function Beginning() {
   const session = useStore((s) => s.session);
   const project = useStore((s) => s.project);
   const askAbout = useStore((s) => s.askAbout);
-  const live = session?.state === 'running';
+  const go = useStore((s) => s.go);
+  const pane = useAgentUi((s) => s.pane);
+  // The conversation takes a request without a running session; the terminal needs its CLI.
+  const ready = session?.state === 'running' || pane === 'conversation';
   const prompt = project?.intent
     ? `Read the project intent and draft the first requirements with measurable targets and acceptance criteria. Intent: ${project.intent}`
     : 'Help me define this project. Ask me what it must do, then draft requirements with measurable targets.';
@@ -51,7 +54,7 @@ function Beginning() {
         Your agent drafts requirements, parts, models, and calculations. They appear here as one
         connected flow — and none become the design until you approve them.
       </p>
-      {live ? (
+      {ready ? (
         <Button
           variant="primary"
           onClick={() => askAbout(prompt)}
@@ -63,7 +66,7 @@ function Beginning() {
         <Button
           variant="signal"
           icon={<Play size={13} weight="fill" />}
-          onClick={() => showAgent()}
+          onClick={() => go({ level: 'agent' })}
         >
           Open the agent
         </Button>

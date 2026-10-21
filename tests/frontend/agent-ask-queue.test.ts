@@ -9,6 +9,7 @@ import {
   typeIntoAgent,
 } from '../../apps/desktop/src/renderer/lib/actions';
 import { useAgentUi } from '../../apps/desktop/src/renderer/shell/agent/agent-store';
+import { useChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 import {
   setTerminalPort,
   type TerminalPort,
@@ -17,6 +18,7 @@ import {
 const command = vi.fn();
 const initial = useStore.getState();
 const initialUi = useAgentUi.getState();
+const initialChat = useChat.getState();
 
 function adapter(id: string, available: boolean): AdapterStatus {
   return {
@@ -77,7 +79,12 @@ beforeEach(() => {
     refreshSession: vi.fn().mockResolvedValue(undefined),
     toast: vi.fn(),
   });
-  useAgentUi.setState({ ...initialUi, projectId: 'p1', detection: { status: 'ready' } });
+  useAgentUi.setState({
+    ...initialUi,
+    projectId: 'p1',
+    pane: 'terminal',
+    detection: { status: 'ready' },
+  });
 });
 
 afterEach(() => {
@@ -85,6 +92,33 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useStore.setState(initial);
   useAgentUi.setState(initialUi);
+  useChat.setState(initialChat, true);
+});
+
+describe('asking the agent on the conversation pane', () => {
+  beforeEach(() => useAgentUi.setState({ pane: 'conversation' }));
+  const draft = () => {
+    const chat = useChat.getState().projects.p1!;
+    return chat.drafts[chat.activeId]?.text;
+  };
+
+  it('adds the text to the composer and never pastes, queues or starts a process', () => {
+    const { port, pasted } = fakePort(true);
+    setTerminalPort(port);
+    useStore.setState({ session: running });
+    expect(askAgent('Check the mass budget')).toBe('drafted');
+    expect(askAgent('and the pack energy')).toBe('drafted');
+    expect(draft()).toBe('Check the mass budget\n\nand the pack energy');
+    expect(pasted).toEqual([]);
+    expect(useAgentUi.getState().pending).toHaveLength(0);
+    expect(command).not.toHaveBeenCalled();
+    expect(useStore.getState().agentWindowOpen).toBe(true);
+  });
+
+  it('only shows the agent for an empty request', () => {
+    expect(askAgent('   ')).toBe('shown');
+    expect(useChat.getState().projects.p1).toBeUndefined();
+  });
 });
 
 describe('asking the agent', () => {

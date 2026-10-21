@@ -3,6 +3,7 @@ import { ArrowClockwise, CheckCircle, WarningCircle, X } from '@phosphor-icons/r
 import type { AgentCallRecord } from '@omenflow/contracts';
 import { useStore } from '../../store';
 import { askAgent } from '../../lib/actions';
+import { useChat } from '../../chat/chat-store';
 import { Button, IconButton, Notice, Skeleton, TypeGlyph, shortId } from '../../ui/kit';
 import { useAgentUi } from './agent-store';
 import { durationLabel, groupCalls, timeRange, toolWords } from './activity';
@@ -116,6 +117,18 @@ export function ActivityRail() {
     [calls, errorsOnly],
   );
   const groups = useMemo(() => groupCalls(shown), [shown]);
+  // Calls from a conversation's runs are named as such, not as an earlier terminal session.
+  const conversationKey = useChat((s) =>
+    projectId
+      ? (s.projects[projectId]?.record.conversations
+          .flatMap((c) => c.turns.map((t) => t.sessionId ?? ''))
+          .join(' ') ?? '')
+      : '',
+  );
+  const conversationSessions = useMemo(
+    () => new Set(conversationKey.split(' ').filter(Boolean)),
+    [conversationKey],
+  );
   // With no record from the host and nothing else to offer, the rail stays out of the way.
   if (idle) return null;
 
@@ -194,7 +207,11 @@ export function ActivityRail() {
                 {g.calls.length} {g.calls.length === 1 ? 'call' : 'calls'}
                 {g.failures ? ` · ${g.failures} failed` : ''}
               </span>
-              {session && g.sessionId !== session.id && <span>earlier session</span>}
+              {conversationSessions.has(g.sessionId) ? (
+                <span>conversation</span>
+              ) : (
+                session && g.sessionId !== session.id && <span>earlier session</span>
+              )}
             </h3>
             <ol>
               {g.calls.map((c) => (

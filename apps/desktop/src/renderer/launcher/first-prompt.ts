@@ -1,8 +1,10 @@
 /**
- * The brief typed in the launcher becomes the agent's first prompt: pasted into the CLI's input
- * once it is ready, never submitted. The person reads it, edits it, and presses Enter.
+ * The brief typed in the launcher becomes the agent's first prompt, never submitted: the
+ * conversation's draft at once, or pasted into the CLI's input once it is ready. The person reads
+ * it, edits it, and sends it.
  */
 import { askAgent, askedWords } from '../lib/actions';
+import { paneFor } from '../shell/agent/agent-store';
 import { useStore } from '../store';
 
 /** The CLI is taken as ready once its start-up output has been quiet this long. */
@@ -15,10 +17,16 @@ export function firstPromptFor(brief: string): string {
 }
 
 /**
- * Waits for the project's agent session to run and settle, then types `text` into it.
- * Stops without typing when the project closes or the session ends first. Returns a cancel.
+ * On the conversation pane, puts `text` in the composer now. On the terminal pane, waits for the
+ * project's agent session to run and settle, then types `text` into it, stopping without typing
+ * when the project closes or the session ends first. Returns a cancel.
  */
 export function offerFirstPrompt(projectId: string, text: string): () => void {
+  if (paneFor(projectId) === 'conversation') {
+    if (useStore.getState().projectId === projectId)
+      useStore.getState().toast('info', askedWords(askAgent(text), 'Your brief'));
+    return () => {};
+  }
   let done = false;
   let started = false;
   let quiet: number | undefined;

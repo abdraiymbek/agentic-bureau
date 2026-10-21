@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
-import { ArrowClockwise, FolderOpen, GearSix, Play } from '@phosphor-icons/react';
+import {
+  ArrowClockwise,
+  ChatCircle,
+  FolderOpen,
+  GearSix,
+  Play,
+  Square,
+} from '@phosphor-icons/react';
 import type { AdapterStatus } from '@omenflow/contracts';
 import { useStore } from '../../store';
+import { useChat } from '../../chat/chat-store';
 import { flushAsks, startAgentFromSurface as startAdapter } from '../../lib/actions';
 import { ExternalLink } from '../../ui/ExternalLink';
 import { Button, Spinner, State } from '../../ui/kit';
@@ -75,6 +83,54 @@ function AdapterHelp({ adapter }: { adapter: AdapterStatus }) {
   );
 }
 
+/** A conversation response is running, so the terminal waits: one agent works at a time. */
+function ConversationBusy({ bar = false }: { bar?: boolean }) {
+  const projectId = useStore((s) => s.projectId);
+  const [stopping, setStopping] = useState(false);
+  const stop = async () => {
+    const state = projectId ? useChat.getState().projects[projectId] : undefined;
+    const owner = state?.record.conversations.find((c) =>
+      c.turns.some((t) => t.state === 'running'),
+    );
+    if (!projectId || !owner) return;
+    setStopping(true);
+    await useChat.getState().cancel(projectId, owner.id);
+    setStopping(false);
+  };
+  const actions = (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        icon={<ChatCircle size={12} />}
+        onClick={() => useAgentUi.getState().setPane('conversation')}
+      >
+        Switch to Conversation
+      </Button>
+      <Button
+        size="sm"
+        busy={stopping}
+        icon={<Square size={11} weight="fill" />}
+        onClick={() => void stop()}
+      >
+        Stop response
+      </Button>
+    </>
+  );
+  const words = 'A conversation response is running. One agent works in a project at a time.';
+  return bar ? (
+    <div className="agent-ended" role="status">
+      <span className="truncate">{words}</span>
+      {actions}
+    </div>
+  ) : (
+    <div className="agent-empty" role="status">
+      <p>{words}</p>
+      <div className="row">{actions}</div>
+    </div>
+  );
+}
+
 /** What fills the terminal area while there is no session to show. */
 export function SurfacePanel({ phase }: { phase: Phase }) {
   const adapters = useStore((s) => s.adapters);
@@ -87,6 +143,8 @@ export function SurfacePanel({ phase }: { phase: Phase }) {
     </p>
   );
   switch (phase.kind) {
+    case 'conversation-running':
+      return <ConversationBusy />;
     case 'read-only':
       return (
         <div className="agent-empty" role="status">
@@ -213,6 +271,7 @@ export function SurfacePanel({ phase }: { phase: Phase }) {
 export function EndedBar({ phase, startId }: { phase: Phase; startId: string | null }) {
   const session = useStore((s) => s.session);
   const adapters = useStore((s) => s.adapters);
+  if (session && phase.kind === 'conversation-running') return <ConversationBusy bar />;
   if (
     !session ||
     (phase.kind !== 'ended' && phase.kind !== 'start-failed' && phase.kind !== 'starting')

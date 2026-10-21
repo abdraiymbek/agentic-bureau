@@ -95,6 +95,51 @@ describe('units are shown only where they are known', () => {
     ])
       expect(unitFromComment(loose)).toBeNull();
   });
+  it('reads explicit trailing comma/semicolon units from actual generated source', () => {
+    const source =
+      '$fn = 64;\nwidth_mm = 20; // X size, mm\ndepth_mm = 15; // Y size; mm\nheight_mm = 10; // Z size, MM\n';
+    expect(
+      parameterRows(source, {}, []).map((row) => [row.name, row.value, row.unit, row.unitSource]),
+    ).toEqual([
+      ['$fn', 64, '', null],
+      ['width_mm', 20, 'mm', 'source-comment'],
+      ['depth_mm', 15, 'mm', 'source-comment'],
+      ['height_mm', 10, 'mm', 'source-comment'],
+    ]);
+    expect(unitFromComment('Rotation; °')).toBe('deg');
+    expect(unitFromComment('Distance, in')).toBe('in');
+  });
+  it('rejects conflicting annotations and nonunit prose rather than selecting the first unit', () => {
+    for (const comment of [
+      'X size, mm; cm',
+      'mm, converted in cm',
+      'width (mm), possible cm',
+      'width in mm (cm)',
+      'tilt (deg), rad',
+      'width (mm), 0.2 in',
+      'width (mm), 0.2in',
+      'width (mm), 20cm',
+      'width (mm), 1e-3m',
+      'width (mm) or in',
+      'X size, mm or cm',
+      'size, millimetres',
+      'X size, mm-ish',
+      'count; minimum',
+      'position in the middle',
+    ]) {
+      expect(unitFromComment(comment), comment).toBeNull();
+    }
+    expect(unitFromComment('X size, mm; mm')).toBe('mm');
+    expect(unitFromComment('tilt (°), deg')).toBe('deg');
+    expect(unitFromComment('mm, position in the middle')).toBe('mm');
+    expect(unitFromComment('width (mm), 20mm')).toBe('mm');
+    expect(unitFromComment('width (mm), slot2cm')).toBe('mm');
+    expect(
+      parameterRows('width_mm = 20;\nheight = 10; // no units declared\n', {}, []).every(
+        (row) => row.unit === '',
+      ),
+    ).toBe(true);
+  });
 
   const rows = parameterRows(
     SOURCE,
@@ -201,4 +246,9 @@ describe('units are shown only where they are known', () => {
     expect(inModelUnits(1, 'furlong')).toBeNull();
     expect(inModelUnits(3, 'cm')).toBe(30);
   });
+});
+
+it('refuses an overflowing numeric dimension before sending it to the renderer or agent', () => {
+  const rows = parameterRows('width = 20; // mm\n', {}, []);
+  expect(parameterOverrides(rows, { width: '1e999' })).toMatchObject({ ok: false, name: 'width' });
 });

@@ -138,7 +138,9 @@ function AgentsSection() {
       </div>
       <p className="sheet-lede">
         Bring the agent CLI you already use. The chosen agent runs in the Agent tab in this
-        project’s folder; its structured changes arrive as proposals for you to decide.
+        project’s folder; its structured changes arrive as proposals for you to decide. The
+        Conversation pane runs Codex CLI or Claude Code once per message; the Terminal pane runs any
+        of them interactively. One agent works in a project at a time.
       </p>
       {detection.status === 'failed' && (
         <Notice tone="err" role="alert">

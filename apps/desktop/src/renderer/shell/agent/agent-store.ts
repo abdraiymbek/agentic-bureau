@@ -1,7 +1,7 @@
 /**
  * State of the agent surface that is not project data: detection and start progress, the ask
- * queue, the activity feed, and remembered presentation choices. Project data (session,
- * adapters) stays in the main store.
+ * queue, the activity feed, the pane shown, and remembered presentation choices. Project data
+ * (session, adapters) stays in the main store; conversations stay in the chat store.
  */
 import { create } from 'zustand';
 import type { AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
@@ -56,6 +56,9 @@ export type StartState =
 export type Detection =
   { status: 'detecting' } | { status: 'ready' } | { status: 'failed'; error: string };
 
+/** The structured conversation, or the agent CLI's own terminal. */
+export type AgentPane = 'conversation' | 'terminal';
+
 interface AgentUi {
   projectId: string | null;
   /** A request from an earlier visit must not apply after switching away and back. */
@@ -74,6 +77,10 @@ interface AgentUi {
   pending: PendingAsk[];
   activity: ActivityFeed;
   railOpen: boolean;
+  /** Remembered per project; a project not seen before opens on the conversation. */
+  pane: AgentPane;
+  /** The project record picker is open above the conversation. */
+  recordOpen: boolean;
   errorsOnly: boolean;
   window: WindowPrefs;
   settingsSection: SettingsSection;
@@ -95,6 +102,8 @@ interface AgentUi {
   addCalls: (calls: AgentCallRecord[], source: 'live' | 'latest' | 'older') => void;
   showLatestCalls: () => void;
   setRailOpen: (open: boolean) => void;
+  setPane: (pane: AgentPane) => void;
+  setRecordOpen: (open: boolean) => void;
   setErrorsOnly: (errorsOnly: boolean) => void;
   setWindow: (patch: Partial<WindowPrefs>) => void;
   setSettingsSection: (section: SettingsSection) => void;
@@ -105,6 +114,7 @@ interface AgentUi {
 const WINDOW_KEY = 'omen.agentWindow';
 const SECTION_KEY = 'omen.settings.section';
 const railKey = (projectId: string) => `omen.agentRail.${projectId}`;
+const paneKey = (projectId: string) => `omen.agentPane.${projectId}`;
 
 function read(key: string): string | null {
   try {
@@ -128,9 +138,19 @@ function readRail(projectId: string | null): boolean {
   return typeof window !== 'undefined' && window.innerWidth >= 1280;
 }
 
+function readPane(projectId: string | null): AgentPane {
+  return projectId && read(paneKey(projectId)) === 'terminal' ? 'terminal' : 'conversation';
+}
+
 function readSection(): SettingsSection {
   const saved = read(SECTION_KEY);
   return saved === 'tools' || saved === 'appearance' ? saved : 'agents';
+}
+
+/** The pane a project's agent shows, also before its surface has mounted. */
+export function paneFor(projectId: string): AgentPane {
+  const ui = useAgentUi.getState();
+  return ui.projectId === projectId ? ui.pane : readPane(projectId);
 }
 
 export const EMPTY_FEED: ActivityFeed = {
@@ -160,6 +180,8 @@ export const useAgentUi = create<AgentUi>((set, get) => ({
   pending: [],
   activity: EMPTY_FEED,
   railOpen: readRail(null),
+  pane: readPane(null),
+  recordOpen: false,
   errorsOnly: false,
   window: parsePrefs(read(WINDOW_KEY)),
   settingsSection: readSection(),
@@ -178,6 +200,8 @@ export const useAgentUi = create<AgentUi>((set, get) => ({
       pending: [],
       activity: EMPTY_FEED,
       railOpen: readRail(projectId),
+      pane: readPane(projectId),
+      recordOpen: false,
       errorsOnly: false,
       startersDismissed: null,
     });
@@ -252,6 +276,12 @@ export const useAgentUi = create<AgentUi>((set, get) => ({
     if (projectId) write(railKey(projectId), railOpen ? '1' : '0');
     set({ railOpen });
   },
+  setPane: (pane) => {
+    const { projectId } = get();
+    if (projectId) write(paneKey(projectId), pane);
+    set({ pane, recordOpen: false });
+  },
+  setRecordOpen: (recordOpen) => set({ recordOpen }),
   setErrorsOnly: (errorsOnly) => set({ errorsOnly }),
   setWindow: (patch) => {
     const next = { ...get().window, ...patch };
