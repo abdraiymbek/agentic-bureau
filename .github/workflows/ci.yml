@@ -96,6 +96,11 @@ jobs:
   conformance:
     name: conformance suite + headless smoke (Rust host)
     runs-on: ubuntu-24.04
+    env:
+      # The conversation cases drive a fixture agent through the real helper, and one renders
+      # with OpenSCAD; the same pinned distribution engine as the legacy CAD job.
+      OPENSCAD_PACKAGE_VERSION: 2021.01-6build4
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -106,11 +111,15 @@ jobs:
           node-version: 24
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install the pinned distribution engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y "openscad=${OPENSCAD_PACKAGE_VERSION}"
+          openscad --version
       - run: pnpm install --frozen-lockfile
-      # Builds omenflow-host and runs every *.conformance.ts case against it.
-      # No case renders with OpenSCAD.
-      - run: pnpm test:conformance
       - run: pnpm build:bridge
+      # Builds omenflow-host and runs every *.conformance.ts case against it.
+      - run: pnpm test:conformance
       - run: pnpm smoke:headless
 
   package-macos:
