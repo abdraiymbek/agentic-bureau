@@ -11,7 +11,7 @@ Everything lives in the project folder: a schema 1 SQLite record, an object stor
 files, and readable working files. The packaged app is Rust (Tauri) with a React renderer in the
 operating system's webview; it contains no Electron and no Node runtime.
 
-**[Download Omen Flow 1.0.2](https://github.com/abdraiymbek/omen-flow/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
+**[Download Omen Flow 1.0.3](https://github.com/abdraiymbek/omen-flow/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
 Apache-2.0
 
 ## Install
@@ -29,7 +29,7 @@ Apache-2.0
 
 ### macOS
 
-Download `Omen-Flow-1.0.2-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
+Download `Omen-Flow-1.0.3-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
 but is not notarized by Apple. macOS may require approval on first launch:
 
 1. Open the DMG and drag **Omen Flow** onto **Applications**.
@@ -50,12 +50,12 @@ Download the file for your system and architecture (`amd64`/`x86_64` for most PC
 
 | System                    | File                              | Install                                                 |
 | ------------------------- | --------------------------------- | ------------------------------------------------------- |
-| Ubuntu 22.04+, Debian 12+ | `omen-flow_1.0.2_amd64.deb`       | `sudo apt install ./omen-flow_1.0.2_amd64.deb`          |
-| Fedora 42+                | `omen-flow-1.0.2-1.x86_64.rpm`    | `sudo dnf install ./omen-flow-1.0.2-1.x86_64.rpm`       |
-| Other distributions       | `Omen-Flow-1.0.2-x86_64.AppImage` | `chmod +x Omen-Flow-1.0.2-x86_64.AppImage`, then run it |
+| Ubuntu 22.04+, Debian 12+ | `omen-flow_1.0.3_amd64.deb`       | `sudo apt install ./omen-flow_1.0.3_amd64.deb`          |
+| Fedora 42+                | `omen-flow-1.0.3-1.x86_64.rpm`    | `sudo dnf install ./omen-flow-1.0.3-1.x86_64.rpm`       |
+| Other distributions       | `Omen-Flow-1.0.3-x86_64.AppImage` | `chmod +x Omen-Flow-1.0.3-x86_64.AppImage`, then run it |
 
-The `arm64` files are named the same way (`omen-flow_1.0.2_arm64.deb`,
-`omen-flow-1.0.2-1.aarch64.rpm`, `Omen-Flow-1.0.2-aarch64.AppImage`). The packages install
+The `arm64` files are named the same way (`omen-flow_1.0.3_arm64.deb`,
+`omen-flow-1.0.3-1.aarch64.rpm`, `Omen-Flow-1.0.3-aarch64.AppImage`). The packages install
 **Omen Flow** in the applications menu and the `omen-flow` command, and apt or dnf pulls in
 WebKitGTK and the other libraries. The AppImage needs FUSE 3 (`sudo apt install fuse3`) or
 `APPIMAGE_EXTRACT_AND_RUN=1`. The Linux build has been installed and run in fresh Ubuntu, Debian
@@ -81,7 +81,10 @@ and [release](docs/release.md).
 
 1. Install OpenSCAD (macOS: `brew install --cask openscad@snapshot`; the engine is not bundled)
    and an agent CLI, signed in.
-2. Open Omen Flow, answer _What are you building?_ and choose an empty folder.
+2. Open Omen Flow. On first launch an introduction plays: four short acts on a sample rover's
+   map (see the whole, focus on one, decide), then setup steps that detect your agent CLI and
+   OpenSCAD, pick Graphite or Paper and show the shortcuts. `Esc` skips it; Settings →
+   Appearance plays it again. Then answer _What are you building?_ and choose an empty folder.
 3. The project opens on the Agent tab's **Conversation**: write what you want and press Send;
    Codex CLI or Claude Code runs once per message. Switch to **Terminal** to run any agent CLI
    interactively: when exactly one is found (or the one you chose before is), it starts; with
@@ -101,6 +104,11 @@ Closing a project stops its agent. A project written by a newer build opens read
   **Evidence** (`⌘1`–`⌘5`) — then one object on a stage between the rails of what it depends on
   and what it affects, then one decision. A left activity bar carries the Agent tab first. There
   is no dashboard. See [the design specification](design-system/design.md).
+- **The introduction.** Once on first launch, over the launcher: the rover's causal map draws
+  itself and lights a thread, the camera tray zooms into a live 3D stage, a proposal is approved
+  and its impact travels the recorded links, then the setup steps do the real thing (agent CLI
+  detection and choice, the OpenSCAD probe, theme, shortcuts, where everything lives). Nothing
+  in it reaches a record; it is replayable from Settings, the launcher, `⌘K` or the catalogue.
 - **The agent surface.** One per open project, shown as the Agent tab, a floating window or a
   dock (`⌘J`), with two panes. The **Conversation** runs Codex CLI or Claude Code headless once
   per message and shows the cards the run presents: a part in 3D with its dimensions, recorded
@@ -214,7 +222,7 @@ scripted sessions and no model.
 
 ## Limits
 
-- The macOS app (version 1.0.2, identifier `app.omenflow.desktop`, macOS 13.3 or later, Apple
+- The macOS app (version 1.0.3, identifier `app.omenflow.desktop`, macOS 13.3 or later, Apple
   Silicon only) is ad hoc signed, not notarized, so macOS asks you to allow it once (see
   [Install](#macos)). Intel Macs and Windows are not supported by this release.
 - Linux packages (`.deb`, `.rpm`, AppImage; unsigned) are built by `node scripts/linux-package.mjs`
@@ -226,7 +234,7 @@ scripted sessions and no model.
   FUSE (`fuse3`) to mount, or `APPIMAGE_EXTRACT_AND_RUN=1`. Nobody has used them on a real Linux
   desktop: Wayland, GPU drivers, HiDPI and the on-screen look of native dialogs are unverified,
   and Linux x86_64 packages use the same recipe in the release workflow. See
-  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v1.0.2/README.md).
+  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v1.0.3/README.md).
 - V1 was verified with automated suites, browser walkthroughs and a QA pass on the Rust
   headless host, and an adversarial review whose fixes each carry a regression test. The release
   bundle was launched only by the packaged smoke and a window check; the last native
@@ -240,7 +248,7 @@ scripted sessions and no model.
 - Project archives carry the record, objects and working files, not readable per-artifact views;
   agent call history stays out of archives.
 
-Current status and verification numbers: [1.0.2 verification record](audit/v1.0.2/README.md).
+Current status and verification numbers: [1.0.3 verification record](audit/v1.0.3/README.md).
 Earlier records: [V1 readiness record](audit/v1/README.md), [`audit/`](audit/); [build status](BUILD_STATUS.md) says where the Electron-era
 ledger went.
 
