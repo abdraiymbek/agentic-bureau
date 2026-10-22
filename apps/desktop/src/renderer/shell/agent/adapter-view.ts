@@ -141,6 +141,21 @@ export function resolvedProfileText(
   return 'Automatic → decided by the host when you save';
 }
 
+/**
+ * The model and profile part of what Settings saves. The host lists a saved alias as the id it
+ * launches (`claude-haiku-5-5` for `haiku`), so the model goes only when the person picked another:
+ * saving anything else keeps the alias, which their own model routing may depend on.
+ */
+export function modelAndProfileInput(
+  v: Pick<AdapterRowView, 'model' | 'profile'>,
+  draft: { model: string | null; profile: ProfileSetting },
+): { model?: string | null; profile?: ProfileSetting } {
+  if (v.profile === null) return {};
+  return draft.model === v.model
+    ? { profile: draft.profile }
+    : { model: draft.model, profile: draft.profile };
+}
+
 /** A configuration change that a running session on this adapter would only pick up on restart. */
 export function needsRestart(
   session: {

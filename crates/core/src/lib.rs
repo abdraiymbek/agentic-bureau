@@ -521,6 +521,16 @@ impl CoreApp {
         self.read_settings()["adapters"][adapter_id].clone()
     }
 
+    /// The completion gate over these agent sessions as one scope, in the `work.status` shape
+    /// plus `inScope` and `jobsRunning`. Read-only; not an operation.
+    pub fn work_status_sessions(&self, project_id: &str, sessions: &[String]) -> CoreResult<Value> {
+        let handle = self
+            .projects
+            .get(project_id)
+            .ok_or_else(|| ContractError::new("NOT_FOUND", "Project not open"))?;
+        gate::sessions_status(handle, sessions)
+    }
+
     pub fn configure_adapter(&self, adapter_id: &str, input: &Value) -> CoreResult<()> {
         let mut settings = self.read_settings();
         if !settings["adapters"].is_object() {

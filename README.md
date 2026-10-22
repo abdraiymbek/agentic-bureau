@@ -118,8 +118,13 @@ Closing a project stops its agent. A project written by a newer build opens read
   model, tool profile, tools listed, and the calls and failures the host recorded. One agent
   works in a project at a time. The activity rail lists only calls from the host's ledger.
   “Ask agent” anywhere drafts an editable request in the active pane; it never sends for you.
-  Conversations are kept in `.omenflow/chat/conversations.json` in the project folder; project
-  archives do not include them.
+  When a response ends with work that `work_status` still lists as unfinished, the turn shows
+  Omen Flow's record of it, **Work not finished**, and Continue sends one fixed, labelled
+  continuation; with Settings → Agents → **Continue once** (off by default) Omen Flow sends it
+  itself, once per message you sent, labelled as its own. Each turn names its model: what the
+  CLI reported, else the id Omen Flow passed. Omen Flow never parses or shows a CLI's cost
+  figure in its own interface. Conversations are kept in `.omenflow/chat/conversations.json` in
+  the project folder; project archives do not include them.
 - **Adaptive capability profiles.** Each session is fixed to `compact`, `standard` or `full`. A
   small model (Haiku, Luna, mini, local models) gets 13 flat tools, playbooks on demand
   (`guide_read`), reported input repairs and a server-owned completion gate (`work_status`). A

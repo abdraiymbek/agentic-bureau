@@ -55,6 +55,7 @@ describe('conversation threads', () => {
     drafts: {},
     pending: {},
     sending: {},
+    refused: {},
     loading: false,
     loaded: true,
     error: null,

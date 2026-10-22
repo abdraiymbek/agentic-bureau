@@ -14,9 +14,11 @@ import {
   Trash,
   X,
 } from '@phosphor-icons/react';
+import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
 import appIcon from '../../../../../design-system/brand/app-icon.png';
 import { PayloadDiff } from '../decide/PayloadDiff';
 import { diffPayload } from '../lib/diff';
+import { ContinuationMessage, WorkNotFinished } from '../chat/InlineGate';
 import { InlineVerification } from '../chat/InlineVerification';
 import { useAgentUi } from '../shell/agent/agent-store';
 import { ActivityBar } from '../shell/ActivityBar';
@@ -203,6 +205,7 @@ const DIMENSION_NOTES: Record<StateDimension, string> = {
   verification: 'A committed CAD check',
   execution: 'Sessions and jobs',
   part: 'A component in selection',
+  work: 'What work_status says is unfinished',
 };
 
 const PRINCIPLES = [
@@ -746,6 +749,66 @@ export function DesignSystemView() {
                 onAccept={() => {}}
                 disabled
               />
+            )}
+          </Themes>
+          <Themes label="Work not finished · labelled specimen">
+            {() => (
+              <WorkNotFinished
+                gate={{
+                  ready: false,
+                  summary: '1 component has no source. 1 component has no seller offer.',
+                  blockers: 2,
+                  advice: 0,
+                  waiting: 0,
+                  outstanding: [
+                    {
+                      kind: 'component_unsourced',
+                      severity: 'blocker',
+                      artifactId: 'specimen-servo',
+                      title: 'Steering servo · specimen',
+                      detail: 'Specimen only; no work_status call was made.',
+                      tool: 'source_capture',
+                    },
+                    {
+                      kind: 'changes_requested',
+                      severity: 'blocker',
+                      artifactId: 'specimen-bracket',
+                      title: 'Motor bracket · specimen',
+                      detail: 'Specimen only; a reviewer’s request needs you.',
+                      tool: null,
+                    },
+                  ],
+                  more: 0,
+                  sessionIds: [],
+                  calls: 0,
+                  inScope: 2,
+                  jobsRunning: 0,
+                  checkedAt: '2026-10-21T00:00:00.000Z',
+                  auto: { state: 'skipped', reason: 'needs_person' },
+                }}
+                latest
+                blocked
+                onContinue={() => {}}
+                onEdit={() => {}}
+              />
+            )}
+          </Themes>
+          <Themes label="Continuation and model · labelled specimen">
+            {() => (
+              <div className="chat-turn">
+                <ContinuationMessage text={CHAT_CONTINUE_TEXT} automatic />
+                <div className="chat-assistant-message">
+                  <header>
+                    <strong>Omen Flow</strong>
+                    <span>Claude Code</span>
+                    <span className="chat-turn-model mono">claude-haiku-5-5</span>
+                  </header>
+                  <Notice tone="warn">
+                    Specimen: Claude Code reported running claude-haiku-4-5-20251001, not
+                    claude-haiku-5-5. Check the model in Settings.
+                  </Notice>
+                </div>
+              </div>
             )}
           </Themes>
         </Section>
@@ -1377,8 +1440,9 @@ function InProduct() {
       needsProject: true,
     },
     {
-      name: 'Agent tab: conversation, inline cards, pane switch',
-      where: 'chat/Conversation.tsx, chat/InlineCards.tsx, shell/agent/SessionBar.tsx',
+      name: 'Agent tab: conversation, inline cards, completion gate, pane switch',
+      where:
+        'chat/Conversation.tsx, chat/InlineCards.tsx, chat/InlineGate.tsx, shell/agent/SessionBar.tsx',
       action: 'Open the conversation',
       open: () => {
         useAgentUi.getState().setPane('conversation');

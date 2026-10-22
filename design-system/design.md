@@ -300,8 +300,28 @@ navigation.
   choices, and human review. Charts are never evidence. A run's `ui.open_artifact` and
   `ui.request_review` become cards in its own turn instead of moving the stage; a terminal
   agent's still move it. Cards you open from the project record or `+` read “Opened by you”.
-  Recorded activity under each turn lists the host's call ledger for that run. An empty
-  conversation asks “What are we making?” with three starters and the project's first objects.
+  Recorded activity under each turn lists the host's call ledger for that run. The turn header
+  names the model in mono: what the CLI reported, else the id Omen Flow passed, with a warning
+  Notice when Claude Code reports another model than the full id it was given. Omen Flow never
+  parses or shows a CLI's cost figure in its own interface; the Terminal pane is the CLI's own
+  screen. An empty conversation asks “What are we making?” with three starters and the
+  project's first objects.
+- **Completion gate**: when a response ends, the host reads `work_status` for the turn's agent
+  session and those of the turns it continues, and records it on the turn. With blockers left,
+  the turn ends with **Work not finished**: the eyebrow “Completion gate · work_status, recorded
+  by Omen Flow” with the time it was read, the summary, up to five items with their `work`
+  state and the tool that resolves each (“Needs you” otherwise), **Continue** (disabled while
+  the project is busy) and **Edit request** (the request the chain started from); a failed
+  turn shows it under the error. An earlier turn's record collapses to one dated line. A
+  response that called no Omen Flow tool and touched nothing says so in a quiet labelled line,
+  with Continue. Continue sends one fixed continuation, shown as “You asked the agent to
+  continue”. With Settings → Agents → **Unfinished work after a response: Continue once** (off
+  by default), Omen Flow sends it itself once per message you sent, when a blocker is the
+  agent's to resolve from the record, shown outlined as “Sent by Omen Flow, once, because
+  work_status reported unfinished work”; sourcing and seller offers never qualify, it never
+  continues a continuation, and Stop prevents it. Claude Code continuations resume the CLI
+  conversation; Codex continuations replay the conversation text. Agents cannot present this
+  record: it is not a `chat.present` kind.
 - **Prepare → Send**: editing a card's values and pressing Prepare attaches the exact literal
   values, units, artifact and revision to a readable request in the composer. Only Send starts
   the agent; an attachment pinned to an older revision is refused. Approval stays a separate
@@ -488,7 +508,8 @@ stage header, revision banner, underneath notice, save bar, viewport tool island
 row, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
 bar, handoff card, lens table row, totals strip, evidence chip, activity bar, session bar,
 pane switch, conversation turn and composer, input attachment, inline card (part, record,
-quantities, chart, choices, review), activity rail and call row, agent onboarding panel,
+quantities, chart, choices, review), work-not-finished card, continuation message, turn model
+and model-mismatch notice, activity rail and call row, agent onboarding panel,
 waiting-to-type bar, terminal search,
 agent window (dock, collapse), island, sheet, omnibar, unsaved-work prompt, project loading
 state, frame strip (failures to act on, with Retry or Dismiss), toast, introduction (acts on
@@ -512,10 +533,13 @@ These rules outrank aesthetics.
   experimental where the engine is.
 - **No fabricated agent activity.** The terminal pane is the real PTY; “Ask” writes to it with
   bracketed paste; running state comes from the session. The conversation shows only text and
-  cards a real run produced, with its run state from the host's record; a run that ends without
-  a completion event is Failed, never Completed. The activity rail shows only recorded ledger
-  calls; counts come from the host or the ledger, never estimated. Starters and asks are typed
-  or drafted, never sent. An ended session shows only an exit code the process returned.
+  cards a real run produced, and the host's own completion-gate record, with its run state from
+  the host's record; a run that ends without a completion event is Failed, never Completed.
+  The activity rail shows only recorded ledger calls; counts come from the host or the ledger,
+  never estimated. Starters and asks are typed or drafted, never sent; Continue sends only its
+  fixed, labelled continuation, and the one automatic continuation is sent only with the
+  setting on, labelled as sent by Omen Flow below the gate record that caused it. An ended
+  session shows only an exit code the process returned.
 - **The record states only what happened**: a Timeline row, an approval effect or a re-run
   message says a baseline moved, a bill of materials changed or a proposal waits only when the
   host recorded it.

@@ -195,6 +195,13 @@ impl Server {
         })
     }
 
+    /// Replace how the host reads a CLI's model routing, so a test's result never depends on
+    /// the developer's own variables and Claude settings.
+    #[doc(hidden)]
+    pub fn set_routing(&self, routing: omenflow_agent_host::RoutingLookup) {
+        self.shared.host.pty().set_routing(routing);
+    }
+
     pub fn stopper(&self) -> Stopper {
         Stopper(Arc::clone(&self.shared))
     }

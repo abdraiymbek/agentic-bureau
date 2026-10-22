@@ -33,6 +33,16 @@ describe('state vocabulary', () => {
     expect(stateLabel('partial', 'evidence')).toBe('Partly covered');
   });
 
+  it('names what the completion gate reports in words, and a kind it does not know in sentence case', () => {
+    expect(stateLabel('component_unsourced', 'work')).toBe('No source');
+    expect(stateLabel('cad_spec_unasserted', 'work')).toBe('Spec not asserted');
+    expect(stateWord('draft_unproposed', 'work').tone).toBe('neutral');
+    expect(stateWord('requirement_unchecked', 'work')).toEqual({
+      label: 'Requirement unchecked',
+      tone: 'neutral',
+    });
+  });
+
   it('marks only running work as live', () => {
     for (const [dimension, words] of Object.entries(VOCABULARY))
       for (const [state, word] of Object.entries(words))

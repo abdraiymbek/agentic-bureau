@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ChatRecord } from '@omenflow/contracts';
+import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
 import { RustCore } from './rust-core';
 const user = { kind: 'user' as const };
 let app: RustCore | undefined;
@@ -301,4 +302,144 @@ it('reconciles multiple root Claude messages while excluding nested streams and 
   expect(book.conversations[0]?.turns[0]?.response).toBe(
     'Root corrected 12.40 mm Ω\n\nSecond root corrected.',
   );
+});
+
+/** The inline fixture as a Codex CLI and, through a link named `claude`, as Claude Code. */
+async function gateFixture(prefix: string) {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  const helper = path.resolve('native/omenflow-bridge/target/release/omenflow');
+  app = await RustCore.start(path.join(root, 'app'), { cli: helper });
+  const { projectId } = (await app.dispatch(
+    'project.create',
+    { path: path.join(root, 'project'), name: 'Completion gate conformance' },
+    user,
+  )) as { projectId: string };
+  const fixture = path.resolve('tests/conformance/fixtures/inline-agent.py');
+  const claude = path.join(root, 'claude');
+  fs.symlinkSync(fixture, claude);
+  const env = { OMEN_INLINE_HELPER: helper };
+  await app.dispatch(
+    'connection.configure',
+    { adapterId: 'codex', executablePath: fixture, env },
+    user,
+  );
+  await app.dispatch(
+    'connection.configure',
+    { adapterId: 'claude-code', executablePath: claude, env, model: 'claude-haiku-5-5' },
+    user,
+  );
+  return projectId;
+}
+
+async function settled(projectId: string, conversation: string, turns: number) {
+  let book!: ChatRecord;
+  await expect
+    .poll(
+      async () => {
+        book = (await app!.dispatch('chat.read', {}, user, projectId)) as ChatRecord;
+        const recorded = book.conversations.find((c) => c.id === conversation)?.turns ?? [];
+        return recorded.length === turns && recorded.every((t) => t.state !== 'running');
+      },
+      { timeout: 30000 },
+    )
+    .toBe(true);
+  return book.conversations.find((c) => c.id === conversation)!.turns;
+}
+
+it('records the completion gate on each turn and continues once only when asked', async () => {
+  const projectId = await gateFixture('omen-inline-gate-');
+  await app!.dispatch(
+    'chat.send',
+    {
+      conversationId: 'offered',
+      requestId: 'offered-1',
+      adapterId: 'codex',
+      text: 'UNFINISHED_FIXTURE: write the test notes.',
+    },
+    user,
+    projectId,
+  );
+  const [offered] = await settled(projectId, 'offered', 1);
+  expect(offered!.state).toBe('completed');
+  expect(offered!.gate).toMatchObject({ ready: false, blockers: 1, auto: { state: 'off' } });
+  expect(offered!.gate!.outstanding.map((item) => [item.kind, item.tool])).toEqual([
+    ['empty_payload', 'artifact_update_draft'],
+  ]);
+  expect(offered!.gate!.sessionIds).toEqual([offered!.sessionId]);
+  expect(offered!.gate!.calls).toBeGreaterThan(0);
+
+  await app!.dispatch('settings.set', { key: 'conversation.autoContinue', value: true }, user);
+  await app!.dispatch(
+    'chat.send',
+    {
+      conversationId: 'continued',
+      requestId: 'continued-1',
+      adapterId: 'codex',
+      text: 'UNFINISHED_FIXTURE: write the bracket notes.',
+    },
+    user,
+    projectId,
+  );
+  const [first, second] = await settled(projectId, 'continued', 2);
+  expect(first!.gate!.auto).toEqual({ state: 'started', requestId: 'continued-1-auto' });
+  expect(second).toMatchObject({
+    requestId: 'continued-1-auto',
+    text: CHAT_CONTINUE_TEXT,
+    continues: { requestId: 'continued-1', automatic: true },
+    state: 'completed',
+  });
+  expect(second!.gate).toMatchObject({ ready: true });
+  expect(second!.gate!.sessionIds).toEqual([first!.sessionId, second!.sessionId]);
+  expect(second!.gate).not.toHaveProperty('auto');
+});
+
+it('resumes a Claude Code conversation for Continue instead of replaying it', async () => {
+  const projectId = await gateFixture('omen-inline-resume-');
+  const { adapters } = (await app!.dispatch('connection.list', {}, user)) as {
+    adapters: { adapterId: string; recognizedVersion: boolean; version: string | null }[];
+  };
+  expect(adapters.find((a) => a.adapterId === 'claude-code')).toMatchObject({
+    version: '2.1.287 (Claude Code)',
+    recognizedVersion: true,
+  });
+  await app!.dispatch(
+    'chat.send',
+    {
+      conversationId: 'resumed',
+      requestId: 'resumed-1',
+      adapterId: 'claude-code',
+      text: 'UNFINISHED_FIXTURE: write the hub notes.',
+    },
+    user,
+    projectId,
+  );
+  const [first] = await settled(projectId, 'resumed', 1);
+  expect(first).toMatchObject({
+    state: 'completed',
+    model: 'claude-haiku-5-5',
+    resolvedModel: 'claude-haiku-5-5',
+    cliConversationId: first!.sessionId,
+  });
+  expect(first!.gate).toMatchObject({ ready: false, auto: { state: 'off' } });
+  await app!.dispatch(
+    'chat.send',
+    {
+      conversationId: 'resumed',
+      requestId: 'resumed-2',
+      adapterId: 'claude-code',
+      text: CHAT_CONTINUE_TEXT,
+      continues: { requestId: 'resumed-1' },
+    },
+    user,
+    projectId,
+  );
+  const [, second] = await settled(projectId, 'resumed', 2);
+  // The fixture fails a resumed run that is sent its history again.
+  expect(second).toMatchObject({
+    state: 'completed',
+    continues: { requestId: 'resumed-1', automatic: false },
+    cliConversationId: first!.cliConversationId,
+  });
+  expect(second!.sessionId).not.toBe(first!.sessionId);
+  expect(second!.gate).toMatchObject({ ready: true });
 });

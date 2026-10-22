@@ -158,6 +158,9 @@ mod tests {
             // Claude Code aliases and ids present in 2.1.287.
             ("haiku", Profile::Compact),
             ("claude-haiku-4-5", Profile::Compact),
+            ("claude-haiku-4-5-20251001", Profile::Compact),
+            // Passed by full id from 0.2.4; not in the 2.1.287 catalogue, but it runs.
+            ("claude-haiku-5-5", Profile::Compact),
             ("sonnet", Profile::Standard),
             ("claude-sonnet-4-6", Profile::Standard),
             ("claude-sonnet-5", Profile::Standard),

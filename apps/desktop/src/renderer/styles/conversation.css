@@ -315,6 +315,21 @@
   line-height: var(--leading-prose);
   overflow-wrap: anywhere;
 }
+/* A continuation names who sent it above the fixed text. */
+.chat-user-message.is-continuation {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+.chat-user-message.is-continuation > div {
+  font-size: var(--text-md);
+}
+/* Sent by Omen Flow, not by the person: outlined, not filled. */
+.chat-user-message.is-automatic > div {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+  color: var(--text-2);
+}
 .chat-assistant-message > header {
   display: flex;
   align-items: center;
@@ -340,6 +355,18 @@
 .chat-assistant-message > header time {
   margin-left: auto;
   font-size: var(--text-2xs);
+}
+.chat-turn-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--text-3);
+}
+.chat-assistant-message > header + .notice {
+  margin-bottom: var(--s-4);
 }
 .chat-assistant-message .prose {
   font-size: var(--text-lg);
@@ -684,6 +711,79 @@
 }
 .inline-editor .inline-caption {
   margin: var(--s-3) 0 0;
+}
+/* The host's completion-gate record on a turn. Not live work: no signal accent. */
+.chat-gate .inline-card-head .state {
+  flex: none;
+}
+.chat-gate .inline-card-head time {
+  font-size: inherit;
+}
+.chat-gate-items {
+  list-style: none;
+  margin: 0 var(--s-5) var(--s-3);
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.chat-gate-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.chat-gate-items li > span {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.chat-gate-items code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+.chat-gate-items small,
+.chat-gate-more {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.chat-gate .notice {
+  margin: 0 var(--s-5) var(--s-3);
+}
+.chat-gate .inline-card-actions {
+  margin: 0 var(--s-5) var(--s-4);
+}
+/* An earlier turn's gate record, and a response that called no tool: one quiet line. */
+.chat-gate-earlier,
+.chat-gate-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin: var(--s-4) 0 0;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading);
+}
+.chat-gate-earlier > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-gate-earlier time {
+  font-size: var(--text-2xs);
+}
+.chat-gate-note > p {
+  margin: 0;
+}
+.chat-gate-note .chat-eyebrow {
+  display: inline;
+  margin-right: var(--s-2);
+}
+.chat-gate-note .notice {
+  flex-basis: 100%;
 }
 .inline-parameter-more,
 .inline-check-more {

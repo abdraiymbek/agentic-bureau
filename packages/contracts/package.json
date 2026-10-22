@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./format": "./src/format.ts",
+    "./chat": "./src/chat.ts",
     "./package.json": "./package.json"
   },
   "scripts": {

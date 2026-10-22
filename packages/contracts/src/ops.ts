@@ -1161,6 +1161,13 @@ const chatSend = z.object({
   adapterId: z.enum(['codex', 'claude-code']),
   text: z.string().min(1).max(32000).regex(/\S/),
   input: chatInput.optional(),
+  continues: z
+    .object({ requestId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/) })
+    .strict()
+    .optional()
+    .describe(
+      'The latest turn of this conversation that this request continues. The host strips any other key: only Omen Flow sends an automatic continuation.',
+    ),
 });
 const chatCancel = z.object({ conversationId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/) });
 const terminalWrite = z.object({ data: z.string() });

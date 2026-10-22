@@ -18,6 +18,15 @@ export default defineConfig({
         'src',
         'format.ts',
       ),
+      '@omenflow/contracts/chat': path.join(
+        root,
+        '..',
+        '..',
+        'packages',
+        'contracts',
+        'src',
+        'chat.ts',
+      ),
       '@omenflow/contracts': path.join(
         root,
         '..',

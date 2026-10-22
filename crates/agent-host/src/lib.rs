@@ -22,8 +22,8 @@ mod test_support;
 mod weak_client_tests;
 
 pub use adapters::{
-    adapter, AdapterConfig, AdapterSpec, GuideChannel, McpInjection, Probe, SearchPath, Version,
-    ADAPTERS,
+    adapter, AdapterConfig, AdapterSpec, GuideChannel, McpInjection, ModelAlias, ModelAliases,
+    Probe, Routing, RoutingLookup, SearchPath, Version, ADAPTERS,
 };
 pub use guide::read as guide_read;
 pub use ledger::{AgentCallRecord, AgentSessionSummary, Via};

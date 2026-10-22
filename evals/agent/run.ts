@@ -41,12 +41,15 @@ const cell = (task: TaskId, cli: Cli, model: string, profile: Cell['profile']): 
 const ALL_TASKS: TaskId[] = ['requirements', 'cad-plate', 'calculation', 'finish-discipline'];
 const CAD_TASKS: TaskId[] = ['cad-plate', 'finish-discipline'];
 
-/** The V1 matrix: 14 Claude Code cells and 4 Codex cells, one run each. */
+/**
+ * The V1 matrix: 14 Claude Code cells and 4 Codex cells, one run each. Claude models are named
+ * by full id: Claude Code 2.1.287 resolves the alias `haiku` to Claude Haiku 4.5.
+ */
 export const MATRIX: Cell[] = [
-  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'haiku', 'compact')),
-  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'haiku', 'full')),
-  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'sonnet', 'auto')),
-  ...CAD_TASKS.map((task) => cell(task, 'claude-code', 'opus', 'auto')),
+  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'claude-haiku-5-5', 'compact')),
+  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'claude-haiku-5-5', 'full')),
+  ...ALL_TASKS.map((task) => cell(task, 'claude-code', 'claude-sonnet-5-5', 'auto')),
+  ...CAD_TASKS.map((task) => cell(task, 'claude-code', 'claude-opus-5-5', 'auto')),
   ...CAD_TASKS.map((task) => cell(task, 'codex', 'gpt-6-luna', 'auto')),
   ...CAD_TASKS.map((task) => cell(task, 'codex', 'gpt-6-astra', 'auto')),
 ];
@@ -57,13 +60,17 @@ interface Options {
   concurrency: number;
   timeoutMs: number;
   maxTurns: number;
-  budgetUsd: number;
   hostBin: string | null;
   cliBin: string | null;
   reference: 'good' | 'bad' | null;
 }
 
-/** Flags the harness adds to the plan, per CLI; the plan's own arguments are never changed. */
+/**
+ * Flags the harness adds to the plan, per CLI; the plan's own arguments are never changed. No
+ * spend flag: Claude Code enforces `--max-budget-usd` with its own figure, which for a model it
+ * does not know is another model's price (measured 36 times list price for Claude Haiku 5.5),
+ * and a run it cuts off would read as a model stopping early. Turns and wall clock bound a run.
+ */
 function extraArgs(cli: Cli, options: Options): string[] {
   if (cli === 'claude-code')
     return [
@@ -71,8 +78,6 @@ function extraArgs(cli: Cli, options: Options): string[] {
       '--no-session-persistence',
       '--max-turns',
       String(options.maxTurns),
-      '--max-budget-usd',
-      String(options.budgetUsd),
     ];
   // The person's own Codex configuration (other MCP servers, plugins, notify
   // hooks) stays out of the run; authentication still comes from CODEX_HOME.
@@ -313,7 +318,7 @@ export function summary(dirs: string[]): string {
       r.stream ? String(r.stream.outputTokens) : '—',
       r.stream ? String(r.stream.turns) : '—',
       r.run ? `${Math.round(r.run.durationMs / 1000)} s` : '—',
-      r.stream?.costUsd == null ? '—' : `$${r.stream.costUsd.toFixed(2)}`,
+      r.stream?.costUsd == null ? '—' : `$${r.stream.costUsd.toFixed(4)}`,
       why || '',
     ];
   });
@@ -332,7 +337,7 @@ export function summary(dirs: string[]): string {
     'output tok',
     'turns',
     'duration',
-    'cost',
+    'cost (list)',
     'failure',
   ];
   return [header, header.map(() => '---'), ...rows]
@@ -349,6 +354,10 @@ function parseArgs(argv: string[]): Options | { summary: string[] } {
     return {
       summary: argv.slice(argv.indexOf('--summary') + 1).filter((arg) => !arg.startsWith('--')),
     };
+  if (argv.includes('--budget-usd'))
+    throw new Error(
+      '--budget-usd is gone: Claude Code enforced it with its own price, which is wrong for models it does not know. Bound a run with --max-turns and --timeout-min; its list-price cost is estimated afterwards.',
+    );
   const out = value('--out');
   if (!out) throw new Error('--out <dir> is required (outside the repository)');
   // The repository's own AGENTS.md would reach the model as instructions.
@@ -369,7 +378,6 @@ function parseArgs(argv: string[]): Options | { summary: string[] } {
     concurrency: Number(value('--concurrency') ?? 2),
     timeoutMs: Number(value('--timeout-min') ?? 10) * 60_000,
     maxTurns: Number(value('--max-turns') ?? 40),
-    budgetUsd: Number(value('--budget-usd') ?? 2),
     hostBin: value('--host-bin') ?? null,
     cliBin: value('--cli-bin') ?? null,
     reference: (reference as 'good' | 'bad' | undefined) ?? null,

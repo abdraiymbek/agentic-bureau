@@ -10,7 +10,7 @@ recorded state, never from what the model says it did.
 
 ```sh
 pnpm eval:agent -- --out <dir>                          # the whole V1 matrix (18 cells)
-pnpm eval:agent -- --out <dir> --cells cad-plate.claude-code.haiku.compact
+pnpm eval:agent -- --out <dir> --cells cad-plate.claude-code.claude-haiku-5-5.compact
 pnpm eval:agent -- --out <dir> --reference good         # scripted solutions, no model
 pnpm eval:agent -- --out <dir> --reference bad          # scripted mistakes, no model
 pnpm eval:agent -- --summary <dir> [<dir> ...]          # results table from result.json files
@@ -18,9 +18,12 @@ pnpm eval:agent -- --summary <dir> [<dir> ...]          # results table from res
 
 `--out` must be outside the repository (an ancestor `AGENTS.md` or
 `CLAUDE.md` would reach the model). Other flags: `--concurrency` (default
-2), `--timeout-min` (10), `--max-turns` (40), `--budget-usd` (2), and
-`--host-bin`/`--cli-bin` to run fixed binaries instead of building the
-release host and helper from this checkout.
+2), `--timeout-min` (10), `--max-turns` (40), and `--host-bin`/`--cli-bin`
+to run fixed binaries instead of building the release host and helper from
+this checkout. Claude models are named by full id (`claude-haiku-5-5`,
+`claude-sonnet-5-5`, `claude-opus-5-5`): Claude Code 2.1.287 resolves the
+alias `haiku` to Claude Haiku 4.5, so results recorded before 0.2.4 under
+`haiku` describe Haiku 4.5.
 
 Requirements: Rust toolchain, OpenSCAD (the host discovers it), Claude Code
 and/or Codex CLI installed and logged in. Model runs spend the account's
@@ -41,8 +44,8 @@ credits and are never run by CI.
    and is killed after the wall-clock limit. A CLI that prints an update or
    confirmation prompt is stopped and its later cells are skipped; the
    harness never answers one. The harness adds only these flags:
-   - Claude Code: `--strict-mcp-config`, `--no-session-persistence`,
-     `--max-turns 40` and `--max-budget-usd 2`. The plan already has `-p`,
+   - Claude Code: `--strict-mcp-config`, `--no-session-persistence` and
+     `--max-turns 40`. The plan already has `-p`,
      `--output-format stream-json`, `--include-partial-messages`, `--verbose`,
      `--permission-mode dontAsk` and `--allowedTools mcp__omenflow`. The
      parser ignores the partial `stream_event` records.
@@ -89,9 +92,21 @@ in `claims`. Each flag quotes its sentence so it can be audited.
 Metrics come from two places. The ledger gives calls, errors (`ok: false`),
 repairs (input repair notes), the operations used, and whether `work_status`
 and `guide_read` were called. The CLI's stream gives tokens (all input
-tokens processed, of which cached; output), turns, cost (Claude Code only),
-the final message, the playbook topics read, calls to tools that are not
-Omen Flow's, and permission denials. Codex reports one turn per `exec`.
+tokens processed, of which cached; output), turns, the model it ran and its
+tokens per model, the final message, the playbook topics read, calls to
+tools that are not Omen Flow's, and permission denials. Codex reports one
+turn per `exec`.
+
+Cost (`costUsd`, Claude Code only) is Omen Flow's estimate at list price
+from the dated table in `pricing.ts` (`PRICES_AS_OF`): each request priced
+once from its `assistant` usage, 1-hour cache writes at twice the input
+price, Claude Haiku 5.5's long-prompt tier per request, output from the
+run's `modelUsage`. A model with no first-party list price there (a
+provider's id, a model the table lacks) makes it null and is named in
+`unpricedModels`. The CLI's own figure is kept as `cliCostUsd` for audit
+only: Claude Code prices a model it does not know at another model's rates,
+measured at 36 times list price for Claude Haiku 5.5 ($0.5333 for a run whose
+tokens cost $0.0147).
 
 ## Validating the judges
 
@@ -104,9 +119,11 @@ after changing a task or a judge.
 
 ## Cost caps
 
-Claude Code runs are capped at `--max-budget-usd 2` and 40 turns per cell,
-every cell at 10 minutes. Codex has no spend flag; the wall-clock limit is
-its bound. The V1 matrix is 14 Claude Code cells and 4 Codex cells, one run
+Runs are bounded by turns (40 per Claude Code cell) and wall clock (10
+minutes per cell). There is no spend cap: Claude Code enforces
+`--max-budget-usd` with its own price, so before 0.2.4 a $2 cap stopped
+Claude Haiku 5.5 runs after about $0.055 of real spend, and a run it cut off
+read as a model stopping early. Codex has no spend flag either. The V1 matrix is 14 Claude Code cells and 4 Codex cells, one run
 each. Results are in `results/`.
 
 ## Limits

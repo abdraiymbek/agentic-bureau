@@ -11,6 +11,7 @@ import {
   adapterRowView,
   argsHint,
   formatArgs,
+  modelAndProfileInput,
   needsRestart,
   openscadProbe,
   parseArgs,
@@ -159,6 +160,61 @@ describe('adapter row', () => {
       { id: 'gpt-6-luna', label: 'GPT-6 Luna', tier: 'Compact tier' },
       { id: 'gpt-6-sol', label: 'GPT-6 Sol', tier: 'Full tier' },
     ]);
+  });
+
+  it('lists Claude models by full id, so a saved alias the host canonicalised shows as listed', () => {
+    // connection.list reports a saved `haiku` as the full id it launches.
+    const claude: AdapterStatus = {
+      ...v1,
+      adapterId: 'claude-code',
+      label: 'Claude Code',
+      model: 'claude-haiku-5-5',
+      models: [
+        { id: 'claude-fable-5-1', label: 'Claude Fable 5.1', tier: 'full' },
+        { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', tier: 'full' },
+        { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', tier: 'standard' },
+        { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', tier: 'compact' },
+      ],
+    };
+    const row = adapterRowView(claude);
+    expect(row.models.map((m) => m.id)).toContain(claude.model);
+    expect(row.models.at(-1)).toEqual({
+      id: 'claude-haiku-5-5',
+      label: 'Claude Haiku 5.5',
+      tier: 'Compact tier',
+    });
+    const running = {
+      adapterId: 'claude-code',
+      state: 'running',
+      model: 'claude-haiku-5-5',
+      profile: 'compact' as const,
+    };
+    expect(
+      needsRestart(running, 'claude-code', {
+        model: 'claude-haiku-5-5',
+        resolvedProfile: 'compact',
+      }),
+    ).toBe(false);
+  });
+
+  it('saves a model only when the person picked another, so a saved alias survives other changes', () => {
+    // The host lists a saved `haiku` as `claude-haiku-5-5`; saving a new profile or environment
+    // must not write that id over the alias the person's routing may depend on.
+    const row = adapterRowView({ ...v1, adapterId: 'claude-code', model: 'claude-haiku-5-5' });
+    expect(modelAndProfileInput(row, { model: 'claude-haiku-5-5', profile: 'auto' })).toEqual({
+      profile: 'auto',
+    });
+    expect(modelAndProfileInput(row, { model: 'claude-sonnet-5-5', profile: 'full' })).toEqual({
+      model: 'claude-sonnet-5-5',
+      profile: 'full',
+    });
+    // Choosing the CLI default clears the saved model.
+    expect(modelAndProfileInput(row, { model: null, profile: 'auto' })).toEqual({
+      model: null,
+      profile: 'auto',
+    });
+    // A host that predates profiles is sent neither.
+    expect(modelAndProfileInput(adapterRowView(base), { model: 'x', profile: 'auto' })).toEqual({});
   });
 
   it('flags an unrecognised version only for a detected built-in CLI', () => {

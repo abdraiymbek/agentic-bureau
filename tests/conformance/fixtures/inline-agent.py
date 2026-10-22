@@ -12,7 +12,8 @@ import time
 
 claude = '--output-format' in sys.argv
 if '--version' in sys.argv:
-    print('codex-cli 0.156.1')
+    # Invoked through a link named claude, it answers as the Claude Code build the host checked.
+    print('2.1.287 (Claude Code)' if Path(sys.argv[0]).name == 'claude' else 'codex-cli 0.156.1')
     sys.exit(0)
 prompt = sys.stdin.read()
 helper = os.environ.get('OMEN_INLINE_HELPER', str(Path(__file__).resolve().parents[3] / 'native/omenflow-bridge/target/release/omenflow'))
@@ -26,6 +27,17 @@ def call(op, payload):
 def emit(value):
     print(json.dumps(value), flush=True)
 
+def after(flag, default=None):
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+def finish(text):
+    if claude:
+        emit({'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': text}]}})
+        emit({'type': 'result', 'subtype': 'success', 'is_error': False, 'result': text})
+    else:
+        emit({'type': 'item.completed', 'item': {'id': 'fixture-message', 'type': 'agent_message', 'text': text}})
+        emit({'type': 'turn.completed'})
+
 def partial(text, full=False):
     if claude:
         if full:
@@ -34,6 +46,35 @@ def partial(text, full=False):
             emit({'type': 'stream_event', 'event': {'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': text}}})
     else:
         emit({'type': 'item.completed' if full else 'item.updated', 'item': {'id': 'fixture-message', 'type': 'agent_message', 'text': text}})
+
+if claude:
+    # What Claude Code's init event reports: the conversation it was given or resumed, and the model.
+    emit({'type': 'system', 'subtype': 'init', 'session_id': after('--resume', after('--session-id', '')),
+          'model': after('--model', 'fixture-model'), 'mcp_servers': [{'name': 'omenflow', 'status': 'connected'}]})
+
+GATE_BRIEF = 'Omen Flow ran work_status after the previous reply'
+if 'UNFINISHED_FIXTURE' in prompt or GATE_BRIEF in prompt:
+    try:
+        if '--resume' in sys.argv and ('Prior exact input' in prompt or 'User: UNFINISHED_FIXTURE' in prompt):
+            raise RuntimeError('A resumed conversation was sent its history again')
+        if GATE_BRIEF in prompt:
+            # Continue from what the host recorded: fill every empty fixture note.
+            listed = call('artifact.list', {'type': 'note'})
+            for entry in listed.get('artifacts', []):
+                artifact = entry.get('artifact', entry)
+                if artifact.get('title') == 'Fixture notes':
+                    call('artifact.update_draft', {'artifactId': artifact['id'], 'payload': {'markdown': 'Filled by the deterministic fixture.'},
+                                                   'rationale': 'Deterministic continuation fixture'})
+            finish('**Deterministic fixture.** The notes are filled; work_status decides whether anything is left.')
+        else:
+            # Leave work the agent can finish from the record: an empty draft.
+            call('artifact.create_draft', {'type': 'note', 'title': 'Fixture notes', 'payload': {'markdown': ''},
+                                           'rationale': 'Deterministic unfinished-work fixture'})
+            finish('**Deterministic fixture.** I drafted the notes and stopped before writing them.')
+    except Exception as error:
+        emit({'type': 'result', 'subtype': 'error_during_execution', 'is_error': True, 'result': str(error)} if claude else {'type': 'turn.failed', 'error': {'message': str(error)}})
+        sys.exit(1)
+    sys.exit(0)
 
 try:
     chunks = ['**Deterministic fixture.** No model was run. ', 'I am using the exact submitted quantities and real local tools. ', 'Results below name what was rendered, checked, and left for human review.']

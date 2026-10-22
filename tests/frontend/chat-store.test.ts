@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRecord } from '@omenflow/contracts';
+import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
 import { useChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 const command = vi.fn();
 const record = (conversation: string, request: string, text = 'first'): ChatRecord => ({
@@ -256,4 +257,119 @@ it('opens real read-only references in temporary isolated context without rewrit
   useChat.setState({ projects: {} });
   useChat.getState().ensure('p1');
   expect(project().inspections).toEqual({});
+});
+
+describe('Continue on a turn', () => {
+  const latest = (conversation: string) => record(conversation, 'r1').conversations[0]!.turns[0]!;
+  const accepted = (conversation: string, request: string): ChatRecord => {
+    const book = record(conversation, 'r1');
+    book.conversations[0]!.turns.push({
+      ...book.conversations[0]!.turns[0]!,
+      requestId: request,
+      text: CHAT_CONTINUE_TEXT,
+      continues: { requestId: 'r1', automatic: false },
+      state: 'running',
+    });
+    return book;
+  };
+
+  it('sends the fixed continuation for the turn and never touches the draft', async () => {
+    useChat.getState().draft('p1', 'a draft typed meanwhile');
+    const conversation = project().activeId;
+    command.mockImplementation((op, payload) =>
+      Promise.resolve({
+        ok: true,
+        result:
+          op === 'chat.send'
+            ? accepted(conversation, payload.requestId)
+            : record(conversation, 'r1'),
+      }),
+    );
+    await useChat
+      .getState()
+      .continueTurn('p1', { ...latest(conversation), adapterId: 'claude-code' });
+    const sent = command.mock.calls.find(([op]) => op === 'chat.send')![1];
+    expect(sent).toMatchObject({
+      conversationId: conversation,
+      text: CHAT_CONTINUE_TEXT,
+      adapterId: 'claude-code',
+      continues: { requestId: 'r1' },
+    });
+    expect(sent).not.toHaveProperty('input');
+    expect(project().pending[conversation]).toBeUndefined();
+    expect(text()).toBe('a draft typed meanwhile');
+  });
+
+  it('keeps an unconfirmed continuation for Retry with the same request ID and turn', async () => {
+    useChat.getState().ensure('p1');
+    const conversation = project().activeId;
+    command.mockRejectedValueOnce(new Error('Disconnected'));
+    await useChat.getState().continueTurn('p1', latest(conversation));
+    const pending = project().pending[conversation]!;
+    expect(pending.continues).toEqual({ requestId: 'r1' });
+    // A second press while it is unconfirmed sends nothing new.
+    await useChat.getState().continueTurn('p1', latest(conversation));
+    expect(command.mock.calls.filter(([op]) => op === 'chat.send')).toHaveLength(1);
+    useChat.setState({ projects: {} });
+    useChat.getState().ensure('p1');
+    expect(project().pending[conversation]?.continues).toEqual({ requestId: 'r1' });
+    command.mockImplementation((op) =>
+      Promise.resolve({
+        ok: true,
+        result:
+          op === 'chat.send'
+            ? accepted(conversation, pending.requestId)
+            : record(conversation, 'r1'),
+      }),
+    );
+    await useChat.getState().send('p1', 'codex', project().pending[conversation]);
+    const retried = command.mock.calls.filter(([op]) => op === 'chat.send').at(-1)![1];
+    expect(retried).toMatchObject({ requestId: pending.requestId, continues: { requestId: 'r1' } });
+    expect(project().pending[conversation]).toBeUndefined();
+  });
+
+  it('drops a continuation the host refused and says why on the turn', async () => {
+    useChat.getState().ensure('p1');
+    const conversation = project().activeId;
+    command.mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'VALIDATION',
+        message: 'Only the latest turn of a conversation can be continued',
+        repair: 'Send a new message instead.',
+      },
+    });
+    await useChat.getState().continueTurn('p1', latest(conversation));
+    expect(project().pending[conversation]).toBeUndefined();
+    expect(project().refused.r1).toBe(
+      'Only the latest turn of a conversation can be continued — Send a new message instead.',
+    );
+    // Pressing Continue again clears the old refusal first.
+    command.mockResolvedValue({ ok: true, result: record(conversation, 'r1') });
+    await useChat.getState().continueTurn('p1', latest(conversation));
+    expect(project().refused.r1).toBeUndefined();
+  });
+
+  it('drops a malformed persisted continuation reference', () => {
+    const conversation = 'conversation';
+    storage.set(
+      'omen.chat.v1.p1',
+      JSON.stringify({
+        activeId: conversation,
+        pending: {
+          [conversation]: {
+            conversationId: conversation,
+            requestId: 'r2',
+            text: CHAT_CONTINUE_TEXT,
+            adapterId: 'codex',
+            draftVersion: -1,
+            continues: { requestId: 7, automatic: true },
+          },
+        },
+      }),
+    );
+    useChat.getState().ensure('p1');
+    expect(project().pending[conversation]?.requestId).toBe('r2');
+    expect(project().pending[conversation]).not.toHaveProperty('continues');
+  });
 });

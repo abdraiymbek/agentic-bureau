@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { ChatRecord, ChatInput, ChatPart, ChatCard } from '@omenflow/contracts';
+import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
+import type { ChatRecord, ChatInput, ChatPart, ChatCard, ChatTurn } from '@omenflow/contracts';
 import { cmd, errMsg, CommandError } from '../api';
 import { resolveInspection } from './inspection';
 import { shareDeep } from '../lib/share';
@@ -16,6 +17,8 @@ export interface SendAttempt {
   adapterId: 'codex' | 'claude-code';
   draftVersion: number;
   input?: ChatInput;
+  /** The turn this request continues: Continue on a turn's completion-gate record. */
+  continues?: { requestId: string };
   error?: string;
 }
 export interface ProjectChat {
@@ -26,6 +29,8 @@ export interface ProjectChat {
   drafts: Record<string, ChatDraft>;
   pending: Record<string, SendAttempt>;
   sending: Record<string, boolean>;
+  /** Why the host refused a Continue, by the request ID of the turn it would continue. */
+  refused: Record<string, string>;
   loading: boolean;
   loaded: boolean;
   error: string | null;
@@ -40,6 +45,8 @@ interface ChatState {
   draft: (project: string, text: string) => void;
   offer: (project: string, text: string) => void;
   send: (project: string, adapter: 'codex' | 'claude-code', retry?: SendAttempt) => Promise<void>;
+  /** Send the fixed continuation of the latest turn. The composer's draft is never touched. */
+  continueTurn: (project: string, turn: ChatTurn) => Promise<void>;
   clearInput: (project: string) => void;
   prepare: (project: string, text: string, input: ChatInput) => void;
   open: (project: string, part: ChatPart) => Promise<void>;
@@ -66,14 +73,19 @@ function initial(project: string): ProjectChat {
       typeof p.text === 'string' &&
       p.conversationId === id &&
       (p.adapterId === 'codex' || p.adapterId === 'claude-code')
-    )
+    ) {
+      const { continues, ...rest } = p;
       pending[id] = {
-        ...p,
+        ...rest,
+        ...(typeof continues?.requestId === 'string'
+          ? { continues: { requestId: continues.requestId } }
+          : {}),
         error:
           typeof p.error === 'string'
             ? p.error
             : 'Delivery was not confirmed. Retry checks the original request ID, so an accepted request will not run twice.',
       };
+    }
   }
   return {
     record: emptyRecord(),
@@ -82,6 +94,7 @@ function initial(project: string): ProjectChat {
     drafts,
     pending,
     sending: {},
+    refused: {},
     loading: false,
     loaded: false,
     error: null,
@@ -146,6 +159,53 @@ export const useChat = create<ChatState>((set, get) => {
     set({
       projects: { ...get().projects, [project]: metadataChanged ? persist(project, next) : next },
     });
+  };
+  /** Deliver one attempt. It stays pending, for Retry, until the host's answer is known. */
+  const post = async (project: string, attempt: SendAttempt) => {
+    const id = attempt.conversationId;
+    update(project, (s) => ({
+      ...s,
+      pending: { ...s.pending, [id]: { ...attempt, error: undefined } },
+      sending: { ...s.sending, [id]: true },
+    }));
+    try {
+      // Preserve exactly what the person wrote; whitespace-only messages are refused.
+      const response = await cmd<ChatRecord>(
+        'chat.send',
+        {
+          conversationId: id,
+          requestId: attempt.requestId,
+          text: attempt.text,
+          adapterId: attempt.adapterId,
+          ...(attempt.input ? { input: attempt.input } : {}),
+          ...(attempt.continues ? { continues: attempt.continues } : {}),
+        },
+        { projectId: project },
+      );
+      // A send snapshot can arrive after a newer read; only reconcile its acceptance, then read afresh.
+      update(project, (s) => {
+        const next = acknowledge(s, response);
+        return { ...next, record: s.record, loaded: s.loaded, error: s.error };
+      });
+      await get().refresh(project);
+    } catch (e) {
+      const continued = attempt.continues?.requestId;
+      // The host refused a Continue outright, so nothing started: say why on the turn's card
+      // and leave the composer free. An unknown outcome stays pending, for Retry.
+      if (continued && e instanceof CommandError && e.code !== 'INTERNAL')
+        update(project, (s) => {
+          const pending = { ...s.pending };
+          delete pending[id];
+          return { ...s, pending, refused: { ...s.refused, [continued]: errMsg(e) } };
+        });
+      else
+        update(project, (s) => ({
+          ...s,
+          pending: { ...s.pending, [id]: { ...attempt, error: errMsg(e) } },
+        }));
+    } finally {
+      update(project, (s) => ({ ...s, sending: { ...s.sending, [id]: false } }));
+    }
   };
   return {
     projects: {},
@@ -283,38 +343,28 @@ export const useChat = create<ChatState>((set, get) => {
       };
       // Capture whitespace exactly too: the comparison uses what the person actually typed.
       if (!retry) attempt.text = draft!.text;
-      update(project, (s) => ({
-        ...s,
-        pending: { ...s.pending, [id]: { ...attempt, error: undefined } },
-        sending: { ...s.sending, [id]: true },
-      }));
-      try {
-        // Preserve exactly what the person wrote; whitespace-only messages are refused.
-        const response = await cmd<ChatRecord>(
-          'chat.send',
-          {
-            conversationId: id,
-            requestId: attempt.requestId,
-            text: attempt.text,
-            adapterId: attempt.adapterId,
-            ...(attempt.input ? { input: attempt.input } : {}),
-          },
-          { projectId: project },
-        );
-        // A send snapshot can arrive after a newer read; only reconcile its acceptance, then read afresh.
-        update(project, (s) => {
-          const next = acknowledge(s, response);
-          return { ...next, record: s.record, loaded: s.loaded, error: s.error };
-        });
-        await get().refresh(project);
-      } catch (e) {
-        update(project, (s) => ({
-          ...s,
-          pending: { ...s.pending, [id]: { ...attempt, error: errMsg(e) } },
-        }));
-      } finally {
-        update(project, (s) => ({ ...s, sending: { ...s.sending, [id]: false } }));
-      }
+      await post(project, attempt);
+    },
+    continueTurn: async (project, turn) => {
+      get().ensure(project);
+      const state = get().projects[project]!;
+      const id = state.activeId;
+      if (state.sending[id] || state.pending[id]) return;
+      update(project, (s) => {
+        if (!(turn.requestId in s.refused)) return s;
+        const refused = { ...s.refused };
+        delete refused[turn.requestId];
+        return { ...s, refused };
+      });
+      await post(project, {
+        conversationId: id,
+        requestId: crypto.randomUUID(),
+        text: CHAT_CONTINUE_TEXT,
+        adapterId: turn.adapterId === 'claude-code' ? 'claude-code' : 'codex',
+        // Matches no draft version, so its acknowledgement never clears what the person typed.
+        draftVersion: -1,
+        continues: { requestId: turn.requestId },
+      });
     },
     cancel: async (project, conversation) => {
       try {

@@ -8023,6 +8023,20 @@
               "fields"
             ],
             "additionalProperties": false
+          },
+          "continues": {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+              }
+            },
+            "required": [
+              "requestId"
+            ],
+            "additionalProperties": false,
+            "description": "The latest turn of this conversation that this request continues. The host strips any other key: only Omen Flow sends an automatic continuation."
           }
         },
         "required": [

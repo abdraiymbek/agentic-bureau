@@ -3,7 +3,9 @@
 //! interface as UTF-8 text, and stopped with a terminate-then-kill sequence
 //! that leaves nothing of the agent's process group running.
 
-use crate::adapters::{self, adapter, AdapterConfig, AdapterSpec, SearchPath, ADAPTERS};
+use crate::adapters::{
+    self, adapter, AdapterConfig, AdapterSpec, Routing, RoutingLookup, SearchPath, ADAPTERS,
+};
 use crate::profile::{resolve_profile, ResolvedProfile};
 use crate::session::{self, plan_launch, LaunchMode, LaunchPlan, LaunchRequest};
 use crate::{guide, now, BridgeServer, Grant, SessionActivity};
@@ -14,7 +16,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, RwLock, Weak};
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -88,6 +90,9 @@ pub struct PtyHost {
     sizes: Mutex<HashMap<String, (u16, u16)>>,
     lifecycle: Mutex<()>,
     notify: Notify,
+    /// How the person routes a CLI's models outside Omen Flow; tests replace it so the
+    /// developer's own configuration never changes their results.
+    routing: RwLock<RoutingLookup>,
 }
 
 impl PtyHost {
@@ -115,7 +120,19 @@ impl PtyHost {
             sizes: Mutex::new(HashMap::new()),
             lifecycle: Mutex::new(()),
             notify,
+            routing: RwLock::new(Routing::system),
         }
+    }
+
+    /// Replace how model routing is read ([`Routing::system`]), so a test's result never
+    /// depends on the developer's own variables and Claude settings.
+    #[doc(hidden)]
+    pub fn set_routing(&self, routing: RoutingLookup) {
+        *self.routing.write().unwrap_or_else(PoisonError::into_inner) = routing;
+    }
+
+    fn routing(&self) -> RoutingLookup {
+        *self.routing.read().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn start(&self, project_id: &str, input: &Value) -> Result<Value, ContractError> {
@@ -323,7 +340,7 @@ impl PtyHost {
             .as_str()
             .ok_or_else(|| ContractError::validation("Missing adapterId"))?;
         let spec = known_adapter(adapter_id)?;
-        if mode == LaunchMode::Headless && spec.headless.is_none() {
+        if mode.headless() && spec.headless.is_none() {
             return Err(session::no_headless_mode(spec));
         }
         let (root, name, config) = {
@@ -345,6 +362,9 @@ impl PtyHost {
             let config = AdapterConfig::from_value(&core.adapter_config(adapter_id));
             (root, name, config.for_start(input))
         };
+        // Read with the workspace lock released: it may read the CLI's settings files. From
+        // here on the profile, the grant, `--model` and the session all name the full id.
+        let config = config.canonicalize(spec, &self.routing()(spec, Some(&root)));
         if !self.cli_path.is_file() {
             return Err(ContractError::new(
                 "TOOL_MISSING",
@@ -411,11 +431,17 @@ impl PtyHost {
     /// `executable` with `args` in `cwd`, write the prompt to its standard
     /// input and close it. Afterwards remove the files and revoke the
     /// session. Only adapters with a headless mode can be prepared.
+    /// `resume` is the conversation an earlier headless run of the same
+    /// adapter left; `resumed` in the plan says whether the CLI continues it.
     pub fn prepare_headless(
         &self,
         project_id: &str,
         input: &Value,
+        resume: Option<&str>,
     ) -> Result<Value, ContractError> {
+        let mode = resume.map_or(LaunchMode::Headless, |conversation_id| {
+            LaunchMode::HeadlessResume { conversation_id }
+        });
         let Prepared {
             adapter_id,
             session_id,
@@ -424,7 +450,7 @@ impl PtyHost {
             resolved,
             root,
             plan,
-        } = self.prepare(project_id, input, LaunchMode::Headless)?;
+        } = self.prepare(project_id, input, mode)?;
         guide::sync_agents_md(&root, plan.agents_md).map_err(|error| {
             self.bridge.revoke(&session_id);
             failure(error)
@@ -454,6 +480,8 @@ impl PtyHost {
             "files": plan.files.iter().map(|file| json!({"path": file.path, "contents": file.contents})).collect::<Vec<_>>(),
             "stdin": "prompt",
             "agentsMd": plan.agents_md,
+            "conversationId": plan.conversation_id,
+            "resumed": plan.resumed,
         }))
     }
 
@@ -497,13 +525,17 @@ impl PtyHost {
         // executable; probe them side by side so one slow CLI costs one
         // timeout, not six.
         let search = SearchPath::system();
+        let routing = self.routing();
         let adapters = thread::scope(|scope| {
             let probes = ADAPTERS
                 .iter()
-                .zip(&configs)
+                .zip(configs)
                 .map(|(spec, config)| {
                     let search = &search;
-                    scope.spawn(move || spec.status(config, &search.probe(spec, config)))
+                    scope.spawn(move || {
+                        let config = config.canonicalize(spec, &routing(spec, None));
+                        spec.status(&config, &search.probe(spec, &config))
+                    })
                 })
                 .collect::<Vec<_>>();
             probes
@@ -540,13 +572,17 @@ impl PtyHost {
             .as_str()
             .ok_or_else(|| ContractError::validation("Missing adapterId"))?;
         let spec = adapter(id).ok_or_else(|| unknown_adapter("NOT_FOUND", id))?;
-        let config = AdapterConfig::from_value(
-            &self
+        let (config, root) = {
+            let core = self
                 .core
                 .lock()
-                .map_err(|_| failure("Application state unavailable"))?
-                .adapter_config(id),
-        );
+                .map_err(|_| failure("Application state unavailable"))?;
+            (
+                AdapterConfig::from_value(&core.adapter_config(id)),
+                core.project_root(project_id).ok(),
+            )
+        };
+        let config = config.canonicalize(spec, &self.routing()(spec, root.as_deref()));
         let tested_at = now();
         let steps = self.test_steps(project_id, spec, &config);
         let failed = steps.iter().find(|step| step["ok"] == false);
@@ -1441,6 +1477,8 @@ mod tests {
                     let _ = sender.send(event);
                 }),
             );
+            // The developer's own Claude settings and variables never change a result.
+            host.set_routing(|_, _| Routing::default());
             Self {
                 host,
                 events,
@@ -2036,7 +2074,8 @@ mod tests {
                 &json!({"adapterId": "claude-code", "model": "haiku"}),
             )
             .unwrap();
-        assert_eq!(session["model"], "haiku");
+        // The alias is launched as the full id: the CLI would resolve it to an older model.
+        assert_eq!(session["model"], "claude-haiku-5-5");
         assert_eq!(session["profile"], "compact");
         assert_eq!(session["profileSource"], "model");
         assert_eq!(session["toolCount"], 13);
@@ -2049,7 +2088,7 @@ mod tests {
             format!("--mcp-config {}", mcp.display()),
             "--allowedTools mcp__omenflow".to_owned(),
             format!("--append-system-prompt-file {}", guide_file.display()),
-            "--model haiku".to_owned(),
+            "--model claude-haiku-5-5".to_owned(),
             format!("--session-id {id}"),
         ] {
             assert!(args.contains(&expected), "no {expected:?} in {args:?}");
@@ -2097,6 +2136,64 @@ mod tests {
             .unwrap();
         terminal.wait_state(|state| state["id"] == session["id"] && state["state"] == "exited");
         assert!(!terminal.work_file(&session, "mcp.json").exists());
+    }
+
+    #[test]
+    fn a_routed_alias_is_passed_as_written() {
+        let mut terminal = Terminal::new("Routed models");
+        let claude = terminal.script("claude", "echo \"ARGS $*.\"; sleep 60");
+        terminal.configure(
+            "claude-code",
+            json!({"executablePath": claude, "env": {"ANTHROPIC_DEFAULT_HAIKU_MODEL": "my-haiku"}}),
+        );
+        let project = terminal.project().to_owned();
+        let model_of = |terminal: &Terminal, session: &Value| {
+            let activity = terminal
+                .workspace
+                .bridge
+                .agent_activity(terminal.project(), &json!({}))
+                .unwrap();
+            activity["sessions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|recorded| recorded["sessionId"] == session["id"])
+                .unwrap()["model"]
+                .clone()
+        };
+        let routed = terminal
+            .host
+            .start(
+                &project,
+                &json!({"adapterId": "claude-code", "model": "haiku"}),
+            )
+            .unwrap();
+        assert_eq!(routed["model"], "haiku");
+        assert_eq!(routed["profile"], "compact");
+        terminal.wait_output(&format!(
+            "--model haiku --session-id {}.",
+            routed["id"].as_str().unwrap()
+        ));
+        assert_eq!(model_of(&terminal, &routed), "haiku");
+        terminal.host.stop(&project).unwrap();
+
+        terminal.configure("claude-code", json!({"env": {}}));
+        terminal.output.clear();
+        let direct = terminal
+            .host
+            .start(
+                &project,
+                &json!({"adapterId": "claude-code", "model": "haiku"}),
+            )
+            .unwrap();
+        assert_eq!(direct["model"], "claude-haiku-5-5");
+        terminal.wait_output("--model claude-haiku-5-5 ");
+        assert_eq!(
+            model_of(&terminal, &direct),
+            "claude-haiku-5-5",
+            "the ledger records the id that was launched"
+        );
+        terminal.host.stop(&project).unwrap();
     }
 
     #[test]
@@ -2180,7 +2277,10 @@ mod tests {
         let second = terminal.host.restart(&project).unwrap();
         let second_id = second["id"].as_str().unwrap().to_owned();
         assert_ne!(second_id, first_id);
-        assert_eq!(second["model"], "sonnet", "the same start input is used");
+        assert_eq!(
+            second["model"], "claude-sonnet-5-5",
+            "the same start input is used"
+        );
         terminal.wait_output(&format!("--session-id {second_id}."));
         assert!(!terminal.output.contains("--resume"));
 

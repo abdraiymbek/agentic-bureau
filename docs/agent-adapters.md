@@ -13,14 +13,14 @@ method, tool pre-approval, timeouts, model flag, guidance channels, suggested
 models with their tiers, a `verified` flag and a documentation link. Adding a
 CLI that uses an existing injection method is one more record.
 
-| Adapter                   | Verified on this build | MCP injection                                                                     | Pre-approval                                           | Guidance                                                        | Model                                                                | Tool timeout                                     | Resume                      |
-| ------------------------- | ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ | --------------------------- |
-| `codex` Codex CLI         | yes (0.156.1)          | `-c mcp_servers.omenflow.*` overrides; credentials forwarded by name (`env_vars`) | `default_tools_approval_mode="approve"`                | MCP instructions, `-c developer_instructions=`                  | `-m`; `ollama/…` and `lmstudio/…` ids add `--oss --local-provider …` | `tool_timeout_sec=330`, `startup_timeout_sec=20` | no                          |
-| `claude-code` Claude Code | yes (2.1.287)          | `--mcp-config <work>/mcp.json` with `timeout` and `alwaysLoad`                    | `--allowedTools mcp__omenflow`                         | MCP instructions, `--append-system-prompt-file <work>/guide.md` | `--model`                                                            | 600 s (`timeout` in `mcp.json`)                  | `--session-id` / `--resume` |
-| `opencode` OpenCode       | no                     | `OPENCODE_CONFIG_CONTENT` inline JSON                                             | `permission: {"omenflow_*": "allow"}`                  | MCP instructions, `instructions: [guide.md]`                    | `-m provider/model`                                                  | `timeout: 330000`                                | no                          |
-| `gemini` Gemini CLI       | no                     | `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=<work>/gemini.json`                              | `"trust": true`, `--allowed-mcp-server-names omenflow` | MCP instructions                                                | `-m`                                                                 | `timeout: 600000`                                | no                          |
-| `qwen` Qwen Code          | no                     | `QWEN_CODE_SYSTEM_DEFAULTS_PATH=<work>/qwen.json`                                 | `"trust": true`                                        | MCP instructions, `--append-system-prompt`                      | `-m`                                                                 | `timeout: 600000`                                | no                          |
-| `custom` Custom CLI       | no                     | none: bridge variables and `omenflow` on PATH                                     | n/a                                                    | bounded `AGENTS.md` block                                       | none                                                                 | n/a                                              | no                          |
+| Adapter                   | Verified on this build | MCP injection                                                                     | Pre-approval                                           | Guidance                                                        | Model                                                                | Tool timeout                                     | Resume                                                           |
+| ------------------------- | ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `codex` Codex CLI         | yes (0.156.1)          | `-c mcp_servers.omenflow.*` overrides; credentials forwarded by name (`env_vars`) | `default_tools_approval_mode="approve"`                | MCP instructions, `-c developer_instructions=`                  | `-m`; `ollama/…` and `lmstudio/…` ids add `--oss --local-provider …` | `tool_timeout_sec=330`, `startup_timeout_sec=20` | no                                                               |
+| `claude-code` Claude Code | yes (2.1.287)          | `--mcp-config <work>/mcp.json` with `timeout` and `alwaysLoad`                    | `--allowedTools mcp__omenflow`                         | MCP instructions, `--append-system-prompt-file <work>/guide.md` | `--model`, aliases passed as full ids (below)                        | 600 s (`timeout` in `mcp.json`)                  | `--session-id` / `--resume`, also for conversation continuations |
+| `opencode` OpenCode       | no                     | `OPENCODE_CONFIG_CONTENT` inline JSON                                             | `permission: {"omenflow_*": "allow"}`                  | MCP instructions, `instructions: [guide.md]`                    | `-m provider/model`                                                  | `timeout: 330000`                                | no                                                               |
+| `gemini` Gemini CLI       | no                     | `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=<work>/gemini.json`                              | `"trust": true`, `--allowed-mcp-server-names omenflow` | MCP instructions                                                | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
+| `qwen` Qwen Code          | no                     | `QWEN_CODE_SYSTEM_DEFAULTS_PATH=<work>/qwen.json`                                 | `"trust": true`                                        | MCP instructions, `--append-system-prompt`                      | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
+| `custom` Custom CLI       | no                     | none: bridge variables and `omenflow` on PATH                                     | n/a                                                    | bounded `AGENTS.md` block                                       | none                                                                 | n/a                                              | no                                                               |
 
 "Verified" means the launch line was checked against the installed CLI's
 `--help` output and binary on the build machine. The OpenCode, Gemini CLI and
@@ -35,6 +35,44 @@ conversation in the folder, which may be one Omen Flow never saw. Claude Code
 is started with `--session-id <Omen Flow session id>`; "Start again" resumes
 that conversation with `--resume <id>` when the previous session made at
 least one tool call (so a conversation exists), and starts fresh otherwise.
+A conversation continuation of a completed Claude Code turn
+(`LaunchMode::HeadlessResume`) passes `--resume <id>` and no `--session-id`
+(the CLI refuses both without `--fork-session`), with a new Omen Flow
+session, token and `mcp.json`; its prompt names what work_status reported
+instead of replaying the history. When the CLI answers "No conversation
+found" (cleaned up, or the project folder moved), the turn starts again once
+as a new conversation with the history replayed; when the resumed run's Omen
+Flow server does not connect, the turn fails and says so. With
+`--no-session-persistence` among the adapter's arguments a headless run keeps
+no conversation, so a continuation starts fresh. Codex continuations replay
+the conversation text.
+
+### Model ids
+
+Claude Code resolves its aliases from its own catalogue, which can lag a
+release: 2.1.287 resolves `haiku` to Claude Haiku 4.5. So Settings lists the
+full ids (`claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`,
+`claude-haiku-5-5`), and a launch passes the alias `fable`, `opus`, `sonnet`
+or `haiku` as that full id (`AdapterSpec::canonical_model`; the profile, the
+grant, the ledger and `--model` all name it). A saved alias is never
+rewritten in `settings.json`: `connection.list` reports it as the full id it
+launches, and Settings saves a model only when the person picks another, so
+saving any other change keeps the alias. An alias stays as written when
+the person routes models themselves, wherever Claude Code reads that from:
+`ANTHROPIC_DEFAULT_<FAMILY>_MODEL` for that alias, a truthy
+`CLAUDE_CODE_USE_*` provider switch (Bedrock, Vertex, Foundry, gateway and
+the others), or an `ANTHROPIC_BASE_URL` other than
+`https://api.anthropic.com`, set in the adapter's environment, the
+inherited environment or a Claude Code settings file's `env`
+(`$CLAUDE_CONFIG_DIR` or `~/.claude/settings.json`, the project's
+`.claude/settings.json` and `settings.local.json`, the machine's managed
+settings), and any `modelOverrides` there. The files are read with the
+workspace lock released; a missing or damaged one is skipped.
+`connection.list` describes the machine and reads no project's files, so
+for a project that routes models in its own `.claude` settings Settings
+lists the full id while the launch, the session bar and the turn header
+name the alias that was passed. Dated ids, `opusplan`, provider ids and
+other CLIs' ids are passed as written.
 
 ### Detection and versions
 
@@ -72,6 +110,35 @@ plan with `LaunchMode::Headless` (`codex exec --json --skip-git-repo-check …
 The Agent tab's Conversation pane runs these plans through `chat.send`, one
 fresh process per turn; Claude Code's partial messages let its text appear as
 it arrives, while Codex reports completed items.
+
+- When a turn ends completed or failed, the host reads `work_status` over the
+  turn's agent session and those of the turns it continues
+  (`CoreApp::work_status_sessions`) and records it on the turn (`gate`):
+  ready, the summary, counts, up to five items with the tool that resolves
+  each, the calls those sessions made (from the call ledger), the artifacts
+  in scope and the jobs still running. A stopped or interrupted turn records
+  none. The conversation shows a not-ready gate as **Work not finished** with
+  Continue, which sends a fixed continuation naming the turn
+  (`chat.send` `continues`; only the latest turn can be continued, and the
+  transport cannot mark a request automatic).
+- With `conversation.autoContinue` set (Settings → Agents, off by default),
+  the host continues a completed turn once per message the person sent, when
+  a blocker is one the agent can resolve from the project record (CAD,
+  wiring, a calculation not run, an empty draft) and no job of its sessions
+  is still running. Sourcing a component and recording a seller offer need
+  facts from outside the project and never start one. The continuation is the
+  host's own request (`continues.automatic`, request ID `<turn>-auto`); it
+  never continues itself, and Stop prevents it. What happened is recorded as
+  `gate.auto`.
+- Stream limits: tool-result records (Claude Code `user` records, Codex
+  `mcp_tool_call` items) do not count toward any text limit; one longer than
+  1 MiB is read to its end and dropped, and a run may carry 256 MiB of them.
+  The rest of the stream has 16 MiB, one line is held up to 64 MiB, and the
+  response text stays capped at 1 MiB.
+- A turn records the model id Omen Flow passed, the model the CLI reported
+  (Claude Code's init event) and the tokens it reported. The CLI's cost
+  figures are never parsed, stored or shown in Omen Flow's interface; the
+  Terminal pane is the CLI's own screen.
 
 - Files live in `.omenflow/work/<session>/`, are written `0600`, and are
   removed when the session ends however it ends. Only Claude Code's

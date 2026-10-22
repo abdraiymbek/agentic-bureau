@@ -20,6 +20,7 @@ import { ExternalLink } from '../ui/ExternalLink';
 import {
   adapterRowView,
   argsHint,
+  modelAndProfileInput,
   needsRestart,
   openscadProbe,
   parseArgs,
@@ -167,6 +168,7 @@ function AgentsSection() {
           ))}
         </div>
       )}
+      <ContinueSetting />
       {running && chosen && running.adapterId !== chosen.adapterId && (
         <RestartNote
           text={`${adapterLabel(adapters, running.adapterId)} is running now. ${chosen.label} starts the next time the agent starts.`}
@@ -186,6 +188,68 @@ function AgentsSection() {
           : 'No agent session in this project'}
       </p>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Unfinished work after a conversation response                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Whether Omen Flow continues unfinished work once by itself (`conversation.autoContinue`,
+ * off unless set). The host reads it when a response ends.
+ */
+function ContinueSetting() {
+  const toast = useStore((s) => s.toast);
+  const [value, setValue] = useState<'offer' | 'once' | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void quiet<{ value: unknown }>('settings.get', { key: 'conversation.autoContinue' }).then(
+      (r) => {
+        if (alive) setValue(r.ok && r.result.value === true ? 'once' : 'offer');
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const choose = async (next: 'offer' | 'once') => {
+    const before = value;
+    setValue(next);
+    const r = await quiet('settings.set', {
+      key: 'conversation.autoContinue',
+      value: next === 'once',
+    });
+    if (!r.ok) {
+      setValue(before);
+      toast('error', errorText(r.error));
+    }
+  };
+  return (
+    <div className="setting-row">
+      <div>
+        <strong>Unfinished work after a response</strong>
+        <small>
+          When work_status reports blockers, the response offers Continue. Continue once also sends
+          one continuation by itself per message you send, when a blocker is the agent's to resolve
+          from the project record, labelled as sent by Omen Flow; it runs the agent again and spends
+          model credits.
+        </small>
+      </div>
+      {value === null ? (
+        <Spinner />
+      ) : (
+        <Segmented
+          label="Unfinished work after a response"
+          value={value}
+          onChange={(next) => void choose(next)}
+          options={[
+            { value: 'offer', label: 'Offer Continue' },
+            { value: 'once', label: 'Continue once' },
+          ]}
+        />
+      )}
+    </div>
   );
 }
 
@@ -285,7 +349,7 @@ function AdapterRow({
     setSaveError(null);
     const r = await quiet('connection.configure', {
       adapterId: v.id,
-      ...(knowsProfiles ? { model: draftModel, profile } : {}),
+      ...modelAndProfileInput(v, { model: draftModel, profile }),
       ...(path.trim() ? { executablePath: path.trim() } : {}),
       ...(args.trim() && parsedArgs ? { args: parsedArgs } : {}),
       ...(env.trim() && 'env' in parsedEnv ? { env: parsedEnv.env } : {}),

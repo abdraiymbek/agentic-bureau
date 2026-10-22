@@ -22,7 +22,9 @@ export type StateDimension =
   /** Work running now: agent sessions and jobs. */
   | 'execution'
   /** A component's place in selection. */
-  | 'part';
+  | 'part'
+  /** What the completion gate (`work_status`) says is unfinished about one object. */
+  | 'work';
 
 export interface StateWord {
   label: string;
@@ -96,6 +98,22 @@ export const VOCABULARY: Record<StateDimension, Record<string, StateWord>> = {
     selected: w('Selected', 'ok'),
     rejected: w('Rejected', 'err'),
     superseded: w('Superseded', 'neutral'),
+  },
+  work: {
+    cad_render_failed: w('No geometry', 'warn'),
+    cad_check_failed: w('Check failed', 'warn'),
+    cad_scope_changed: w('Scope dropped', 'warn'),
+    cad_spec_unasserted: w('Spec not asserted', 'warn'),
+    cad_unverified: w('Unverified', 'warn'),
+    component_unsourced: w('No source', 'warn'),
+    component_no_offer: w('No offer', 'warn'),
+    wiring_findings: w('Findings', 'warn'),
+    wiring_unvalidated: w('Not validated', 'warn'),
+    calculation_not_run: w('Not run', 'warn'),
+    empty_payload: w('Empty', 'warn'),
+    changes_requested: w('Changes requested', 'warn'),
+    stale_dependent: w('Out of date', 'neutral'),
+    draft_unproposed: w('Not submitted', 'neutral'),
   },
 };
 

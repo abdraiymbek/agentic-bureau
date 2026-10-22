@@ -125,12 +125,15 @@ struct Item {
 /// What the gate found. `project.summary` embeds a digest of the same report.
 pub(super) struct WorkReport {
     scope: &'static str,
+    /// The last of the sessions the report covers.
     session_id: Option<String>,
     /// A session was asked for and no agent session exists.
     no_session: bool,
     items: Vec<Item>,
     waiting: Vec<Value>,
     verified_parts: usize,
+    /// Artifacts in scope: what the sessions wrote, ran a job on or proposed.
+    in_scope: usize,
 }
 
 impl WorkReport {
@@ -239,6 +242,34 @@ pub(super) fn project_work(handle: &ProjectHandle) -> CoreResult<WorkReport> {
     build(handle, None)
 }
 
+/// One report for several agent sessions as one scope: what any of them wrote, ran a job on or
+/// proposed. The agent host reads it when a conversation turn ends, for the turn's session and
+/// those of the turns it continues. Read-only, and not an operation: besides the `work.status`
+/// shape it says how many artifacts are in scope (`inScope`) and how many of the sessions' jobs
+/// are still queued or running (`jobsRunning`).
+pub(super) fn sessions_status(handle: &ProjectHandle, sessions: &[String]) -> CoreResult<Value> {
+    let mut unique = Vec::<String>::new();
+    for session in sessions {
+        if !unique.contains(session) {
+            unique.push(session.clone());
+        }
+    }
+    let mut jobs_running = 0_i64;
+    for session in &unique {
+        jobs_running += statement(
+            handle,
+            "SELECT COUNT(*) FROM job WHERE session_id=?1 AND status IN ('queued','running')",
+        )?
+        .query_row([session], |row| row.get::<_, i64>(0))
+        .map_err(internal)?;
+    }
+    let report = build_for(handle, Some(unique))?;
+    let mut result = report.to_json();
+    result["inScope"] = json!(report.in_scope);
+    result["jobsRunning"] = json!(jobs_running);
+    Ok(result)
+}
+
 fn latest_session(handle: &ProjectHandle) -> CoreResult<Option<String>> {
     let started = statement(
         handle,
@@ -286,25 +317,42 @@ fn touched_by(handle: &ProjectHandle, session_id: &str) -> CoreResult<HashSet<St
 /// `session`: `None` for the whole project, `Some(None)` when a session was
 /// asked for and none exists.
 fn build(handle: &ProjectHandle, session: Option<Option<String>>) -> CoreResult<WorkReport> {
+    build_for(handle, session.map(|id| id.into_iter().collect()))
+}
+
+/// `sessions`: `None` for the whole project, `Some` of no session when one was asked for and
+/// none exists, otherwise the sessions whose work is one scope.
+fn build_for(handle: &ProjectHandle, sessions: Option<Vec<String>>) -> CoreResult<WorkReport> {
     let mut report = WorkReport {
-        scope: if session.is_some() {
+        scope: if sessions.is_some() {
             "session"
         } else {
             "project"
         },
-        session_id: session.clone().flatten(),
-        no_session: session == Some(None),
+        session_id: sessions.as_ref().and_then(|ids| ids.last().cloned()),
+        no_session: sessions.as_ref().is_some_and(Vec::is_empty),
         items: Vec::new(),
         waiting: Vec::new(),
         verified_parts: 0,
+        in_scope: 0,
     };
     if report.no_session {
         return Ok(report);
     }
-    let session_id = report.session_id.clone();
-    let mut touched = match &session_id {
-        Some(id) => Some(touched_by(handle, id)?),
+    let mut touched = match &sessions {
+        Some(ids) => {
+            let mut touched = HashSet::new();
+            for id in ids {
+                touched.extend(touched_by(handle, id)?);
+            }
+            Some(touched)
+        }
         None => None,
+    };
+    let ours = |proposal: &Value| {
+        sessions
+            .as_ref()
+            .is_none_or(|ids| ids.iter().any(|id| proposal["session"] == id.as_str()))
     };
 
     let mut artifacts = HashMap::<String, Artifact>::new();
@@ -365,23 +413,18 @@ fn build(handle: &ProjectHandle, session: Option<Option<String>>) -> CoreResult<
             .map(str::to_owned)
             .collect::<Vec<_>>()
     };
-    if let (Some(touched), Some(session_id)) = (touched.as_mut(), &session_id) {
-        for proposal in proposals
-            .iter()
-            .filter(|proposal| proposal["session"] == session_id.as_str())
-        {
+    if let Some(touched) = touched.as_mut() {
+        for proposal in proposals.iter().filter(|proposal| ours(proposal)) {
             touched.extend(changed(proposal));
         }
     }
     let in_scope = |id: &str| touched.as_ref().is_none_or(|touched| touched.contains(id));
+    report.in_scope = artifacts.keys().filter(|id| in_scope(id)).count();
 
     // Proposals: waiting on the human, or sent back to the author.
     for proposal in &proposals {
         let ids = changed(proposal);
-        let mine = match &session_id {
-            Some(session_id) => proposal["session"] == session_id.as_str(),
-            None => true,
-        };
+        let mine = ours(proposal);
         if proposal["state"] == "pending" {
             if mine {
                 report.waiting.push(json!({
@@ -1548,6 +1591,89 @@ mod tests {
         assert_eq!(other["summary"], "Nothing is unfinished in this session.");
         let whole = project.user("work.status", json!({}));
         assert_eq!(about(&whole, &plan), [("stale_dependent", "advice")]);
+    }
+
+    #[test]
+    fn a_chain_of_sessions_is_one_scope() {
+        let mut project = TestProject::new();
+        let (servo, _) = project.draft(
+            agent("s1"),
+            "component",
+            "Steering servo",
+            json!({"partNumber": "MG996R"}),
+            json!([]),
+        );
+        let chain = ["s1".to_owned(), "s2".to_owned()];
+        let status = sessions_status(project.handle(), &chain).unwrap();
+        assert_eq!(status["ready"], false);
+        assert_eq!(status["scope"], "session");
+        assert_eq!(status["sessionId"], "s2", "the latest session of the chain");
+        assert!(
+            status.get("sessionIds").is_none(),
+            "the host records the chain it asked about"
+        );
+        assert_eq!(
+            about(&status, &servo),
+            [
+                ("component_unsourced", "blocker"),
+                ("component_no_offer", "blocker")
+            ]
+        );
+        assert_eq!(
+            (&status["inScope"], &status["jobsRunning"]),
+            (&json!(1), &json!(0))
+        );
+        // The later session alone touched nothing, which is no comfort for the chain.
+        let alone = project.agent("s2", "work.status", json!({}));
+        assert_eq!(alone["ready"], true);
+        assert_eq!(alone["summary"], "Nothing is unfinished in this session.");
+        let repeated = sessions_status(project.handle(), &["s1".into(), "s1".into()]).unwrap();
+        assert_eq!(repeated["outstanding"], status["outstanding"]);
+        let none = sessions_status(project.handle(), &[]).unwrap();
+        assert_eq!(none["ready"], true);
+        assert_eq!(
+            none["summary"],
+            "No agent session has recorded work in this project."
+        );
+        assert_eq!(none["inScope"], 0);
+
+        // The later session resolves what the earlier one left.
+        let mut offer = item(&status, "component_no_offer")["next"]["args"].clone();
+        offer["seller"] = json!("Example Robotics");
+        offer["url"] = json!("https://example.com/mg996r");
+        project.agent("s2", "component.add_offer", offer);
+        let status = sessions_status(project.handle(), &chain).unwrap();
+        assert_eq!(status["ready"], true, "{status}");
+        assert_eq!(about(&status, &servo), [("draft_unproposed", "advice")]);
+
+        // A proposal of the earlier session waits on the human for the whole chain.
+        let (plan, revision) = project.draft(
+            agent("s1"),
+            "note",
+            "Test plan",
+            json!({"markdown": "v1"}),
+            json!([]),
+        );
+        let proposal = project.agent(
+            "s1",
+            "proposal.submit",
+            json!({
+                "changes": [{"artifactId": plan, "newRevisionId": revision, "baseRevisionId": null, "kind": "new_artifact"}],
+                "reason": "Review the test plan",
+            }),
+        );
+        let status = sessions_status(project.handle(), &chain).unwrap();
+        assert_eq!(
+            status["waitingOnHuman"],
+            json!([{"proposalId": proposal["id"], "reason": "Review the test plan", "state": "pending"}])
+        );
+        assert_eq!(status["inScope"], 2);
+        assert!(
+            project.agent("s2", "work.status", json!({}))["waitingOnHuman"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

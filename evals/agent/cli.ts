@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { baseEnvironment, type LaunchPlan } from './host.js';
+import { estimateClaudeRun, PRICES_AS_OF } from './pricing.js';
 
 export interface CliRun {
   exitCode: number | null;
@@ -160,7 +161,32 @@ export interface StreamMetrics {
   cachedInputTokens: number;
   outputTokens: number;
   turns: number;
+  /**
+   * Omen Flow's estimate at list price (pricing.ts, as of `PRICES_AS_OF`); null when a model
+   * that ran has no price, and for Codex, which reports none.
+   */
   costUsd: number | null;
+  /** The table the estimate used. */
+  pricesAsOf: string | null;
+  /** Models that ran without a price, so `costUsd` is null. */
+  unpricedModels: string[];
+  /**
+   * The CLI's own figure, kept for audit only: Claude Code prices a model it does not know at
+   * another model's rates.
+   */
+  cliCostUsd: number | null;
+  /** The model the CLI said it runs (Claude Code's init event). */
+  model: string | null;
+  /** Tokens per model as the CLI reported them, without its cost figures. */
+  modelUsage: Record<
+    string,
+    {
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadInputTokens: number;
+      cacheCreationInputTokens: number;
+    }
+  > | null;
   finalMessage: string;
   /** How the CLI says the run ended (`success`, `error_max_turns`, …). */
   outcome: string;
@@ -190,12 +216,18 @@ function parse(lines: string[]): Record<string, any>[] {
 }
 
 export function claudeMetrics(lines: string[]): StreamMetrics {
+  const events = parse(lines);
   const metrics: StreamMetrics = {
     inputTokens: 0,
     cachedInputTokens: 0,
     outputTokens: 0,
     turns: 0,
     costUsd: null,
+    pricesAsOf: PRICES_AS_OF,
+    unpricedModels: [],
+    cliCostUsd: null,
+    model: null,
+    modelUsage: null,
     finalMessage: '',
     outcome: 'no_result',
     toolCalls: {},
@@ -205,8 +237,9 @@ export function claudeMetrics(lines: string[]): StreamMetrics {
     guideTopics: [],
   };
   let lastText = '';
-  for (const event of parse(lines)) {
+  for (const event of events) {
     if (event.type === 'system' && event.subtype === 'init') {
+      if (typeof event.model === 'string') metrics.model = event.model;
       const servers = (event.mcp_servers ?? []) as { name: string; status: string }[];
       metrics.mcpConnected = servers.some(
         (server) => server.name === 'omenflow' && server.status === 'connected',
@@ -232,7 +265,21 @@ export function claudeMetrics(lines: string[]): StreamMetrics {
       metrics.cachedInputTokens = usage.cache_read_input_tokens ?? 0;
       metrics.outputTokens = usage.output_tokens ?? 0;
       metrics.turns = event.num_turns ?? 0;
-      metrics.costUsd = typeof event.total_cost_usd === 'number' ? event.total_cost_usd : null;
+      metrics.cliCostUsd = typeof event.total_cost_usd === 'number' ? event.total_cost_usd : null;
+      if (event.modelUsage && typeof event.modelUsage === 'object')
+        metrics.modelUsage = Object.fromEntries(
+          Object.entries(event.modelUsage as Record<string, Record<string, unknown>>).map(
+            ([model, usage]) => [
+              model,
+              {
+                inputTokens: Number(usage.inputTokens ?? 0),
+                outputTokens: Number(usage.outputTokens ?? 0),
+                cacheReadInputTokens: Number(usage.cacheReadInputTokens ?? 0),
+                cacheCreationInputTokens: Number(usage.cacheCreationInputTokens ?? 0),
+              },
+            ],
+          ),
+        );
       metrics.outcome = String(event.subtype ?? 'result');
       metrics.permissionDenials = Array.isArray(event.permission_denials)
         ? event.permission_denials.length
@@ -241,6 +288,9 @@ export function claudeMetrics(lines: string[]): StreamMetrics {
     }
   }
   if (!metrics.finalMessage) metrics.finalMessage = lastText;
+  const estimate = estimateClaudeRun(events);
+  metrics.costUsd = estimate.usd;
+  metrics.unpricedModels = estimate.unpriced;
   return metrics;
 }
 
@@ -251,6 +301,11 @@ export function codexMetrics(lines: string[]): StreamMetrics {
     outputTokens: 0,
     turns: 0,
     costUsd: null,
+    pricesAsOf: null,
+    unpricedModels: [],
+    cliCostUsd: null,
+    model: null,
+    modelUsage: null,
     finalMessage: '',
     outcome: 'no_result',
     toolCalls: {},

@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       // Subpath first: the string alias below would otherwise capture it.
       '@omenflow/contracts/format': path.join(root, 'packages', 'contracts', 'src', 'format.ts'),
+      '@omenflow/contracts/chat': path.join(root, 'packages', 'contracts', 'src', 'chat.ts'),
       '@omenflow/contracts': pkg('contracts'),
       '@omenflow/storage': pkg('storage'),
       '@omenflow/core': pkg('core'),

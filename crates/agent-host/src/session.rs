@@ -24,6 +24,16 @@ pub enum LaunchMode<'a> {
     /// One prompt and no terminal. The caller writes the prompt to the
     /// process's standard input and closes it.
     Headless,
+    /// One prompt and no terminal, continuing the conversation an earlier
+    /// headless run of the same adapter left under `conversation_id`.
+    HeadlessResume { conversation_id: &'a str },
+}
+
+impl LaunchMode<'_> {
+    /// Whether the CLI runs one prompt without a terminal.
+    pub fn headless(self) -> bool {
+        matches!(self, Self::Headless | Self::HeadlessResume { .. })
+    }
 }
 
 /// Everything a launch depends on.
@@ -75,6 +85,8 @@ pub struct LaunchPlan {
     /// The id under which the CLI keeps this conversation, when it can be
     /// resumed by id later.
     pub conversation_id: Option<String>,
+    /// True when the plan continues an earlier conversation of the CLI.
+    pub resumed: bool,
 }
 
 /// Inherited variables with this prefix belong to another Omen Flow session
@@ -119,10 +131,10 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
     let mut files = Vec::new();
     let guide_file = work.join("guide.md");
 
-    let headless = match (request.mode, adapter.headless) {
-        (LaunchMode::Headless, Some(headless)) => Some(headless),
-        (LaunchMode::Headless, None) => return Err(no_headless_mode(adapter)),
-        _ => None,
+    let headless = match (request.mode.headless(), adapter.headless) {
+        (true, Some(headless)) => Some(headless),
+        (true, None) => return Err(no_headless_mode(adapter)),
+        (false, _) => None,
     };
     if let Some(headless) = headless {
         args.extend(headless.leading.iter().map(|arg| arg.to_string()));
@@ -256,23 +268,42 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
         }
     }
 
-    let conversation_id = match (adapter.resume, request.mode) {
-        (Some(resume), LaunchMode::Resume { conversation_id }) => {
-            args.extend([resume.resume.to_owned(), conversation_id.to_owned()]);
-            Some(conversation_id.to_owned())
+    // A headless CLI told not to keep its sessions has none to resume later, and none of its
+    // earlier runs left one: it starts fresh.
+    let persists = !(headless.is_some()
+        && request
+            .config
+            .args
+            .iter()
+            .any(|arg| arg == "--no-session-persistence"));
+    let wanted = match request.mode {
+        LaunchMode::Resume { conversation_id } => Some(conversation_id),
+        LaunchMode::HeadlessResume { conversation_id } if persists => Some(conversation_id),
+        _ => None,
+    };
+    let (conversation_id, resumed) = match (adapter.resume, wanted, request.mode) {
+        (Some(_), Some(id), _) if !plain_id(id) => {
+            return Err(ContractError::validation(
+                "The conversation to resume has an id no CLI would give",
+            )
+            .with_repair("Start a new session instead."))
         }
-        (Some(resume), _) => {
-            args.extend([resume.assign.to_owned(), request.session_id.to_owned()]);
-            Some(request.session_id.to_owned())
+        (Some(resume), Some(id), _) => {
+            args.extend([resume.resume.to_owned(), id.to_owned()]);
+            (Some(id.to_owned()), true)
         }
-        (None, LaunchMode::Resume { .. }) => {
+        (None, _, LaunchMode::Resume { .. } | LaunchMode::HeadlessResume { .. }) => {
             return Err(ContractError::validation(format!(
                 "{} cannot resume a conversation",
                 adapter.label
             ))
             .with_repair("Start a new session instead."))
         }
-        (None, _) => None,
+        (Some(resume), None, _) => {
+            args.extend([resume.assign.to_owned(), request.session_id.to_owned()]);
+            (persists.then(|| request.session_id.to_owned()), false)
+        }
+        (None, _, _) => (None, false),
     };
 
     args.extend(request.config.args.iter().cloned());
@@ -296,7 +327,19 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
         guidance,
         agents_md: adapter.writes_agents_md(request.config),
         conversation_id,
+        resumed,
     })
+}
+
+/// An id a CLI may be resumed by. It becomes the argument after `--resume`, and a record file
+/// that holds it can be written by anything that writes the project folder, so it is checked
+/// where it is read and again here, where it is used.
+pub(crate) fn plain_id(id: &str) -> bool {
+    (1..=128).contains(&id.len())
+        && !id.starts_with('-')
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 /// The refusal for a headless run of a CLI that has no headless mode.
@@ -574,6 +617,7 @@ mod tests {
             ])
         );
         assert_eq!(plan.conversation_id.as_deref(), Some(SESSION));
+        assert!(!plan.resumed);
         let mut env = base_env();
         env.push(("ANTHROPIC_BASE_URL", "http://localhost:4000"));
         env.extend(BRIDGE_VALUES);
@@ -607,6 +651,7 @@ mod tests {
         );
         assert!(!plan.args.contains(&"--session-id".to_owned()));
         assert_eq!(plan.conversation_id.as_deref(), Some(earlier));
+        assert!(plan.resumed);
         // The new session still gets its own token, files and guidance.
         assert_eq!(plan.files[0].path, Path::new(WORK).join("mcp.json"));
 
@@ -623,6 +668,115 @@ mod tests {
             assert_eq!(error.code, "VALIDATION", "{id}");
             assert!(error.message.ends_with("cannot resume a conversation"));
         }
+    }
+
+    #[test]
+    fn claude_headless_resume_continues_by_id_without_a_new_session_id() {
+        let earlier = "11111111-2222-4333-8444-555555555555";
+        let resume = LaunchMode::HeadlessResume {
+            conversation_id: earlier,
+        };
+        let resumed = plan(
+            "claude-code",
+            json!({"model": "claude-haiku-5-5"}),
+            Profile::Compact,
+            resume,
+        );
+        assert_eq!(resumed.args[0], "-p");
+        let at = resumed
+            .args
+            .iter()
+            .position(|arg| arg == "--resume")
+            .unwrap();
+        assert_eq!(resumed.args[at + 1], earlier);
+        // The CLI refuses --session-id with --resume unless it forks the conversation.
+        assert!(!resumed.args.contains(&"--session-id".to_owned()));
+        assert_eq!(
+            resumed.args[resumed.args.len() - 6..],
+            strings(&[
+                "--output-format",
+                "stream-json",
+                "--include-partial-messages",
+                "--verbose",
+                "--permission-mode",
+                "dontAsk"
+            ])
+        );
+        assert_eq!(resumed.conversation_id.as_deref(), Some(earlier));
+        assert!(resumed.resumed);
+        assert!(LaunchMode::Headless.headless() && resume.headless());
+        assert!(!LaunchMode::Interactive.headless());
+
+        let error = try_plan("codex", json!({}), Profile::Standard, resume).unwrap_err();
+        assert_eq!(error.code, "VALIDATION");
+        assert!(error.message.ends_with("cannot resume a conversation"));
+        for id in ["opencode", "gemini", "qwen", "custom"] {
+            let error = try_plan(id, json!({}), Profile::Standard, resume).unwrap_err();
+            assert!(
+                error
+                    .message
+                    .ends_with("has no headless mode in this build"),
+                "{id}"
+            );
+        }
+
+        // A CLI told not to keep sessions has none to resume: it starts fresh, and its run
+        // leaves nothing to resume later either.
+        let fresh = plan(
+            "claude-code",
+            json!({"args": ["--no-session-persistence"]}),
+            Profile::Compact,
+            resume,
+        );
+        let at = fresh
+            .args
+            .iter()
+            .position(|arg| arg == "--session-id")
+            .unwrap();
+        assert_eq!(fresh.args[at + 1], SESSION);
+        assert!(!fresh.args.contains(&"--resume".to_owned()));
+        assert!(!fresh.resumed);
+        assert_eq!(fresh.conversation_id, None);
+        let headless = plan(
+            "claude-code",
+            json!({"args": ["--no-session-persistence"]}),
+            Profile::Compact,
+            LaunchMode::Headless,
+        );
+        assert_eq!(headless.conversation_id, None);
+    }
+
+    #[test]
+    fn a_resume_id_that_could_be_read_as_a_flag_is_refused() {
+        let long = "a".repeat(129);
+        for bad in [
+            "--settings={\"env\":{\"INJECTED\":\"1\"}}",
+            "--dangerously-skip-permissions",
+            "-x",
+            "",
+            "a b",
+            "a=b",
+            long.as_str(),
+        ] {
+            for mode in [
+                LaunchMode::Resume {
+                    conversation_id: bad,
+                },
+                LaunchMode::HeadlessResume {
+                    conversation_id: bad,
+                },
+            ] {
+                let error =
+                    try_plan("claude-code", json!({}), Profile::Standard, mode).expect_err(bad);
+                assert_eq!(error.code, "VALIDATION", "{bad:?}");
+                assert_eq!(
+                    error.message,
+                    "The conversation to resume has an id no CLI would give"
+                );
+            }
+        }
+        assert!(plain_id("11111111-2222-4333-8444-555555555555"));
+        assert!(plain_id(&"a".repeat(128)));
     }
 
     #[test]

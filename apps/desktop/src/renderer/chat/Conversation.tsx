@@ -37,8 +37,11 @@ import {
   TypeGlyph,
   typeMeta,
 } from '../ui/kit';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { InlineCards, InputAttachment } from './InlineCards';
+import { ContinuationMessage, NoToolCalls, WorkNotFinished } from './InlineGate';
 import { CompactContext } from './compact';
+import { modelMismatch, turnModel } from './model';
 import { useChat, type ProjectChat } from './chat-store';
 const ResponseText = lazy(() =>
   import('./ResponseText').then((m) => ({ default: m.ResponseText })),
@@ -372,6 +375,15 @@ export function Conversation({
                     openRecord={openRecord}
                     fresh={!historical.current?.has(turn.requestId)}
                     conversationId={state!.activeId}
+                    latest={turn === turns.at(-1)}
+                    continuedBy={turns.find((t) => t.continues?.requestId === turn.requestId)}
+                    rootText={chainRoot(turns, turn)}
+                    blocked={blocked}
+                    refused={state!.refused[turn.requestId]}
+                    onContinue={() => {
+                      followLatest();
+                      report(useChat.getState().continueTurn(projectId, turn));
+                    }}
                   />
                 ))}
               </ol>
@@ -656,6 +668,17 @@ export function Conversation({
   }
 }
 
+/** The request a chain of continuations started from: what Edit request offers again. */
+function chainRoot(turns: ChatTurn[], turn: ChatTurn): string {
+  let root = turn;
+  for (let hops = 0; root.continues && hops < 32; hops++) {
+    const earlier = turns.find((t) => t.requestId === root.continues!.requestId);
+    if (!earlier) break;
+    root = earlier;
+  }
+  return root.text;
+}
+
 function Turn({
   turn,
   projectId,
@@ -663,6 +686,12 @@ function Turn({
   openRecord,
   fresh,
   conversationId,
+  latest,
+  continuedBy,
+  rootText,
+  blocked,
+  refused,
+  onContinue,
 }: {
   turn: ChatTurn;
   projectId: string;
@@ -670,6 +699,13 @@ function Turn({
   openRecord: () => void;
   fresh: boolean;
   conversationId: string;
+  latest: boolean;
+  continuedBy?: ChatTurn;
+  /** The request this turn's chain of continuations started from. */
+  rootText: string;
+  blocked: boolean;
+  refused?: string;
+  onContinue: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [activity, setActivity] = useState<AgentActivity | null>(null);
@@ -712,12 +748,31 @@ function Turn({
         .toast('error', 'Could not copy the response. Select the text to copy it.');
     }
   };
+  const model = turnModel(turn);
+  const gate = turn.gate;
+  const gateCard = gate && !gate.ready && (
+    <ErrorBoundary label="The completion gate record" resetKey={gate.checkedAt}>
+      <WorkNotFinished
+        gate={gate}
+        latest={latest}
+        continuedBy={continuedBy}
+        blocked={blocked}
+        refused={refused}
+        onContinue={onContinue}
+        onEdit={() => offer(rootText)}
+      />
+    </ErrorBoundary>
+  );
   return (
     <li className="chat-turn">
-      <article className="chat-user-message" aria-label="Your message">
-        <div>{turn.text}</div>
-        {turn.input && <InputAttachment input={turn.input} />}
-      </article>
+      {turn.continues ? (
+        <ContinuationMessage text={turn.text} automatic={turn.continues.automatic} />
+      ) : (
+        <article className="chat-user-message" aria-label="Your message">
+          <div>{turn.text}</div>
+          {turn.input && <InputAttachment input={turn.input} />}
+        </article>
+      )}
       <article className="chat-assistant-message" aria-label="Agent response">
         <header>
           <span className="chat-assistant-mark">
@@ -725,8 +780,27 @@ function Turn({
           </span>
           <strong>Omen Flow</strong>
           <span>{turn.adapterId === 'codex' ? 'Codex CLI' : 'Claude Code'}</span>
+          {model && (
+            <span
+              className="chat-turn-model mono"
+              title={[
+                turn.model && `Passed ${turn.model}`,
+                turn.resolvedModel && `reported by the CLI ${turn.resolvedModel}`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            >
+              {model}
+            </span>
+          )}
           <Time value={turn.createdAt} />
         </header>
+        {modelMismatch(turn) && (
+          <Notice tone="warn">
+            Claude Code reported running {turn.resolvedModel}, not {turn.model}. Check the model in
+            Settings.
+          </Notice>
+        )}
         {turn.response && (
           <Suspense fallback={<div className="prose">{turn.response}</div>}>
             <ResponseText text={turn.response} running={running} fresh={fresh} />
@@ -751,17 +825,32 @@ function Turn({
                   ? 'State unavailable. '
                   : 'Response failed. '}
             {turn.error}
-            <Button size="sm" variant="ghost" onClick={() => offer(turn.text)}>
+            <Button size="sm" variant="ghost" onClick={() => offer(rootText)}>
               Edit request
             </Button>
           </Notice>
         )}
+        {!running && turn.state === 'failed' && gateCard}
         {!running && turn.state === 'completed' && !turn.response && (
           <p className="chat-muted">
             The agent ended the turn without a text response. Inspect its recorded tool calls and
             the project record.
           </p>
         )}
+        {!running && turn.state === 'completed' && gateCard}
+        {!running &&
+          turn.state === 'completed' &&
+          gate?.ready &&
+          gate.calls === 0 &&
+          gate.inScope === 0 && (
+            <NoToolCalls
+              latest={latest}
+              continuedBy={continuedBy}
+              blocked={blocked}
+              refused={refused}
+              onContinue={onContinue}
+            />
+          )}
         <footer className="chat-response-actions">
           {turn.response && (
             <IconButton

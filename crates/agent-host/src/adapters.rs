@@ -114,6 +114,183 @@ impl SuggestedModel {
     }
 }
 
+/// A short name a CLI resolves itself, and the full id Omen Flow passes instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelAlias {
+    pub alias: &'static str,
+    pub id: &'static str,
+    /// The CLI variable that reroutes this alias; when it is set, the alias is passed as written.
+    pub routed_by: &'static str,
+}
+
+/// How a CLI resolves short model names, and what says the person routes models themselves.
+/// A CLI resolves an alias from its own catalogue, which can lag a release: Claude Code 2.1.287
+/// resolves `haiku` to Claude Haiku 4.5. Passing the full id makes the model that runs the one
+/// Settings names. With routing configured the alias is the person's choice and stays.
+#[derive(Debug, Clone, Copy)]
+pub struct ModelAliases {
+    pub aliases: &'static [ModelAlias],
+    /// When any is truthy, every model goes through another provider.
+    pub provider_switches: &'static [&'static str],
+    /// The variable that points the CLI at another endpoint, and its default: any other value
+    /// counts as routing, since a gateway may key on model names.
+    pub endpoint: (&'static str, &'static str),
+    /// The CLI's own settings files that may set those variables (`env`) or map model ids
+    /// (`modelOverrides`), lowest precedence first, for a session in the given project.
+    pub settings_files: fn(Option<&Path>) -> Vec<PathBuf>,
+}
+
+impl ModelAliases {
+    /// Every variable that can say models are routed.
+    fn variables(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.aliases
+            .iter()
+            .map(|alias| alias.routed_by)
+            .chain(self.provider_switches.iter().copied())
+            .chain([self.endpoint.0])
+    }
+}
+
+/// Claude Code's settings that apply to a session in `root`, lowest precedence first: the
+/// user's (`$CLAUDE_CONFIG_DIR` or `~/.claude`), the project's shared and local ones, then the
+/// machine's managed settings and their drop-in folder.
+fn claude_settings_files(root: Option<&Path>) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let user = std::env::var_os("CLAUDE_CONFIG_DIR")
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".claude")));
+    files.extend(user.map(|dir| dir.join("settings.json")));
+    if let Some(root) = root {
+        files.push(root.join(".claude/settings.json"));
+        files.push(root.join(".claude/settings.local.json"));
+    }
+    let managed = if cfg!(target_os = "macos") {
+        Some(Path::new("/Library/Application Support/ClaudeCode"))
+    } else if cfg!(target_os = "linux") {
+        Some(Path::new("/etc/claude-code"))
+    } else {
+        None
+    };
+    if let Some(dir) = managed {
+        files.push(dir.join("managed-settings.json"));
+        let mut drop_ins = std::fs::read_dir(dir.join("managed-settings.d"))
+            .into_iter()
+            .flatten()
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect::<Vec<_>>();
+        drop_ins.sort();
+        files.extend(drop_ins);
+    }
+    files
+}
+
+/// How a host reads a CLI's model routing for a session in a project folder: [`Routing::system`],
+/// or a fixed answer in tests.
+pub type RoutingLookup = fn(&AdapterSpec, Option<&Path>) -> Routing;
+
+/// What the person's own configuration outside Omen Flow says about routing a CLI's models:
+/// the variables the host inherited and those the CLI's settings files set, and whether a
+/// settings file maps model ids itself. Reading it touches files, so it is never done under the
+/// workspace lock.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Routing {
+    inherited: Vec<(String, String)>,
+    /// From the CLI's settings files, lowest precedence first: the CLI applies these over its
+    /// environment.
+    settings: Vec<(String, String)>,
+    overrides: bool,
+}
+
+impl Routing {
+    /// This machine's routing for a session of `spec` in `root`.
+    pub fn system(spec: &AdapterSpec, root: Option<&Path>) -> Self {
+        let Some(aliases) = spec.model_aliases else {
+            return Self::default();
+        };
+        let inherited = aliases
+            .variables()
+            .filter_map(|key| Some((key.to_owned(), std::env::var(key).ok()?)))
+            .collect();
+        Self::read(spec, inherited, &(aliases.settings_files)(root))
+    }
+
+    /// Routing from the given inherited variables and settings files. A file that is missing
+    /// or is not a JSON object is skipped: a damaged file never blocks a session.
+    pub fn read(spec: &AdapterSpec, inherited: Vec<(String, String)>, files: &[PathBuf]) -> Self {
+        let mut routing = Self {
+            inherited,
+            ..Self::default()
+        };
+        let Some(aliases) = spec.model_aliases else {
+            return routing;
+        };
+        let keys = aliases.variables().collect::<Vec<_>>();
+        for file in files {
+            let Some(document) = std::fs::read(file)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            else {
+                continue;
+            };
+            for (key, value) in document["env"].as_object().into_iter().flatten() {
+                if let (true, Some(value)) = (keys.contains(&key.as_str()), value.as_str()) {
+                    routing.settings.push((key.clone(), value.to_owned()));
+                }
+            }
+            routing.overrides |= match &document["modelOverrides"] {
+                Value::Null => false,
+                Value::Object(map) => !map.is_empty(),
+                _ => true,
+            };
+        }
+        routing
+    }
+
+    /// Only for tests: routing as given, with no file read.
+    #[cfg(test)]
+    pub(crate) fn of(
+        inherited: &[(&str, &str)],
+        settings: &[(&str, &str)],
+        overrides: bool,
+    ) -> Self {
+        let owned = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect()
+        };
+        Self {
+            inherited: owned(inherited),
+            settings: owned(settings),
+            overrides,
+        }
+    }
+
+    /// The value the CLI will see for `key`: its settings files over what Omen Flow sets for
+    /// the adapter (`configured`, last entry wins) over the inherited environment.
+    fn value<'a>(&'a self, configured: &'a [(String, String)], key: &str) -> Option<&'a str> {
+        let last = |pairs: &'a [(String, String)]| {
+            pairs
+                .iter()
+                .rev()
+                .find(|(name, _)| name == key)
+                .map(|(_, value)| value.as_str())
+        };
+        last(&self.settings)
+            .or_else(|| last(configured))
+            .or_else(|| last(&self.inherited))
+    }
+}
+
+fn truthy(value: &str) -> bool {
+    matches!(
+        value.trim().to_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Version {
     pub major: u64,
@@ -195,6 +372,8 @@ pub struct AdapterSpec {
     pub local_providers: &'static [(&'static str, &'static [&'static str])],
     pub default_profile: Profile,
     pub models: &'static [SuggestedModel],
+    /// Short model names the CLI resolves itself; see [`AdapterSpec::canonical_model`].
+    pub model_aliases: Option<ModelAliases>,
     /// The CLI's limit for one tool call, set through its own configuration.
     pub tool_timeout: Duration,
     pub startup_timeout: Duration,
@@ -243,6 +422,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
             model("gpt-5.6-luna", "GPT-5.6 Luna"),
             model("gpt-5.5", "GPT-5.5"),
         ],
+        model_aliases: None,
         // Codex stops a tool call after 60 s unless told otherwise; a render
         // may take 300 s.
         tool_timeout: Duration::from_secs(330),
@@ -272,11 +452,46 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
         local_providers: &[],
         default_profile: Profile::Standard,
         models: &[
-            model("fable", "Fable"),
-            model("opus", "Opus"),
-            model("sonnet", "Sonnet"),
-            model("haiku", "Haiku"),
+            model("claude-fable-5-1", "Claude Fable 5.1"),
+            model("claude-opus-5-5", "Claude Opus 5.5"),
+            model("claude-sonnet-5-5", "Claude Sonnet 5.5"),
+            model("claude-haiku-5-5", "Claude Haiku 5.5"),
         ],
+        model_aliases: Some(ModelAliases {
+            aliases: &[
+                ModelAlias {
+                    alias: "fable",
+                    id: "claude-fable-5-1",
+                    routed_by: "ANTHROPIC_DEFAULT_FABLE_MODEL",
+                },
+                ModelAlias {
+                    alias: "opus",
+                    id: "claude-opus-5-5",
+                    routed_by: "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                },
+                ModelAlias {
+                    alias: "sonnet",
+                    id: "claude-sonnet-5-5",
+                    routed_by: "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                },
+                ModelAlias {
+                    alias: "haiku",
+                    id: "claude-haiku-5-5",
+                    routed_by: "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                },
+            ],
+            provider_switches: &[
+                "CLAUDE_CODE_USE_BEDROCK",
+                "CLAUDE_CODE_USE_VERTEX",
+                "CLAUDE_CODE_USE_FOUNDRY",
+                "CLAUDE_CODE_USE_GATEWAY",
+                "CLAUDE_CODE_USE_MANTLE",
+                "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+                "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
+            ],
+            endpoint: ("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
+            settings_files: claude_settings_files,
+        }),
         tool_timeout: Duration::from_secs(600),
         startup_timeout: Duration::from_secs(30),
         resume: Some(Resume {
@@ -316,6 +531,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
         local_providers: &[],
         default_profile: Profile::Standard,
         models: &[model("anthropic/claude-sonnet-4-5", "Claude Sonnet 4.5")],
+        model_aliases: None,
         tool_timeout: Duration::from_secs(330),
         startup_timeout: Duration::from_secs(20),
         resume: None,
@@ -345,6 +561,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
             model("flash", "Flash"),
             model("flash-lite", "Flash Lite"),
         ],
+        model_aliases: None,
         tool_timeout: Duration::from_secs(600),
         startup_timeout: Duration::from_secs(20),
         resume: None,
@@ -373,6 +590,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
         local_providers: &[],
         default_profile: Profile::Standard,
         models: &[],
+        model_aliases: None,
         tool_timeout: Duration::from_secs(600),
         startup_timeout: Duration::from_secs(20),
         resume: None,
@@ -395,6 +613,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
         // The CLI most likely to carry a small local model.
         default_profile: Profile::Compact,
         models: &[],
+        model_aliases: None,
         tool_timeout: Duration::from_secs(330),
         startup_timeout: Duration::from_secs(20),
         resume: None,
@@ -423,6 +642,43 @@ impl AdapterSpec {
                 )
         });
         self.guidance.contains(&GuideChannel::AgentsMd) && !switched_off
+    }
+
+    /// The model id to launch: a listed alias becomes its full id, unless the person routes
+    /// models themselves; any other id (a dated id, `opusplan`, a provider's id) is passed as
+    /// written. `configured` is the environment Omen Flow sets for the adapter.
+    pub fn canonical_model(
+        &self,
+        model: &str,
+        configured: &[(String, String)],
+        routing: &Routing,
+    ) -> String {
+        let Some(aliases) = self.model_aliases else {
+            return model.to_owned();
+        };
+        let Some(alias) = aliases
+            .aliases
+            .iter()
+            .find(|alias| alias.alias.eq_ignore_ascii_case(model.trim()))
+        else {
+            return model.to_owned();
+        };
+        let value = |key: &str| routing.value(configured, key).map(str::trim);
+        let (endpoint, default) = aliases.endpoint;
+        let routed = routing.overrides
+            || value(alias.routed_by).is_some_and(|value| !value.is_empty())
+            || aliases
+                .provider_switches
+                .iter()
+                .any(|switch| value(switch).is_some_and(truthy))
+            || value(endpoint).is_some_and(|url| {
+                !url.is_empty() && url.trim_end_matches('/') != default.trim_end_matches('/')
+            });
+        if routed {
+            model.to_owned()
+        } else {
+            alias.id.to_owned()
+        }
     }
 
     /// Whether the CLI is told about the MCP server by Omen Flow.
@@ -564,6 +820,16 @@ impl AdapterConfig {
         }
         if input.get("profile").is_some() {
             self.profile = start.profile;
+        }
+        self
+    }
+
+    /// The configuration with its model as it is launched: an alias the CLI would resolve
+    /// itself becomes the full id ([`AdapterSpec::canonical_model`]). What is stored is never
+    /// rewritten, and Settings saves a model only when the person picks another.
+    pub fn canonicalize(mut self, spec: &AdapterSpec, routing: &Routing) -> Self {
+        if let Some(model) = &self.model {
+            self.model = Some(spec.canonical_model(model, &self.env, routing));
         }
         self
     }
@@ -956,10 +1222,10 @@ mod tests {
         assert_eq!(
             tiers("claude-code"),
             [
-                ("fable", Profile::Full),
-                ("opus", Profile::Full),
-                ("sonnet", Profile::Standard),
-                ("haiku", Profile::Compact)
+                ("claude-fable-5-1", Profile::Full),
+                ("claude-opus-5-5", Profile::Full),
+                ("claude-sonnet-5-5", Profile::Standard),
+                ("claude-haiku-5-5", Profile::Compact)
             ]
         );
         assert_eq!(
@@ -983,6 +1249,180 @@ mod tests {
             ]
         );
         assert!(tiers("custom").is_empty());
+    }
+
+    #[test]
+    fn aliases_resolve_to_full_ids_unless_the_person_routes_models() {
+        let claude = adapter("claude-code").unwrap();
+        let none = Routing::default();
+        let launch = |model: &str, configured: &[(&str, &str)], routing: &Routing| {
+            let configured = configured
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect::<Vec<_>>();
+            claude.canonical_model(model, &configured, routing)
+        };
+        for (alias, id) in [
+            ("haiku", "claude-haiku-5-5"),
+            (" HAIKU ", "claude-haiku-5-5"),
+            ("opus", "claude-opus-5-5"),
+            ("sonnet", "claude-sonnet-5-5"),
+            ("fable", "claude-fable-5-1"),
+        ] {
+            assert_eq!(launch(alias, &[], &none), id, "{alias:?}");
+        }
+        for written in [
+            "claude-haiku-4-5-20251001",
+            "claude-haiku-5-5",
+            "opusplan",
+            "best",
+            "gpt-6-luna",
+            "ollama/qwen3:14b",
+        ] {
+            assert_eq!(launch(written, &[], &none), written);
+        }
+
+        // An alias the person reroutes stays; the others are still rewritten.
+        let haiku_routed =
+            Routing::of(&[("ANTHROPIC_DEFAULT_HAIKU_MODEL", "my-haiku")], &[], false);
+        assert_eq!(launch("haiku", &[], &haiku_routed), "haiku");
+        assert_eq!(launch("opus", &[], &haiku_routed), "claude-opus-5-5");
+        // Another provider, a gateway or a model map: no alias is rewritten.
+        for routing in [
+            Routing::of(&[("CLAUDE_CODE_USE_BEDROCK", "1")], &[], false),
+            Routing::of(&[("CLAUDE_CODE_USE_VERTEX", "TRUE")], &[], false),
+            Routing::of(
+                &[("ANTHROPIC_BASE_URL", "http://localhost:4000")],
+                &[],
+                false,
+            ),
+            Routing::of(&[], &[("CLAUDE_CODE_USE_FOUNDRY", "yes")], false),
+            Routing::of(&[], &[], true),
+        ] {
+            assert_eq!(launch("haiku", &[], &routing), "haiku", "{routing:?}");
+            assert_eq!(launch("opus", &[], &routing), "opus", "{routing:?}");
+        }
+        for routing in [
+            Routing::of(&[("CLAUDE_CODE_USE_BEDROCK", "0")], &[], false),
+            Routing::of(
+                &[("ANTHROPIC_BASE_URL", "https://api.anthropic.com/")],
+                &[],
+                false,
+            ),
+            Routing::of(&[("ANTHROPIC_DEFAULT_HAIKU_MODEL", "  ")], &[], false),
+        ] {
+            assert_eq!(
+                launch("haiku", &[], &routing),
+                "claude-haiku-5-5",
+                "{routing:?}"
+            );
+        }
+        // What Omen Flow sets for the adapter wins over the inherited value; the CLI's own
+        // settings win over both, as the CLI applies them last.
+        let inherited = Routing::of(&[("ANTHROPIC_DEFAULT_HAIKU_MODEL", "my-haiku")], &[], false);
+        assert_eq!(
+            launch(
+                "haiku",
+                &[("ANTHROPIC_DEFAULT_HAIKU_MODEL", "")],
+                &inherited
+            ),
+            "claude-haiku-5-5"
+        );
+        assert_eq!(
+            launch("haiku", &[("CLAUDE_CODE_USE_BEDROCK", "1")], &none),
+            "haiku"
+        );
+        let settings = Routing::of(&[], &[("CLAUDE_CODE_USE_BEDROCK", "1")], false);
+        assert_eq!(
+            launch("haiku", &[("CLAUDE_CODE_USE_BEDROCK", "0")], &settings),
+            "haiku"
+        );
+
+        let codex = adapter("codex").unwrap();
+        assert!(codex.model_aliases.is_none());
+        assert_eq!(codex.canonical_model("haiku", &[], &none), "haiku");
+        let config = AdapterConfig::from_value(&json!({"model": "haiku"}));
+        assert_eq!(
+            config.clone().canonicalize(claude, &none).model.as_deref(),
+            Some("claude-haiku-5-5")
+        );
+        assert_eq!(
+            config.canonicalize(codex, &none).model.as_deref(),
+            Some("haiku")
+        );
+        assert_eq!(
+            AdapterConfig::default().canonicalize(claude, &none).model,
+            None
+        );
+    }
+
+    #[test]
+    fn claude_settings_files_can_route_models_and_a_damaged_one_is_skipped() {
+        let temp = tempfile::tempdir().unwrap();
+        let claude = adapter("claude-code").unwrap();
+        let user = temp.path().join("user-settings.json");
+        let project = temp.path().join("project-settings.json");
+        let broken = temp.path().join("broken.json");
+        let missing = temp.path().join("missing.json");
+        fs::write(&broken, "{ not json").unwrap();
+        fs::write(
+            &user,
+            r#"{"theme": "dark", "env": {"CLAUDE_CODE_USE_BEDROCK": "1", "API_KEY": "secret"}}"#,
+        )
+        .unwrap();
+        let routing = Routing::read(
+            claude,
+            Vec::new(),
+            &[broken.clone(), missing.clone(), user.clone()],
+        );
+        assert_eq!(claude.canonical_model("haiku", &[], &routing), "haiku");
+        assert!(
+            !format!("{routing:?}").contains("secret"),
+            "only routing variables are kept"
+        );
+        // A later file (the project's) turns it off again.
+        fs::write(&project, r#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "0"}}"#).unwrap();
+        let routing = Routing::read(claude, Vec::new(), &[user.clone(), project.clone()]);
+        assert_eq!(
+            claude.canonical_model("haiku", &[], &routing),
+            "claude-haiku-5-5"
+        );
+        // A model map, usually in managed settings, routes every alias.
+        fs::write(
+            &project,
+            r#"{"modelOverrides": {"claude-haiku-5-5": "arn:aws:example"}}"#,
+        )
+        .unwrap();
+        let routing = Routing::read(claude, Vec::new(), std::slice::from_ref(&project));
+        assert_eq!(claude.canonical_model("sonnet", &[], &routing), "sonnet");
+        fs::write(&project, r#"{"modelOverrides": {}}"#).unwrap();
+        let routing = Routing::read(claude, Vec::new(), &[project]);
+        assert_eq!(
+            claude.canonical_model("sonnet", &[], &routing),
+            "claude-sonnet-5-5"
+        );
+        // A CLI without aliases reads nothing.
+        assert_eq!(
+            Routing::read(adapter("codex").unwrap(), Vec::new(), &[user]),
+            Routing::default()
+        );
+        // The files Claude Code reads, lowest precedence first.
+        let files = claude_settings_files(Some(Path::new("/projects/rover")));
+        let project_files = [
+            PathBuf::from("/projects/rover/.claude/settings.json"),
+            PathBuf::from("/projects/rover/.claude/settings.local.json"),
+        ];
+        let at = files
+            .iter()
+            .position(|file| *file == project_files[0])
+            .unwrap();
+        assert_eq!(files[at + 1], project_files[1]);
+        assert!(files[at + 2..]
+            .iter()
+            .all(|file| file.to_string_lossy().contains("managed-settings")));
+        assert!(files[..at]
+            .iter()
+            .all(|file| file.ends_with("settings.json")));
     }
 
     #[test]
@@ -1119,6 +1559,23 @@ mod tests {
                 "docsUrl": "https://learn.chatgpt.com/docs/extend/mcp?surface=cli",
                 "guideChannels": ["mcp-instructions", "developer-instructions"]
             })
+        );
+
+        // A saved alias is reported as the full id it launches, so Settings shows it listed.
+        let claude = adapter("claude-code").unwrap();
+        let saved = AdapterConfig::from_value(&json!({"model": "haiku"}))
+            .canonicalize(claude, &Routing::default());
+        let status = claude.status(&saved, &Probe::default());
+        assert_eq!(status["model"], "claude-haiku-5-5");
+        assert_eq!(status["resolvedProfile"], "compact");
+        assert_eq!(
+            status["models"],
+            json!([
+                {"id": "claude-fable-5-1", "label": "Claude Fable 5.1", "tier": "full"},
+                {"id": "claude-opus-5-5", "label": "Claude Opus 5.5", "tier": "full"},
+                {"id": "claude-sonnet-5-5", "label": "Claude Sonnet 5.5", "tier": "standard"},
+                {"id": "claude-haiku-5-5", "label": "Claude Haiku 5.5", "tier": "compact"}
+            ])
         );
 
         let gemini = adapter("gemini").unwrap();

@@ -3,6 +3,7 @@
 mod common;
 
 use common::{Call, Response};
+use omenflow_agent_host::{Routing, RoutingLookup};
 use omenflow_headless::{Config, Server, Stopper};
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -18,7 +19,13 @@ struct Running {
 }
 
 impl Running {
+    /// A host that sees no model routing, whatever the developer's own variables and Claude
+    /// settings say.
     fn start() -> Self {
+        Self::start_routed(|_, _| Routing::default())
+    }
+
+    fn start_routed(routing: RoutingLookup) -> Self {
         let temp = tempfile::tempdir().unwrap();
         let server = Server::bind(Config {
             app_data_dir: temp.path().join("app"),
@@ -27,6 +34,7 @@ impl Running {
             token: None,
         })
         .unwrap();
+        server.set_routing(routing);
         let (port, token, stopper) = (server.port(), server.token().to_owned(), server.stopper());
         let serving = std::thread::spawn(move || server.serve().unwrap());
         Self {
@@ -600,7 +608,14 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
     let session_id = plan["sessionId"].as_str().unwrap().to_owned();
     assert_eq!(plan["executable"], json!(stand_in));
     assert_eq!(plan["adapterId"], "claude-code");
-    assert_eq!(plan["model"], "haiku");
+    // The alias is launched as its full id, which the CLI would otherwise resolve to an older
+    // model.
+    let launched = "claude-haiku-5-5";
+    assert_eq!(plan["model"], launched);
+    assert_eq!(
+        (&plan["conversationId"], &plan["resumed"]),
+        (&json!(session_id), &json!(false))
+    );
     assert_eq!(
         plan["profile"], "compact",
         "a small model gets the compact surface"
@@ -620,7 +635,7 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
             .map(|index| args[index + 1].clone())
             .unwrap_or_else(|| panic!("{flag} missing from {args:?}"))
     };
-    assert_eq!(after("--model"), "haiku");
+    assert_eq!(after("--model"), launched);
     assert_eq!(after("--session-id"), session_id);
     assert_eq!(after("--output-format"), "stream-json");
     let files = plan["files"].as_array().unwrap();
@@ -738,7 +753,7 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
     assert_eq!(activity["calls"][0]["tool"], "work_status");
     let session = &activity["sessions"][0];
     assert_eq!(session["adapterId"], "claude-code");
-    assert_eq!(session["model"], "haiku");
+    assert_eq!(session["model"], launched);
     assert_eq!(session["profile"], "compact");
 
     let revoked = host.send(Call::post(
@@ -782,6 +797,43 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
         json!({ "adapterId": "codex" }),
     ));
     assert_eq!(missing.status, 400);
+}
+
+/// A person who routes Claude models themselves keeps the alias: here the project's own Claude
+/// settings switch to another provider, so `haiku` is passed as written.
+#[cfg(unix)]
+#[test]
+fn a_headless_run_passes_a_routed_alias_as_written() {
+    let host = Running::start_routed(|spec, root| {
+        if root.is_some_and(|root| root.ends_with("Routed")) {
+            Routing::read(
+                spec,
+                vec![("CLAUDE_CODE_USE_BEDROCK".to_owned(), "1".to_owned())],
+                &[],
+            )
+        } else {
+            Routing::default()
+        }
+    });
+    let launch = |project_id: &str| {
+        let prepared = host.send(Call::post(
+            "/api/agent/launch",
+            json!({ "projectId": project_id, "adapterId": "claude-code", "model": "haiku",
+                    "executablePath": "/bin/sh" }),
+        ));
+        assert_eq!(prepared.body["ok"], true, "{}", prepared.body);
+        let plan = prepared.body["result"].clone();
+        let args = plan["args"].as_array().unwrap().clone();
+        let at = args.iter().position(|arg| arg == "--model").unwrap();
+        assert_eq!(args[at + 1], plan["model"]);
+        host.send(Call::post(
+            "/api/agent/revoke",
+            json!({ "sessionId": plan["sessionId"] }),
+        ));
+        plan["model"].as_str().unwrap().to_owned()
+    };
+    assert_eq!(launch(&host.create_project("Routed")), "haiku");
+    assert_eq!(launch(&host.create_project("Direct")), "claude-haiku-5-5");
 }
 
 fn uuid_like(text: &str) -> bool {

@@ -184,6 +184,15 @@ describe('new V1 operations', () => {
         profile: 'compact',
       }),
     ).toEqual({ adapterId: 'codex', model: null, profile: 'compact' });
+    const send = { conversationId: 'c', requestId: 'r2', adapterId: 'claude-code', text: 'Go on' };
+    expect(op('chat.send').input.parse(send)).not.toHaveProperty('continues');
+    expect(op('chat.send').input.parse({ ...send, continues: { requestId: 'r1' } })).toMatchObject({
+      continues: { requestId: 'r1' },
+    });
+    // Only the host sends an automatic continuation; the transport cannot claim one.
+    expect(() =>
+      op('chat.send').input.parse({ ...send, continues: { requestId: 'r1', automatic: true } }),
+    ).toThrow();
   });
 
   it('parses sessions and adapters recorded before V1 and fills the new fields', () => {

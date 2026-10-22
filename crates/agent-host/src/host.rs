@@ -191,14 +191,81 @@ fn resolve_card(gate: &CoreGate, project: &str, mut part: Value) -> Result<Value
     Ok(part)
 }
 
+/// What a conversation run needs from the host. Locks are taken in this order, outermost
+/// first: `agent_start`, the conversation state, then the core, a terminal session or the
+/// bridge grants. Nothing takes `agent_start` while holding the conversation state, nor the
+/// conversation state while holding the core.
+struct HostHooks {
+    gate: Arc<CoreGate>,
+    pty: Arc<PtyHost>,
+    agent_start: Arc<Mutex<()>>,
+}
+
+impl crate::chat::ChatHooks for HostHooks {
+    fn work_status(&self, project: &str, sessions: &[String]) -> Result<Value, ContractError> {
+        self.gate.lock().work_status_sessions(project, sessions)
+    }
+
+    fn auto_continue(&self) -> bool {
+        self.gate
+            .lock()
+            .dispatch(
+                "settings.get",
+                json!({"key": "conversation.autoContinue"}),
+                Origin::System,
+                None,
+            )
+            .is_ok_and(|setting| setting["value"] == true)
+    }
+
+    fn start_lock(&self) -> MutexGuard<'_, ()> {
+        self.agent_start.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn prepare(
+        &self,
+        project: &str,
+        input: &Value,
+        resume: Option<&str>,
+    ) -> Result<Value, ContractError> {
+        if self.pty.running(project) {
+            return Err(ContractError::new(
+                "BUSY",
+                "A terminal session is running in this project",
+            )
+            .with_repair("Stop the terminal session, or ask from the Terminal pane."));
+        }
+        if let Some(attached) = input.get("input") {
+            if let Some(artifact) = attached["artifactId"].as_str() {
+                let view = self.gate.call(
+                    "artifact.read",
+                    json!({"artifactId": artifact, "detail": "full"}),
+                    Origin::User,
+                    Some(project),
+                    None,
+                )?;
+                let head = view["view"]["head"]["id"]
+                    .as_str()
+                    .or(view["revision"]["id"].as_str());
+                if head != attached["revisionId"].as_str() {
+                    return Err(ContractError::validation(
+                        "The attached revision is stale. Open the newer card, then prepare and send again.",
+                    ));
+                }
+            }
+        }
+        self.pty.prepare_headless(project, input, resume)
+    }
+}
+
 pub struct Host {
     gate: Arc<CoreGate>,
     bridge: Arc<BridgeServer>,
-    pty: PtyHost,
+    pty: Arc<PtyHost>,
     chat: crate::chat::ChatHost,
     /// Held from the check to the start of an agent, so a terminal session and a conversation
     /// run never both start in one project.
-    agent_start: Mutex<()>,
+    agent_start: Arc<Mutex<()>>,
     shell: Arc<dyn Shell>,
     research: Arc<Research>,
 }
@@ -301,7 +368,7 @@ impl Host {
         }));
         let bridge = Arc::new(bridge);
         let terminal_events = Arc::clone(&events);
-        let pty = PtyHost::new(
+        let pty = Arc::new(PtyHost::new(
             core,
             Arc::clone(&bridge),
             paths.cli_path,
@@ -311,13 +378,19 @@ impl Host {
                     TerminalEvent::State(state) => HostEvent::TerminalState(state),
                 })
             }),
-        );
+        ));
+        let agent_start = Arc::new(Mutex::new(()));
+        let hooks = Arc::new(HostHooks {
+            gate: Arc::clone(&gate),
+            pty: Arc::clone(&pty),
+            agent_start: Arc::clone(&agent_start),
+        });
         Ok(Self {
             gate,
             bridge: Arc::clone(&bridge),
             pty,
-            chat: crate::chat::ChatHost::new(Arc::clone(&bridge), chat_state),
-            agent_start: Mutex::new(()),
+            chat: crate::chat::ChatHost::new(Arc::clone(&bridge), chat_state, hooks),
+            agent_start,
             shell,
             research,
         })
@@ -409,28 +482,14 @@ impl Host {
                 }
                 (root, read_only)
             };
-            return self.chat.command(op, id, &root, &payload, read_only, || {
-                if self.pty.running(id) {
-                    return Err(ContractError::new(
-                        "BUSY",
-                        "A terminal session is running in this project",
-                    )
-                    .with_repair("Stop the terminal session, or ask from the Terminal pane."));
-                }
-                if let Some(input) = payload.get("input") {
-                    if let Some(artifact) = input["artifactId"].as_str() {
-                        let view = self.gate.call("artifact.read", json!({"artifactId":artifact, "detail":"full"}), Origin::User, Some(id), None)?;
-                        let head = view["view"]["head"]["id"].as_str().or(view["revision"]["id"].as_str());
-                        if head != input["revisionId"].as_str() { return Err(ContractError::validation("The attached revision is stale. Open the newer card, then prepare and send again.")); }
-                    }
-                }
-                self.pty.prepare_headless(id, &payload)
-            });
+            return self.chat.command(op, id, &root, &payload, read_only);
         }
         if op == "project.close" {
             if let Some(id) = project_id {
-                self.chat
-                    .stop_project(&self.gate.lock().project_root(id)?)?;
+                // The core guard ends with this statement: stopping a run takes the conversation
+                // state, which a run being accepted holds while it reads the core.
+                let root = self.gate.lock().project_root(id)?;
+                self.chat.stop_project(&root)?;
                 self.pty.close(id)?;
             }
         }
@@ -522,7 +581,7 @@ impl Host {
             ContractError::new("INTERNAL", "terminal.start is not in the registry")
         })?;
         let input = parse_input(definition, input)?;
-        self.pty.prepare_headless(project_id, &input)
+        self.pty.prepare_headless(project_id, &input, None)
     }
 
     /// Show or hide the research surface for the person.

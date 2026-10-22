@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@omenflow/contracts/format': path.resolve(root, '../../packages/contracts/src/format.ts'),
+      '@omenflow/contracts/chat': path.resolve(root, '../../packages/contracts/src/chat.ts'),
       '@omenflow/contracts': path.resolve(root, '../../packages/contracts/src/index.ts'),
     },
   },
