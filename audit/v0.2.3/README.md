@@ -1,7 +1,6 @@
 # Omen Flow 0.2.3 verification record
 
-Date: 21 October 2026 (America/Chicago). Status: **candidate; local checks passed, packages and
-publication pending**.
+Date: 21 October 2026 (America/Chicago). Status: **published; supported-platform release gates passed**.
 
 This record covers release 0.2.3. Omen Flow is a preview, so its version line was renumbered
 below 1.0: releases 1.0.0–1.0.3 became 0.2.0–0.2.3, and the 1.0.x releases are withdrawn. 0.2.3
@@ -49,3 +48,36 @@ release commit's tree on macOS arm64 with OpenSCAD:
 | Rust host conformance suites                           | 63 passed across 8 files                                                                            |
 | Headless helper smoke                                  | passed read, agent draft and capability refusal                                                     |
 | Lint and clippy                                        | not run locally, since no source changed; left to CI on the release commit (below)                  |
+
+Package and publication checks:
+
+| Check                                                             | Result                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| macOS arm64 build, bundle metadata, signatures and packaged smoke | passed; 0.2.3, `app.omenflow.desktop`, arm64, minimum macOS 13.3; DMG verified with `hdiutil verify`, mounted read-only; ad hoc app and helper signatures valid; packaged smoke passed from the mounted path                                                                                                                                                             |
+| Linux arm64 build, declared floors and packaged smoke             | passed in about 600 s with `--skip-tests` (the suites ran on the host, above); packages, metadata (version 0.2.3) and floors; .deb on Ubuntu 22.04/24.04 and Debian 12, AppImage on Ubuntu 22.04 without GTK/WebKitGTK, .rpm on Fedora 42, all fresh Xvfb containers. Its sources were copied before this record was added; every build input matches the release commit |
+| CI on the release commit                                          | passed all eight supported-platform gates ([run 39707296819](https://github.com/abdraiymbek/omen-flow/actions/runs/39707296819)); the experimental Windows job failed during legacy `better-sqlite3` installation, as in 1.0.1–1.0.3, and is not a release gate                                                                                                          |
+| Linux x86_64 release workflow and packaged smoke                  | passed ([run 39707326620](https://github.com/abdraiymbek/omen-flow/actions/runs/39707326620)); it ran on the draft release while the local packages built, so it wrote the first `SHA256SUMS` and the local entries were merged into it with `scripts/merge-checksums.mjs`                                                                                               |
+| Final asset names, checksums and publication                      | passed; 8 assets (7 packages and SHA256SUMS), all re-downloaded into a fresh folder; each matched GitHub's SHA-256 digest and size and `shasum -a 256 -c SHA256SUMS`; names match the manifest exactly                                                                                                                                                                   |
+
+## Release artifacts
+
+Release: [v0.2.3](https://github.com/abdraiymbek/omen-flow/releases/tag/v0.2.3), published 2026-10-22T02:00:35Z, latest stable release.
+Tag `v0.2.3` (annotated, “Omen Flow 0.2.3”) points at `c1b21fac66667b8d0fab6ab57d177d2d2e0949eb`
+(“Renumber the release line to 0.2.3”), the commit CI ran on.
+Commit author/committer, tagger and release author: **abdraiymbek** (`abraiymbek@gmail.com` for Git).
+
+The macOS DMG and the arm64 Linux packages were built from that commit's tree on this Mac; the
+x86_64 packages were built by the release workflow from the tag. [SHA256SUMS](SHA256SUMS) and
+[assets.json](assets.json) preserve the published hashes and sizes. The limits above remain: no
+notarization, native manual walkthrough, reduced-motion or VoiceOver check, clean-machine macOS
+installation or upgrade, or physical Linux desktop use is claimed.
+
+## Withdrawn releases
+
+After 0.2.3 was published, the GitHub releases and tags `v1.0.0`–`v1.0.3` were deleted. Their
+published notes are kept beside their records ([1.0.0](../v1/release-1.0.0-notes.md),
+[1.0.1](../v1.0.1/release-notes.md), [1.0.2](../v1.0.2/release-notes.md),
+[1.0.3](../v1.0.3/release-notes.md)), with the commits their tags pointed at, and their checksums
+in each record's `SHA256SUMS` ([1.0.0](../v1/release-1.0.0-SHA256SUMS)). Every 1.0.x asset showed
+one download per file on GitHub (two or three for some DMGs and `SHA256SUMS`), consistent with the
+release checks' own re-downloads.

@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "digest": "sha256:24395b9fdce4e3e9f93be91141c3c60fc517e8a31aba0222d639f3cfa8fe1445",
+      "name": "omen-flow_0.2.3_amd64.deb",
+      "size": 11799688,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/omen-flow_0.2.3_amd64.deb"
+    },
+    {
+      "digest": "sha256:89df18fd039324213995be206eed7f73b9540cf0080a9d6adad74531970d03f2",
+      "name": "omen-flow_0.2.3_arm64.deb",
+      "size": 11735602,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/omen-flow_0.2.3_arm64.deb"
+    },
+    {
+      "digest": "sha256:942fe8e254d136e2dfaa40450fe88d944570f863e407354154054a0569f003cc",
+      "name": "omen-flow-0.2.3-1.aarch64.rpm",
+      "size": 11739190,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/omen-flow-0.2.3-1.aarch64.rpm"
+    },
+    {
+      "digest": "sha256:812e48dda2be1577161a84e8fe021b2ef9ff0385fbbf42a115f342182d78de06",
+      "name": "omen-flow-0.2.3-1.x86_64.rpm",
+      "size": 11798330,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/omen-flow-0.2.3-1.x86_64.rpm"
+    },
+    {
+      "digest": "sha256:3c0fdab4573db9bef51f81da545a79880697fdf9cb60f4385db58292ad309d71",
+      "name": "Omen-Flow-0.2.3-aarch64.AppImage",
+      "size": 87128584,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/Omen-Flow-0.2.3-aarch64.AppImage"
+    },
+    {
+      "digest": "sha256:70d30a44803f377e5092f165436ff27379292cca2c63a4a2939307a903bb9f81",
+      "name": "Omen-Flow-0.2.3-macos-arm64.dmg",
+      "size": 10329546,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/Omen-Flow-0.2.3-macos-arm64.dmg"
+    },
+    {
+      "digest": "sha256:f9a43f3ca4838e9d84980f629fc8ebb3d67fb4184c77571f90267550f18216d5",
+      "name": "Omen-Flow-0.2.3-x86_64.AppImage",
+      "size": 89065976,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/Omen-Flow-0.2.3-x86_64.AppImage"
+    },
+    {
+      "digest": "sha256:b283eaaa8a00cff80007f3790398dcfee48031432b2ef629ac1c17afce2b9783",
+      "name": "SHA256SUMS",
+      "size": 670,
+      "url": "https://github.com/abdraiymbek/omen-flow/releases/download/v0.2.3/SHA256SUMS"
+    }
+  ]
+}
