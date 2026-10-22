@@ -9,7 +9,7 @@ user and are not part of this distribution.
 
 ## Rust crates (app and helper)
 
-538 components.
+540 components.
 
 - **adler2** 2.0.1 — 0BSD OR MIT OR Apache-2.0 — https://github.com/oyvindln/adler2
   - Copyright (C) Jonas Schievink <jonasschievink@gmail.com>
@@ -997,6 +997,10 @@ user and are not part of this distribution.
 - **zmij** 1.0.23 — MIT — https://github.com/dtolnay/zmij
 - **zopfli** 0.8.3 — Apache-2.0 — https://github.com/zopfli-rs/zopfli
   - Copyright 2011 Google Inc.
+- **zune-core** 0.5.3 — MIT OR Apache-2.0 OR Zlib — https://github.com/etemesi254/zune-image
+  - Copyright (c) zune-image developers
+- **zune-jpeg** 0.5.15 — MIT OR Apache-2.0 OR Zlib — https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg
+  - Copyright (c) zune-image developers
 - **zvariant** 5.15.0 — MIT — https://github.com/z-galaxy/zbus/
   - Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
 - **zvariant_derive** 5.15.0 — MIT — https://github.com/z-galaxy/zbus/
