@@ -1645,7 +1645,7 @@
     {
       "name": "project.summary",
       "toolName": "project_summary",
-      "description": "Start here. Returns the project intent, artifact counts by type, requirements and assumptions, pending proposals, stale artifacts, recent decisions and your unfinished work with the next tool to call. Call it once at the start of a session, then use artifact_list and artifact_read for detail.",
+      "description": "Start here. Returns the project intent, artifact counts by type, requirements and assumptions, pending proposals, stale artifacts, recent decisions and your unfinished work with the next tool to call. Call it once at the start of a session unless your session brief says to skip it; artifact_list and artifact_read give detail.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
@@ -1653,7 +1653,7 @@
       "agentTool": true,
       "tier": "core",
       "pack": "core",
-      "summary": "Start here: intent, counts, requirements, pending proposals, unfinished work.",
+      "summary": "Start here unless your brief says to skip it: intent, counts, requirements, open work.",
       "example": {},
       "compactSchema": {
         "type": "object",
@@ -4390,7 +4390,7 @@
     {
       "name": "cad.write_source",
       "toolName": "cad_write_source",
-      "description": "Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change, compare the report with the request, then verify with cad_check. Example: {\"title\":\"Motor mount plate\",\"source\":\"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}\"}",
+      "description": "Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change. With expect it also checks the saved revision in the same call (cad_check with autoCommit); without it, verify with cad_check. Example: {\"title\":\"Motor mount plate\",\"source\":\"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}\",\"expect\":{\"bodies\":1,\"spec\":[{\"item\":\"plate 40 x 30 x 5 mm\",\"size\":[40,30,5]},{\"item\":\"Ø4 hole at (10, 10)\",\"holes\":[{\"at\":[10,10,2.5],\"d\":4}]}]}}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
@@ -4398,10 +4398,36 @@
       "agentTool": true,
       "tier": "core",
       "pack": "cad",
-      "summary": "Create (title) or revise (artifactId) a part from complete OpenSCAD source.",
+      "summary": "Create (title) or revise (artifactId) a part; with expect it is checked in the same call.",
       "example": {
         "title": "Motor mount plate",
-        "source": "$fn = 64;\ndifference() {\n  cube([40, 30, 5]);\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\n}"
+        "source": "$fn = 64;\ndifference() {\n  cube([40, 30, 5]);\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\n}",
+        "expect": {
+          "bodies": 1,
+          "spec": [
+            {
+              "item": "plate 40 x 30 x 5 mm",
+              "size": [
+                40,
+                30,
+                5
+              ]
+            },
+            {
+              "item": "Ø4 hole at (10, 10)",
+              "holes": [
+                {
+                  "at": [
+                    10,
+                    10,
+                    2.5
+                  ],
+                  "d": 4
+                }
+              ]
+            }
+          ]
+        }
       },
       "compactSchema": {
         "type": "object",
@@ -4420,6 +4446,10 @@
           },
           "rationale": {
             "type": "string"
+          },
+          "expect": {
+            "type": "object",
+            "description": "cad_check expect from the request (spec items), checked in this call."
           }
         },
         "required": [
@@ -4486,6 +4516,11 @@
               "full"
             ],
             "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
+          "expect": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "cad_check expect from the request (spec items), checked in this call."
           },
           "idempotencyKey": {
             "type": "string",
@@ -5692,7 +5727,7 @@
     {
       "name": "cad.patch_source",
       "toolName": "cad_patch_source",
-      "description": "Replace one snippet in an existing part's OpenSCAD source and re-render. Use it for a small local edit instead of rewriting the file; the snippet must occur exactly once in the current source. Saves a new draft revision and returns the same measured report as cad_write_source.",
+      "description": "Replace one snippet that occurs exactly once in an existing part's OpenSCAD source and re-render: a small local edit instead of a rewrite. Saves a new draft revision and returns the cad_write_source report; with expect the revision is also checked in the same call.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
@@ -5750,6 +5785,11 @@
             ],
             "description": "Result size: brief (outcome, failures, next step) or full (default)."
           },
+          "expect": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "cad_check expect from the request (spec items), checked in this call."
+          },
           "idempotencyKey": {
             "type": "string",
             "description": "Optional; reuse the same key only when retrying the identical call."
@@ -5767,7 +5807,7 @@
     {
       "name": "cad.set_param",
       "toolName": "cad_set_param",
-      "description": "Change one top-level OpenSCAD assignment (name = value;) of an existing part and re-render. Prefer it over rewriting the file when only a dimension changes. Saves a new draft revision and returns the same measured report as cad_write_source.",
+      "description": "Change one top-level OpenSCAD assignment (name = value;) of an existing part and re-render; prefer it to a rewrite when only a dimension changes. Saves a new draft revision and returns the cad_write_source report; with expect it is also checked in the same call.",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
@@ -5827,6 +5867,11 @@
               "full"
             ],
             "description": "Result size: brief (outcome, failures, next step) or full (default)."
+          },
+          "expect": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "cad_check expect from the request (spec items), checked in this call."
           },
           "idempotencyKey": {
             "type": "string",
@@ -7117,7 +7162,7 @@
     {
       "name": "work.status",
       "toolName": "work_status",
-      "description": "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.",
+      "description": "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items; a check reply's workStatus is the same answer. Finish only when ready is true, or name every remaining blocker.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
@@ -7159,7 +7204,7 @@
     {
       "name": "guide.read",
       "toolName": "guide_read",
-      "description": "Read a short numbered playbook for one kind of work. Topics: start, requirements, parts, cad, cad-verify, wiring, calculation, tests, review, finish. Read a topic once before your first task of that kind; with no topic it returns the start guide. Returns the text and the list of all topics with when to use each.",
+      "description": "Read a short numbered playbook for one kind of work. Topics: start, requirements, components, cad, cad-verify, wiring, calculation, tests, review, finish. Read a topic once before your first task of that kind, unless your session brief already holds it; with no topic it returns the start guide. Returns the text and the list of all topics with when to use each.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
@@ -7179,7 +7224,7 @@
             "enum": [
               "start",
               "requirements",
-              "parts",
+              "components",
               "cad",
               "cad-verify",
               "wiring",
@@ -7196,7 +7241,7 @@
         "properties": {
           "topic": {
             "type": "string",
-            "description": "One of: start, requirements, parts, cad, cad-verify, wiring, calculation, tests, review, finish. Omit for start."
+            "description": "One of: start, requirements, components, cad, cad-verify, wiring, calculation, tests, review, finish. Omit for start."
           }
         },
         "additionalProperties": false,

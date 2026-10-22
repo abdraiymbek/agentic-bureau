@@ -549,7 +549,7 @@ fn playbooks_are_served_through_the_same_funnel() {
     assert!(unknown.body["repair"]
         .as_str()
         .unwrap()
-        .contains("start, requirements, parts"));
+        .contains("start, requirements, components"));
     assert_eq!(unknown.body["example"], json!({"topic": "start"}));
     let recorded = workspace.recorded();
     assert_eq!(recorded.len(), 3);

@@ -2,7 +2,8 @@
  * The agent's recorded tool calls, as the host ledger reports them. Nothing here invents a call,
  * an outcome or a duration: records are merged, counted and grouped, never synthesised.
  */
-import type { AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
+import type { AgentCallAlsoRan, AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
+import { stateLabel } from '../../ui/vocabulary';
 
 /** Calls kept in memory per project; older ones stay in the ledger and can be paged in. */
 export const CALL_LIMIT = 1000;
@@ -47,6 +48,72 @@ export function durationLabel(ms: number): string {
   return rest ? `${Math.floor(seconds / 60)} min ${rest} s` : `${Math.floor(seconds / 60)} min`;
 }
 
+/** What the host ran inside a call, as it sent it; entries without a tool name are dropped. */
+export function asAlsoRan(value: unknown): AgentCallAlsoRan[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): AgentCallAlsoRan[] => {
+    const v = item as Partial<AgentCallAlsoRan> | null;
+    if (!v || typeof v !== 'object' || typeof v.tool !== 'string' || !v.tool) return [];
+    const text = (x: unknown) => (typeof x === 'string' ? x : undefined);
+    const count = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : undefined);
+    const flag = (x: unknown) => (typeof x === 'boolean' ? x : undefined);
+    return [
+      {
+        tool: v.tool,
+        op: text(v.op) ?? v.tool,
+        ok: v.ok === true,
+        code: text(v.code),
+        replayed: flag(v.replayed),
+        verificationStatus: text(v.verificationStatus),
+        committed: flag(v.committed),
+        passed: count(v.passed),
+        total: count(v.total),
+        scope: text(v.scope),
+        ready: flag(v.ready),
+        blockers: count(v.blockers),
+      },
+    ];
+  });
+}
+
+/**
+ * One line for something the host ran inside a call: its tool and what it answered, a check's state
+ * in the state vocabulary's words. `warn` marks a run that did not answer or a check that did not
+ * pass, so a call that was ok is not read as verified.
+ */
+export function alsoRanLine(entry: AgentCallAlsoRan): { text: string; warn: boolean } {
+  if (!entry.ok)
+    return { text: `${entry.tool} did not run${entry.code ? ` (${entry.code})` : ''}`, warn: true };
+  const replayed = entry.replayed ? ', replayed' : '';
+  if (entry.op === 'cad.check') {
+    const counts =
+      entry.passed !== undefined && entry.total !== undefined
+        ? `, ${entry.passed} of ${entry.total} assertions pass`
+        : '';
+    const committed =
+      entry.committed === true ? ', committed' : entry.committed === false ? ', not committed' : '';
+    const status = entry.verificationStatus
+      ? stateLabel(entry.verificationStatus, 'verification')
+      : 'no status';
+    return {
+      text: `${entry.tool}: ${status}${counts}${committed}${replayed}`,
+      warn: entry.verificationStatus !== 'passed',
+    };
+  }
+  if (entry.op === 'work.status') {
+    const scope =
+      entry.scope === 'session' ? ' (this session)' : entry.scope ? ` (${entry.scope})` : '';
+    const state =
+      entry.ready === true
+        ? 'ready'
+        : entry.ready === false
+          ? `not ready${entry.blockers !== undefined ? `, ${entry.blockers} ${entry.blockers === 1 ? 'blocker' : 'blockers'}` : ''}`
+          : 'answered';
+    return { text: `${entry.tool}${scope}: ${state}${replayed}`, warn: false };
+  }
+  return { text: `${entry.tool}: ok${replayed}`, warn: false };
+}
+
 /** A record as the host sent it, or null when it lacks the fields the rail relies on. */
 export function asCallRecord(value: unknown): AgentCallRecord | null {
   const v = value as Partial<AgentCallRecord> | null;
@@ -54,6 +121,7 @@ export function asCallRecord(value: unknown): AgentCallRecord | null {
   if (typeof v.seq !== 'number' || typeof v.tool !== 'string' || typeof v.ok !== 'boolean')
     return null;
   if (typeof v.sessionId !== 'string' || typeof v.at !== 'string') return null;
+  const alsoRan = asAlsoRan(v.alsoRan);
   return {
     seq: v.seq,
     at: v.at,
@@ -71,6 +139,8 @@ export function asCallRecord(value: unknown): AgentCallRecord | null {
       ? v.artifactIds.filter((id): id is string => typeof id === 'string')
       : [],
     notes: Array.isArray(v.notes) ? v.notes.filter((n): n is string => typeof n === 'string') : [],
+    // Absent when nothing else ran, as the host records it.
+    ...(alsoRan.length ? { alsoRan } : {}),
   };
 }
 

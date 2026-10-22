@@ -343,12 +343,21 @@ impl PtyHost {
         if mode.headless() && spec.headless.is_none() {
             return Err(session::no_headless_mode(spec));
         }
-        let (root, name, config) = {
+        let (root, name, config, snapshot) = {
             let mut core = self
                 .core
                 .lock()
                 .map_err(|_| failure("Application state unavailable"))?;
             core.assert_project_writable(project_id)?;
+            let snapshot = session::carries_brief(spec)
+                .then(|| {
+                    read_snapshot(
+                        &mut core,
+                        project_id,
+                        matches!(mode, LaunchMode::Resume { .. }),
+                    )
+                })
+                .flatten();
             let root = core.project_root(project_id)?;
             let open = core.dispatch("project.list_open", json!({}), Origin::System, None)?;
             let name = open["projects"]
@@ -360,7 +369,7 @@ impl PtyHost {
                 .unwrap_or("Untitled project")
                 .to_owned();
             let config = AdapterConfig::from_value(&core.adapter_config(adapter_id));
-            (root, name, config.for_start(input))
+            (root, name, config.for_start(input), snapshot)
         };
         // Read with the workspace lock released: it may read the CLI's settings files. From
         // here on the profile, the grant, `--model` and the session all name the full id.
@@ -409,6 +418,7 @@ impl PtyHost {
             profile: resolved.profile,
             path: &search.child_path(helper_dir),
             mode,
+            snapshot: snapshot.as_ref(),
         })
         .inspect_err(|_| self.bridge.revoke(&session_id))?;
         Ok(Prepared {
@@ -911,6 +921,29 @@ impl Drop for PtyHost {
             }
         }
     }
+}
+
+/// What the project holds now, read as the system for a session's brief:
+/// summaries only, at most `SNAPSHOT_LISTED` artifact rows. A project that
+/// cannot be read gives no snapshot rather than a wrong one.
+fn read_snapshot(core: &mut CoreApp, project_id: &str, resumed: bool) -> Option<guide::Snapshot> {
+    let summary = core
+        .dispatch(
+            "project.summary",
+            json!({}),
+            Origin::System,
+            Some(project_id),
+        )
+        .ok()?;
+    let listing = core
+        .dispatch(
+            "artifact.list",
+            json!({"limit": guide::SNAPSHOT_LISTED, "fields": "summary"}),
+            Origin::System,
+            Some(project_id),
+        )
+        .ok()?;
+    Some(guide::Snapshot::from_replies(&summary, &listing, resumed))
 }
 
 fn known_adapter(id: &str) -> Result<&'static AdapterSpec, ContractError> {
@@ -2109,9 +2142,13 @@ mod tests {
             .unwrap()
             .to_owned();
         assert_eq!(server["env"]["OMENFLOW_SESSION_ID"], id);
-        assert!(fs::read_to_string(&guide_file)
-            .unwrap()
-            .starts_with("# Omen Flow session\n\nProject: Claude files\n"));
+        let brief = fs::read_to_string(&guide_file).unwrap();
+        assert!(brief.starts_with("# Omen Flow session\n\nProject: Claude files\n"));
+        // What the project held at launch, read by the host for the brief.
+        assert!(
+            brief.contains("\n\n## Project at launch\n\nWhen this session started the project was empty: no artifacts and no proposals.\nProject intent: \"test\"\n"),
+            "{brief}"
+        );
         assert!(!terminal.workspace.root().join("AGENTS.md").exists());
         assert!(!terminal.work_file(&session, "bootstrap.md").exists());
         // The token works while the session runs.

@@ -142,7 +142,8 @@ returns the written file.
 
 **Timeline** is the decision record grouped by day, with adjacent revision/baseline events
 merged. It pages back to the start of the record, filters by actor and object, opens what each
-row refers to, and shows recorded agent tool calls between the rows when the host keeps them.
+row refers to, and shows recorded agent tool calls between the rows when the host keeps them,
+each with its input repairs and what the host also ran inside it.
 A row never states a change that did not happen: a bill-of-materials row after an approval
 appears only when the approval touched a component, a BOM line or a replacement (earlier
 builds announced one after every approval, and those records stay in the project), and an
@@ -349,7 +350,10 @@ navigation.
   calls and failures; interrupt, restart and stop as two-press buttons, search `⌘F`, copy
   transcript, clear, activity, settings), the terminal, and the **activity rail**: only calls
   recorded in the host's ledger, grouped by pauses and sessions, failures with their selectable
-  error, input repairs, and touched objects as links. A group names a time range only when its
+  error, input repairs, what the host also ran inside a call (the check a write with `expect`
+  ran, its state in the vocabulary's words, the attached work status; a check that did not
+  pass, or a run that did not answer, in the warning tone, so an ok call is not read as
+  verified), and touched objects as links. A group names a time range only when its
   shown times differ, and headers and call details wrap only between facts. The rail is
   remembered per project; when the host keeps no ledger it stays closed and its toggle says
   “Activity is not available from this host”.

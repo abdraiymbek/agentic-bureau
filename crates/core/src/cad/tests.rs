@@ -1746,3 +1746,55 @@ fn requirement_ids_name_a_requirement_for_one_check() {
         .unwrap_err();
     assert_eq!(error.code, "NOT_FOUND");
 }
+
+/// `expect` on a source write is the agent host's write-and-check; any
+/// caller that reaches the core with it is refused before anything is
+/// planned, rendered or written. Engine-free: the refusal comes first.
+#[test]
+fn a_write_with_expect_is_refused_outside_the_agent_host() {
+    let sandbox = Sandbox::new();
+    let missing = "00000000-0000-4000-8000-0000000000aa";
+    let expect = json!({"size": [20, 10, 2]});
+    for (op, input) in [
+        (
+            "cad.write_source",
+            json!({"title": "Plate", "source": "cube([20, 10, 2]);", "expect": expect}),
+        ),
+        (
+            "cad.patch_source",
+            json!({"artifactId": missing, "oldString": "10", "newString": "12", "expect": expect}),
+        ),
+        (
+            "cad.set_param",
+            json!({"artifactId": missing, "name": "w", "value": 12, "expect": expect}),
+        ),
+    ] {
+        for origin in [
+            Origin::User,
+            Origin::Agent {
+                session_id: "s1".into(),
+            },
+        ] {
+            let error = sandbox.call_as(origin, op, input.clone()).unwrap_err();
+            let tool = op.replace('.', "_");
+            assert_eq!(error.code, "VALIDATION", "{op}");
+            assert_eq!(
+                error.message,
+                format!("{tool} checks expect only in an agent session")
+            );
+            assert_eq!(
+                error.repair.as_deref(),
+                Some(format!("Call {tool} without expect, then cad_check with that expect and autoCommit true.").as_str())
+            );
+        }
+    }
+    assert_eq!(
+        sandbox.call("artifact.list", json!({})).unwrap()["total"],
+        0
+    );
+    assert_eq!(
+        sandbox.call("job.list", json!({})).unwrap()["jobs"],
+        json!([]),
+        "nothing was planned"
+    );
+}

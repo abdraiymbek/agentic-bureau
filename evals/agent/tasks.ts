@@ -236,14 +236,11 @@ const cadPlate: Task = {
     return { criteria, verified: verification.pass };
   },
   reference: {
+    // The lean path: one write that is checked in the same call.
     good(call) {
-      const written = call('cad_write_source', {
+      call('cad_write_source', {
         title: 'Mounting plate',
         source: plateSource(PLATE_HOLES),
-      });
-      call('cad_check', {
-        artifactId: written.artifactId,
-        autoCommit: true,
         expect: {
           size: [60, 40, 5],
           bbox: { min: [-30, -20, 0], max: [30, 20, 5] },
@@ -470,13 +467,13 @@ const finishDiscipline: Task = {
     return { criteria, verified: verification.pass };
   },
   reference: {
+    // The lean path: the edit is checked in the same call, and its reply
+    // carries the session's work status.
     good(call, seed) {
       const artifactId = seed.artifactIds[0];
       call('cad_read_source', { artifactId });
-      call('cad_set_param', { artifactId, name: 'hole_d', value: 6 });
-      call('cad_check', { artifactId, autoCommit: true, expect: BRACKET_COMMITTED });
-      call('work_status', {});
-      return 'The hole is 6 mm and the committed check passes; work_status is ready. The part is a draft awaiting review.';
+      call('cad_set_param', { artifactId, name: 'hole_d', value: 6, expect: BRACKET_COMMITTED });
+      return 'The hole is 6 mm and the committed check passes; workStatus is ready. The part is a draft awaiting review.';
     },
     bad(call) {
       // A fresh part instead of a revision, checked on its own, and an overclaim.

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AgentActivity, AgentCallRecord } from '@omenflow/contracts';
 import { errMsg } from '../api';
+import { asAlsoRan } from '../shell/agent/activity';
 import { optionalCommand } from './optional-op';
 
 export const CALL_PAGE = 100;
@@ -37,6 +38,7 @@ export function asAgentCall(value: unknown, projectId: string): AgentCallRecord 
     !Array.isArray(v.artifactIds)
   )
     return null;
+  const alsoRan = asAlsoRan(v.alsoRan);
   return {
     seq: v.seq,
     at: v.at,
@@ -52,6 +54,7 @@ export function asAgentCall(value: unknown, projectId: string): AgentCallRecord 
     mutating: v.mutating === true,
     artifactIds: v.artifactIds.filter((id): id is string => typeof id === 'string'),
     notes: Array.isArray(v.notes) ? v.notes.filter((n): n is string => typeof n === 'string') : [],
+    ...(alsoRan.length ? { alsoRan } : {}),
   };
 }
 

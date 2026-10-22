@@ -4,6 +4,7 @@ import type { AgentCallRecord, ArtifactView, ProjectEvent, Proposal } from '@ome
 import { errMsg } from '../api';
 import { useStore } from '../store';
 import { Button, Checkbox, Empty, Segmented, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
+import { alsoRanLine } from '../shell/agent/activity';
 import { useAgentCalls, type AgentCalls } from './agent-calls';
 import { useRowNav, type RowProps } from './row-nav';
 import { useViewState } from '../lib/view-memory';
@@ -379,6 +380,14 @@ function CallLine({ call: c, artifacts }: { call: AgentCallRecord; artifacts: Ar
           Input repaired: {note}
         </p>
       ))}
+      {c.alsoRan?.map((entry, i) => {
+        const line = alsoRanLine(entry);
+        return (
+          <p key={`also-${i}`} className={`timeline-call-note${line.warn ? ' warn' : ''}`}>
+            Host also ran: {line.text}
+          </p>
+        );
+      })}
     </li>
   );
 }

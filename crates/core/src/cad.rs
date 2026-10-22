@@ -1025,12 +1025,31 @@ fn wants_brief(input: &Value) -> bool {
     input["detail"] == "brief"
 }
 
+/// `expect` on a source write is checked by the agent host, which takes it
+/// out before the write reaches the core. A caller that reaches the core with
+/// it would get a write without the check it asked for, so it is refused
+/// before anything is planned.
+fn refuse_inline_expect(op: &str, input: &Value) -> CoreResult<()> {
+    if input.get("expect").is_none_or(Value::is_null) {
+        return Ok(());
+    }
+    let tool = op.replace('.', "_");
+    Err(
+        ContractError::validation(format!("{tool} checks expect only in an agent session"))
+            .with_repair(format!(
+                "Call {tool} without expect, then cad_check with that expect and autoCommit true."
+            ))
+            .with_details(json!({"op": op, "field": "expect"})),
+    )
+}
+
 pub(super) fn write_source(
     handle: &mut ProjectHandle,
     input: &Value,
     origin: &Origin,
 ) -> CoreResult<Value> {
     stage::drive(handle, origin, "cad.write_source", || {
+        refuse_inline_expect("cad.write_source", input)?;
         Ok(Box::new(plan_write(
             handle,
             WriteRequest {
@@ -1074,6 +1093,7 @@ pub(super) fn patch_source(
     origin: &Origin,
 ) -> CoreResult<Value> {
     stage::drive(handle, origin, "cad.patch_source", || {
+        refuse_inline_expect("cad.patch_source", input)?;
         let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
         let revision = pick_revision(handle, &artifact, None)?;
         let (_, source) = source_of(handle, &revision)?;
@@ -1123,6 +1143,7 @@ pub(super) fn set_param(
     origin: &Origin,
 ) -> CoreResult<Value> {
     stage::drive(handle, origin, "cad.set_param", || {
+        refuse_inline_expect("cad.set_param", input)?;
         let artifact = require_mechanical(handle, required_str(input, "artifactId")?)?;
         let revision = pick_revision(handle, &artifact, None)?;
         let (_, source) = source_of(handle, &revision)?;

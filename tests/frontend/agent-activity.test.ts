@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentCallRecord } from '@omenflow/contracts';
 import {
   activitySignal,
+  alsoRanLine,
   asCallRecord,
   durationLabel,
   groupCalls,
@@ -66,6 +67,82 @@ describe('agent call records', () => {
       asCallRecord({ seq: 1, at: 'x', sessionId: 's', tool: 't', ok: true, durationMs: 'fast' })!
         .durationMs,
     ).toBeNaN();
+  });
+
+  it('keeps what the host also ran, and only entries that name a tool', () => {
+    const check = {
+      tool: 'cad_check',
+      op: 'cad.check',
+      ok: true,
+      verificationStatus: 'failed',
+      committed: false,
+      passed: 1,
+      total: 2,
+    };
+    const parsed = asCallRecord({
+      seq: 1,
+      at: 'x',
+      sessionId: 's',
+      tool: 'cad_write_source',
+      ok: true,
+      alsoRan: [
+        check,
+        { op: 'cad.check' },
+        'cad_check',
+        null,
+        { tool: 'work_status', ready: 'yes' },
+      ],
+    })!;
+    expect(parsed.alsoRan).toEqual([check, { tool: 'work_status', op: 'work_status', ok: false }]);
+    // Absent when nothing else ran, as the host records it.
+    expect(
+      asCallRecord({ seq: 1, at: 'x', sessionId: 's', tool: 't', ok: true }),
+    ).not.toHaveProperty('alsoRan');
+    expect(
+      asCallRecord({ seq: 1, at: 'x', sessionId: 's', tool: 't', ok: true, alsoRan: 'cad_check' }),
+    ).not.toHaveProperty('alsoRan');
+  });
+
+  it('words what the host ran and marks a check that did not pass', () => {
+    const check = { tool: 'cad_check', op: 'cad.check', ok: true };
+    expect(
+      alsoRanLine({ ...check, verificationStatus: 'passed', committed: true, passed: 3, total: 3 }),
+    ).toEqual({ text: 'cad_check: Verified, 3 of 3 assertions pass, committed', warn: false });
+    expect(
+      alsoRanLine({
+        ...check,
+        verificationStatus: 'failed',
+        committed: false,
+        passed: 1,
+        total: 2,
+      }),
+    ).toEqual({
+      text: 'cad_check: Check failed, 1 of 2 assertions pass, not committed',
+      warn: true,
+    });
+    expect(
+      alsoRanLine({ ...check, verificationStatus: 'passed', committed: true, replayed: true }),
+    ).toEqual({ text: 'cad_check: Verified, committed, replayed', warn: false });
+    // The state vocabulary's words, never the core's tokens.
+    expect(
+      alsoRanLine({ ...check, verificationStatus: 'scope_changed', passed: 2, total: 3 }),
+    ).toEqual({ text: 'cad_check: Scope changed, 2 of 3 assertions pass', warn: true });
+    expect(alsoRanLine({ ...check, verificationStatus: 'partial' }).text).toBe(
+      'cad_check: Partly verified',
+    );
+    expect(alsoRanLine(check)).toEqual({ text: 'cad_check: no status', warn: true });
+    expect(alsoRanLine({ ...check, ok: false, code: 'INPUT_CHANGED' })).toEqual({
+      text: 'cad_check did not run (INPUT_CHANGED)',
+      warn: true,
+    });
+    const status = { tool: 'work_status', op: 'work.status', ok: true, scope: 'session' };
+    expect(alsoRanLine({ ...status, ready: true, blockers: 0 })).toEqual({
+      text: 'work_status (this session): ready',
+      warn: false,
+    });
+    expect(alsoRanLine({ ...status, ready: false, blockers: 1 }).text).toBe(
+      'work_status (this session): not ready, 1 blocker',
+    );
   });
 
   it('merges live and historical records by sequence, without duplicates, keeping the newest', () => {

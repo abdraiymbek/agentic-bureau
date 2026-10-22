@@ -514,6 +514,11 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
       (key) => `expect.${key}`,
     ),
   ],
+  // A write with expect is checked by the agent host in the same call; this
+  // core would save it unchecked.
+  'cad.write_source': (input) => (input.expect === undefined ? [] : ['expect']),
+  'cad.patch_source': (input) => (input.expect === undefined ? [] : ['expect']),
+  'cad.set_param': (input) => (input.expect === undefined ? [] : ['expect']),
   'artifact.list': (input) => (input.cursor === undefined ? [] : ['cursor']),
   'artifact.history': (input) =>
     ['fields', 'limit', 'cursor'].filter((field) => input[field] !== undefined),
@@ -585,7 +590,9 @@ function assertLegacyInputs(op: string, input: unknown): void {
       repair:
         op === 'cad.check'
           ? 'Call it through the desktop app, or send the canonical expectation (bbox, shells, sections) with exploratory.'
-          : 'Call it through the desktop app, or send the complete input this core needs (ids and revision ids written out, no Rust-only fields).',
+          : unsupported.includes('expect')
+            ? 'Call it through the desktop app, or write without expect and verify with cad_check.'
+            : 'Call it through the desktop app, or send the complete input this core needs (ids and revision ids written out, no Rust-only fields).',
       details: { op, unsupported, implementedBy: 'rust-host' },
     },
   );

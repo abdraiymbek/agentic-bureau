@@ -121,6 +121,24 @@ describe('cad.check inputs the legacy TypeScript core does not understand', () =
   });
 });
 
+describe('source writes with expect on the legacy TypeScript core', () => {
+  const artifactId = '00000000-0000-4000-8000-000000000001';
+  it.each([
+    ['cad.write_source', { title: 'Plate', source: 'cube([40, 30, 5]);' }],
+    ['cad.patch_source', { artifactId, oldString: '40', newString: '42' }],
+    ['cad.set_param', { artifactId, name: 'w', value: 42 }],
+  ])('%s refuses expect instead of saving the part unchecked', async (op, input) => {
+    await expect(
+      app.dispatch(op, { ...input, expect: { size: [40, 30, 5] } }, agent, projectId),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION,
+      message: `${op} with expect is implemented by the Rust host`,
+      repair: 'Call it through the desktop app, or write without expect and verify with cad_check.',
+      details: { op, unsupported: ['expect'], implementedBy: 'rust-host' },
+    });
+  });
+});
+
 describe('tool.describe on the legacy core', () => {
   const describeTool = (payload: unknown) =>
     app.dispatch('tool.describe', payload, agent, projectId) as Promise<{

@@ -111,7 +111,7 @@ const USAGE: &str = "usage:
                                        call a tool; the result is JSON on stdout
   omenflow call <tool> --help          print a tool's arguments and an example
   omenflow call tool_describe          list every tool
-  omenflow guide [topic]               print a short playbook (start, cad, parts, finish, …)
+  omenflow guide [topic]               print a short playbook (start, cad, components, finish, …)
   omenflow status [--scope session|project]
                                        what is unfinished, and the next call for each item
 <tool> is a tool name (cad_check) or an operation name (cad.check).";

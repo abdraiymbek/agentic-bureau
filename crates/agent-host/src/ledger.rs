@@ -59,6 +59,50 @@ pub struct AgentCallRecord {
     pub artifact_ids: Vec<String>,
     /// Input repairs the host applied before running the call.
     pub notes: Vec<String>,
+    /// What else the host ran inside the call, in order: the cad_check a
+    /// source write with `expect` ran, the work_status attached to a
+    /// committed check. Absent from records of calls that ran nothing else,
+    /// and from those of earlier builds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also_ran: Vec<AlsoRan>,
+}
+
+/// One operation the host ran inside an agent's call (`AgentCallAlsoRan`).
+/// The record's own `ok` says how the call ended; this says how the inner run
+/// ended, in the inner operation's own terms. Every field has a default, so a
+/// record a later build wrote with more or fewer fields still loads.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AlsoRan {
+    /// Underscore tool name: `cad_check`, `work_status`.
+    pub tool: String,
+    pub op: String,
+    /// False when it did not run to an answer; `code` then says why.
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// The answer was replayed for a retried call with the same idempotency
+    /// key; nothing ran again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replayed: Option<bool>,
+    /// cad_check: the status it recorded, whether it was committed and its
+    /// assertion counts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verification_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub committed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub passed: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    /// work_status: the scope it answered for, whether it was ready and how
+    /// many blockers it listed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ready: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blockers: Option<u64>,
 }
 
 /// What `dispatch_agent` knows about a finished call.
@@ -75,6 +119,7 @@ pub struct CallOutcome {
     pub mutating: bool,
     pub artifact_ids: Vec<String>,
     pub notes: Vec<String>,
+    pub also_ran: Vec<AlsoRan>,
 }
 
 /// One agent session as the ledger knows it (spec section 3,
@@ -223,6 +268,7 @@ impl Ledger {
             mutating: outcome.mutating,
             artifact_ids: outcome.artifact_ids,
             notes: outcome.notes,
+            also_ran: outcome.also_ran,
         };
         if let Some(session) = project
             .sessions
@@ -547,6 +593,7 @@ mod tests {
             mutating: false,
             artifact_ids: Vec::new(),
             notes: Vec::new(),
+            also_ran: Vec::new(),
         }
     }
 
@@ -603,6 +650,54 @@ mod tests {
         assert_eq!(value["message"], Value::Null);
         assert_eq!(value["artifactIds"], json!(["a1"]));
         assert_eq!(serde_json::to_value(Via::Call).unwrap(), "call");
+
+        let mut write = outcome("p", "s", "cad_write_source", true);
+        write.also_ran = vec![
+            AlsoRan {
+                tool: "cad_check".into(),
+                op: "cad.check".into(),
+                ok: true,
+                verification_status: Some("failed".into()),
+                committed: Some(false),
+                passed: Some(1),
+                total: Some(2),
+                ..AlsoRan::default()
+            },
+            AlsoRan {
+                tool: "cad_check".into(),
+                op: "cad.check".into(),
+                code: Some("INPUT_CHANGED".into()),
+                ..AlsoRan::default()
+            },
+        ];
+        let value = serde_json::to_value(ledger.record(write)).unwrap();
+        assert_eq!(
+            value["alsoRan"],
+            json!([
+                {"tool": "cad_check", "op": "cad.check", "ok": true, "verificationStatus": "failed",
+                 "committed": false, "passed": 1, "total": 2},
+                {"tool": "cad_check", "op": "cad.check", "ok": false, "code": "INPUT_CHANGED"}
+            ])
+        );
+    }
+
+    /// Records of earlier builds have no alsoRan; a later build may write
+    /// entries with fields this one does not know or lacks ones it does.
+    /// Either way the record loads.
+    #[test]
+    fn records_load_with_or_without_also_ran_and_with_unknown_fields() {
+        let earlier = json!({"seq": 1, "at": "t", "projectId": "p", "sessionId": "s",
+            "tool": "work_status", "op": "work.status", "via": "mcp", "ok": true, "code": null,
+            "message": null, "durationMs": 3, "mutating": false, "artifactIds": [], "notes": []});
+        let record: AgentCallRecord = serde_json::from_value(earlier.clone()).unwrap();
+        assert!(record.also_ran.is_empty());
+        assert_eq!(serde_json::to_value(&record).unwrap(), earlier);
+        let mut later = earlier;
+        later["alsoRan"] = json!([{"tool": "cad_view", "pictures": 1}, {"op": "cad.check"}]);
+        let record: AgentCallRecord = serde_json::from_value(later).unwrap();
+        assert_eq!(record.also_ran.len(), 2);
+        assert_eq!(record.also_ran[0].tool, "cad_view");
+        assert!(!record.also_ran[1].ok);
     }
 
     #[test]

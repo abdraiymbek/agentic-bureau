@@ -310,7 +310,7 @@ describe('guide.read', () => {
     expect(start.topics.map((topic: any) => topic.id)).toEqual([
       'start',
       'requirements',
-      'parts',
+      'components',
       'cad',
       'cad-verify',
       'wiring',
@@ -325,6 +325,8 @@ describe('guide.read', () => {
       expect(playbook.text.length).toBeLessThanOrEqual(2400);
       expect(playbook.text.trimEnd()).toMatch(/then call work_status\.?$/);
     }
+    // `parts` named the components playbook until 0.2.4 and still opens it.
+    expect((await agent('guide_read', { topic: 'parts' })).topic).toBe('components');
     const unknown = await refusal(agent('guide_read', { topic: 'soldering' }));
     expect(unknown.code).toBe('NOT_FOUND');
     expect(unknown.repair).toContain('guide_read');

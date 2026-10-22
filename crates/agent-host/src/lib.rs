@@ -21,13 +21,14 @@ mod session;
 mod test_support;
 #[cfg(test)]
 mod weak_client_tests;
+mod write_check;
 
 pub use adapters::{
     adapter, AdapterConfig, AdapterSpec, GuideChannel, McpInjection, ModelAlias, ModelAliases,
     Probe, Routing, RoutingLookup, SearchPath, Version, ADAPTERS,
 };
 pub use guide::read as guide_read;
-pub use ledger::{AgentCallRecord, AgentSessionSummary, Via};
+pub use ledger::{AgentCallRecord, AgentSessionSummary, AlsoRan, Via};
 pub use omenflow_core::child_env;
 pub use profile::{
     profile_for_model, resolve_profile, ProfileSetting, ProfileSource, ResolvedProfile,
@@ -457,6 +458,10 @@ struct CallTrace {
     notes: Vec<String>,
     /// Pictures for the transport; never recorded.
     images: Vec<images::Image>,
+    /// What else ran inside the call, for the ledger's `alsoRan` (the reply
+    /// says it in its own fields): the check a source write with `expect`
+    /// ran, the work status attached to a committed check.
+    also_ran: Vec<AlsoRan>,
 }
 
 /// The single funnel for agent calls. A call that reaches it with a valid
@@ -477,6 +482,7 @@ fn dispatch_agent(
         input: Value::Null,
         notes: Vec::new(),
         images: Vec::new(),
+        also_ran: Vec::new(),
     };
     let via = call.via;
     let tool = call.name.to_owned();
@@ -495,6 +501,7 @@ fn dispatch_agent(
         mutating: trace.mutating,
         artifact_ids,
         notes: trace.notes.clone(),
+        also_ran: std::mem::take(&mut trace.also_ran),
     });
     publish(shared, &record);
     result = match result {
@@ -599,6 +606,7 @@ fn run_agent_call(
     trace.input = payload.clone();
     let mut input = parse_agent(op, payload, trace)?;
     present::prefer_brief_detail(op, grant.profile, &mut input);
+    let expect = write_check::take_expect(op, &mut input, trace)?;
 
     let hosted = op.name.starts_with("research.")
         || op.name.starts_with("browser.")
@@ -618,7 +626,18 @@ fn run_agent_call(
             grant.project_id.clone(),
             idempotency_key,
         ),
-        _ => dispatch_core(shared, grant, op, input.clone(), idempotency_key.as_deref()),
+        _ => match expect {
+            Some(expect) => write_check::run(
+                shared,
+                grant,
+                op,
+                &input,
+                expect,
+                idempotency_key.as_deref(),
+                trace,
+            ),
+            None => dispatch_core(shared, grant, op, input.clone(), idempotency_key.as_deref()),
+        },
     }?;
     let mut result = result;
     if images::produces(&op.name) {
@@ -634,7 +653,9 @@ fn run_agent_call(
         }
         images::route(&mut result, call.via == Via::Mcp, &grant.adapter_id);
     }
-    Ok(present::shape_result(op, grant.profile, &input, result))
+    let mut shaped = present::shape_result(op, grant.profile, &input, result);
+    write_check::attach_work_status(shared, grant, op, &mut shaped, trace);
+    Ok(shaped)
 }
 
 /// Find the operation an agent named and check it may call it. A name in a

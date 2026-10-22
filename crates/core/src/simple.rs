@@ -534,7 +534,7 @@ pub(super) fn project_summary(handle: &ProjectHandle, input: &Value) -> CoreResu
     if counts.is_empty() {
         next.push(json!({
             "tool": "guide_read",
-            "why": "The project holds no artifacts yet; guide_read lists a playbook for each kind of work",
+            "why": "The project holds no artifacts yet; guide_read has a playbook for each kind of work your session brief does not already hold",
         }));
     }
     next.push(json!({

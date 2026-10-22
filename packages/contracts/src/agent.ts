@@ -39,6 +39,37 @@ export interface AgentCallRecord {
   artifactIds: string[];
   /** Input repairs the host applied, e.g. "renamed revisionID → revisionId". */
   notes: string[];
+  /**
+   * What else the host ran inside the call, in order: the cad_check a source
+   * write with `expect` ran, the work_status attached to a committed check.
+   * Absent when nothing else ran, and on records of earlier builds.
+   */
+  alsoRan?: AgentCallAlsoRan[];
+}
+
+/**
+ * One operation the host ran inside an agent's call. The call's own record
+ * says how the call ended; this says how the inner run ended.
+ */
+export interface AgentCallAlsoRan {
+  /** Underscore tool name, e.g. "cad_check". */
+  tool: string;
+  /** Dotted op, e.g. "cad.check". */
+  op: string;
+  /** False when it did not run to an answer; `code` then says why. */
+  ok: boolean;
+  code?: string;
+  /** True when the answer was replayed for a retried call with the same idempotency key. */
+  replayed?: boolean;
+  /** cad_check: the recorded status, whether it was committed and its assertion counts. */
+  verificationStatus?: string;
+  committed?: boolean;
+  passed?: number;
+  total?: number;
+  /** work_status: the scope it answered for, whether it is ready and how many blockers it lists. */
+  scope?: string;
+  ready?: boolean;
+  blockers?: number;
 }
 
 export interface AgentSessionSummary {

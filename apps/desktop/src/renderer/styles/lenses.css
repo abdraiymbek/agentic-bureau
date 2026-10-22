@@ -850,6 +850,9 @@
   padding-left: 76px;
   color: var(--text-2);
 }
+.timeline-call-note.warn {
+  color: var(--warn);
+}
 .timeline-end {
   display: flex;
   justify-content: flex-start;

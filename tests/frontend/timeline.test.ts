@@ -229,6 +229,18 @@ describe('agent call records', () => {
     expect(asAgentCall(call(1, 0), 'other')).toBeNull();
     expect(asAgentCall({ ...call(1, 0), seq: '1' }, 'p1')).toBeNull();
     expect(asAgentCall('cad_check', 'p1')).toBeNull();
+    const alsoRan = [
+      {
+        tool: 'cad_check',
+        op: 'cad.check',
+        ok: true,
+        verificationStatus: 'passed',
+        committed: true,
+      },
+      { tool: 'work_status', op: 'work.status', ok: true, scope: 'session', ready: true },
+    ];
+    const write = call(2, 1, { tool: 'cad_write_source', op: 'cad.write_source', alsoRan });
+    expect(asAgentCall({ ...write, alsoRan: [...alsoRan, 7] }, 'p1')).toEqual(write);
   });
 
   it('merges pages and live records by sequence number', () => {

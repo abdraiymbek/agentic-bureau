@@ -108,6 +108,80 @@ impl Workspace {
     }
 }
 
+/// Stands in for OpenSCAD: answers `--version`, writes a fixed box for every
+/// render to the path after `-o`, fails a source that contains `FAIL`, and
+/// counts what it was asked. Not OpenSCAD: tests that use it are about
+/// plumbing, never about geometry.
+#[cfg(unix)]
+pub(crate) struct StandInEngine {
+    pub executable: PathBuf,
+    invocations: PathBuf,
+}
+
+#[cfg(unix)]
+impl StandInEngine {
+    pub fn new(dir: &std::path::Path, size: [f32; 3]) -> Self {
+        use std::os::unix::fs::PermissionsExt;
+        let stl = dir.join("stand-in-box.stl");
+        std::fs::write(&stl, box_stl(size)).unwrap();
+        let invocations = dir.join("stand-in-invocations");
+        let script = format!(
+            "#!/bin/sh\necho \"$*\" >> '{}'\nif [ \"$1\" = \"--version\" ]; then echo 'OpenSCAD version 2021.01'; exit 0; fi\nout=''\nprevious=''\nfor arg; do\n  if [ \"$previous\" = \"-o\" ]; then out=\"$arg\"; fi\n  previous=\"$arg\"\ndone\nif grep -q FAIL \"$previous\"; then echo 'ERROR: Parser error in file \"input.scad\", line 1: syntax error' >&2; exit 1; fi\ncp '{}' \"$out\"\n",
+            invocations.display(),
+            stl.display()
+        );
+        let executable = dir.join("stand-in-openscad");
+        std::fs::write(&executable, script).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+        Self {
+            executable,
+            invocations,
+        }
+    }
+
+    /// How many times it was asked to render (an `-o` invocation).
+    pub fn renders(&self) -> usize {
+        std::fs::read_to_string(&self.invocations)
+            .map(|text| text.lines().filter(|line| line.starts_with("-o ")).count())
+            .unwrap_or(0)
+    }
+}
+
+/// A box from the origin to `size` as binary STL, faces wound outward.
+#[cfg(unix)]
+fn box_stl([x, y, z]: [f32; 3]) -> Vec<u8> {
+    let corner = |i: usize| -> [f32; 3] {
+        [
+            if i & 1 == 1 { x } else { 0.0 },
+            if i & 2 == 2 { y } else { 0.0 },
+            if i & 4 == 4 { z } else { 0.0 },
+        ]
+    };
+    // Each face's corners counter-clockwise seen from outside.
+    let faces: [[usize; 4]; 6] = [
+        [0, 2, 3, 1],
+        [4, 5, 7, 6],
+        [0, 1, 5, 4],
+        [2, 6, 7, 3],
+        [0, 4, 6, 2],
+        [1, 3, 7, 5],
+    ];
+    let mut bytes = vec![0_u8; 80];
+    bytes.extend(12_u32.to_le_bytes());
+    for [a, b, c, d] in faces {
+        for triangle in [[a, b, c], [a, c, d]] {
+            bytes.extend([0_u8; 12]);
+            for i in triangle {
+                for value in corner(i) {
+                    bytes.extend(value.to_le_bytes());
+                }
+            }
+            bytes.extend([0, 0]);
+        }
+    }
+    bytes
+}
+
 /// The reply to one `tools/call`.
 #[derive(Debug)]
 pub(crate) struct ToolReply {

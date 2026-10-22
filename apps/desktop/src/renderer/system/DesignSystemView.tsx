@@ -1568,8 +1568,8 @@ function InProduct() {
       needsProject: true,
     },
     {
-      name: 'Agent tab: session bar, terminal, activity rail',
-      where: 'shell/agent/SessionBar.tsx, shell/agent/ActivityRail.tsx',
+      name: 'Agent tab: session bar, terminal, activity rail, call rows (repairs, host also ran)',
+      where: 'shell/agent/SessionBar.tsx, shell/agent/ActivityRail.tsx, shell/agent/activity.ts',
       action: 'Open the terminal',
       open: () => {
         useAgentUi.getState().setPane('terminal');
@@ -1589,6 +1589,13 @@ function InProduct() {
       where: 'project/EvidenceLens.tsx',
       action: 'Open ⌘5',
       open: () => go({ level: 'project', lens: 'evidence' }),
+      needsProject: true,
+    },
+    {
+      name: 'Timeline: day groups, agent call runs (repairs, host also ran)',
+      where: 'project/TimelineLens.tsx, project/agent-calls.ts',
+      action: 'Open ⌘3',
+      open: () => go({ level: 'project', lens: 'timeline' }),
       needsProject: true,
     },
     {

@@ -590,8 +590,8 @@ fn bound_page(page: &mut Value, profile: Profile, cuts: &mut Vec<Cut>) {
 
 /// Make every `next` hint something the session can call: the tool by its
 /// underscore name and, when the profile does not list it, the route through
-/// `tool_call`.
-fn callable_next(value: &mut Value, profile: Profile, depth: usize) {
+/// `tool_call`. Also used for what the host attaches after shaping.
+pub(crate) fn callable_next(value: &mut Value, profile: Profile, depth: usize) {
     const OPAQUE: [&str; 8] = [
         "payload",
         "files",
@@ -930,8 +930,8 @@ mod tests {
         // budget does (packages/contracts ops.test.ts: 68,800 on the wire).
         // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
         assert!(sizes[1] <= 62_600, "standard listing is {}", sizes[1]);
-        // 0.2.4: +2,570 chars for cad_view and image_view, +956 for cad_check spec items (recorded in audit/v0.2.4)
-        assert!(sizes[2] <= 70_000, "full listing is {}", sizes[2]);
+        // 0.2.4: +2,570 chars for cad_view and image_view, +956 for cad_check spec items, +791 for write-and-check (recorded in audit/v0.2.4)
+        assert!(sizes[2] <= 70_800, "full listing is {}", sizes[2]);
         assert!(sizes[0] < sizes[1] && sizes[1] < sizes[2]);
         // Title and annotations are for the client, at a fixed cost per tool.
         for (profile, (model, wire)) in Profile::ALL.into_iter().zip(sizes.into_iter().zip(wire)) {
@@ -962,7 +962,8 @@ mod tests {
         let standard = listed(Profile::Standard);
         assert_eq!(standard["description"], json!(check.description));
         assert_eq!(standard["inputSchema"], slim_schema(&check.input_schema));
-        // The fields the standard instructions name are listed.
+        // The fields the verification playbook and the check replies name are
+        // listed.
         for field in ["exploratory", "revisionId", "autoCommit"] {
             assert!(
                 standard["inputSchema"]["properties"][field].is_object(),

@@ -483,9 +483,9 @@ describe('listing budgets', () => {
   const size = (profile: Parameters<typeof toolListing>[0]) =>
     JSON.stringify(toolListing(profile)).length;
 
-  it('keeps the compact tools list within 8,300 characters', () => {
-    // 0.2.4: +992 chars for cad_view and image_view, +937 for spec items in the compact cad_check overlay (recorded in audit/v0.2.4)
-    expect(size('compact')).toBeLessThanOrEqual(8300);
+  it('keeps the compact tools list within 8,500 characters', () => {
+    // 0.2.4: +992 chars for cad_view and image_view, +937 for spec items in the compact cad_check overlay, +141 for write-and-check (recorded in audit/v0.2.4)
+    expect(size('compact')).toBeLessThanOrEqual(8500);
   });
 
   // Ceilings a little above the measured sizes, so that growth is a decision.

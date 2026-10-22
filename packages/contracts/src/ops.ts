@@ -620,6 +620,18 @@ const sectionRequest = z.object({
     ),
 });
 
+/**
+ * `expect` on the source-writing tools: cad_check's expectation, declared
+ * open here to keep the tool list small. The agent host validates it against
+ * cad_check's schema before anything is written, then checks the saved
+ * revision with autoCommit in the same call; the core refuses it from any
+ * other caller.
+ */
+const inlineExpect = z
+  .record(z.unknown())
+  .optional()
+  .describe('cad_check expect from the request (spec items), checked in this call.');
+
 const cadWriteSource = z.object({
   expectedRevisionId: idSchema
     .optional()
@@ -649,6 +661,7 @@ const cadWriteSource = z.object({
   rationale: z.string().default('').describe('One line on what this revision changes and why.'),
   timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
   detail: cadDetail,
+  expect: inlineExpect,
   ...idem,
 });
 const cadReadSource = z.object({
@@ -813,6 +826,7 @@ const cadPatchSource = z.object({
   rationale: z.string().default('').describe('One line on what this edit changes and why.'),
   timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
   detail: cadDetail,
+  expect: inlineExpect,
   ...idem,
 });
 const cadSetParam = z.object({
@@ -827,6 +841,7 @@ const cadSetParam = z.object({
   rationale: z.string().default('').describe('One line on why this dimension changed.'),
   timeoutMs: z.number().int().positive().max(300_000).default(90_000).describe('Render timeout.'),
   detail: cadDetail,
+  expect: inlineExpect,
   ...idem,
 });
 const cadCompose = z.object({
@@ -1001,11 +1016,11 @@ const workStatus = z.object({
     ),
 });
 
-/** Playbook topics served by `guide.read`. */
-export const guideTopics = [
+/** Playbook topics served by `guide.read`, by the ids listings name. */
+const guideTopicIds = [
   'start',
   'requirements',
-  'parts',
+  'components',
   'cad',
   'cad-verify',
   'wiring',
@@ -1014,13 +1029,18 @@ export const guideTopics = [
   'review',
   'finish',
 ] as const;
+/**
+ * Topic names `guide.read` accepts: every id, and `parts`, which named
+ * `components` until 0.2.4. The host also reads other spellings and aliases.
+ */
+export const guideTopics = [...guideTopicIds, 'parts'] as const;
 export type GuideTopic = (typeof guideTopics)[number];
 
 const guideRead = z.object({
   topic: z
     .string()
     .optional()
-    .describe(`One of: ${guideTopics.join(', ')}. Omit for start.`),
+    .describe(`One of: ${guideTopicIds.join(', ')}. Omit for start.`),
 });
 
 /* ------------------------------- jobs / tools -------------------------- */
@@ -1330,6 +1350,10 @@ const cadWriteSourceCompact = z.object({
   title: z.string().optional().describe('Name, for a new part.'),
   artifactId: z.string().optional().describe('Existing part to revise.'),
   rationale: z.string().optional(),
+  expect: z
+    .record(z.unknown())
+    .optional()
+    .describe('cad_check expect from the request (spec items), checked in this call.'),
 });
 const cadReadSourceCompact = z.object({ artifactId: z.string() });
 const cadCheckCompact = z.object({
@@ -1423,7 +1447,7 @@ const workStatusCompact = z.object({
     .optional()
     .describe('session (default): your work. project: everything unfinished.'),
 });
-const guideReadCompact = z.object({ topic: z.enum(guideTopics).optional() });
+const guideReadCompact = z.object({ topic: z.enum(guideTopicIds).optional() });
 const toolDescribeCompact = z.object({
   tool: z.string().optional().describe('Omit to list every tool.'),
   artifactType: artifactTypeSchema.optional().describe('Also return its payload fields.'),
@@ -1512,11 +1536,12 @@ export const OPS: OpDef[] = [
     projectSummary,
     'both',
     false,
-    'Start here. Returns the project intent, artifact counts by type, requirements and assumptions, pending proposals, stale artifacts, recent decisions and your unfinished work with the next tool to call. Call it once at the start of a session, then use artifact_list and artifact_read for detail.',
+    'Start here. Returns the project intent, artifact counts by type, requirements and assumptions, pending proposals, stale artifacts, recent decisions and your unfinished work with the next tool to call. Call it once at the start of a session unless your session brief says to skip it; artifact_list and artifact_read give detail.',
     {
       tier: 'core',
       pack: 'core',
-      summary: 'Start here: intent, counts, requirements, pending proposals, unfinished work.',
+      summary:
+        'Start here unless your brief says to skip it: intent, counts, requirements, open work.',
       example: {},
       compactSchema: projectSummaryCompact,
     },
@@ -1976,14 +2001,22 @@ export const OPS: OpDef[] = [
     cadWriteSource,
     'both',
     true,
-    'Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change, compare the report with the request, then verify with cad_check. Example: {"title":"Motor mount plate","source":"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}"}',
+    'Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change. With expect it also checks the saved revision in the same call (cad_check with autoCommit); without it, verify with cad_check. Example: {"title":"Motor mount plate","source":"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}","expect":{"bodies":1,"spec":[{"item":"plate 40 x 30 x 5 mm","size":[40,30,5]},{"item":"Ø4 hole at (10, 10)","holes":[{"at":[10,10,2.5],"d":4}]}]}}',
     {
       tier: 'core',
-      summary: 'Create (title) or revise (artifactId) a part from complete OpenSCAD source.',
+      summary:
+        'Create (title) or revise (artifactId) a part; with expect it is checked in the same call.',
       example: {
         title: 'Motor mount plate',
         source:
           '$fn = 64;\ndifference() {\n  cube([40, 30, 5]);\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\n}',
+        expect: {
+          bodies: 1,
+          spec: [
+            { item: 'plate 40 x 30 x 5 mm', size: [40, 30, 5] },
+            { item: 'Ø4 hole at (10, 10)', holes: [{ at: [10, 10, 2.5], d: 4 }] },
+          ],
+        },
       },
       compactSchema: cadWriteSourceCompact,
     },
@@ -2072,7 +2105,7 @@ export const OPS: OpDef[] = [
     cadPatchSource,
     'both',
     true,
-    "Replace one snippet in an existing part's OpenSCAD source and re-render. Use it for a small local edit instead of rewriting the file; the snippet must occur exactly once in the current source. Saves a new draft revision and returns the same measured report as cad_write_source.",
+    "Replace one snippet that occurs exactly once in an existing part's OpenSCAD source and re-render: a small local edit instead of a rewrite. Saves a new draft revision and returns the cad_write_source report; with expect the revision is also checked in the same call.",
     {
       tier: 'standard',
       summary: "Replace one unique snippet in a part's source and re-render.",
@@ -2089,7 +2122,7 @@ export const OPS: OpDef[] = [
     cadSetParam,
     'both',
     true,
-    'Change one top-level OpenSCAD assignment (name = value;) of an existing part and re-render. Prefer it over rewriting the file when only a dimension changes. Saves a new draft revision and returns the same measured report as cad_write_source.',
+    'Change one top-level OpenSCAD assignment (name = value;) of an existing part and re-render; prefer it to a rewrite when only a dimension changes. Saves a new draft revision and returns the cad_write_source report; with expect it is also checked in the same call.',
     {
       tier: 'standard',
       summary: 'Change one top-level OpenSCAD parameter of a part and re-render.',
@@ -2309,7 +2342,7 @@ export const OPS: OpDef[] = [
     workStatus,
     'both',
     false,
-    'Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.',
+    "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items; a check reply's workStatus is the same answer. Finish only when ready is true, or name every remaining blocker.",
     {
       tier: 'core',
       summary: 'Call before your final answer: lists unfinished work and the next call for each.',
@@ -2322,7 +2355,7 @@ export const OPS: OpDef[] = [
     guideRead,
     'both',
     false,
-    `Read a short numbered playbook for one kind of work. Topics: ${guideTopics.join(', ')}. Read a topic once before your first task of that kind; with no topic it returns the start guide. Returns the text and the list of all topics with when to use each.`,
+    `Read a short numbered playbook for one kind of work. Topics: ${guideTopicIds.join(', ')}. Read a topic once before your first task of that kind, unless your session brief already holds it; with no topic it returns the start guide. Returns the text and the list of all topics with when to use each.`,
     {
       tier: 'core',
       summary: 'Read a short step-by-step playbook for one kind of work.',

@@ -129,9 +129,11 @@ Closing a project stops its agent. A project written by a newer build opens read
   figure in its own interface. Conversations are kept in `.omenflow/chat/conversations.json` in
   the project folder; project archives do not include them.
 - **Adaptive capability profiles.** Each session is fixed to `compact`, `standard` or `full`. A
-  small model (Haiku, Luna, mini, local models) gets 15 flat tools, playbooks on demand
-  (`guide_read`), reported input repairs and a server-owned completion gate (`work_status`). A
-  large model keeps the full surface of 60 tools. Verification rules are the same in every
+  small model (Haiku, Luna, mini, local models) gets 15 flat tools, the CAD playbook and what the
+  project held at launch in its session brief, other playbooks on demand (`guide_read`), a part
+  written and checked in one call, reported input repairs and a server-owned completion gate
+  (`work_status`). A large model keeps the full surface of 60 tools. Verification rules are the
+  same in every
   profile, and every agent-allowed operation stays callable through `tool_call`. Details:
   [agent adapters](docs/agent-adapters.md).
 - **The agent can see.** `cad_view` draws a part as a drawing sheet (front, top and right views

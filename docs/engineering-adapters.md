@@ -114,10 +114,14 @@ expect?}`, validated on write) becomes an item; the feature's `expect` is taken 
 **Verification.** A check is a trial (exploratory, binds nothing) or committed. With
 `autoCommit: true` the check runs once and commits when every assertion passes and no committed
 assertion is dropped or changed; items without assertions stay partial, and a check of generic
-mesh properties alone stays a trial. A committed check binds the revision and its expectation
-hash. The status of a revision is `passed`, `failed`, `scope_changed` (the expectations differ
-from the committed ones, for example an assertion dropped or a tolerance loosened), `partial`
-(only generic checks ran, or listed items have no assertion) or `unverified`, with `ready`
+mesh properties alone stays a trial. In an agent session `cad_write_source`, `cad_patch_source`
+and `cad_set_param` also take `expect` and run that check on the revision they saved, in the
+same call: the agent host chains it, and the core refuses `expect` from any other caller. A
+reply that committed a check carries the session's `workStatus`. A committed check binds the
+revision and its expectation hash. The status of a revision is `passed`, `failed`,
+`scope_changed` (the expectations differ from the committed ones, for example an assertion
+dropped or a tolerance loosened), `partial` (only generic checks ran, or listed items have no
+assertion) or `unverified`, with `ready`
 and a `nextAction` (`commit_assertions`, `repair_geometry`, `resolve_inputs`,
 `request_review`, …). The same state is what `cad_check` answers, what `work_status` reports
 (`cad_unverified`, `cad_spec_unasserted`, `cad_check_failed`, `cad_scope_changed`,

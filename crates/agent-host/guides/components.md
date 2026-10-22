@@ -1,4 +1,4 @@
-# Purchased parts and the BOM
+# Bought components and the BOM
 
 A bought part counts only when it is recorded as a component with a source and an observed offer. Prices that exist only in your answer are not recorded.
 

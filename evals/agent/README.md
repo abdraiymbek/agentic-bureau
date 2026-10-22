@@ -90,12 +90,13 @@ sentence negates or defers the claim. It is a criterion only for
 in `claims`. Each flag quotes its sentence so it can be audited.
 
 Metrics come from two places. The ledger gives calls, errors (`ok: false`),
-repairs (input repair notes), the operations used, and whether `work_status`
-and `guide_read` were called. The CLI's stream gives tokens (all input
-tokens processed, of which cached; output), turns, the model it ran and its
-tokens per model, the final message, the playbook topics read, calls to
-tools that are not Omen Flow's, and permission denials. Codex reports one
-turn per `exec`.
+repairs (input repair notes), the operations used, whether `work_status`
+and `guide_read` were called, and, apart from that, whether the host attached
+the work status to a committed check (`workStatusAttached`, from a record's
+`alsoRan`). The CLI's stream gives tokens (all input tokens processed, of
+which cached; output), turns, the model it ran and its tokens per model, the
+final message, the playbook topics read, calls to tools that are not Omen
+Flow's, and permission denials. Codex reports one turn per `exec`.
 
 Cost (`costUsd`, Claude Code only) is Omen Flow's estimate at list price
 from the dated table in `pricing.ts` (`PRICES_AS_OF`): each request priced

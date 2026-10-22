@@ -6,7 +6,7 @@ import { askAgent } from '../../lib/actions';
 import { useChat } from '../../chat/chat-store';
 import { Button, IconButton, Notice, Skeleton, TypeGlyph, shortId } from '../../ui/kit';
 import { useAgentUi } from './agent-store';
-import { durationLabel, groupCalls, timeRange, toolWords } from './activity';
+import { alsoRanLine, durationLabel, groupCalls, timeRange, toolWords } from './activity';
 import { loadActivity } from './feed';
 import type { Starter } from './starters';
 import { useRailContent } from './useRailContent';
@@ -56,6 +56,18 @@ function CallRow({ call }: { call: AgentCallRecord }) {
           {call.notes.map((note, i) => (
             <li key={i}>{note}</li>
           ))}
+        </ul>
+      )}
+      {call.alsoRan && call.alsoRan.length > 0 && (
+        <ul className="call-also" aria-label="What the host also ran in this call">
+          {call.alsoRan.map((entry, i) => {
+            const line = alsoRanLine(entry);
+            return (
+              <li key={i} className={line.warn ? 'warn' : undefined}>
+                {line.text}
+              </li>
+            );
+          })}
         </ul>
       )}
       {touched.length > 0 && (

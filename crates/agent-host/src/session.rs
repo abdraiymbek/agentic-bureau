@@ -55,6 +55,10 @@ pub struct LaunchRequest<'a> {
     /// PATH for the CLI, with the helper's folder first.
     pub path: &'a str,
     pub mode: LaunchMode<'a>,
+    /// What the project held when the launch was prepared, for the brief.
+    /// `None` when it was not read: the brief then says nothing about the
+    /// project, and the agent starts with project_summary.
+    pub snapshot: Option<&'a guide::Snapshot>,
 }
 
 /// A file the session needs on disk before the CLI starts.
@@ -103,8 +107,12 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
     let adapter = request.adapter;
     let work = work_dir(request.project_root, request.session_id);
     let helper = request.helper.to_string_lossy().into_owned();
-    let guidance =
-        guide::launch_guidance(request.profile, request.project_name, request.project_root);
+    let guidance = guide::launch_guidance(
+        request.profile,
+        request.project_name,
+        request.project_root,
+        request.snapshot,
+    );
     let bridge = [
         request.socket_path,
         request.token,
@@ -342,6 +350,21 @@ pub(crate) fn plain_id(id: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
+/// Whether the CLI receives the launch guidance (the session brief) through
+/// one of its channels. A CLI reached only through MCP instructions or the
+/// project's `AGENTS.md` gets no brief, so nothing is read for one.
+pub(crate) fn carries_brief(adapter: &AdapterSpec) -> bool {
+    adapter.guidance.iter().any(|channel| {
+        matches!(
+            channel,
+            GuideChannel::SystemPromptFile(_)
+                | GuideChannel::SystemPromptText(_)
+                | GuideChannel::DeveloperInstructions
+                | GuideChannel::InstructionsFile
+        )
+    })
+}
+
 /// The refusal for a headless run of a CLI that has no headless mode.
 pub(crate) fn no_headless_mode(adapter: &AdapterSpec) -> ContractError {
     ContractError::validation(format!(
@@ -477,6 +500,7 @@ mod tests {
             profile,
             path: "/Applications/Omen Flow.app/Contents/Resources:/usr/bin",
             mode,
+            snapshot: None,
         })
     }
 
@@ -521,6 +545,7 @@ mod tests {
             Profile::Compact,
             "Sable rover",
             Path::new("/projects/rover"),
+            None,
         );
         assert_eq!(plan.guidance, guidance);
         assert_eq!(
@@ -964,7 +989,7 @@ mod tests {
     fn guidance_follows_the_profile_in_every_channel() {
         for profile in Profile::ALL {
             let expected =
-                guide::launch_guidance(profile, "Sable rover", Path::new("/projects/rover"));
+                guide::launch_guidance(profile, "Sable rover", Path::new("/projects/rover"), None);
             for id in [
                 "codex",
                 "claude-code",
@@ -978,6 +1003,55 @@ mod tests {
                     expected
                 );
             }
+        }
+    }
+
+    /// The snapshot rides in the brief, and only CLIs that are given the
+    /// brief are said to carry it, so the host reads it only for them.
+    #[test]
+    fn a_snapshot_reaches_the_brief_in_every_channel_that_carries_one() {
+        let snapshot = guide::Snapshot {
+            intent: Some("Rover parts".into()),
+            ..guide::Snapshot::default()
+        };
+        for spec in &crate::adapters::ADAPTERS {
+            let plan = plan_launch(&LaunchRequest {
+                adapter: spec,
+                config: &AdapterConfig::default(),
+                executable: Path::new("/usr/local/bin/agent"),
+                helper: Path::new("/Applications/Omen Flow.app/Contents/Resources/omenflow"),
+                project_id: "project-1",
+                project_name: "Sable rover",
+                project_root: Path::new("/projects/rover"),
+                session_id: SESSION,
+                socket_path: "/data/run/bridge.sock",
+                token: "secret-token",
+                profile: Profile::Compact,
+                path: "/usr/bin",
+                mode: LaunchMode::Interactive,
+                snapshot: Some(&snapshot),
+            })
+            .unwrap();
+            assert!(plan.guidance.contains(&snapshot.text()), "{}", spec.id);
+            let delivered = plan
+                .args
+                .iter()
+                .any(|arg| arg.contains("## Project at launch"))
+                || plan
+                    .files
+                    .iter()
+                    .any(|file| file.contents.contains("## Project at launch"));
+            assert_eq!(carries_brief(spec), delivered, "{}", spec.id);
+        }
+        for (id, carries) in [
+            ("codex", true),
+            ("claude-code", true),
+            ("opencode", true),
+            ("qwen", true),
+            ("gemini", false),
+            ("custom", false),
+        ] {
+            assert_eq!(carries_brief(adapter(id).unwrap()), carries, "{id}");
         }
     }
 

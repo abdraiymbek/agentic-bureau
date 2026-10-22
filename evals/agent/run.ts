@@ -103,6 +103,8 @@ export interface CellResult {
     repairs: number;
     tools: Record<string, number>;
     workStatusCalled: boolean;
+    /** The host attached work_status to a committed check (alsoRan); not a call the agent made. */
+    workStatusAttached: boolean;
     guideRead: string[];
     errorCodes: string[];
   };
@@ -145,6 +147,7 @@ async function runCell(spec: Cell, options: Options, bins: { host: string; cli: 
       repairs: 0,
       tools: {},
       workStatusCalled: false,
+      workStatusAttached: false,
       guideRead: [],
       errorCodes: [],
     },
@@ -243,6 +246,9 @@ async function runCell(spec: Cell, options: Options, bins: { host: string; cli: 
         return tools;
       }, {}),
       workStatusCalled: calls.some((call) => call.op === 'work.status'),
+      workStatusAttached: calls.some((call) =>
+        (call.alsoRan ?? []).some((ran: { op?: unknown }) => ran.op === 'work.status'),
+      ),
       guideRead: calls.filter((call) => call.op === 'guide.read').map((call) => call.tool),
       errorCodes: calls.filter((call) => !call.ok).map((call) => `${call.op} ${call.code}`),
     };
