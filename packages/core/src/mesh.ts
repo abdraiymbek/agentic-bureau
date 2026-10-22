@@ -514,6 +514,9 @@ function dropCollinear(pts: [number, number][]): [number, number][] {
   return out.length >= 3 ? out : pts;
 }
 
+/** How far a cutting plane that runs through mesh vertices is moved, mm. */
+const PLANE_NUDGE = 1e-4;
+
 /**
  * Slice the mesh with the plane `axis = at` and return closed loops with
  * nesting, area, centroid, and circle/rectangle recognition.
@@ -526,11 +529,14 @@ export function crossSection(tris: TriangleBuffer, axis: Axis, at: number): Cros
     (['x', 'y', 'z'] as Axis[])[u]!,
     (['x', 'y', 'z'] as Axis[])[v]!,
   ];
-  // Nudge off exact vertex planes to avoid degenerate coplanar faces.
+  // Nudge off exact vertex planes to avoid degenerate coplanar faces. The
+  // nudge is well above the loop builder's 1e-6 point grid: a smaller one
+  // leaves the cut points of neighbouring facets in one grid cell, and the
+  // outline loses corners.
   let plane = at;
   for (let i = k; i < tris.length; i += 3) {
     if (Math.abs(tris[i]! - plane) < 1e-9) {
-      plane = at + 1e-6;
+      plane = at + PLANE_NUDGE;
       break;
     }
   }
@@ -708,9 +714,9 @@ export function crossSectionPlane(tris: TriangleBuffer, origin: Vec3, normal: Ve
   for (let i = 0; i < tris.length; i += 3) {
     const d = (tris[i]! - ox) * n[0] + (tris[i + 1]! - oy) * n[1] + (tris[i + 2]! - oz) * n[2];
     if (Math.abs(d) < 1e-9) {
-      ox += n[0] * 1e-6;
-      oy += n[1] * 1e-6;
-      oz += n[2] * 1e-6;
+      ox += n[0] * PLANE_NUDGE;
+      oy += n[1] * PLANE_NUDGE;
+      oz += n[2] * PLANE_NUDGE;
       break;
     }
   }

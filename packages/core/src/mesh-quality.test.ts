@@ -95,6 +95,32 @@ describe('crossSectionPlane', () => {
     expect(oblique.loops[0]!.rectangle?.size).toEqual([10, 20]);
   });
 
+  it('keeps a round outline when the plane runs through a ring of vertices', () => {
+    // The flank of a revolved V-groove: a 64-facet band from radius 25 at z = 8
+    // out to radius 32 at z = 13.6, each facet split by a diagonal. A cut at
+    // z = 8 lies on the inner ring; nudged by no more than the loop builder's
+    // point grid, the facets' cut points merged and the outline lost corners.
+    const n = 64;
+    const ring = (r: number, z: number, i: number): Vec3 => [
+      r * Math.cos((2 * Math.PI * i) / n),
+      r * Math.sin((2 * Math.PI * i) / n),
+      z,
+    ];
+    const tris: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const a0 = ring(25, 8, i);
+      const a1 = ring(25, 8, i + 1);
+      const b0 = ring(32, 13.6, i);
+      const b1 = ring(32, 13.6, i + 1);
+      tris.push(...a0, ...a1, ...b0, ...a1, ...b1, ...b0);
+    }
+    const s = crossSection(new Float64Array(tris), 'z', 8);
+    expect(s.loops).toHaveLength(1);
+    const circle = s.loops[0]!.circle!;
+    expect(circle.radius * 2).toBeCloseTo(50, 2);
+    expect(circle.roundness).toBeGreaterThan(0.99);
+  });
+
   it('cuts a cube on a 45° plane and reports a rectangular section', () => {
     const tris = box([0, 0, 0], [20, 20, 20]);
     // Plane x + z = 20 through the cube — a 20√2 × 20 rectangle.
