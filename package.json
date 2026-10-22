@@ -1,6 +1,6 @@
 {
   "name": "omenflow",
-  "version": "1.0.3",
+  "version": "0.2.3",
   "private": true,
   "description": "Omen Flow — local desktop engineering workspace for bring-your-own agent CLIs",
   "license": "Apache-2.0",

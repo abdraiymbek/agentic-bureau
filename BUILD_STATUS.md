@@ -6,10 +6,13 @@ pointer. Its last text is in git history (`git show 4f8afe2:BUILD_STATUS.md`).
 
 ## Current
 
-**V1, 14 October 2026: an unsigned, locally verified working tree; not a release.**
+**0.2.3, 21 October 2026: a published preview, ad hoc signed and not notarized.** Releases
+0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered the same day; see
+[release](docs/release.md).
 
-- What V1 is, how to build it and its limits: [README](README.md).
-- What was verified for V1, with the commands and counts: [V1 readiness record](audit/v1/README.md),
+- What Omen Flow is, how to build it and its limits: [README](README.md).
+- What was verified for 0.2.3: [its verification record](audit/v0.2.3/README.md); for the
+  14 October V1 work, with the commands and counts: [V1 readiness record](audit/v1/README.md),
   and for the interface [design verification](design-system/verification.md).
 - How to qualify a release, and what is still open: [release](docs/release.md).
 
@@ -17,16 +20,14 @@ pointer. Its last text is in git history (`git show 4f8afe2:BUILD_STATUS.md`).
 
 - The native macOS app was not walked through during V1 work. The last native walkthrough is
   the [26 September audit](audit/v1-readiness/README.md), which predates V1.
-- The macOS bundle and DMG in `target/release/bundle/` predate 1.0.0: their `Info.plist` says
-  version 0.1.0 and identifier `com.electron.omen-flow`. Rebuild them from the current tree.
 - Apple signing and notarization have never run with real credentials; clean-machine install
   and upgrade of a populated project are untested.
 - Windows: CI defines an experimental package job; not a verified platform.
-- Linux: the `.deb`, `.rpm` and AppImage (1.0.0) are built by `node scripts/linux-package.mjs`
+- Linux: the `.deb`, `.rpm` and AppImage are built by `node scripts/linux-package.mjs`
   on Ubuntu 22.04, and both packages declare its glibc 2.35 as their floor. For arm64 they
   were built and smoke-tested in containers under a virtual X display: the `.deb` on Ubuntu
   22.04, Ubuntu 24.04 and Debian 12, the AppImage on Ubuntu 22.04, the `.rpm` on Fedora 42.
-  x86_64 packages come from the CI `package-linux` job, which has not run. No real Linux desktop
+  x86_64 packages come from the same recipe in the release workflow. No real Linux desktop
   (Wayland, a GPU, HiDPI, a person) has been used, and nothing is signed. See
   [release](docs/release.md#linux-packages).
 - VoiceOver and the operating system's reduced-motion setting have not been checked.

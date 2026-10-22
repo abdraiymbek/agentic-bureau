@@ -1,5 +1,7 @@
 # Omen Flow 1.0.3 verification record
 
+> **Withdrawn and renumbered.** On 21 October 2026 the 1.0.x releases were removed and the version line renumbered 0.2.x, because Omen Flow is a preview, not a 1.0. 1.0.3 became 0.2.3, the same code rebuilt with the new number ([0.2.3 record](../v0.2.3/README.md)). The release and download links below no longer resolve; the checks and checksums describe the 1.0.3 files as they were published.
+
 Date: 21 October 2026 (America/Chicago). Status: **published; supported-platform release gates passed**.
 
 This record covers release 1.0.3. Earlier test counts and packages do not qualify this build;
