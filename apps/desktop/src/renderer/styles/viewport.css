@@ -51,6 +51,7 @@
 .mech-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-4);
   flex: none;
 }
@@ -68,6 +69,17 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+.step-outcome-path {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.step-outcome-list {
+  margin: 0;
+  padding-left: 1.2em;
 }
 .render-log {
   margin: 0;

@@ -22,6 +22,7 @@ enum Stage {
 thread_local! {
     static STAGE: RefCell<Stage> = const { RefCell::new(Stage::Inline) };
     static PROBE: RefCell<Option<Value>> = const { RefCell::new(None) };
+    static PYTHON_PROBE: RefCell<Option<Value>> = const { RefCell::new(None) };
 }
 
 fn replace(stage: Stage) -> Stage {
@@ -35,6 +36,7 @@ impl Drop for Reset {
     fn drop(&mut self) {
         replace(Stage::Inline);
         PROBE.with(|probe| probe.replace(None));
+        PYTHON_PROBE.with(|probe| probe.replace(None));
     }
 }
 
@@ -66,15 +68,25 @@ pub(crate) fn committing<T>(
     }
 }
 
-/// Run `work` with an engine probe that was already made off the lock.
-pub(crate) fn with_probe<T>(probe: Value, work: impl FnOnce() -> T) -> T {
+/// Run `work` with the engine and STEP converter probes that were already
+/// made off the lock, either of them absent.
+pub(crate) fn with_probes<T>(
+    openscad: Option<Value>,
+    python: Option<Value>,
+    work: impl FnOnce() -> T,
+) -> T {
     let _reset = Reset;
-    PROBE.with(|slot| slot.replace(Some(probe)));
+    PROBE.with(|slot| slot.replace(openscad));
+    PYTHON_PROBE.with(|slot| slot.replace(python));
     work()
 }
 
 pub(super) fn staged_probe() -> Option<Value> {
     PROBE.with(|slot| slot.borrow_mut().take())
+}
+
+pub(super) fn staged_python_probe() -> Option<Value> {
+    PYTHON_PROBE.with(|slot| slot.borrow_mut().take())
 }
 
 pub(super) fn is_planning() -> bool {

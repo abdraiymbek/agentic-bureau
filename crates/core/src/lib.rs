@@ -145,15 +145,21 @@ impl CoreApp {
         origin: Origin,
         project_id: Option<&str>,
     ) -> CoreResult<Value> {
-        let path = self.read_settings()["toolPaths"]["openscad"]
-            .as_str()
-            .map(str::trim)
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from);
+        let settings = self.read_settings();
+        let tool_path = |tool: &str| {
+            settings["toolPaths"][tool]
+                .as_str()
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(PathBuf::from)
+        };
+        let (path, python) = (tool_path("openscad"), tool_path("python"));
         let session = origin.session_id().map(str::to_owned);
         events::with_session(session.as_deref(), || {
-            cad::with_executable(path, || {
-                self.dispatch_inner(op, payload, origin, project_id)
+            cad::with_python(python, || {
+                cad::with_executable(path, || {
+                    self.dispatch_inner(op, payload, origin, project_id)
+                })
             })
         })
     }
@@ -738,7 +744,7 @@ fn dispatch_project(
         "calculation.templates" => calculation::templates(),
         "calculation.explain_inputs" => calculation::explain_inputs(handle, payload),
         "calculation.run" => calculation::run(handle, payload, origin),
-        "cad.export" => simple::cad_export(handle, payload),
+        "cad.export" => cad::export(handle, payload, origin),
         "cad.probe" => cad::probe(),
         "cad.read_source" => cad::read_source(handle, payload),
         "cad.validate_source" => cad::validate_source(handle, payload),
@@ -2689,6 +2695,54 @@ mod tests {
             );
         }
         assert!(cad::configured_executable().is_none());
+    }
+
+    #[test]
+    fn tool_doctor_reports_the_step_converter() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = CoreApp::new(temp.path().join("data")).unwrap();
+        // Without a saved Python, tests look nowhere else: none is found.
+        let doctor = app
+            .dispatch(
+                "tool.doctor",
+                json!({"toolId": "python"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            doctor["results"]["python"]["error"],
+            "No Python with OCP (OpenCASCADE) was found"
+        );
+        assert!(doctor["results"].get("openscad").is_none());
+        app.dispatch(
+            "settings.set",
+            json!({"key":"toolPaths.python","value":" /usr/bin/false "}),
+            Origin::User,
+            None,
+        )
+        .unwrap();
+        let doctor = app
+            .dispatch("tool.doctor", json!({}), Origin::User, None)
+            .unwrap();
+        let python = &doctor["results"]["python"];
+        assert_eq!(python["available"], false, "{doctor}");
+        assert_eq!(python["tried"][0]["path"], "/usr/bin/false");
+        assert!(python["note"]
+            .as_str()
+            .unwrap()
+            .starts_with("The configured Python /usr/bin/false cannot import OCP"));
+        assert!(doctor["results"]["openscad"].is_object());
+        let openscad = app
+            .dispatch(
+                "tool.doctor",
+                json!({"toolId": "openscad"}),
+                Origin::User,
+                None,
+            )
+            .unwrap();
+        assert!(openscad["results"].get("python").is_none());
+        assert!(cad::configured_python().is_none());
     }
 
     #[test]

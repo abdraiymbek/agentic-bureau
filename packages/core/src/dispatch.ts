@@ -343,7 +343,17 @@ const H: Record<string, Handler> = {
   'cad.patch_source': (c, i: never, o) => cad.cadPatchSource(c, i as never, o),
   'cad.set_param': (c, i: never, o) => cad.cadSetParam(c, i as never, o),
   'cad.compose': (c, i: never, o) => cad.cadCompose(c, i as never, o),
-  'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }) => {
+  'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }, o) => {
+    // This core writes wherever destPath points; the Rust host keeps agents under exports/.
+    if (o.kind === 'agent')
+      throw new OmenflowError(
+        ErrorCodes.VALIDATION,
+        'cad.export for an agent is implemented by the Rust host',
+        {
+          repair: 'Call it through the desktop app.',
+          details: { op: 'cad.export', unsupported: ['agent origin'], implementedBy: 'rust-host' },
+        },
+      );
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files.find((x) => x.path.endsWith(`.${i.format}`));
@@ -513,6 +523,10 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
     input.revisionId === undefined ? ['revisionId omitted'] : [],
   'bom.propose_edit': (input) => (list(input.removeLineIds).length ? ['removeLineIds'] : []),
   'bom.export': (input) => (input.destPath === undefined ? [] : ['destPath']),
+  'cad.export': (input) => [
+    ...(input.format === 'step' ? ['format step'] : []),
+    ...['revisionId', 'method', 'timeoutMs'].filter((field) => input[field] !== undefined),
+  ],
   'test.create_draft': (input) =>
     list(input.requirementRefs).flatMap((ref, index) =>
       fields(ref).revisionId === undefined ? [`requirementRefs[${index}].revisionId omitted`] : [],

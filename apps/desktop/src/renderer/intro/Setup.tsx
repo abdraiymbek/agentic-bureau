@@ -160,7 +160,10 @@ export function EngineStep({ platform }: { platform: Platform }) {
 
   const check = async () => {
     setChecking(true);
-    const r = await quiet<{ results: Record<string, unknown> }>('tool.doctor', {});
+    // OpenSCAD only: first launch never waits on the optional STEP converter's cold import.
+    const r = await quiet<{ results: Record<string, unknown> }>('tool.doctor', {
+      toolId: 'openscad',
+    });
     setChecking(false);
     if (r.ok) {
       setFailed(null);

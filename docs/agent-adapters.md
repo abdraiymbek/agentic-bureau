@@ -202,13 +202,13 @@ standard; no model → the adapter's default (standard; custom: compact).
 | Profile  | Tools listed                                 | Listing as sent to the model | Result cap   |
 | -------- | -------------------------------------------- | ---------------------------- | ------------ |
 | compact  | 13 core tools: summary + compact schema      | 6,290 chars                  | 6,000 chars  |
-| standard | 43: description + input schema (no overlays) | 57,288 chars                 | 16,000 chars |
-| full     | 57: description + input schema               | 64,010 chars                 | 32,000 chars |
+| standard | 43: description + input schema (no overlays) | 57,518 chars                 | 16,000 chars |
+| full     | 58: description + input schema               | 65,924 chars                 | 32,000 chars |
 
 Sizes are `name`, `description`, `inputSchema` as compact JSON, measured on
 the registry of this build by the agent host's
 `listing_sizes_stay_within_their_budgets` test; with `title` and
-`annotations` the `tools/list` payloads are 7,978, 62,936 and 71,486
+`annotations` the `tools/list` payloads are 7,978, 63,166 and 73,527
 characters. Only compact uses the compact schema overlays, as the
 TypeScript `toolListing` does. Listed schemas drop `$schema`,
 `additionalProperties: false` and `idempotencyKey` (still accepted when

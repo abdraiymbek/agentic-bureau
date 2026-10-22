@@ -100,6 +100,7 @@ describe('operation tiers and packs', () => {
         'ui_focus_terminal',
         'build_preview',
         'build_export',
+        'cad_export',
         'tool_doctor',
         'bom_export',
         'artifact_history',
@@ -139,6 +140,7 @@ describe('new V1 operations', () => {
     expect(flags('guide.read')).toEqual(['both', false, true]);
     expect(flags('tool.call')).toEqual(['both', true, true]);
     expect(flags('agent.activity')).toEqual(['user', false, false]);
+    expect(flags('cad.export')).toEqual(['both', true, true]);
     expect([...RUST_HOST_OPS].every((name) => OPS_BY_NAME.has(name))).toBe(true);
   });
 
@@ -192,6 +194,26 @@ describe('new V1 operations', () => {
     // Only the host sends an automatic continuation; the transport cannot claim one.
     expect(() =>
       op('chat.send').input.parse({ ...send, continues: { requestId: 'r1', automatic: true } }),
+    ).toThrow();
+    const part = '00000000-0000-4000-8000-000000000001';
+    expect(op('cad.export').input.parse({ artifactId: part, destPath: '/tmp/a.stl' })).toEqual({
+      artifactId: part,
+      destPath: '/tmp/a.stl',
+      format: 'stl',
+    });
+    expect(
+      op('cad.export').input.parse({
+        artifactId: part,
+        destPath: 'exports/a.step',
+        format: 'step',
+        method: 'faceted',
+      }),
+    ).toMatchObject({ format: 'step', method: 'faceted' });
+    expect(() =>
+      op('cad.export').input.parse({ artifactId: part, destPath: 'a.igs', format: 'iges' }),
+    ).toThrow();
+    expect(() =>
+      op('cad.export').input.parse({ artifactId: part, destPath: 'a.step', timeoutMs: 300_001 }),
     ).toThrow();
   });
 
@@ -438,7 +460,8 @@ describe('listing budgets', () => {
   // inputs) measures 64,363 standard and 72,457 full characters.
   it('bounds the standard and full tools lists', () => {
     expect(size('standard')).toBeLessThanOrEqual(66_000);
-    expect(size('full')).toBeLessThanOrEqual(74_000);
+    // 0.2.4: +1,427 chars for cad_export in the full profile and tool_doctor naming the STEP converter (recorded in audit/v0.2.4)
+    expect(size('full')).toBeLessThanOrEqual(75_500);
   });
 });
 

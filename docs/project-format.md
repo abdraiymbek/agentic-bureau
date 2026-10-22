@@ -10,7 +10,8 @@ contains (observed on a project built with `pnpm fixture:rover`):
   artifacts/                    working files of revisions (sources, meshes, attachments)
     requirements/ research/ concepts/ components/ mechanical/
     electronics/ calculations/ software/ assembly/ tests/
-  exports/                      build packages and archives the person asked for
+  exports/                      build packages, archives and part exports the person asked for
+                                (agents write their exports only here)
   .omenflow/
     state.sqlite (-wal, -shm)   the engineering record (SQLite, WAL mode)
     objects/<xx>/<sha256>       immutable content-addressed files
@@ -52,7 +53,15 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
 - a `commitOrder` in the inputs of committed CAD check jobs (the check committed last decides);
 - CAD evidence from checker `omenflow-rust-mesh-checks-v2`, beside readable v1 and TypeScript
   v4 evidence;
+- the event type `cad.exported` (a part written as STEP, STL or SCAD: `format`, `method`,
+  `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
+  job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
+  project-relative destination, or only the file name of one outside the project;
 - the sidecar files under `.omenflow/work/` and `.omenflow/cache/`.
+
+`cad.export` records an event and, for STEP, a job, so it now counts as a change: a project
+opened read-only refuses it with `READ_ONLY`, where earlier builds copied STL and SCAD files
+from such a project.
 
 No table, column or constraint was renamed or changed.
 
@@ -95,7 +104,7 @@ never touched (see [agent adapters](agent-adapters.md)).
 | In the project                                                                   | Not in the project                                                                             |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Artifacts, every revision, proposals, decisions with rationale, edges, freshness | Settings: agent executables, arguments, environment, model and profile choices                 |
-| Jobs with their command, log, tool version and inputs                            | The OpenSCAD path chosen in Settings                                                           |
+| Jobs with their command, log, tool version and inputs                            | The OpenSCAD and Python paths chosen in Settings                                               |
 | Events, including agent session attribution                                      | Bridge tokens (in memory; the only copy on disk is a running Claude Code session's `mcp.json`) |
 | Session rows: adapter, executable path, state, exit code, last error             | Terminal output                                                                                |
 | The agent call ledger (without arguments)                                        | Window state, recent projects                                                                  |

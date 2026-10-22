@@ -27,7 +27,7 @@ pub(crate) struct Run {
     pub cancelled: bool,
 }
 
-fn is_executable(path: &Path) -> bool {
+pub(super) fn is_executable(path: &Path) -> bool {
     let Ok(metadata) = fs::metadata(path) else {
         return false;
     };
@@ -44,7 +44,7 @@ fn is_executable(path: &Path) -> bool {
 
 /// Ask a login shell where a program is. Apps started from the desktop do
 /// not inherit the PATH a terminal has.
-fn which_via_shell(shell: &Path, program: &str) -> Option<PathBuf> {
+pub(super) fn which_via_shell(shell: &Path, program: &str) -> Option<PathBuf> {
     let temp = tempfile::tempdir().ok()?;
     let run = run(
         shell,
@@ -61,16 +61,18 @@ fn which_via_shell(shell: &Path, program: &str) -> Option<PathBuf> {
         .filter(|path| is_executable(path))
 }
 
+/// The user's login shell, for `which_via_shell`.
+pub(super) fn login_shell() -> PathBuf {
+    std::env::var_os("SHELL")
+        .map(PathBuf::from)
+        .filter(|shell| is_executable(shell))
+        .unwrap_or_else(|| PathBuf::from("/bin/zsh"))
+}
+
 fn login_shell_openscad() -> Option<PathBuf> {
     static FOUND: OnceLock<Option<PathBuf>> = OnceLock::new();
     FOUND
-        .get_or_init(|| {
-            let shell = std::env::var_os("SHELL")
-                .map(PathBuf::from)
-                .filter(|shell| is_executable(shell))
-                .unwrap_or_else(|| PathBuf::from("/bin/zsh"));
-            which_via_shell(&shell, "openscad")
-        })
+        .get_or_init(|| which_via_shell(&login_shell(), "openscad"))
         .clone()
 }
 
@@ -160,9 +162,9 @@ fn parse_version(log: &str) -> Option<String> {
         .map(|found| found[1].to_owned())
 }
 
-type Stamp = (Option<SystemTime>, u64);
+pub(super) type Stamp = (Option<SystemTime>, u64);
 
-fn stamp(path: &Path) -> Stamp {
+pub(super) fn stamp(path: &Path) -> Stamp {
     fs::metadata(path)
         .map(|metadata| (metadata.modified().ok(), metadata.len()))
         .unwrap_or((None, 0))

@@ -17,7 +17,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, MutexGuard};
 
 /// Operations whose engine or mesh work runs outside the lock.
-const STAGED: [&str; 7] = [
+const STAGED: [&str; 8] = [
     "cad.write_source",
     "cad.patch_source",
     "cad.set_param",
@@ -25,7 +25,14 @@ const STAGED: [&str; 7] = [
     "cad.inspect",
     "cad.check",
     "cad.validate_source",
+    "cad.export",
 ];
+
+/// Is this call's work staged? A STL or SCAD export is a quick copy that takes
+/// the ordinary, idempotent path; only a STEP export runs the engine.
+fn staged(op: &str, payload: &Value) -> bool {
+    STAGED.contains(&op) && (op != "cad.export" || payload["format"] == "step")
+}
 
 /// Dispatch `op` on the shared application. Events recorded by the call go
 /// to the hook installed with [`CoreApp::set_event_hook`], each once.
@@ -76,24 +83,25 @@ pub fn dispatch_shared_with_events(
         result
     };
     if op == "cad.probe" || op == "tool.doctor" {
-        return match probe_off_lock(core, op, &payload) {
-            Some(probe) => {
-                let (result, events) = locked(core, project_id, |app| {
-                    cad::with_probe(probe, || {
-                        app.dispatch_idempotent(
-                            op,
-                            payload,
-                            origin.clone(),
-                            project_id,
-                            idempotency_key,
-                        )
-                    })
-                });
-                deliver(events);
-                result
-            }
-            None => ordinary(payload, &mut deliver),
-        };
+        // The two tools are probed side by side; neither waits for the other.
+        let (openscad, python) = std::thread::scope(|scope| {
+            let python = scope.spawn(|| python_probe_off_lock(core, op, &payload));
+            let openscad = probe_off_lock(core, op, &payload);
+            (
+                openscad,
+                python.join().unwrap_or_else(|_| Some(probe_stopped())),
+            )
+        });
+        if openscad.is_none() && python.is_none() {
+            return ordinary(payload, &mut deliver);
+        }
+        let (result, events) = locked(core, project_id, |app| {
+            cad::with_probes(openscad, python, || {
+                app.dispatch_idempotent(op, payload, origin.clone(), project_id, idempotency_key)
+            })
+        });
+        deliver(events);
+        return result;
     }
     if op == "cad.render" {
         let (queued, events) = locked(core, project_id, |app| {
@@ -120,7 +128,7 @@ pub fn dispatch_shared_with_events(
         }
         return Ok(queued);
     }
-    if !STAGED.contains(&op) {
+    if !staged(op, &payload) {
         return ordinary(payload, &mut deliver);
     }
 
@@ -261,6 +269,20 @@ fn already_answered(
         .is_ok_and(|found| found.is_some())
 }
 
+/// A saved tool path, read under the lock for a moment.
+fn tool_path(core: &Mutex<CoreApp>, tool: &str) -> Option<PathBuf> {
+    lock(core)
+        .dispatch(
+            "settings.get",
+            json!({"key": format!("toolPaths.{tool}")}),
+            Origin::System,
+            None,
+        )
+        .ok()
+        .and_then(|setting| setting["value"].as_str().map(str::trim).map(PathBuf::from))
+        .filter(|path| !path.as_os_str().is_empty())
+}
+
 /// Probe the engine before the lock is taken, when this call will ask for it.
 fn probe_off_lock(core: &Mutex<CoreApp>, op: &str, payload: &Value) -> Option<Value> {
     if op == "tool.doctor"
@@ -270,19 +292,27 @@ fn probe_off_lock(core: &Mutex<CoreApp>, op: &str, payload: &Value) -> Option<Va
     {
         return None;
     }
-    let configured = lock(core)
-        .dispatch(
-            "settings.get",
-            json!({"key": "toolPaths.openscad"}),
-            Origin::System,
-            None,
-        )
-        .ok()
-        .and_then(|setting| setting["value"].as_str().map(str::trim).map(PathBuf::from))
-        .filter(|path| !path.as_os_str().is_empty());
+    let configured = tool_path(core, "openscad");
     catch_unwind(|| cad::engine_probe(configured.as_deref()))
         .ok()?
         .ok()
+}
+
+fn probe_stopped() -> Value {
+    json!({"available": false, "error": "The probe stopped unexpectedly"})
+}
+
+/// Probe the STEP converter before the lock is taken, when `tool.doctor` asks
+/// for it. It is never probed under the lock: a cold `import OCP` takes seconds.
+fn python_probe_off_lock(core: &Mutex<CoreApp>, op: &str, payload: &Value) -> Option<Value> {
+    if op != "tool.doctor" || payload["toolId"].as_str().is_some_and(|id| id != "python") {
+        return None;
+    }
+    let configured = tool_path(core, "python");
+    Some(
+        catch_unwind(|| cad::python_probe_for(configured.as_deref()))
+            .unwrap_or_else(|_| probe_stopped()),
+    )
 }
 
 /// The unlocked step. Cancellation is read through a second connection, so
@@ -987,6 +1017,55 @@ mod tests {
             .call("tool.doctor", json!({"toolId": "kicad"}))
             .unwrap();
         assert_eq!(other, json!({"results": {}}));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_step_converter_is_probed_outside_the_lock_beside_the_engine() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let engine = StandIn::new(dir.path());
+        engine.release();
+        let sandbox = Sandbox::with_engine(&engine.executable);
+        let gate = dir.path().join("python-gate");
+        let python = dir.path().join("python3");
+        fs::write(
+            &python,
+            format!(
+                "#!/bin/sh\nwhile [ ! -f '{}' ]; do sleep 0.02; done\necho 'OMENFLOW-OCP 7.9.3.1 3.12.14'\n",
+                gate.display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&python, fs::Permissions::from_mode(0o755)).unwrap();
+        sandbox
+            .call(
+                "settings.set",
+                json!({"key": "toolPaths.python", "value": python}),
+            )
+            .unwrap();
+        std::thread::scope(|scope| {
+            let doctor = scope.spawn(|| sandbox.call("tool.doctor", json!({})));
+            std::thread::sleep(Duration::from_millis(300));
+            let started = Instant::now();
+            assert!(sandbox.call("project.summary", json!({})).is_ok());
+            assert!(started.elapsed() < Duration::from_secs(5));
+            assert!(
+                !doctor.is_finished(),
+                "the converter probe is still waiting"
+            );
+            fs::write(&gate, "").unwrap();
+            let result = doctor.join().unwrap().unwrap();
+            assert_eq!(result["results"]["openscad"]["available"], true, "{result}");
+            assert_eq!(result["results"]["python"]["available"], true, "{result}");
+            assert_eq!(result["results"]["python"]["ocp"], "7.9.3.1");
+        });
+        // Each tool can be asked alone.
+        let alone = sandbox
+            .call("tool.doctor", json!({"toolId": "python"}))
+            .unwrap();
+        assert_eq!(alone["results"].as_object().unwrap().len(), 1);
+        assert_eq!(alone["results"]["python"]["version"], "3.12.14");
     }
 
     #[test]

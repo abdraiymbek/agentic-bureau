@@ -711,9 +711,30 @@ const cadCheck = z.object({
   detail: cadDetail,
 });
 const cadExport = z.object({
-  artifactId: idSchema,
-  destPath: z.string().min(1),
-  format: z.enum(['stl', 'scad']).default('stl'),
+  artifactId: idSchema.describe('Part to export.'),
+  revisionId: idSchema
+    .optional()
+    .describe('Defaults to the baseline; for an agent, the newest revision.'),
+  format: z
+    .enum(['stl', 'scad', 'step'])
+    .default('stl')
+    .describe('step: a solid matching the checked render; stl, scad: the stored file.'),
+  destPath: z
+    .string()
+    .min(1)
+    .describe('File to write; an agent writes under exports/, e.g. "exports/bracket.step".'),
+  method: z
+    .enum(['auto', 'faceted'])
+    .optional()
+    .describe('STEP only: auto (default) is exact when possible, else faceted; faceted always.'),
+  timeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .max(300_000)
+    .optional()
+    .describe('Limit for the whole export, ms (default 120000).'),
+  ...idem,
 });
 const cadPatchSource = z.object({
   expectedRevisionId: idSchema
@@ -948,7 +969,7 @@ const jobList = z.object({
 });
 const toolList = z.object({});
 const toolDoctor = z.object({
-  toolId: z.string().optional().describe('Tool to check, e.g. "openscad". Omit for all.'),
+  toolId: z.string().optional().describe('Tool to check: "openscad" or "python". Omit for all.'),
 });
 const toolDescribe = z.object({
   tool: z
@@ -1956,7 +1977,18 @@ export const OPS: OpDef[] = [
       },
     },
   ),
-  def('cad.export', cadExport, 'user', false, 'Export STL/SCAD file to a chosen path'),
+  def(
+    'cad.export',
+    cadExport,
+    'both',
+    true,
+    'Export a part to a file. format "step" writes a STEP solid matching the checked render: "brep" (exact surfaces) is rebuilt from the source and compared with it, else "faceted" (planar faces). stl and scad copy the stored file. Use it only when asked for a file. Returns the path, method and checks.',
+    {
+      tier: 'full',
+      summary: 'Export a part as STEP, STL or SCAD; only when the person asked.',
+      example: { artifactId: EX.artifact, format: 'step', destPath: 'exports/motor-mount.step' },
+    },
+  ),
 
   def(
     'calculation.run',
@@ -2171,8 +2203,8 @@ export const OPS: OpDef[] = [
     toolDoctor,
     'both',
     false,
-    'Check that the engineering tools are installed and working (currently OpenSCAD): path, version and any error. Use it when a CAD call fails because a tool is missing. Returns one result per tool.',
-    { summary: 'Check that OpenSCAD is installed and working.', example: {} },
+    'Check that the engineering tools are installed and working: OpenSCAD, and the optional Python with OCP for exact STEP. Use it when a CAD call fails because a tool is missing. Returns one result per tool.',
+    { summary: 'Check that OpenSCAD and the optional STEP converter work.', example: {} },
   ),
   def(
     'tool.describe',

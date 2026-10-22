@@ -1,22 +1,30 @@
 import React, { useEffect, useState } from 'react';
+import { Export, X } from '@phosphor-icons/react';
 import type { FileRef, Job, MechanicalPayload } from '@omenflow/contracts';
-import { cmd, errMsg } from '../../api';
+import { CommandError, cmd, errMsg } from '../../api';
 import { useStore } from '../../store';
-import { Button, Checkbox, Notice, Spinner } from '../../ui/kit';
+import { Button, Checkbox, IconButton, Notice, Spinner } from '../../ui/kit';
 import { ErrorBoundary } from '../../ui/ErrorBoundary';
 import { newestActiveRevision } from '../../lib/mechanical-revisions';
 import { geometryReviewBlock, type GeometryReview } from '../../lib/geometry-review';
 import {
+  exportJobsFor,
   jobErrorText,
   jobIsActive,
   jobLogExcerpt,
   jobRevisionId,
   jobSeconds,
   meshProvenance,
+  missingConverter,
   renderJobsFor,
   renderPermission,
+  stepExportBlock,
+  stepFileName,
+  stepOutcomeView,
   type RenderOutcome,
+  type StepExportResult,
 } from '../../lib/render-jobs';
+import { useAgentUi } from '../../shell/agent/agent-store';
 import { RevisionBanner } from '../RevisionBanner';
 import { useObjectRevisions } from '../revisions';
 import { useOpenEdits } from '../useOpenEdits';
@@ -34,6 +42,12 @@ const PROVENANCE_NOTE = {
   illustrative: 'Illustrative mesh',
   unlinked: 'Mesh not tied to this source',
 } as const;
+
+/** What one STEP export of a revision came to, as the core answered it. */
+type StepOutcome =
+  | { status: 'saved'; result: StepExportResult }
+  | { status: 'failed'; message: string }
+  | { status: 'cancelled' };
 
 /** The current time while something is running, so elapsed seconds keep counting. */
 function useClock(running: boolean): number {
@@ -99,6 +113,23 @@ export function MechanicalStage({ view }: StageProps) {
     editing,
   });
 
+  // STEP export: the job row comes from the job store, so an export started elsewhere (or
+  // before this stage mounted) shows with its Cancel, and Export STEP waits for it.
+  const exportJobs = exportJobsFor(jobs, artifactId);
+  const activeExport = exportJobs.find(jobIsActive);
+  const lastExport = exportJobs[0];
+  const [exporting, setExporting] = useState(false);
+  const [stepOutcomes, setStepOutcomes] = useState<Record<string, StepOutcome>>({});
+  const stepOutcome = rev ? stepOutcomes[rev.id] : undefined;
+  const seqOf = (job: Job) => history.find((r) => r.id === jobRevisionId(job))?.seq;
+  const stoppedExport =
+    lastExport &&
+    ['failed', 'interrupted'].includes(lastExport.status) &&
+    !stepOutcomes[jobRevisionId(lastExport) ?? '']
+      ? lastExport
+      : null;
+  const shownExport = activeExport ?? stoppedExport;
+
   const render = async () => {
     if (!projectId || !rev) return;
     setRequesting(true);
@@ -114,6 +145,53 @@ export function MechanicalStage({ view }: StageProps) {
   };
 
   const provenance = rev ? meshProvenance(p, rev.files) : 'none';
+  const exportBlock = stepExportBlock({
+    readOnly,
+    displayed: rev,
+    provenance,
+    editing,
+    running: activeExport
+      ? (seqOf(activeExport) ?? rev?.seq ?? 0)
+      : exporting
+        ? (rev?.seq ?? 0)
+        : null,
+  });
+
+  // Success is reported only from the core's answer, never from the request.
+  const exportStep = async () => {
+    if (!projectId || !rev) return;
+    const dest = await window.omenflow.saveFile({
+      defaultPath: stepFileName(view.artifact.title, rev.seq),
+      filters: [{ name: 'STEP', extensions: ['step', 'stp'] }],
+    });
+    if (!dest) return;
+    const revisionId = rev.id;
+    const report = (o: StepOutcome) => setStepOutcomes((all) => ({ ...all, [revisionId]: o }));
+    setExporting(true);
+    try {
+      const result = await cmd<StepExportResult>(
+        'cad.export',
+        { artifactId, revisionId, format: 'step', destPath: dest },
+        { projectId },
+      );
+      report({ status: 'saved', result });
+    } catch (e) {
+      report(
+        e instanceof CommandError && e.code === 'CANCELLED'
+          ? { status: 'cancelled' }
+          : { status: 'failed', message: errMsg(e) },
+      );
+    } finally {
+      setExporting(false);
+      void useStore.getState().refreshJobs();
+    }
+  };
+  const dismissStep = () =>
+    setStepOutcomes((all) => {
+      const next = { ...all };
+      if (rev) delete next[rev.id];
+      return next;
+    });
   const acceptBlock = editing
     ? 'Save or discard your edits first.'
     : provenance === 'none'
@@ -199,6 +277,15 @@ export function MechanicalStage({ view }: StageProps) {
           )}
           <Button
             size="sm"
+            icon={<Export size={13} />}
+            busy={exporting}
+            disabled={!!exportBlock}
+            onClick={() => void exportStep()}
+          >
+            Export STEP
+          </Button>
+          <Button
+            size="sm"
             busy={requesting}
             disabled={!permission.allowed}
             onClick={() => void render()}
@@ -209,6 +296,9 @@ export function MechanicalStage({ view }: StageProps) {
       </div>
       {!permission.allowed && permission.reason && permission.block !== 'render-running' && (
         <p className="footnote mech-note">{permission.reason}</p>
+      )}
+      {exportBlock && !activeExport && !exporting && exportBlock !== permission.reason && (
+        <p className="footnote mech-note">STEP: {exportBlock}</p>
       )}
       {comparing && compare.status === 'failed' && (
         <Notice tone="err" role="alert">
@@ -221,13 +311,42 @@ export function MechanicalStage({ view }: StageProps) {
         </Notice>
       )}
       {shownJob && (
-        <RenderJob
+        <JobRow
           key={shownJob.id}
           job={shownJob}
-          seq={history.find((r) => r.id === jobRevisionId(shownJob))?.seq}
+          words={JOB_WORD}
+          subject={(() => {
+            const seq = seqOf(shownJob);
+            return seq !== undefined ? ` · started from r${seq}` : '';
+          })()}
+          cancelLabel="Cancel render"
+          idleNote="No revision was recorded by this render."
         />
       )}
       {outcome && <Outcome outcome={outcome} seq={rev?.seq} />}
+      {shownExport && (
+        <JobRow
+          key={shownExport.id}
+          job={shownExport}
+          words={EXPORT_WORD}
+          subject={(() => {
+            const seq = seqOf(shownExport);
+            return seq !== undefined ? ` · r${seq}` : '';
+          })()}
+          cancelLabel="Cancel export"
+          idleNote="No file was written by this export."
+        />
+      )}
+      {stepOutcome && (
+        <StepExportOutcome
+          outcome={stepOutcome}
+          onDismiss={dismissStep}
+          onSettings={() => {
+            useAgentUi.getState().setSettingsSection('tools');
+            useStore.getState().set({ settingsOpen: true });
+          }}
+        />
+      )}
       {provenance === 'illustrative' && <Notice tone="warn">{p.manufacturing}</Notice>}
       {provenance === 'unlinked' && (
         <Notice tone="warn">
@@ -267,8 +386,30 @@ const JOB_WORD: Record<string, string> = {
   interrupted: 'Render interrupted',
 };
 
-/** One background render as the core reports it: state, elapsed time, errors, and a way out. */
-function RenderJob({ job, seq }: { job: Job; seq?: number }) {
+const EXPORT_WORD: Record<string, string> = {
+  queued: 'Queued',
+  running: 'Exporting STEP',
+  failed: 'STEP export failed',
+  cancelled: 'STEP export cancelled',
+  interrupted: 'STEP export interrupted',
+};
+
+/** One background job (a render or an export) as the core reports it: state, elapsed time, errors, and a way out. */
+function JobRow({
+  job,
+  words,
+  subject,
+  cancelLabel,
+  idleNote,
+}: {
+  job: Job;
+  words: Record<string, string>;
+  /** Which revision, e.g. " · started from r3". */
+  subject: string;
+  cancelLabel: string;
+  /** Said when a stopped job recorded no error of its own. */
+  idleNote: string;
+}) {
   const projectId = useStore((s) => s.projectId);
   const going = jobIsActive(job);
   const now = useClock(going);
@@ -314,7 +455,7 @@ function RenderJob({ job, seq }: { job: Job; seq?: number }) {
       action={
         going ? (
           <Button size="sm" busy={cancelling} onClick={() => void cancel()}>
-            Cancel render
+            {cancelLabel}
           </Button>
         ) : (
           <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
@@ -326,16 +467,14 @@ function RenderJob({ job, seq }: { job: Job; seq?: number }) {
       <div className="render-job">
         <p>
           {going && <Spinner size={11} />}
-          <strong>{JOB_WORD[job.status] ?? job.status}</strong>
+          <strong>{words[job.status] ?? job.status}</strong>
           <span className="dim">
-            {seq !== undefined ? ` · started from r${seq}` : ''}
+            {subject}
             {seconds !== null ? ` · ${seconds} s` : ''} · {job.tool}
           </span>
         </p>
         {!going && failure && <p>{failure}</p>}
-        {!going && !failure && job.status !== 'failed' && (
-          <p className="dim">No revision was recorded by this render.</p>
-        )}
+        {!going && !failure && job.status !== 'failed' && <p className="dim">{idleNote}</p>}
         {log.length > 0 && <pre className="render-log">{log.join('\n')}</pre>}
         {going && error && <p className="tone-warn-text">Not cancelled: {error}</p>}
       </div>
@@ -371,6 +510,77 @@ function Outcome({ outcome, seq }: { outcome: RenderOutcome; seq?: number }) {
             {note}
           </p>
         ))}
+      </div>
+    </Notice>
+  );
+}
+
+/** What a STEP export wrote, or why nothing was: shown only after the core answered. */
+function StepExportOutcome({
+  outcome,
+  onDismiss,
+  onSettings,
+}: {
+  outcome: StepOutcome;
+  onDismiss: () => void;
+  onSettings: () => void;
+}) {
+  const dismiss = (
+    <IconButton size="sm" label="Dismiss" onClick={onDismiss}>
+      <X size={12} />
+    </IconButton>
+  );
+  if (outcome.status === 'failed')
+    return (
+      <Notice tone="err" role="alert" action={dismiss}>
+        <strong>STEP not saved.</strong> {outcome.message}
+      </Notice>
+    );
+  if (outcome.status === 'cancelled')
+    return (
+      <Notice tone="neutral" role="status" action={dismiss}>
+        STEP export cancelled. Nothing was written.
+      </Notice>
+    );
+  const { result } = outcome;
+  const view = stepOutcomeView(result);
+  const reveal = () =>
+    void window.omenflow
+      .revealPath(result.path)
+      .catch((e) => useStore.getState().toast('error', errMsg(e)));
+  return (
+    <Notice
+      tone={view.tone}
+      role="status"
+      action={
+        <>
+          {missingConverter(result) && (
+            <Button size="sm" variant="ghost" onClick={onSettings}>
+              Engineering tools
+            </Button>
+          )}
+          <Button size="sm" onClick={reveal}>
+            Reveal
+          </Button>
+          {dismiss}
+        </>
+      }
+    >
+      <div className="render-job">
+        <p>
+          <strong>{view.headline}</strong>
+        </p>
+        {view.lines.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+        {view.approximations.length > 0 && (
+          <ul className="step-outcome-list">
+            {view.approximations.map((text) => (
+              <li key={text}>{text}</li>
+            ))}
+          </ul>
+        )}
+        <span className="step-outcome-path mono">{result.path}</span>
       </div>
     </Notice>
   );

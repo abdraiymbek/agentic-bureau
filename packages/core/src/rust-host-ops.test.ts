@@ -215,3 +215,49 @@ describe('other inputs the legacy TypeScript core would ignore', () => {
     ).resolves.toHaveProperty('artifacts');
   });
 });
+
+describe('cad.export inputs the legacy TypeScript core does not serve', () => {
+  const artifactId = '00000000-0000-4000-8000-000000000001';
+  it.each([
+    [{ format: 'step' }, ['format step']],
+    [{ revisionId: artifactId }, ['revisionId']],
+    [
+      { format: 'step', method: 'faceted', timeoutMs: 1000 },
+      ['format step', 'method', 'timeoutMs'],
+    ],
+  ] as const)('refuses %j instead of writing less than was asked', async (input, unsupported) => {
+    await expect(
+      app.dispatch(
+        'cad.export',
+        { artifactId, destPath: '/tmp/x.step', ...input },
+        user,
+        projectId,
+      ),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION,
+      message: `cad.export with ${unsupported.join(', ')} is implemented by the Rust host`,
+      details: { op: 'cad.export', unsupported, implementedBy: 'rust-host' },
+    });
+  });
+
+  it('refuses every agent call: this core would write anywhere', async () => {
+    await expect(
+      app.dispatch('cad.export', { artifactId, destPath: 'exports/a.stl' }, agent, projectId),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION,
+      message: 'cad.export for an agent is implemented by the Rust host',
+      details: { op: 'cad.export', unsupported: ['agent origin'], implementedBy: 'rust-host' },
+    });
+  });
+
+  it("still serves a person's STL copy", async () => {
+    await expect(
+      app.dispatch(
+        'cad.export',
+        { artifactId, destPath: path.join(root, 'a.stl') },
+        user,
+        projectId,
+      ),
+    ).rejects.toMatchObject({ code: ErrorCodes.NOT_FOUND });
+  });
+});

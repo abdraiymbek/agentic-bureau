@@ -1,8 +1,11 @@
 /**
  * Truthful outcomes for the mechanical loop: what a CAD write actually produced, which render
- * jobs belong to a part and what state they are in, and where the core will accept a render.
+ * and export jobs belong to a part and what state they are in, where the core will accept a
+ * render, and what a STEP export wrote.
  */
 import type { Job, MechanicalPayload, Revision } from '@omenflow/contracts';
+import { formatQuantity } from '../ui/format';
+import { formatBytes } from './diff';
 import { sameValue } from './revision-draft';
 
 /* ------------------------------------------------------------------ */
@@ -200,4 +203,138 @@ export function meshProvenance(
   if (linked) return 'rendered';
   // The project's own convention for a stand-in mesh attached for visual review.
   return payload.manufacturing?.includes('Illustrative') ? 'illustrative' : 'unlinked';
+}
+
+/* ------------------------------------------------------------------ */
+/* STEP export (cad.export with format step)                            */
+/* ------------------------------------------------------------------ */
+
+/** STEP export jobs for one part, newest first. */
+export function exportJobsFor(jobs: Job[], artifactId: string): Job[] {
+  return jobs
+    .filter((j) => j.kind === 'cad_export' && jobInputs(j).artifactId === artifactId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** The fields of a `cad.export` STEP result the stage reads. */
+export interface StepExportResult {
+  path: string;
+  format: 'step';
+  revisionId: string;
+  revisionSeq: number;
+  reviewState: string;
+  isBaseline: boolean;
+  verification?: string;
+  /** brep: rebuilt with exact surfaces and compared with the render; faceted: the render's triangles. */
+  method: 'brep' | 'faceted';
+  exact: boolean;
+  faces: number;
+  solids: number;
+  bytes: number;
+  checks: Record<string, unknown>;
+  converter: Record<string, unknown> | null;
+  approximations?: string[];
+  /** Why the file is not exact, when it is faceted and exact was tried. */
+  reason?: string;
+  notes?: string[];
+}
+
+/**
+ * Why Export STEP is not offered for the revision on screen, or null. The core exports only a
+ * revision's own render, the mesh its checks measured.
+ */
+export function stepExportBlock(input: {
+  readOnly: boolean;
+  displayed: Revision | null;
+  provenance: MeshProvenance;
+  editing: boolean;
+  /** Revision number of a STEP export of this part that is still running. */
+  running: number | null;
+}): string | null {
+  const { displayed } = input;
+  if (input.readOnly) return 'This project is read-only.';
+  if (!displayed) return 'There is no revision to export.';
+  if (input.running !== null) return `A STEP export of r${input.running} is running.`;
+  if (input.editing)
+    return 'Save or discard your edits first; the export uses the recorded revision.';
+  if (input.provenance === 'illustrative')
+    return `r${displayed.seq} shows an illustrative mesh, not a render of its source.`;
+  if (input.provenance !== 'rendered')
+    return `r${displayed.seq} has no render of its own source; render it first.`;
+  return null;
+}
+
+/** The suggested file name, slugged as the core names part files: `motor-mount-r3.step`. */
+export function stepFileName(title: string, seq: number): string {
+  let slug = '';
+  for (const ch of title) {
+    if (/^[A-Za-z0-9]$/.test(ch)) slug += ch.toLowerCase();
+    else if (slug && !slug.endsWith('-')) slug += '-';
+  }
+  slug = slug.replace(/-+$/, '').slice(0, 60);
+  return `${slug || 'part'}-r${seq}.step`;
+}
+
+const num = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+/**
+ * What a STEP export wrote, in words: exact surfaces only when the core compared them with the
+ * render and every check passed; a faceted file says so and why.
+ */
+export function stepOutcomeView(r: StepExportResult): {
+  tone: 'ok' | 'warn';
+  headline: string;
+  lines: string[];
+  approximations: string[];
+} {
+  const size = formatBytes(r.bytes);
+  const c = r.checks;
+  const lines: string[] = [];
+  const approximations = r.approximations ?? [];
+  if (r.method === 'brep') {
+    const volume = num(c.volumeErrorPct);
+    const box = num(c.bboxErrorMm);
+    const probes = num(c.surfaceProbes);
+    const own = num(c.solidProbes);
+    const samples = num(c.samples);
+    const agree: string[] = [];
+    if (probes !== null)
+      agree.push(
+        `${probes - (num(c.surfaceMismatches) ?? 0)} of ${probes} probes at ${own !== null ? 'the render’s' : 'its'} faces`,
+      );
+    if (own !== null)
+      agree.push(`${own - (num(c.solidMismatches) ?? 0)} of ${own} at the solid’s own faces`);
+    if (samples !== null)
+      agree.push(`${samples - (num(c.sampleMismatches) ?? 0)} of ${samples} points through it`);
+    const within = [
+      volume !== null ? `volume within ${formatQuantity({ value: volume, unit: '%' })}` : null,
+      box !== null ? `bounding box within ${formatQuantity({ value: box, unit: 'mm' })}` : null,
+      agree.length
+        ? `${agree.length > 1 ? `${agree.slice(0, -1).join(', ')} and ${agree[agree.length - 1]}` : agree[0]} agree`
+        : null,
+    ].filter((x): x is string => !!x);
+    lines.push(
+      `Rebuilt from the source and compared with r${r.revisionSeq}’s render${within.length ? `: ${within.join(', ')}` : ''}.`,
+    );
+  } else {
+    lines.push(r.reason ? `Why not exact: ${r.reason}` : 'Faceted, as asked.');
+    lines.push(
+      `Built from r${r.revisionSeq}’s render triangles: ${r.solids} closed ${r.solids === 1 ? 'solid' : 'solids'}, no vertex moved.`,
+    );
+  }
+  for (const note of r.notes ?? [])
+    if (!note.startsWith('Approximated, not exact:')) lines.push(note);
+  const headline =
+    r.method === 'brep'
+      ? r.exact
+        ? `STEP saved · exact surfaces · ${r.faces} faces · ${size}`
+        : `STEP saved · exact surfaces except approximated hulls · ${r.faces} faces · ${size}`
+      : `STEP saved · faceted, not exact · ${r.faces} planar faces · ${size}`;
+  return { tone: r.method === 'brep' && r.exact ? 'ok' : 'warn', headline, lines, approximations };
+}
+
+/** Is a faceted export's reason the missing converter, which Settings can fix? */
+export function missingConverter(r: StepExportResult): boolean {
+  return r.method === 'faceted' && !!r.reason && /^No Python with OCP\b/.test(r.reason);
 }

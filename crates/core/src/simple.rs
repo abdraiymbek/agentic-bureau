@@ -212,13 +212,20 @@ pub(super) fn adapter_profile(input: &Value) -> CoreResult<Option<Value>> {
         })
 }
 
+/// One result per engineering tool: OpenSCAD, and the optional Python with
+/// OCP behind exact STEP export. An unknown `toolId` checks nothing.
 pub(super) fn tool_doctor(input: &Value) -> CoreResult<Value> {
-    if input["toolId"].as_str().is_some_and(|id| id != "openscad") {
-        return Ok(json!({"results": {}}));
+    let wanted = |id: &str| input["toolId"].as_str().is_none_or(|asked| asked == id);
+    let mut results = serde_json::Map::new();
+    if wanted("openscad") {
+        let probe =
+            cad::probe().unwrap_or_else(|error| json!({"available":false,"error":error.message}));
+        results.insert("openscad".into(), probe);
     }
-    let probe =
-        cad::probe().unwrap_or_else(|error| json!({"available":false,"error":error.message}));
-    Ok(json!({"results": {"openscad": probe}}))
+    if wanted("python") {
+        results.insert("python".into(), cad::python_probe());
+    }
+    Ok(json!({"results": results}))
 }
 
 pub(super) fn source_capture(
@@ -328,40 +335,6 @@ pub(super) fn test_create_draft(
         &json!({"type":"test","title":input["title"],"payload":body,"files":[],"inputs":inputs,"rationale":"test procedure"}),
         origin,
     )
-}
-
-pub(super) fn cad_export(handle: &ProjectHandle, input: &Value) -> CoreResult<Value> {
-    let artifact = require_artifact(handle, required_str(input, "artifactId")?)?;
-    let revision_id = artifact["selectedRevisionId"]
-        .as_str()
-        .ok_or_else(|| ContractError::new("NOT_FOUND", "Artifact has no baseline"))?;
-    let revision = require_revision(handle, revision_id)?;
-    let format = required_str(input, "format")?;
-    let file = revision["files"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|file| {
-            file["path"]
-                .as_str()
-                .is_some_and(|path| path.ends_with(&format!(".{format}")))
-        })
-        .ok_or_else(|| ContractError::new("NOT_FOUND", format!("No .{format} on baseline")))?;
-    let sha = required_str(file, "sha256")?;
-    let bytes = handle
-        .object_store()
-        .map_err(storage_error)?
-        .read(sha)
-        .map_err(storage_error)?;
-    let destination = Path::new(required_str(input, "destPath")?);
-    fs::create_dir_all(
-        destination
-            .parent()
-            .ok_or_else(|| ContractError::validation("Destination has no parent"))?,
-    )
-    .map_err(internal)?;
-    fs::write(destination, bytes).map_err(internal)?;
-    Ok(json!({"path":destination}))
 }
 
 /// The bounded first read of a project: what it is for, what it states, what

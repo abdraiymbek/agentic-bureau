@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { Job, MechanicalPayload, Revision } from '@omenflow/contracts';
 import {
+  exportJobsFor,
   jobErrorText,
   jobIsActive,
   jobLogExcerpt,
   jobRevisionId,
   jobSeconds,
   meshProvenance,
+  missingConverter,
   renderJobsFor,
   renderOutcome,
   renderPermission,
+  stepExportBlock,
+  stepFileName,
+  stepOutcomeView,
+  type StepExportResult,
 } from '../../apps/desktop/src/renderer/lib/render-jobs';
 
 function job(id: string, status: Job['status'], extra: Partial<Job> = {}): Job {
@@ -205,5 +211,147 @@ describe('what the mesh on screen is', () => {
   });
   it('has nothing to say without a mesh', () => {
     expect(meshProvenance({}, files.slice(0, 1))).toBe('none');
+  });
+});
+
+describe('STEP export', () => {
+  const brep: StepExportResult = {
+    path: '/Users/me/Desktop/motor-mount-plate-r3.step',
+    format: 'step',
+    revisionId: 'r3',
+    revisionSeq: 3,
+    reviewState: 'approved',
+    isBaseline: true,
+    verification: 'passed',
+    method: 'brep',
+    exact: true,
+    faces: 73,
+    solids: 1,
+    bytes: 247314,
+    checks: {
+      volumeErrorPct: 0.0386,
+      bboxErrorMm: 0.0158,
+      samples: 512,
+      sampleMismatches: 1,
+      surfaceProbes: 2041,
+      surfaceMismatches: 0,
+    },
+    converter: { ocp: '7.9.3.1' },
+    approximations: [],
+    notes: [],
+  };
+
+  it('lists export jobs of one part, newest first', () => {
+    const jobs = [
+      job('a', 'succeeded', { kind: 'cad_export' }),
+      job('bb', 'running', { kind: 'cad_export' }),
+      job('ccc', 'running'),
+      job('dddd', 'running', { kind: 'cad_export', inputs: { artifactId: 'other' } }),
+    ];
+    expect(exportJobsFor(jobs, 'part').map((j) => j.id)).toEqual(['bb', 'a']);
+  });
+
+  it('is offered only for a rendered revision that nothing else holds', () => {
+    const rev = revision('r3', 3, ['a.scad', 'a.stl']);
+    const base = {
+      readOnly: false,
+      displayed: rev,
+      provenance: 'rendered' as const,
+      editing: false,
+      running: null,
+    };
+    expect(stepExportBlock(base)).toBeNull();
+    expect(stepExportBlock({ ...base, readOnly: true })).toBe('This project is read-only.');
+    expect(stepExportBlock({ ...base, displayed: null })).toBe('There is no revision to export.');
+    expect(stepExportBlock({ ...base, running: 2 })).toBe('A STEP export of r2 is running.');
+    expect(stepExportBlock({ ...base, editing: true })).toBe(
+      'Save or discard your edits first; the export uses the recorded revision.',
+    );
+    expect(stepExportBlock({ ...base, provenance: 'illustrative' })).toBe(
+      'r3 shows an illustrative mesh, not a render of its source.',
+    );
+    for (const provenance of ['none', 'unlinked'] as const)
+      expect(stepExportBlock({ ...base, provenance })).toBe(
+        'r3 has no render of its own source; render it first.',
+      );
+  });
+
+  it('suggests a file name slugged as the core names part files', () => {
+    expect(stepFileName('Motor mount plate', 3)).toBe('motor-mount-plate-r3.step');
+    expect(stepFileName('', 1)).toBe('part-r1.step');
+    expect(stepFileName('Ø6 bracket — left', 2)).toBe('6-bracket-left-r2.step');
+    expect(stepFileName('???', 4)).toBe('part-r4.step');
+  });
+
+  it('calls a file exact only when it was compared with the render, with the figures', () => {
+    const view = stepOutcomeView(brep);
+    expect(view.tone).toBe('ok');
+    expect(view.headline).toBe('STEP saved · exact surfaces · 73 faces · 247.3 kB');
+    expect(view.lines[0]).toBe(
+      'Rebuilt from the source and compared with r3’s render: volume within 0.0386%, bounding box within 0.0158\u00a0mm, 2041 of 2041 probes at its faces and 511 of 512 points through it agree.',
+    );
+    expect(missingConverter(brep)).toBe(false);
+  });
+
+  it('counts the probes at the solid’s own faces when the core sent them', () => {
+    const view = stepOutcomeView({
+      ...brep,
+      checks: { ...brep.checks, solidProbes: 2044, solidMismatches: 1 },
+    });
+    expect(view.lines[0]).toBe(
+      'Rebuilt from the source and compared with r3’s render: volume within 0.0386%, bounding box within 0.0158 mm, 2041 of 2041 probes at the render’s faces, 2043 of 2044 at the solid’s own faces and 511 of 512 points through it agree.',
+    );
+  });
+
+  it('says what an approximated hull is', () => {
+    const view = stepOutcomeView({
+      ...brep,
+      exact: false,
+      approximations: ['a hull() of 3D shapes other than upright cylinders is planar facets'],
+      notes: [
+        'Approximated, not exact: a hull() of 3D shapes other than upright cylinders is planar facets.',
+      ],
+    });
+    expect(view.tone).toBe('warn');
+    expect(view.headline).toBe(
+      'STEP saved · exact surfaces except approximated hulls · 73 faces · 247.3 kB',
+    );
+    expect(view.approximations).toHaveLength(1);
+    expect(view.lines).toHaveLength(1);
+  });
+
+  it('says a faceted file is not exact, why, and what it was built from', () => {
+    const faceted: StepExportResult = {
+      ...brep,
+      method: 'faceted',
+      exact: false,
+      faces: 1258,
+      solids: 2,
+      bytes: 1_219_922,
+      checks: { volumeErrorPct: 0 },
+      reason:
+        'No Python with OCP (OpenCASCADE) was found; exact surfaces need the optional converter (Settings → Engineering tools).',
+      notes: [
+        'r3 has no passing cad_check (failed).',
+        'The STEP holds 2 solids, as the render has 2 bodies.',
+      ],
+    };
+    const view = stepOutcomeView(faceted);
+    expect(view.tone).toBe('warn');
+    expect(view.headline).toBe('STEP saved · faceted, not exact · 1258 planar faces · 1.2 MB');
+    expect(view.lines).toEqual([
+      `Why not exact: ${faceted.reason}`,
+      'Built from r3’s render triangles: 2 closed solids, no vertex moved.',
+      'r3 has no passing cad_check (failed).',
+      'The STEP holds 2 solids, as the render has 2 bodies.',
+    ]);
+    expect(missingConverter(faceted)).toBe(true);
+    expect(
+      missingConverter({
+        ...faceted,
+        reason: 'The exact converter stopped at the export’s 120000 ms limit.',
+      }),
+    ).toBe(false);
+    expect(stepOutcomeView({ ...faceted, reason: undefined }).lines[0]).toBe('Faceted, as asked.');
   });
 });

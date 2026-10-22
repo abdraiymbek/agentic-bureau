@@ -1488,6 +1488,19 @@ function InProduct() {
       needsProject: true,
     },
     {
+      name: 'Part stage: Export STEP, render and export job rows, STEP outcome (exact or faceted)',
+      where: 'object/mechanical/MechanicalStage.tsx, lib/render-jobs.ts',
+      action: 'Open a part',
+      open: () => {
+        const part = useStore
+          .getState()
+          .artifacts.find((v) => v.artifact.type === 'mechanical' && !v.artifact.archived);
+        if (part) useStore.getState().focus(part.artifact.id);
+        else toast('info', 'This project has no mechanical part.');
+      },
+      needsProject: true,
+    },
+    {
       name: 'Queue, phase notices, diff rows, decision bar',
       where: 'decide/DecideView.tsx, decide/DecisionBar.tsx',
       action: 'Open decisions',

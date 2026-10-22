@@ -15,6 +15,11 @@
   libraries are needed); `node scripts/linux-package.mjs` builds, tests and runs the Linux
   packages in containers instead ([release](release.md#linux-packages)).
 - Optional: a signed-in Codex CLI or Claude Code for real agent sessions.
+- Optional: a Python with OCP for the exact STEP converter's opt-in tests (they never look for
+  one on their own). Offline from the uv cache, for example:
+  `uv venv --offline --python 3.12 /tmp/step-venv && uv pip install --offline --python /tmp/step-venv/bin/python cadquery-ocp-novtk==7.9.3.1.1`,
+  then
+  `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=/tmp/step-venv/bin/python cargo test -p omenflow-core --lib --locked cad::step -- --nocapture`.
 
 After a clean install on macOS run `pnpm rebuild:node`: node-pty's prebuilt `spawn-helper` is
 unpacked without its executable bit, and the legacy PTY tests fail with `posix_spawnp failed`
@@ -123,6 +128,9 @@ the Rust code (`#[cfg(test)]` modules, `crates/*/tests`, `apps/headless/tests`),
 | `OMENFLOW_SMOKE_SNAPSHOT`                  | With `OMENFLOW_SMOKE_PROJECT`: write a picture of the page when the smoke asks for one            |
 | `OMENFLOW_ALLOW_MISSING_OPENSCAD=1`        | Rust engine tests skip instead of failing when OpenSCAD is absent                                 |
 | `OPENSCAD_PATH`                            | The OpenSCAD executable to use when none is configured in Settings                                |
+| `OMENFLOW_PYTHON`                          | The Python with OCP for exact STEP export when none is configured in Settings                     |
+| `OMENFLOW_STEP_E2E=1`                      | With `OMENFLOW_PYTHON`: runs the Rust test of a real exact STEP export (fails without the Python) |
+| `OMENFLOW_STEP_CORPUS`                     | A folder of `<id>/project` folders: exports each part as STEP and prints one JSON line per part   |
 | `OMENFLOW_OPENSCAD_E2E=1`                  | Runs the legacy TypeScript real-engine tests (`pnpm test`)                                        |
 | `OMENFLOW_HOST_BIN`                        | The `omenflow-host` binary the conformance client and fixtures start                              |
 | `OMEN_PREVIEW_PORT`, `OMEN_PREVIEW_AGENTS` | Design preview port; `1` allows terminals and agent settings (any CLI) in it                      |

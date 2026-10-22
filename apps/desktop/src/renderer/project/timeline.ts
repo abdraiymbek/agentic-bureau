@@ -14,6 +14,7 @@ const LABELS: Record<string, string> = {
   'project.created': 'Project created',
   'project.intent_changed': 'Intent changed',
   'build.exported': 'Build exported',
+  'cad.exported': 'Exported',
   'bom.changed': 'Bill of materials changed',
   'artifact.archived': 'Archived',
 };
@@ -34,6 +35,8 @@ interface EventData {
   changed?: unknown;
   affected?: unknown;
   state?: unknown;
+  format?: unknown;
+  method?: unknown;
 }
 
 const data = (e: ProjectEvent) => (e.data ?? {}) as EventData;
@@ -55,6 +58,8 @@ export function eventLabel(e: ProjectEvent): string | null {
   const d = data(e);
   if (e.type === 'impact.propagated' && reached(d) === 0) return null;
   if (e.type === 'revision.committed' && d.reviewState === 'draft') return 'Drafted';
+  if (e.type === 'cad.exported')
+    return `Exported ${(text(d.format) ?? 'file').toUpperCase()}${d.method === 'faceted' ? ' (faceted)' : ''}`;
   return label;
 }
 
@@ -87,6 +92,8 @@ export function eventFields(e: ProjectEvent) {
     rationale: text(d.rationale),
     intent: text(d.intent),
     destPath: text(d.destPath),
+    format: text(d.format),
+    method: text(d.method),
   };
 }
 

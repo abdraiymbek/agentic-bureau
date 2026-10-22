@@ -63,6 +63,9 @@ export const EVENT_RESOURCES: Readonly<Record<string, readonly SyncResource[]>> 
   'job.updated': ['jobs'],
   'session.state': ['session'],
   'project.intent_changed': [],
+  // An export writes a file and a job; the job arrives as job.updated.
+  'cad.exported': [],
+  'build.exported': [],
   'project.renamed': [],
   'ui.suggested_action': [],
   'ui.open_artifact': [],

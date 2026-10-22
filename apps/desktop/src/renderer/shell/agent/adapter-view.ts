@@ -281,6 +281,26 @@ export interface ToolProbe {
   error: string | null;
 }
 
+/**
+ * The STEP converter entry of `tool.doctor` (a Python that imports OCP), or null when the host
+ * did not probe it.
+ */
+export function pythonProbe(
+  results: unknown,
+): (ToolProbe & { ocp: string | null; note: string | null }) | null {
+  const entry = (results as { python?: Record<string, unknown> } | null)?.python;
+  if (!entry || typeof entry !== 'object') return null;
+  const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
+  return {
+    available: entry.available === true,
+    version: text(entry.version),
+    path: text(entry.executablePath),
+    error: text(entry.error),
+    ocp: text(entry.ocp),
+    note: text(entry.note),
+  };
+}
+
 /** The OpenSCAD entry of `tool.doctor`, or null when the host did not probe it. */
 export function openscadProbe(results: unknown): ToolProbe | null {
   const entry = (results as { openscad?: Record<string, unknown> } | null)?.openscad;

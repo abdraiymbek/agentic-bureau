@@ -26,6 +26,9 @@ Apache-2.0
 - **OpenSCAD** for rendering and checking parts. It is not bundled; everything else works without
   it. macOS: `brew install --cask openscad@snapshot`. Linux: your distribution's package
   (`sudo apt install openscad`, `sudo dnf install openscad`).
+- Optional: **Python 3.11–3.14 with OCP** (`cadquery-ocp-novtk==7.9.3.1.1`) makes STEP exports
+  exact; without it they are faceted. It is not bundled; see
+  [STEP export](docs/engineering-adapters.md#step-export).
 
 ### macOS
 
@@ -128,7 +131,7 @@ Closing a project stops its agent. A project written by a newer build opens read
 - **Adaptive capability profiles.** Each session is fixed to `compact`, `standard` or `full`. A
   small model (Haiku, Luna, mini, local models) gets 13 flat tools, playbooks on demand
   (`guide_read`), reported input repairs and a server-owned completion gate (`work_status`). A
-  large model keeps the full surface of 57 tools. Verification rules are the same in every
+  large model keeps the full surface of 58 tools. Verification rules are the same in every
   profile, and every agent-allowed operation stays callable through `tool_call`. Details:
   [agent adapters](docs/agent-adapters.md).
 - **Evidence.** The Evidence lens is the requirement → evidence matrix from `project.coverage`:
@@ -250,6 +253,13 @@ scripted sessions and no model.
 - The agent runs with your operating-system permissions. Omen Flow's review gate controls what
   enters the engineering baseline; it is not a sandbox. See [security](SECURITY.md).
 - Research browsing (an isolated webview reading public pages) exists only in the desktop app.
+- STEP export (**Export STEP** in a part's view, `cad_export` for agents) has exact surfaces only
+  with the optional converter and only for what it rebuilds: `minkowski()`, `resize()`, a
+  chamfered `offset()`, a twisted or scaled `linear_extrude`, `roof()` and `projection()` make a
+  faceted file, and a `hull()` of anything but upright cylinders or circles is planar facets. A
+  part with a surface too thin for the comparison's probes is faceted too, with that reason. A
+  faceted file is the render's triangles merged into planar faces (median 1.3 MB, at most 7.5 MB
+  on the 49-part CADGenBench corpus); large ones are slow to open in some CAD tools.
 - Project archives carry the record, objects and working files, not readable per-artifact views;
   agent call history stays out of archives.
 
@@ -264,5 +274,5 @@ ledger went.
 Omen Flow is licensed under the Apache License 2.0: see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 The app includes third-party crates, packages and fonts under their own permissive licences,
 listed with their copyright notices in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-shipped inside every release package. OpenSCAD and agent CLIs are installed separately and keep
-their own licences.
+shipped inside every release package. OpenSCAD, Python with OCP (OpenCASCADE, LGPL) for exact
+STEP export, and agent CLIs are installed separately and keep their own licences.

@@ -38,6 +38,7 @@ OpenSCAD is installed separately; it is not bundled.
 | `cad_read_source`                                  | no          | The source and parameters of the newest (or a given) revision, and whether it has a render                                                                                                                                           |
 | `cad_inspect`                                      | no revision | The report for any revision, with chosen cutting planes, probe points and `-D` overrides; a re-render is recorded as a job, nothing is committed                                                                                     |
 | `cad_check`                                        | yes         | Verifies explicit expectations and returns pass or fail per assertion with measured against expected values                                                                                                                          |
+| `cad_export`                                       | yes         | Writes a part as STEP (exact `brep` or `faceted`, below), STL or SCAD; full profile, and only when the person asked for a file                                                                                                       |
 
 `cad_write_source`, `cad_read_source` and `cad_check` are in the compact profile; the others are
 in standard. Write, check and inspect results take `detail: "brief" | "full"`; compact sessions
@@ -77,7 +78,117 @@ earlier checkers stays readable.
 
 **Not listed for agents but still callable** (through `tool_call` or `omenflow call`):
 `cad.render` (the background job the interface uses), `cad.validate_source`, `cad.probe`,
-`job.read`, `job.list`, `job.cancel`. `cad.export` is user-only.
+`job.read`, `job.list`, `job.cancel`.
+
+### STEP export
+
+`cad_export` with `format: "step"` writes a STEP (AP214) solid that matches the revision's
+checked render, the mesh `cad_check` measured (`cad/step.rs`). The result says which of two
+methods made it (`method`, `exact`) and how it compares with the render (`checks`):
+
+- **brep, exact surfaces.** OpenSCAD evaluates the stored source with the recorded parameters
+  into its CSG tree (`-o output.csg`, the same `-D` values as the render). An optional Python
+  with OCP rebuilds that tree with OpenCASCADE (`cad/csg_to_step.py`, which needs only the
+  standard library and OCP), writes the file and reads it back. The core uses the file only
+  when, as read back, it is valid, every shell is closed, it has no free edges and every face
+  tessellates; it has as many solids as the render has bodies; its volume is within 0.5 % of the
+  render's and its bounding box within max(0.05 mm, 0.5 % of the largest extent); at most 3 of
+  512 points through the bounding box classify differently; and the probe pairs agree.
+- **Probe pairs.** Each sits just inside and just outside a face. The core places them on every
+  smooth surface of the render (a planar face, a cylinder wall, a sphere: triangles meeting at
+  under 30°), four on each while 2,048 pairs allow, never fewer than two (the budget grows to
+  8,192); the converter places them on the exact solid's own faces the same way, away from the
+  edges of its mesh triangles, and the core classifies those against the render. At most 2 pairs
+  may disagree on each side, and no surface may lose most of its pairs: a hole or boss the
+  rebuild lost, or material it added, takes its own surface's pairs with it. The first offset is
+  three times the facet bound: the largest r(1 − cos(π/f)) of any curved primitive in the CSG
+  tree (about twice that for a sphere's faces, a revolution's at its profile's farthest point,
+  0.01 mm for an approximated `hull()`), stretched by that primitive's own enclosing transforms
+  only. Guard points a margin further out (1.5 times the facet bound, at least the smallest
+  offset) must classify as the pair does, so neither point lies near another face. A pair that
+  crosses a wall or gap is tried elsewhere on the surface, then at half the offset, down to
+  0.001 mm or 1e-5 of the part's size. A pair nearer the face than 1.5 times the facet bound
+  counts only when it agrees, since the facets themselves may lie that far from the exact
+  surface; one that disagrees is set aside (`surfaceSetAside`, `solidSetAside`). A surface left
+  with fewer than two pairs that count is never vouched for: the export is faceted with that
+  reason. So a lost feature is found however small it is beside the part, or the export is
+  faceted. Not probed: slivers a boolean left between faces, narrower across than the smallest
+  offset (`surfaceSlivers`, `solidSlivers`), and faces of the exact solid on which no pair fits
+  (`solidUnprobedFaces`); added material that thin would go unseen.
+- **What else is checked.** Rust also checks the file's own bytes (its size, ISO 10303-21
+  framing, the AP214 schema, a solid); `checks.basis` names the OCP version that read it back,
+  and the job and `converter` name the OCP and Python versions the converter ran with. A
+  `hull()` other than of upright cylinders or circles is rebuilt as planar facets
+  (`exact: false`, listed in `approximations`). Cylinders and circles OpenSCAD drew with 3 to 8
+  facets stay the polygons they are; with more, and spheres and revolutions with any number,
+  they are rebuilt as true surfaces, and those drawn with fewer than 32 facets are named in
+  `notes`. As in OpenSCAD, an empty operand (a false `if()`, `cube(0)`) empties an
+  `intersection()` and a `difference()` from it, a 2D outline is one region when it is swept or
+  offset, and a `rotate_extrude` sweeps from its `start` angle.
+- **faceted, planar faces.** The render's own triangles as a solid (`cad/faceted.rs`, no CAD
+  kernel): coplanar neighbours merge into polygonal faces with inner loops, each body is one
+  closed shell, a cavity is a void. Every vertex is a render vertex; nothing moves. It is always
+  available, up to 250,000 render triangles, and it is the fallback: `reason` says why exact was
+  not used. `method: "faceted"` asks for it directly.
+
+Not rebuilt exactly (the export is then faceted, with the reason): `minkowski()`, `resize()`,
+`offset()` with chamfer, `linear_extrude` with twist or scale, `roof()`, `projection()`,
+`text()`. OpenCASCADE's own `offset` can fail or be slow.
+
+- **One deadline.** `timeoutMs` (default 120,000, at most 300,000) covers finding the Python,
+  the CSG run and the converter; reaching it falls back to faceted. The work runs as a
+  `cad_export` job (tool `omenflow-step`) with the core lock released and stops on
+  `job.cancel`; a cancelled export writes nothing.
+- **Which revision.** `revisionId`, else a person's baseline, else an agent's newest revision.
+  It needs a render of its own source and parameters (`details.reason: "NO_RENDER"`) that is one
+  closed solid (`"NOT_A_SOLID"`). Notes say when the revision is a draft, proposed, rejected or
+  superseded, or has no passing `cad_check`.
+- **Where.** A person writes anywhere (an absolute path) or inside the project. An agent writes
+  only under `exports/` inside the project, judged on the resolved path, with the format's
+  extension (`.step` or `.stp`, `.stl`, `.scad`), and never over a file that no earlier export
+  wrote.
+- **Record.** Every export emits `cad.exported` (Timeline: “Exported STEP”, “Exported STEP
+  (faceted)”, “Exported STL”). The job records the file's hash and the programs by file name;
+  its inputs hold no machine path. Nothing is cached, and exports are not revision files.
+- **STL and SCAD** copy the revision's stored file of any artifact type, as before. They are
+  not staged, run no job, and honour `idempotencyKey`.
+
+**The converter is optional and installed separately.** OpenCASCADE (LGPL) is never bundled or
+downloaded. The core looks, in order, at Settings → Engineering tools → STEP converter
+(`toolPaths.python`), `OMENFLOW_PYTHON`, `~/.omenflow-step/bin/python3`, `python3` and `python`
+on `PATH`, `/opt/homebrew/bin/python3` and `/usr/local/bin/python3` (Linux: `/usr/bin/python3`),
+and on macOS the login shell's `python3`. macOS's `/usr/bin/python3` is used only when it is
+configured. A Python counts when `python -E -c "import OCP"` works (30 s limit). An export's
+search remembers a success until the executable file changes and a failure for a minute, and
+forgets the success when the converter then cannot import OCP; Settings and `tool_doctor` (which
+reports it as `results.python`) always check again, since installing or removing OCP with pip
+leaves the interpreter untouched. To set one up (Python 3.11 to 3.14):
+
+```sh
+python3.12 -m venv ~/.omenflow-step
+~/.omenflow-step/bin/python -m pip install cadquery-ocp-novtk==7.9.3.1.1
+# or, with uv:
+uv venv --python 3.12 ~/.omenflow-step
+uv pip install --python ~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1
+```
+
+OCP 7.9.3 is the release CADGenBench's own STEP validity check uses.
+
+Measured on the 49 parts of an earlier CADGenBench run with OCP 7.9.3 on a loaded machine: 46
+exact (42 without approximations, 4 with an approximated `hull()`), 3 faceted (an `offset()`
+OpenCASCADE could not make, one rebuilt 5.8 % off in volume, one face that does not tessellate).
+Every exact file is one solid, as every render is one body. The accepted parts differed from
+their renders by at most 0.075 % in volume and 0.016 mm in bounding box, with at most 1 of 512
+points through the box, no probe pair at the render's faces and 1 at a solid's own faces
+disagreeing, and no pair set aside. A copy of each part's CSG tree without the last child of its
+first `difference()` was refused every time (32 by volume, 15 by the probes, 2 parts that were
+faceted anyway); a copy without one cutter primitive was refused 41 times in 42 (27 by the
+probes, 12 by volume, 2 faceted anyway), and the one accepted copy had lost a cutter that cut
+nothing (the same volume to the cubic millimetre). CADGenBench's own validity check passed all 49
+files the exports chose, the faceted ones included, in at most 62 s each. Exports took 3 s median
+and 14 s at the 90th percentile (99 s at most). Faceted files of all 49: median 1,258 faces and
+1.3 MB, at most 9,817 faces and 7.5 MB, every volume within 0.000002 % of the render's; the three
+largest (5.1–7.5 MB) ran past that validity check's 180 s tessellation limit on the same machine.
 
 ## Calculations
 

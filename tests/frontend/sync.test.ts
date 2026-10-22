@@ -92,6 +92,9 @@ describe('event to resource mapping', () => {
   it('applies intent and navigation events without refreshing anything', () => {
     for (const type of ['project.intent_changed', 'project.renamed', 'ui.open_artifact'])
       expect(resourcesForEvent(type)).toEqual([]);
+    // An export writes a file; its job arrives as its own job.updated.
+    expect(resourcesForEvent('cad.exported')).toEqual([]);
+    expect(resourcesForEvent('build.exported')).toEqual([]);
     expect(resourcesForEvent('ui.something_new')).toEqual([]);
   });
 

@@ -232,6 +232,15 @@ zoom, `1`–`7` standard views, `F` fit, `0` reset, `O` projection, `S` section,
 `B` envelope, `E` edges, `W` wireframe, `G` grid, `Esc` leaves measure. Scroll zooms only with
 focus, a resting pointer or a pinch; otherwise the stage scrolls.
 
+A mechanical part's bar also carries **Export STEP**. It asks where to save, runs as an export
+job row with **Cancel export** (from the job store, so an export an agent or another window
+started shows too, and Export STEP waits for it), and reports only what the core answered:
+“exact surfaces” with the comparison against the render (volume, bounding box, probes at the
+render's faces and at the solid's own), “exact surfaces except approximated hulls” with the list,
+or “faceted, not exact” with the reason and what it was built from. A missing converter links to
+Engineering tools. It is offered only for a revision with a render of its own source, outside
+edits and read-only projects; the reason otherwise sits under the bar.
+
 ### Level 2 — Decision
 
 The same three-part grammar: **queue · proposal · impact**.
@@ -504,8 +513,8 @@ All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled
 | `Kbd`, `Spinner`     | Shortcuts and active work                                                                                        |
 
 Composite patterns: map node, map legend and peek, Needs-you row, rail link node, folding rail,
-stage header, revision banner, underneath notice, save bar, viewport tool island, render job
-row, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
+stage header, revision banner, underneath notice, save bar, viewport tool island, render and
+export job rows, STEP export outcome, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
 bar, handoff card, lens table row, totals strip, evidence chip, activity bar, session bar,
 pane switch, conversation turn and composer, input attachment, inline card (part, record,
 quantities, chart, choices, review), work-not-finished card, continuation message, turn model

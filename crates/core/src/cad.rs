@@ -14,17 +14,21 @@ use std::collections::HashSet;
 mod checks;
 mod engine;
 mod expect;
+mod faceted;
 mod jobs;
 mod mesh;
 mod params;
+mod python;
 mod render;
 mod report;
 mod section;
 mod stage;
+mod step;
 mod verification;
 
 pub use report::brief;
-pub(crate) use stage::{committing, planning, with_probe};
+pub(crate) use stage::{committing, planning, with_probes};
+pub(super) use step::export;
 pub use verification::readiness;
 pub(super) use verification::{
     committed_expect, latest_verification, record_scope_acceptance, validate_scope_accept,
@@ -34,6 +38,7 @@ const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad_write_
 
 thread_local! {
     static CONFIGURED_EXECUTABLE: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+    static CONFIGURED_PYTHON: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
 // Each app dispatch (including its render worker) uses its own saved tool path.
@@ -53,6 +58,24 @@ pub(super) fn with_executable<T>(path: Option<PathBuf>, work: impl FnOnce() -> T
 
 pub(super) fn configured_executable() -> Option<PathBuf> {
     CONFIGURED_EXECUTABLE.with(|value| value.borrow().clone())
+}
+
+/// The saved Python for exact STEP export, scoped like the engine path.
+pub(super) fn with_python<T>(path: Option<PathBuf>, work: impl FnOnce() -> T) -> T {
+    struct Restore(Option<PathBuf>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            CONFIGURED_PYTHON.with(|value| {
+                value.replace(self.0.take());
+            });
+        }
+    }
+    let _restore = Restore(CONFIGURED_PYTHON.with(|value| value.replace(path)));
+    work()
+}
+
+pub(super) fn configured_python() -> Option<PathBuf> {
+    CONFIGURED_PYTHON.with(|value| value.borrow().clone())
 }
 
 /// What compute may use: the object store, the engine setting and a
@@ -146,6 +169,16 @@ pub(super) fn probe() -> CoreResult<Value> {
         Some(probe) => Ok(probe),
         None => engine::probe(configured_executable().as_deref()),
     }
+}
+
+/// The STEP converter as `tool_doctor` reports it: a Python that imports OCP.
+pub(super) fn python_probe() -> Value {
+    stage::staged_python_probe().unwrap_or_else(|| python::probe(configured_python().as_deref()))
+}
+
+/// Probe the STEP converter without touching application state.
+pub(crate) fn python_probe_for(configured: Option<&Path>) -> Value {
+    python::probe(configured)
 }
 
 fn require_mechanical(handle: &ProjectHandle, id: &str) -> CoreResult<Value> {

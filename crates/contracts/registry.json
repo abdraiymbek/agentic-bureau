@@ -49,7 +49,9 @@
     "file.external_edit",
     "session.state",
     "ui.suggested_action",
-    "ui.open_artifact"
+    "ui.open_artifact",
+    "cad.exported",
+    "build.exported"
   ],
   "artifactPayloadSchemas": {
     "requirement": {
@@ -5487,35 +5489,66 @@
     {
       "name": "cad.export",
       "toolName": "cad_export",
-      "description": "Export STL/SCAD file to a chosen path",
-      "capability": "user",
-      "mutating": false,
+      "description": "Export a part to a file. format \"step\" writes a STEP solid matching the checked render: \"brep\" (exact surfaces) is rebuilt from the source and compared with it, else \"faceted\" (planar faces). stl and scad copy the stored file. Use it only when asked for a file. Returns the path, method and checks.",
+      "capability": "both",
+      "mutating": true,
       "agentVisible": true,
-      "agentAllowed": false,
-      "agentTool": false,
+      "agentAllowed": true,
+      "agentTool": true,
       "tier": "full",
       "pack": "cad",
-      "summary": "Export STL/SCAD file to a chosen path",
-      "example": null,
+      "summary": "Export a part as STEP, STL or SCAD; only when the person asked.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "format": "step",
+        "destPath": "exports/motor-mount.step"
+      },
       "compactSchema": null,
       "inputSchema": {
         "type": "object",
         "properties": {
           "artifactId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Part to export."
           },
-          "destPath": {
+          "revisionId": {
             "type": "string",
-            "minLength": 1
+            "format": "uuid",
+            "description": "Defaults to the baseline; for an agent, the newest revision."
           },
           "format": {
             "type": "string",
             "enum": [
               "stl",
-              "scad"
+              "scad",
+              "step"
             ],
-            "default": "stl"
+            "default": "stl",
+            "description": "step: a solid matching the checked render; stl, scad: the stored file."
+          },
+          "destPath": {
+            "type": "string",
+            "minLength": 1,
+            "description": "File to write; an agent writes under exports/, e.g. \"exports/bracket.step\"."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "faceted"
+            ],
+            "description": "STEP only: auto (default) is exact when possible, else faceted; faceted always."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 300000,
+            "description": "Limit for the whole export, ms (default 120000)."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Optional; reuse the same key only when retrying the identical call."
           }
         },
         "required": [
@@ -6814,7 +6847,7 @@
     {
       "name": "tool.doctor",
       "toolName": "tool_doctor",
-      "description": "Check that the engineering tools are installed and working (currently OpenSCAD): path, version and any error. Use it when a CAD call fails because a tool is missing. Returns one result per tool.",
+      "description": "Check that the engineering tools are installed and working: OpenSCAD, and the optional Python with OCP for exact STEP. Use it when a CAD call fails because a tool is missing. Returns one result per tool.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,
@@ -6822,7 +6855,7 @@
       "agentTool": true,
       "tier": "full",
       "pack": "system",
-      "summary": "Check that OpenSCAD is installed and working.",
+      "summary": "Check that OpenSCAD and the optional STEP converter work.",
       "example": {},
       "compactSchema": null,
       "inputSchema": {
@@ -6830,7 +6863,7 @@
         "properties": {
           "toolId": {
             "type": "string",
-            "description": "Tool to check, e.g. \"openscad\". Omit for all."
+            "description": "Tool to check: \"openscad\" or \"python\". Omit for all."
           }
         },
         "additionalProperties": false,

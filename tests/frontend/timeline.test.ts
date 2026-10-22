@@ -54,6 +54,27 @@ describe('timeline rows', () => {
     expect(eventLabel(event(1, 'impact.propagated', { affected: ['a2'] }))).toBe('Impact reached');
   });
 
+  it('names an export by its format and says when a STEP file is faceted', () => {
+    const step = event(1, 'cad.exported', {
+      artifactId: 'part',
+      format: 'step',
+      method: 'faceted',
+      destPath: '/x/part.step',
+    });
+    expect(eventLabel(step)).toBe('Exported STEP (faceted)');
+    expect(eventLabel(event(2, 'cad.exported', { format: 'step', method: 'brep' }))).toBe(
+      'Exported STEP',
+    );
+    expect(eventLabel(event(3, 'cad.exported', { format: 'stl' }))).toBe('Exported STL');
+    expect(eventLabel(event(4, 'cad.exported', {}))).toBe('Exported FILE');
+    expect(eventArtifactIds(step, [])).toEqual(['part']);
+    expect(eventFields(step)).toMatchObject({
+      format: 'step',
+      method: 'faceted',
+      destPath: '/x/part.step',
+    });
+  });
+
   it('counts only what an impact reached beyond the objects that changed', () => {
     // A part accepted on its own still has an older input: it is listed, but nothing was reached.
     const own = event(1, 'impact.propagated', {

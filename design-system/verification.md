@@ -4,6 +4,39 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## STEP export · 22 October 2026
+
+**Export STEP** in the mechanical stage's bar (`object/mechanical/MechanicalStage.tsx`,
+`lib/render-jobs.ts`), its export job row and outcome notice, and Settings → Engineering tools →
+STEP converter (`shell/StepConverter.tsx`). Checked in the design preview, started through a local
+copy of `scripts/design-preview.ts` that reused the built helper (a nested worktree cannot build
+`native/omenflow-bridge`), at 1440 × 900 and 1024 × 700 in Graphite and Paper, with the Compare
+checkbox present at 1024:
+
+- On the rover's camera tray r2 (the illustrative mesh) Export STEP is disabled and the note
+  under the bar reads “STEP: r2 shows an illustrative mesh, not a render of its source.”
+- After **Render r2** (r3, a real OpenSCAD render) with no converter set up, the export showed
+  the job row (“Exporting STEP · r3 · … · omenflow-step”, **Cancel export**, Export STEP busy),
+  then “STEP saved · faceted, not exact · 130 planar faces · 125.4 kB” with the reason, what it
+  was built from, the draft and no-passing-check notes, the path, Reveal and **Engineering
+  tools** (which opened Settings; opening it at the Engineering tools section was added after
+  this check and is covered by the typecheck only).
+- The STEP converter row went from “Not set up” (“No Python with OCP (OpenCASCADE) was found”)
+  to “Working” (“OCP 7.9.3.1 on Python 3.12.14.” and the path) after Save and check, while the
+  OpenSCAD row kept its own state.
+- The next export was exact: “STEP saved · exact surfaces · 26 faces · 88.0 kB”, volume within
+  0.005 %, 2041 of 2041 probes at its faces and 512 of 512 points through it, and notes naming
+  the 16- and 24-facet cylinders rebuilt as true circles.
+- **Cancel export** on a running export ended with “STEP export cancelled. Nothing was written.”
+  and no Timeline row; the Timeline shows “Exported STEP” and “Exported STEP (faceted)” rows on
+  the part.
+- No console errors. Not checked: the native app's save dialog and Reveal (the preview's Reveal
+  only shows its hint), VoiceOver.
+- After review, the same day: the comparison also probes the exact solid's own faces, and the
+  outcome's line counts those pairs (“… probes at the render's faces, … at the solid's own faces
+  and … points through it agree”). Covered by `tests/frontend/render-jobs.test.ts`; not looked at
+  again in the preview.
+
 ## Introduction · 21 October 2026
 
 A first-run introduction over the launcher (`renderer/intro/`, `styles/intro.css`): four acts on

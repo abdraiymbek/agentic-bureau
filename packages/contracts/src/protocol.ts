@@ -122,4 +122,6 @@ export const EVENT_TYPES = {
   SESSION_STATE: 'session.state',
   SUGGESTED_ACTION: 'ui.suggested_action',
   ARTIFACT_OPEN: 'ui.open_artifact',
+  CAD_EXPORTED: 'cad.exported',
+  BUILD_EXPORTED: 'build.exported',
 } as const;

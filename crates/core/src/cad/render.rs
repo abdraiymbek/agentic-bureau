@@ -319,6 +319,45 @@ impl Drop for Turn {
     }
 }
 
+/// What one engine run writes.
+pub(crate) enum Output<'a> {
+    /// The render: a binary STL.
+    BinaryStl(&'a Path),
+    /// The evaluated CSG tree, which the STEP converter rebuilds. Its `.csg`
+    /// suffix selects the format: `--export-format` would apply to every
+    /// output of the run.
+    Csg(&'a Path),
+}
+
+/// OpenSCAD arguments that evaluate `request` (its source already written to
+/// `scad`) into `output`, and the "-D a=1 -D b=2 " text for the recorded
+/// command. Renders and CSG exports of a revision both come through here, so
+/// both evaluate the same `-D` values.
+pub(crate) fn engine_args(
+    request: &Request,
+    scad: &Path,
+    output: Output<'_>,
+) -> CoreResult<(Vec<String>, String)> {
+    let mut args = match output {
+        Output::BinaryStl(stl) => vec![
+            "-o".to_owned(),
+            stl.to_string_lossy().into_owned(),
+            "--export-format".into(),
+            "binstl".into(),
+        ],
+        Output::Csg(csg) => vec!["-o".to_owned(), csg.to_string_lossy().into_owned()],
+    };
+    let mut defines = String::new();
+    for (name, value) in request.params.as_object().into_iter().flatten() {
+        let define = format!("{name}={}", params::format_value(name, value)?);
+        defines.push_str(&format!("-D {define} "));
+        args.push("-D".into());
+        args.push(define);
+    }
+    args.push(scad.to_string_lossy().into_owned());
+    Ok((args, defines))
+}
+
 /// Render `request`, from the cache when the same inputs were rendered
 /// before. A render that fails is a result (`ok: false`); only a missing
 /// engine, a cancellation or an I/O fault is an error.
@@ -344,20 +383,7 @@ pub(crate) fn render(
     let scad = temp.path().join("input.scad");
     let stl = temp.path().join("output.stl");
     fs::write(&scad, &request.source).map_err(internal)?;
-    let mut args = vec![
-        "-o".to_owned(),
-        stl.to_string_lossy().into_owned(),
-        "--export-format".into(),
-        "binstl".into(),
-    ];
-    let mut defines = Vec::new();
-    for (name, value) in request.params.as_object().into_iter().flatten() {
-        let define = format!("{name}={}", params::format_value(name, value)?);
-        args.push("-D".into());
-        args.push(define.clone());
-        defines.push(format!("-D {define} "));
-    }
-    args.push(scad.to_string_lossy().into_owned());
+    let (args, defines) = engine_args(request, &scad, Output::BinaryStl(&stl))?;
     let start = Instant::now();
     let run = engine::run(
         &engine.exe,
@@ -381,9 +407,8 @@ pub(crate) fn render(
         tool: format!("openscad {}", engine.version),
         engine_version: engine.version.clone(),
         command: format!(
-            "{} -o output.stl --export-format binstl {}input.scad",
+            "{} -o output.stl --export-format binstl {defines}input.scad",
             engine.exe.display(),
-            defines.concat()
         ),
         log: run.log,
         warnings,
@@ -489,6 +514,53 @@ mod tests {
         assert_eq!(identity["version"], 1);
         assert_eq!(identity["params"], json!({"a": 1}));
         assert_eq!(identity["options"], "stl;orientation-v1;exe=/opt/openscad");
+    }
+
+    #[test]
+    fn csg_and_render_arguments_share_their_defines() {
+        let request = Request::new(
+            "hole_d = 3;\ncube(1);",
+            &json!({"hole_d": 5, "label": "M5"}),
+            1_000,
+        );
+        let scad = Path::new("/w/input.scad");
+        let (render, defines) = engine_args(
+            &request,
+            scad,
+            Output::BinaryStl(Path::new("/w/output.stl")),
+        )
+        .unwrap();
+        let (csg, same) =
+            engine_args(&request, scad, Output::Csg(Path::new("/w/output.csg"))).unwrap();
+        assert_eq!(defines, same);
+        assert_eq!(defines, "-D hole_d=5 -D label=\"M5\" ");
+        assert_eq!(
+            render,
+            [
+                "-o",
+                "/w/output.stl",
+                "--export-format",
+                "binstl",
+                "-D",
+                "hole_d=5",
+                "-D",
+                "label=\"M5\"",
+                "/w/input.scad"
+            ]
+        );
+        // The CSG run never names an export format: it would apply to every output.
+        assert_eq!(
+            csg,
+            [
+                "-o",
+                "/w/output.csg",
+                "-D",
+                "hole_d=5",
+                "-D",
+                "label=\"M5\"",
+                "/w/input.scad"
+            ]
+        );
     }
 
     #[test]

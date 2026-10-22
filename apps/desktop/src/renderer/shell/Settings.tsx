@@ -35,6 +35,7 @@ import { SETTINGS_SECTIONS, useAgentUi, type SettingsSection } from './agent/age
 import { detectAgents } from './agent/feed';
 import { errorText, quiet } from './agent/quiet';
 import { adapterLabel, profileLabel, sessionStatus } from './agent/session-view';
+import { StepConverterTool } from './StepConverter';
 
 /** Agents, engineering tools, and appearance. One sheet, never a destination. */
 export function Settings() {
@@ -605,7 +606,9 @@ function ToolsSection() {
 
   const check = async () => {
     setChecking(true);
-    const r = await quiet<{ results: Record<string, unknown> }>('tool.doctor', {});
+    const r = await quiet<{ results: Record<string, unknown> }>('tool.doctor', {
+      toolId: 'openscad',
+    });
     setChecking(false);
     if (r.ok) {
       setRaw(r.result.results);
@@ -698,6 +701,7 @@ function ToolsSection() {
           <pre className="code-block">{JSON.stringify(raw, null, 2)}</pre>
         </Disclosure>
       )}
+      <StepConverterTool />
     </section>
   );
 }
