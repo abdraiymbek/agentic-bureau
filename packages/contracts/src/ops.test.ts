@@ -34,7 +34,7 @@ function descriptions(node: unknown, out: string[] = []): string[] {
 }
 
 describe('operation tiers and packs', () => {
-  it('lists exactly the thirteen core tools in the compact profile', () => {
+  it('lists exactly the fifteen core tools in the compact profile', () => {
     expect(tools('core').sort()).toEqual(
       [
         'project_summary',
@@ -45,6 +45,8 @@ describe('operation tiers and packs', () => {
         'cad_write_source',
         'cad_read_source',
         'cad_check',
+        'cad_view',
+        'image_view',
         'proposal_submit',
         'work_status',
         'guide_read',
@@ -111,8 +113,8 @@ describe('operation tiers and packs', () => {
         'graph_list',
       ].sort(),
     );
-    expect(toolListing('compact')).toHaveLength(13);
-    expect(toolListing('standard')).toHaveLength(43);
+    expect(toolListing('compact')).toHaveLength(15);
+    expect(toolListing('standard')).toHaveLength(45);
     expect(toolListing('full').map((tool) => tool.name)).toEqual(
       agentTools.map((tool) => tool.toolName),
     );
@@ -451,17 +453,19 @@ describe('listing budgets', () => {
   const size = (profile: Parameters<typeof toolListing>[0]) =>
     JSON.stringify(toolListing(profile)).length;
 
-  it('keeps the compact tools list within 7,000 characters', () => {
-    expect(size('compact')).toBeLessThanOrEqual(7000);
+  it('keeps the compact tools list within 8,000 characters', () => {
+    // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
+    expect(size('compact')).toBeLessThanOrEqual(8000);
   });
 
   // Ceilings a little above the measured sizes, so that growth is a decision.
   // The merged V1 registry (CAD short forms, paging, BOM, wiring and test
   // inputs) measures 64,363 standard and 72,457 full characters.
   it('bounds the standard and full tools lists', () => {
-    expect(size('standard')).toBeLessThanOrEqual(66_000);
-    // 0.2.4: +1,427 chars for cad_export in the full profile and tool_doctor naming the STEP converter (recorded in audit/v0.2.4)
-    expect(size('full')).toBeLessThanOrEqual(75_500);
+    // 0.2.4: +2,761 chars for cad_view and image_view (recorded in audit/v0.2.4)
+    expect(size('standard')).toBeLessThanOrEqual(68_800);
+    // 0.2.4: +1,427 chars for cad_export and the STEP converter, +2,761 for cad_view and image_view (recorded in audit/v0.2.4)
+    expect(size('full')).toBeLessThanOrEqual(78_400);
   });
 });
 

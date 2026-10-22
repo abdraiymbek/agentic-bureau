@@ -2,6 +2,7 @@
 //! temporary folder, and a client that speaks the helper's wire protocol.
 
 use crate::{socket_name, BridgeServer, Grant};
+use base64::Engine;
 use interprocess::local_socket::{prelude::*, Stream};
 use omenflow_contracts::{read_frame, write_frame, Profile};
 use omenflow_core::{CoreApp, Origin};
@@ -57,12 +58,17 @@ impl Workspace {
 
     /// A token for a session of the given profile, with its session id.
     pub fn grant(&self, profile: Profile) -> (String, String) {
+        self.grant_for(profile, "codex")
+    }
+
+    /// A token for a session of the given profile run by `adapter_id`.
+    pub fn grant_for(&self, profile: Profile, adapter_id: &str) -> (String, String) {
         let session_id = uuid::Uuid::new_v4().to_string();
         let token = self.bridge.issue_grant(Grant {
             project_id: self.project_id.clone(),
             session_id: session_id.clone(),
             profile,
-            adapter_id: "codex".into(),
+            adapter_id: adapter_id.into(),
             model: Some("gpt-6-luna".into()),
         });
         (token, session_id)
@@ -70,7 +76,12 @@ impl Workspace {
 
     /// An initialised MCP client for a new session of the given profile.
     pub fn mcp(&self, profile: Profile) -> McpClient {
-        let (token, session_id) = self.grant(profile);
+        self.mcp_for(profile, "codex")
+    }
+
+    /// As [`Workspace::mcp`], for a session run by `adapter_id`.
+    pub fn mcp_for(&self, profile: Profile, adapter_id: &str) -> McpClient {
+        let (token, session_id) = self.grant_for(profile, adapter_id);
         let mut client = McpClient::connect(&self.bridge, &token, "mcp");
         client.session_id = session_id;
         let reply = client.request(
@@ -105,6 +116,10 @@ pub(crate) struct ToolReply {
     pub body: Value,
     /// The text block as sent.
     pub text: String,
+    /// The image blocks after it: media type and decoded bytes.
+    pub images: Vec<(String, Vec<u8>)>,
+    /// Whether the result carried structured content.
+    pub structured: bool,
 }
 
 pub(crate) struct McpClient {
@@ -172,15 +187,41 @@ impl McpClient {
             result.is_object(),
             "{tool} answered with a protocol error: {reply}"
         );
-        let text = result["content"][0]["text"].as_str().unwrap().to_owned();
-        assert_eq!(result["content"][0]["type"], "text");
+        let content = result["content"].as_array().unwrap();
+        let text = content[0]["text"].as_str().unwrap().to_owned();
+        assert_eq!(content[0]["type"], "text");
         assert!(!text.contains('\n'), "{tool} result is pretty-printed");
         let body: Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(result["structuredContent"], body);
+        // Every block after the text is a picture in valid base64.
+        let images = content[1..]
+            .iter()
+            .map(|block| {
+                assert_eq!(block["type"], "image", "{tool}: {block}");
+                let mime = block["mimeType"].as_str().unwrap();
+                assert_eq!(mime, "image/png", "{tool}: every picture is a PNG");
+                let data = block["data"].as_str().unwrap();
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(data)
+                    .expect("image data is base64");
+                (mime.to_owned(), bytes)
+            })
+            .collect::<Vec<_>>();
+        let structured = match result.get("structuredContent") {
+            Some(structured) => {
+                assert_eq!(structured, &body);
+                true
+            }
+            None => {
+                assert!(!images.is_empty(), "{tool} has no structured content");
+                false
+            }
+        };
         ToolReply {
             is_error: result["isError"].as_bool().unwrap(),
             body,
             text,
+            images,
+            structured,
         }
     }
 

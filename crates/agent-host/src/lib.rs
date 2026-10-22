@@ -10,6 +10,7 @@
 mod adapters;
 mod chat;
 mod guide;
+mod images;
 mod ledger;
 mod mcp;
 mod present;
@@ -441,6 +442,8 @@ struct AgentReply {
     /// error, with the notes of repairs already applied in its details.
     result: Result<Value, ContractError>,
     profile: Profile,
+    /// Pictures the result names, read back to be sent beside it over MCP.
+    images: Vec<images::Image>,
 }
 
 /// What `run_agent_call` learns about a call on the way, kept for the
@@ -452,6 +455,8 @@ struct CallTrace {
     /// then dropped. Never stored.
     input: Value,
     notes: Vec<String>,
+    /// Pictures for the transport; never recorded.
+    images: Vec<images::Image>,
 }
 
 /// The single funnel for agent calls. A call that reaches it with a valid
@@ -471,6 +476,7 @@ fn dispatch_agent(
         mutating: false,
         input: Value::Null,
         notes: Vec::new(),
+        images: Vec::new(),
     };
     let via = call.via;
     let tool = call.name.to_owned();
@@ -508,6 +514,7 @@ fn dispatch_agent(
     Ok(AgentReply {
         result,
         profile: grant.profile,
+        images: std::mem::take(&mut trace.images),
     })
 }
 
@@ -613,6 +620,20 @@ fn run_agent_call(
         ),
         _ => dispatch_core(shared, grant, op, input.clone(), idempotency_key.as_deref()),
     }?;
+    let mut result = result;
+    if images::produces(&op.name) {
+        // Pictures are read from the result before it is shaped; only MCP
+        // sends them, and a session that may not see them is told the path.
+        if call.via == Via::Mcp {
+            let root = shared
+                .core
+                .lock()
+                .ok()
+                .and_then(|core| core.project_root(&grant.project_id).ok());
+            trace.images = images::attach(root.as_deref(), &mut result);
+        }
+        images::route(&mut result, call.via == Via::Mcp, &grant.adapter_id);
+    }
     Ok(present::shape_result(op, grant.profile, &input, result))
 }
 

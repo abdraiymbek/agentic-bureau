@@ -129,11 +129,16 @@ Closing a project stops its agent. A project written by a newer build opens read
   figure in its own interface. Conversations are kept in `.omenflow/chat/conversations.json` in
   the project folder; project archives do not include them.
 - **Adaptive capability profiles.** Each session is fixed to `compact`, `standard` or `full`. A
-  small model (Haiku, Luna, mini, local models) gets 13 flat tools, playbooks on demand
+  small model (Haiku, Luna, mini, local models) gets 15 flat tools, playbooks on demand
   (`guide_read`), reported input repairs and a server-owned completion gate (`work_status`). A
-  large model keeps the full surface of 58 tools. Verification rules are the same in every
+  large model keeps the full surface of 60 tools. Verification rules are the same in every
   profile, and every agent-allowed operation stays callable through `tool_call`. Details:
   [agent adapters](docs/agent-adapters.md).
+- **The agent can see.** `cad_view` draws a part as a drawing sheet (front, top and right views
+  at one scale with hidden edges dashed, an isometric view and filled cross-sections), and
+  `image_view` shows a drawing in the project with a labelled grid or enlarges a region of it
+  until its callouts can be read. The pictures go to the agent as images beside the result;
+  they are diagnostic, and only `cad_check` verifies.
 - **Evidence.** The Evidence lens is the requirement → evidence matrix from `project.coverage`:
   each requirement's target, coverage (covered, partly covered, out of date, no evidence) and the
   linked calculations and tests with their recorded results. Pass or fail appears only when a
@@ -164,7 +169,7 @@ The tests do not run a live model. Live model runs are recorded separately in th
 | Path                                                        | Role                                                                                                                                                                           |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `packages/contracts/`                                       | Source of truth for operations, entities, units and errors (TypeScript, zod). `pnpm contracts:export` writes `crates/contracts/registry.json`                                  |
-| `crates/contracts/`                                         | The exported registry (106 operations), input validation, lossless agent-input repair, typed errors                                                                            |
+| `crates/contracts/`                                         | The exported registry (113 operations), input validation, lossless agent-input repair, typed errors                                                                            |
 | `crates/storage/`                                           | SQLite schema 1, FTS5 search tables, content-addressed object store, project path guards                                                                                       |
 | `crates/core/`                                              | The domain: revisions, proposals and decisions, freshness graph, CAD (OpenSCAD + mesh checks), calculations, parts and BOM, wiring, tests, completion gate, coverage, archives |
 | `crates/agent-host/`                                        | The shared `Host`: command routing, PTY sessions, adapters, capability profiles, bridge socket, MCP server, call ledger, playbooks                                             |
@@ -260,6 +265,8 @@ scripted sessions and no model.
   part with a surface too thin for the comparison's probes is faceted too, with that reason. A
   faceted file is the render's triangles merged into planar faces (median 1.3 MB, at most 7.5 MB
   on the 49-part CADGenBench corpus); large ones are slow to open in some CAD tools.
+- `image_view` reads PNG and JPEG files only: export a PDF or SVG drawing page as PNG first.
+  `cad_view` draws parts that have OpenSCAD source, as `cad_inspect` measures them.
 - Project archives carry the record, objects and working files, not readable per-artifact views;
   agent call history stays out of archives.
 

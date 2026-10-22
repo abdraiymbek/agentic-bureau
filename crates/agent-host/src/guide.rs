@@ -488,7 +488,7 @@ mod tests {
         let root = Path::new("/projects/rover");
         let compact = launch_guidance(Profile::Compact, "Sable rover", root);
         assert!(compact.starts_with(
-            "# Omen Flow session\n\nProject: Sable rover\nFolder: /projects/rover\nProfile: compact (13 tools listed)\n\n"
+            "# Omen Flow session\n\nProject: Sable rover\nFolder: /projects/rover\nProfile: compact (15 tools listed)\n\n"
         ));
         assert!(compact.contains(&instructions(Profile::Compact)));
         assert!(compact.contains("`omenflow status`"));

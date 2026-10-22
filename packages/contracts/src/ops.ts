@@ -680,6 +680,64 @@ const cadInspect = z.object({
     .describe('Render timeout if the part must be rendered again (default 90000).'),
   detail: cadDetail,
 });
+/** Standard views, named as the part viewport names them: the viewer stands on that side. */
+const viewName = z.enum(['front', 'back', 'left', 'right', 'top', 'bottom', 'iso']);
+const viewSection = z.object({
+  axis: z.enum(['x', 'y', 'z']).describe('Axis normal to the cut.'),
+  at: z
+    .number()
+    .describe('Plane position on that axis, mm: through the middle of a feature, not on a face.'),
+});
+const cadView = z.object({
+  artifactId: idSchema.describe('Mechanical part to draw.'),
+  revisionId: idSchema.optional().describe('Defaults to the newest revision.'),
+  params: scadParams
+    .optional()
+    .describe('Draw a parameter variant; it is rendered under a job, nothing is committed.'),
+  views: z
+    .array(viewName)
+    .max(7)
+    .optional()
+    .describe('Default ["front","top","right","iso"]; orthographic views share one scale.'),
+  sections: z
+    .array(viewSection)
+    .max(4)
+    .optional()
+    .describe(
+      'Cuts drawn with material filled. Default: one through the middle normal to y; [] for none.',
+    ),
+  size: z
+    .number()
+    .int()
+    .min(256)
+    .max(2000)
+    .optional()
+    .describe('Longest image edge in pixels (default 1024).'),
+});
+const imageView = z.object({
+  path: z
+    .string()
+    .min(1)
+    .describe('Project-relative path of a PNG or JPEG file, e.g. "inputs/drawing.png".'),
+  region: z
+    .array(z.number())
+    .length(4)
+    .optional()
+    .describe(
+      'Part to enlarge as [x0, y0, x1, y1] fractions (0 to 1) of the whole image, origin top left, as the grid labels read. Default: the whole image.',
+    ),
+  grid: z
+    .boolean()
+    .optional()
+    .describe('Overlay a grid labelled in those fractions (default true).'),
+  size: z
+    .number()
+    .int()
+    .min(256)
+    .max(2000)
+    .optional()
+    .describe('Longest edge of the returned image in pixels (default 1280).'),
+});
 const cadCheck = z.object({
   artifactId: idSchema.describe('Mechanical part to verify.'),
   revisionId: idSchema.optional().describe('Defaults to the newest revision.'),
@@ -1293,6 +1351,24 @@ const cadCheckCompact = z.object({
     })
     .describe('From the request, never copied from the report.'),
   autoCommit: z.boolean().optional().describe('true: commit when everything passes.'),
+});
+const cadViewCompact = z.object({
+  artifactId: z.string(),
+  views: z.array(viewName).max(7).optional(),
+  sections: z
+    .array(
+      z.object({
+        axis: z.enum(['x', 'y', 'z']),
+        at: z.number().describe('Mid-feature position, mm; not on a face.'),
+      }),
+    )
+    .max(4)
+    .optional()
+    .describe('Cuts to draw, e.g. through a groove or bore.'),
+});
+const imageViewCompact = z.object({
+  path: z.string().describe('Project-relative image file.'),
+  region: z.array(z.number()).length(4).optional().describe('[x0,y0,x1,y1] fractions to enlarge.'),
 });
 const proposalSubmitCompact = z.object({
   changes: z
@@ -1931,6 +2007,33 @@ export const OPS: OpDef[] = [
     },
   ),
   def(
+    'cad.view',
+    cadView,
+    'both',
+    true,
+    "Draw a part to see its shape: front, top and right views at one scale with hidden edges dashed, an isometric view, and cross-sections (by default one through the middle, normal to y). Compare it with the request or a drawing. Diagnostic only: assert dimensions with cad_check. Returns one image and each view's scale and position.",
+    {
+      tier: 'core',
+      summary: 'See a part as a drawing: views and sections; not verification.',
+      example: { artifactId: EX.artifact, sections: [{ axis: 'y', at: 15 }] },
+      compactSchema: cadViewCompact,
+    },
+  ),
+  def(
+    'image.view',
+    imageView,
+    'both',
+    false,
+    'Look at a PNG or JPEG file in the project, such as a drawing: whole with a grid labelled in fractions of its width and height, or a region cropped and enlarged so small dimensions and callouts become legible. Read the grid on the whole image first, then zoom in. Returns the image and its pixel sizes.',
+    {
+      tier: 'core',
+      pack: 'files',
+      summary: 'View a drawing or other image with a grid, or zoom into a region.',
+      example: { path: 'inputs/drawing.png', region: [0.4, 0.2, 0.6, 0.4] },
+      compactSchema: imageViewCompact,
+    },
+  ),
+  def(
     'cad.patch_source',
     cadPatchSource,
     'both',
@@ -2434,6 +2537,8 @@ export const RUST_HOST_OPS: ReadonlySet<string> = new Set([
   'chat.open',
   'chat.send',
   'chat.cancel',
+  'cad.view',
+  'image.view',
 ]);
 
 /** JSON-schema view of an op's input (for CLI --help and tool_describe). Accepts either name form. */

@@ -9,8 +9,14 @@
 use super::*;
 use std::collections::{BTreeSet, HashSet};
 
-pub(crate) const CHECKER: &str = "omenflow-rust-mesh-checks-v2";
-const EARLIER_CHECKERS: [&str; 2] = ["omenflow-rust-mesh-checks-v1", "omenflow-mesh-checks-v4"];
+/// v3 (0.2.4): section loops keep a corner a cut meets twice, a hair apart,
+/// next to a hole's vertex; v2 could lose it and measure less material.
+pub(crate) const CHECKER: &str = "omenflow-rust-mesh-checks-v3";
+const EARLIER_CHECKERS: [&str; 3] = [
+    "omenflow-rust-mesh-checks-v2",
+    "omenflow-rust-mesh-checks-v1",
+    "omenflow-mesh-checks-v4",
+];
 const ACTIVE_WORK: &str = "work.active";
 
 /// One finished `cad_check` job of an artifact, newest first in a history.

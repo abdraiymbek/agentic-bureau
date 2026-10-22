@@ -5,9 +5,11 @@
  * OpenSCAD.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { CoreError, RustCore } from './rust-core';
 
 const USER = { kind: 'user' as const };
@@ -201,7 +203,7 @@ describe('tool.describe', () => {
         mutating: false,
       },
     ]);
-    expect(catalogue.tools.filter((tool: any) => tool.tier === 'core')).toHaveLength(13);
+    expect(catalogue.tools.filter((tool: any) => tool.tier === 'core')).toHaveLength(15);
     for (const tool of catalogue.tools) expect(tool.tool).not.toContain('.');
 
     const underscore = await agent('tool_describe', { tool: 'cad_check' });
@@ -228,6 +230,76 @@ describe('tool.describe', () => {
     expect(unknown.code).toBe('NOT_FOUND');
     expect(unknown.repair).toContain('Did you mean cad_check?');
     expect(unknown.details).toMatchObject({ nearest: 'cad_check' });
+  });
+});
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** A white greyscale PNG with a dark band across its top quarter. */
+function png(width: number, height: number): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(zlib.crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 0, 0, 0, 0], 8);
+  const rows = Buffer.alloc((width + 1) * height, 255);
+  for (let y = 0; y < height; y++) {
+    rows[y * (width + 1)] = 0;
+    if (y < height / 4) rows.fill(40, y * (width + 1) + 1, (y + 1) * (width + 1));
+  }
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    chunk('IHDR', header),
+    chunk('IDAT', zlib.deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+describe('image.view', () => {
+  it('shows a project image as a picture file and refuses paths outside the project', async () => {
+    const project = path.join(root, 'project');
+    fs.mkdirSync(path.join(project, 'inputs'));
+    fs.writeFileSync(path.join(project, 'inputs', 'drawing.png'), png(200, 120));
+    const shown = await agent('image_view', {
+      path: 'inputs/drawing.png',
+      region: [0, 0, 0.5, 0.5],
+    });
+    expect(shown).toMatchObject({
+      path: 'inputs/drawing.png',
+      format: 'png',
+      widthPx: 200,
+      heightPx: 120,
+      regionPx: [0, 0, 100, 60],
+    });
+    expect(shown.grid.x[0]).toBe(0);
+    const [picture] = shown.images;
+    expect(picture.path).toMatch(/^\.omenflow\/cache\/views-v1\/[0-9a-f]{64}\.png$/);
+    // Through `omenflow call` the result names the file; nothing is attached.
+    expect(picture).not.toHaveProperty('attached');
+    expect(JSON.stringify(shown)).not.toMatch(/"data"/);
+    expect(shown.notes).toContain(
+      'Open images[0].path (relative to the project folder) with your image viewer (Codex: view_image).',
+    );
+    const bytes = fs.readFileSync(path.join(project, picture.path));
+    expect(bytes.subarray(0, 8)).toEqual(PNG_SIGNATURE);
+    expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([
+      picture.widthPx,
+      picture.heightPx,
+    ]);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(picture.sha256);
+    expect(picture.bytes).toBe(bytes.length);
+
+    const outside = await refusal(agent('image_view', { path: '../drawing.png' }));
+    expect(outside.code).toBe('PATH_OUTSIDE_PROJECT');
+    const own = await refusal(agent('image_view', { path: picture.path }));
+    expect(own.repair).toContain('call cad_view again');
   });
 });
 

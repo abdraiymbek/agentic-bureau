@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+base64 = "0.22"
 omenflow-contracts = { path = "../contracts" }
 omenflow-core = { path = "../core" }
 interprocess = "2.4.4"
@@ -19,4 +20,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 libc = "0.2"
 
 [dev-dependencies]
+png = "0.18"
+sha2 = "0.10"
 tempfile = "3"

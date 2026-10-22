@@ -942,7 +942,7 @@ mod tests {
         );
         assert!(plan.files.is_empty());
         assert!(plan.agents_md);
-        assert!(plan.guidance.contains("Profile: compact (13 tools listed)"));
+        assert!(plan.guidance.contains("Profile: compact (15 tools listed)"));
 
         let off = plan_with_env("custom", json!({"OMENFLOW_AGENTS_MD": "off"}));
         assert!(!off.agents_md);

@@ -201,14 +201,14 @@ standard; no model → the adapter's default (standard; custom: compact).
 
 | Profile  | Tools listed                                 | Listing as sent to the model | Result cap   |
 | -------- | -------------------------------------------- | ---------------------------- | ------------ |
-| compact  | 13 core tools: summary + compact schema      | 6,290 chars                  | 6,000 chars  |
-| standard | 43: description + input schema (no overlays) | 57,518 chars                 | 16,000 chars |
-| full     | 58: description + input schema               | 65,924 chars                 | 32,000 chars |
+| compact  | 15 core tools: summary + compact schema      | 7,282 chars                  | 6,000 chars  |
+| standard | 45: description + input schema (no overlays) | 60,088 chars                 | 16,000 chars |
+| full     | 60: description + input schema               | 67,267 chars                 | 32,000 chars |
 
 Sizes are `name`, `description`, `inputSchema` as compact JSON, measured on
 the registry of this build by the agent host's
 `listing_sizes_stay_within_their_budgets` test; with `title` and
-`annotations` the `tools/list` payloads are 7,978, 63,166 and 73,527
+`annotations` the `tools/list` payloads are 9,220, 65,986 and 74,993
 characters. Only compact uses the compact schema overlays, as the
 TypeScript `toolListing` does. Listed schemas drop `$schema`,
 `additionalProperties: false` and `idempotencyKey` (still accepted when
@@ -260,8 +260,44 @@ Every `tools/call` goes through `dispatch_agent`:
 6. The reply is compact JSON text plus the same object as
    `structuredContent`. Repairs are in `notes`. Errors are `isError` results
    with `code`, `message`, `repair`, `issues` (path, message, and in standard
-   and full the expected and received values), `example` and `notes`.
+   and full the expected and received values), `example` and `notes`. For
+   `cad_view` and `image_view`, an image block follows the text block (see
+   [Pictures](#pictures)).
 7. The call is recorded in the ledger.
+
+### Pictures
+
+`cad_view` and `image_view` write one PNG picture under
+`.omenflow/cache/views-v1/`, named by its SHA-256 (a picture over the cap is
+drawn again smaller, never sent lossy). Their result names it in `images[0]`
+by project-relative `path`, `sha256`, `mimeType`, pixel size and `bytes`. Over
+MCP the agent host reads the file back and sends it as an image block after
+the text block, only when it is a picture file in that folder with the
+recorded hash; it marks the entry `attached: true` or `false` and says why in
+`notes`. A picture is at most 1 MiB and a reply carries at most one, so the
+base64 stays far below the 8 MiB frame. Picture bytes never enter the JSON,
+the structured content, the ledger or an `omenflow call` reply.
+
+- **Claude Code** gives the model every non-text block of a result before
+  the text (the JSON of `structuredContent`), so the picture reaches the
+  model. It resizes images above 2,000 px for models it does not list, which
+  is why `size` stops at 2,000.
+- **Codex** hands the model the structured content instead of the content
+  blocks whenever a result has both (codex-rs
+  `CallToolResult::as_function_call_output_payload`, read at 0.156.1), so a
+  Codex session's reply that carries a picture leaves `structuredContent`
+  out; the text block is the same JSON. Codex then sends the picture as an
+  input image.
+- **Other clients** (OpenCode, Gemini CLI, Qwen Code, a custom CLI) and every
+  `omenflow call` reply get a note instead: open `images[0].path` (relative to
+  the project folder) with an image viewer; Codex's is `view_image`.
+
+`image_view` is read-only for the client (`readOnlyHint: true`), so Claude
+Code can look at a drawing in plan mode and run several region views at
+once; it still refuses a read-only project, because it writes the picture
+file. `cad_view` is mutating like `cad_inspect`: a parameter variant or a
+revision without a current render is rendered under a `cad_render` job, and
+that job puts the part into the session's `work_status` scope.
 
 `proposal_wait` is bounded 30 seconds below the CLI's own tool timeout,
 reports `timedOut`, and marks the session as waiting for review while it

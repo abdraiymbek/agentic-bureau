@@ -1032,6 +1032,25 @@ mod tests {
     }
 
     #[test]
+    fn a_cut_through_hole_vertices_measures_the_whole_outline() {
+        // x = 20 and y = 15 run through the hole's axis and two of its
+        // vertices, so at the corners of the material the cut meets the hole
+        // wall twice, a hair apart. Checker v2 dropped both points of such a
+        // corner and measured half the material.
+        let part = mesh(plate_with_hole([40.0, 30.0, 6.0], [20.0, 15.0], 8.0, 16));
+        let lines = check(
+            &part,
+            json!({"sections": [
+                {"axis": "x", "at": 20, "outerCount": 2, "holeCount": 0,
+                    "materialArea": {"value": 132, "tolPct": 0.1}},
+                {"axis": "y", "at": 15, "outerCount": 2, "holeCount": 0,
+                    "materialArea": {"value": 192, "tolPct": 0.1}}]}),
+        );
+        assert_eq!(lines.len(), 7, "{lines:?}");
+        assert!(lines.iter().all(|item| item["pass"] == true), "{lines:?}");
+    }
+
+    #[test]
     fn interpenetrating_bodies_fail_the_self_intersection_limit() {
         let pierced = merged(&[
             cuboid([0.0; 3], [10.0; 3], false),

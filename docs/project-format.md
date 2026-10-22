@@ -18,6 +18,7 @@ contains (observed on a project built with `pnpm fixture:rover`):
     work/<sessionId>/           one folder per agent session (below)
     recovery/                   rename journal, idempotency result journals
     cache/render-rust-v1/       render results by input fingerprint (regenerable)
+    cache/views-v1/             pictures drawn by cad_view and image_view (regenerable)
 ```
 
 ## Canonical state
@@ -51,13 +52,17 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
 - proposal `impact.supersedesProposalIds` / `impact.supersededByProposalId`, and
   `impact.answeredByRevisionId` on a proposal a newly accepted baseline already contained;
 - a `commitOrder` in the inputs of committed CAD check jobs (the check committed last decides);
-- CAD evidence from checker `omenflow-rust-mesh-checks-v2`, beside readable v1 and TypeScript
-  v4 evidence;
+- CAD evidence from checker `omenflow-rust-mesh-checks-v3` (0.2.4), beside readable v2 and v1
+  and TypeScript v4 evidence. An earlier build does not vouch for v3 evidence: a part checked
+  only by 0.2.4 shows there as without a committed check;
 - the event type `cad.exported` (a part written as STEP, STL or SCAD: `format`, `method`,
   `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
   job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
   project-relative destination, or only the file name of one outside the project;
-- the sidecar files under `.omenflow/work/` and `.omenflow/cache/`.
+- the sidecar files under `.omenflow/work/` and `.omenflow/cache/`, including the pictures in
+  `.omenflow/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
+  drawn for an agent by `cad_view` and `image_view`. They are never read back as a cache, are
+  pruned to the newest 256 files and 128 MiB, and an earlier build ignores the folder.
 
 `cad.export` records an event and, for STEP, a job, so it now counts as a change: a project
 opened read-only refuses it with `READ_ONLY`, where earlier builds copied STL and SCAD files

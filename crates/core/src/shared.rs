@@ -17,7 +17,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, MutexGuard};
 
 /// Operations whose engine or mesh work runs outside the lock.
-const STAGED: [&str; 8] = [
+const STAGED: [&str; 10] = [
     "cad.write_source",
     "cad.patch_source",
     "cad.set_param",
@@ -26,6 +26,8 @@ const STAGED: [&str; 8] = [
     "cad.check",
     "cad.validate_source",
     "cad.export",
+    "cad.view",
+    "image.view",
 ];
 
 /// Is this call's work staged? A STL or SCAD export is a quick copy that takes

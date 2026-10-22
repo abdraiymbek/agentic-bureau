@@ -589,9 +589,9 @@ fn each_profile_gets_its_instructions_and_its_tool_list() {
     let workspace = Workspace::new("Profiles");
     let mut wire_sizes = Vec::new();
     for (profile, tool_count) in [
-        (Profile::Compact, 13),
-        (Profile::Standard, 43),
-        (Profile::Full, 57),
+        (Profile::Compact, 15),
+        (Profile::Standard, 45),
+        (Profile::Full, 59),
     ] {
         let (token, _) = workspace.grant(profile);
         let mut client = McpClient::connect(&workspace.bridge, &token, "mcp");
@@ -653,7 +653,8 @@ fn each_profile_gets_its_instructions_and_its_tool_list() {
     println!(
         "compact tools/list: {compact} chars to the model; on the wire by profile: {wire_sizes:?}"
     );
-    assert!(compact <= 7_500, "compact tools/list is {compact} chars");
+    // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
+    assert!(compact <= 8_500, "compact tools/list is {compact} chars");
     assert!(wire_sizes[0] < wire_sizes[1] && wire_sizes[1] < wire_sizes[2]);
 
     // An older revision the server implements is honoured as asked.
@@ -863,4 +864,126 @@ fn a_wait_for_review_is_bounded_explicit_and_visible() {
     assert_eq!(resolved.body["state"], "accepted");
     assert_eq!(resolved.body["timedOut"], false);
     assert!(resolved.body.get("next").is_none());
+}
+
+/// A 64 × 48 PNG: white with a red block, written into the project.
+fn drawing(workspace: &Workspace) -> Vec<u8> {
+    let (width, height) = (64u32, 48u32);
+    let mut data = vec![255u8; (width * height * 3) as usize];
+    for pixel in data.chunks_mut(3).take((width * 10) as usize) {
+        pixel.copy_from_slice(&[200, 0, 0]);
+    }
+    let mut bytes = Vec::new();
+    let mut encoder = png::Encoder::new(&mut bytes, width, height);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+    writer.write_image_data(&data).unwrap();
+    writer.finish().unwrap();
+    let inputs = workspace.root().join("inputs");
+    std::fs::create_dir_all(&inputs).unwrap();
+    std::fs::write(inputs.join("drawing.png"), &bytes).unwrap();
+    bytes
+}
+
+const ROUTE: &str = "Open images[0].path (relative to the project folder) with your image viewer (Codex: view_image).";
+
+#[test]
+fn image_view_sends_a_picture_over_mcp_and_a_path_over_omenflow_call() {
+    let workspace = Workspace::new("Pictures");
+    drawing(&workspace);
+    // Claude Code shows the picture with structured content; Codex only
+    // without it; a client not known to show pictures is told the path.
+    for (adapter, structured, told) in [
+        ("claude-code", true, false),
+        ("codex", false, false),
+        ("custom", true, true),
+    ] {
+        let mut client = workspace.mcp_for(Profile::Compact, adapter);
+        let reply = client.call(
+            "image_view",
+            json!({"path": "inputs/drawing.png", "region": [0, 0, 0.5, 0.5]}),
+        );
+        assert!(!reply.is_error, "{}", reply.text);
+        assert_eq!(reply.structured, structured, "{adapter}");
+        assert_eq!(reply.images.len(), 1, "{adapter}");
+        let (mime, bytes) = &reply.images[0];
+        assert_eq!(mime, "image/png");
+        let entry = &reply.body["images"][0];
+        assert_eq!(entry["attached"], true);
+        assert_eq!(entry["bytes"], bytes.len());
+        let reader = png::Decoder::new(std::io::Cursor::new(bytes.as_slice()))
+            .read_info()
+            .unwrap();
+        assert_eq!(
+            [reader.info().width as u64, reader.info().height as u64],
+            [
+                entry["widthPx"].as_u64().unwrap(),
+                entry["heightPx"].as_u64().unwrap()
+            ]
+        );
+        assert_eq!(
+            strings(&reply.body["notes"]).contains(&ROUTE),
+            told,
+            "{adapter}"
+        );
+        assert!(reply.text.len() < 4_000, "no picture bytes in the text");
+        let recorded = workspace.last_recorded();
+        assert_eq!(
+            (&recorded["op"], &recorded["ok"]),
+            (&json!("image.view"), &json!(true))
+        );
+        assert!(
+            recorded.to_string().len() < 2_000,
+            "no picture bytes in the ledger"
+        );
+    }
+    let listed = workspace
+        .mcp_for(Profile::Compact, "claude-code")
+        .request("tools/list", json!({}));
+    let annotations = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == "image_view")
+        .unwrap()["annotations"]
+        .clone();
+    assert_eq!(
+        annotations["readOnlyHint"], true,
+        "pictures can be looked at in plan mode"
+    );
+
+    // omenflow call: the path and hash, never the bytes.
+    let (token, _) = workspace.grant(Profile::Standard);
+    let mut call = McpClient::connect(&workspace.bridge, &token, "call");
+    let response = call.call_op("image_view", json!({"path": "inputs/drawing.png"}));
+    assert_eq!(response["ok"], true, "{response}");
+    let result = &response["result"];
+    let entry = &result["images"][0];
+    let path = entry["path"].as_str().unwrap();
+    assert!(path.starts_with(".omenflow/cache/views-v1/"));
+    assert!(entry.get("attached").is_none());
+    assert!(entry.get("data").is_none());
+    assert!(workspace.root().join(path).is_file());
+    assert!(strings(&result["notes"]).contains(&ROUTE));
+    assert!(response.to_string().len() < 4_000);
+}
+
+#[test]
+fn a_refused_picture_is_an_ordinary_tool_error() {
+    let workspace = Workspace::new("Pictures");
+    let mut client = workspace.mcp_for(Profile::Compact, "claude-code");
+    let outside = client.call("image_view", json!({"path": "../drawing.png"}));
+    assert!(outside.is_error);
+    assert_eq!(outside.body["code"], "PATH_OUTSIDE_PROJECT");
+    assert!(outside.images.is_empty() && outside.structured);
+    // Pixel coordinates in region are read as pixels and said so.
+    drawing(&workspace);
+    let pixels = client.call(
+        "image_view",
+        json!({"path": "inputs/drawing.png", "region": [0, 0, 32, 24]}),
+    );
+    assert!(!pixels.is_error, "{}", pixels.text);
+    assert_eq!(pixels.body["regionPx"], json!([0, 0, 32, 24]));
+    assert!(strings(&pixels.body["notes"]).contains(&"region read as pixels"));
 }

@@ -25,6 +25,7 @@ mod section;
 mod stage;
 mod step;
 mod verification;
+mod view;
 
 pub use report::brief;
 pub(crate) use stage::{committing, planning, with_probes};
@@ -33,6 +34,8 @@ pub use verification::readiness;
 pub(super) use verification::{
     committed_expect, latest_verification, record_scope_acceptance, validate_scope_accept,
 };
+pub use view::pictures;
+pub(crate) use view::{view_image, view_part};
 
 const NEXT_SOURCE: &str = "Edit the source as needed and save it with cad_write_source({ artifactId, source }) — this creates a new draft revision on the same part; the baseline is untouched until a human approves.";
 

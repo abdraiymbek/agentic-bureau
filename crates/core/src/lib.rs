@@ -55,6 +55,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Where pictures drawn for agents are kept, their byte caps, and how a host
+/// reads one back.
+pub use cad::pictures;
 pub use cad::{brief as cad_brief, readiness as cad_readiness, stop_engines};
 pub use models::{artifact_from_row, event_from_row, revision_from_row};
 pub use shared::{dispatch_shared, dispatch_shared_with_events};
@@ -751,6 +754,8 @@ fn dispatch_project(
         "cad.write_source" => cad::write_source(handle, payload, origin),
         "cad.inspect" => cad::inspect(handle, payload, origin),
         "cad.check" => cad::check(handle, payload, origin),
+        "cad.view" => cad::view_part(handle, payload, origin),
+        "image.view" => cad::view_image(handle, payload, origin),
         "cad.patch_source" => cad::patch_source(handle, payload, origin),
         "cad.set_param" => cad::set_param(handle, payload, origin),
         "cad.compose" => cad::compose(handle, payload, origin),

@@ -1689,7 +1689,7 @@ mod tests {
         assert_eq!(session["model"], Value::Null);
         assert_eq!(session["profile"], "compact");
         assert_eq!(session["profileSource"], "adapter-default");
-        assert_eq!(session["toolCount"], 13);
+        assert_eq!(session["toolCount"], 15);
         assert_eq!(
             (&session["calls"], &session["errors"]),
             (&json!(0), &json!(0))
@@ -2004,7 +2004,7 @@ mod tests {
         assert_eq!(agent.session_id, session["id"].as_str().unwrap());
         // The session's own profile decides what its agent is shown.
         let tools = agent.request("tools/list", json!({}));
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 13);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 15);
 
         agent.call("project_summary", json!({}));
         agent.call("artifact_read", json!({}));
@@ -2078,7 +2078,7 @@ mod tests {
         assert_eq!(session["model"], "claude-haiku-5-5");
         assert_eq!(session["profile"], "compact");
         assert_eq!(session["profileSource"], "model");
-        assert_eq!(session["toolCount"], 13);
+        assert_eq!(session["toolCount"], 15);
         let id = session["id"].as_str().unwrap();
         let mcp = terminal.work_file(&session, "mcp.json");
         let guide_file = terminal.work_file(&session, "guide.md");

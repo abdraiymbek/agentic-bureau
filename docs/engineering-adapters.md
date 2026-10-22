@@ -38,11 +38,28 @@ OpenSCAD is installed separately; it is not bundled.
 | `cad_read_source`                                  | no          | The source and parameters of the newest (or a given) revision, and whether it has a render                                                                                                                                           |
 | `cad_inspect`                                      | no revision | The report for any revision, with chosen cutting planes, probe points and `-D` overrides; a re-render is recorded as a job, nothing is committed                                                                                     |
 | `cad_check`                                        | yes         | Verifies explicit expectations and returns pass or fail per assertion with measured against expected values                                                                                                                          |
+| `cad_view`                                         | no revision | Draws a revision or a `-D` variant as one picture: views at one scale, an isometric view and sections. A variant or a missing render runs as a render job. Writes the picture under `.omenflow/cache/views-v1/`                      |
+| `image_view`                                       | no          | A PNG or JPEG file in the project with a grid labelled in fractions of its size, or a region of it enlarged up to 4x. Writes the picture under `.omenflow/cache/views-v1/`                                                           |
 | `cad_export`                                       | yes         | Writes a part as STEP (exact `brep` or `faceted`, below), STL or SCAD; full profile, and only when the person asked for a file                                                                                                       |
 
-`cad_write_source`, `cad_read_source` and `cad_check` are in the compact profile; the others are
-in standard. Write, check and inspect results take `detail: "brief" | "full"`; compact sessions
-get `brief` automatically.
+`cad_write_source`, `cad_read_source`, `cad_check`, `cad_view` and `image_view` are in the
+compact profile, `cad_export` is in full, and the others are in standard. Write, check and
+inspect results take `detail: "brief" | "full"`; compact sessions get `brief` automatically.
+
+**Pictures** (`cad/view.rs`). `cad_view` rasterizes the revision's stored mesh in software, the
+mesh verification measured, with no engine run unless a variant or a missing render needs one.
+Front, top and right (and back, left, bottom when asked) are placed as in a third-angle drawing
+and share one round scale in mm per pixel; the result gives each panel's rectangle, view
+direction, scale and origin, so a pixel maps to a model coordinate. Faces are shaded, feature
+edges (creases over 30°, silhouettes, open edges) are ink, and edges behind a surface are dashed;
+the isometric view has no hidden edges and is not to scale. A section is a cut normal to x, y or
+z (`{axis, at}`) from `section.rs`, filled by parity so holes stay empty, and listed with its
+outlines; with no `sections` one is drawn through the middle normal to y (`auto: true`), and
+`sections: []` draws none. The same mesh and request give the same bytes. `image_view` decodes
+the file once, after checking its header (at most 16,384 px a side, 50 megapixels and 32 MB),
+applies EXIF orientation, lays transparency over white, and reads a `region` given in pixels
+(any value above 1) as pixels and says so. Both are diagnostic: the result says the picture binds
+and verifies nothing, and only `cad_check` verifies.
 
 **Expectations.** The canonical form names `bbox`, `volume`, `solid` and `empty` points,
 `sections` (holes, slots, polygons, outlines), `shells` and `watertight`. A short form expands to
@@ -58,8 +75,9 @@ committed ones, for example an assertion dropped or a tolerance loosened), `part
 and a `nextAction` (`commit_assertions`, `repair_geometry`, `resolve_inputs`,
 `request_review`, …). The same state is what `cad_check` answers, what `work_status` reports
 (`cad_unverified`, `cad_check_failed`, `cad_scope_changed`, `cad_render_failed`) and what a
-proposal shows. Evidence is recorded by checker `omenflow-rust-mesh-checks-v2`; evidence from
-earlier checkers stays readable.
+proposal shows. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
+section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose);
+evidence from earlier checkers stays readable.
 
 - The committed check that decides is the one committed last (numbered at commit), whatever
   order checks were asked in. Only a check that recorded evidence binds a scope; one that ended

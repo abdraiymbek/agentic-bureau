@@ -5221,6 +5221,240 @@
       }
     },
     {
+      "name": "cad.view",
+      "toolName": "cad_view",
+      "description": "Draw a part to see its shape: front, top and right views at one scale with hidden edges dashed, an isometric view, and cross-sections (by default one through the middle, normal to y). Compare it with the request or a drawing. Diagnostic only: assert dimensions with cad_check. Returns one image and each view's scale and position.",
+      "capability": "both",
+      "mutating": true,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "core",
+      "pack": "cad",
+      "summary": "See a part as a drawing: views and sections; not verification.",
+      "example": {
+        "artifactId": "00000000-0000-4000-8000-000000000001",
+        "sections": [
+          {
+            "axis": "y",
+            "at": 15
+          }
+        ]
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "views": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "front",
+                "back",
+                "left",
+                "right",
+                "top",
+                "bottom",
+                "iso"
+              ]
+            },
+            "maxItems": 7
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "type": "string",
+                  "enum": [
+                    "x",
+                    "y",
+                    "z"
+                  ]
+                },
+                "at": {
+                  "type": "number",
+                  "description": "Mid-feature position, mm; not on a face."
+                }
+              },
+              "required": [
+                "axis",
+                "at"
+              ]
+            },
+            "maxItems": 4,
+            "description": "Cuts to draw, e.g. through a groove or bore."
+          }
+        },
+        "required": [
+          "artifactId"
+        ]
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Mechanical part to draw."
+          },
+          "revisionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Defaults to the newest revision."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "number",
+                "string",
+                "boolean"
+              ]
+            },
+            "description": "Draw a parameter variant; it is rendered under a job, nothing is committed."
+          },
+          "views": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "front",
+                "back",
+                "left",
+                "right",
+                "top",
+                "bottom",
+                "iso"
+              ]
+            },
+            "maxItems": 7,
+            "description": "Default [\"front\",\"top\",\"right\",\"iso\"]; orthographic views share one scale."
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "axis": {
+                  "type": "string",
+                  "enum": [
+                    "x",
+                    "y",
+                    "z"
+                  ],
+                  "description": "Axis normal to the cut."
+                },
+                "at": {
+                  "type": "number",
+                  "description": "Plane position on that axis, mm: through the middle of a feature, not on a face."
+                }
+              },
+              "required": [
+                "axis",
+                "at"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 4,
+            "description": "Cuts drawn with material filled. Default: one through the middle normal to y; [] for none."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 2000,
+            "description": "Longest image edge in pixels (default 1024)."
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "image.view",
+      "toolName": "image_view",
+      "description": "Look at a PNG or JPEG file in the project, such as a drawing: whole with a grid labelled in fractions of its width and height, or a region cropped and enlarged so small dimensions and callouts become legible. Read the grid on the whole image first, then zoom in. Returns the image and its pixel sizes.",
+      "capability": "both",
+      "mutating": false,
+      "agentVisible": true,
+      "agentAllowed": true,
+      "agentTool": true,
+      "tier": "core",
+      "pack": "files",
+      "summary": "View a drawing or other image with a grid, or zoom into a region.",
+      "example": {
+        "path": "inputs/drawing.png",
+        "region": [
+          0.4,
+          0.2,
+          0.6,
+          0.4
+        ]
+      },
+      "compactSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Project-relative image file."
+          },
+          "region": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "[x0,y0,x1,y1] fractions to enlarge."
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Project-relative path of a PNG or JPEG file, e.g. \"inputs/drawing.png\"."
+          },
+          "region": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "Part to enlarge as [x0, y0, x1, y1] fractions (0 to 1) of the whole image, origin top left, as the grid labels read. Default: the whole image."
+          },
+          "grid": {
+            "type": "boolean",
+            "description": "Overlay a grid labelled in those fractions (default true)."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 256,
+            "maximum": 2000,
+            "description": "Longest edge of the returned image in pixels (default 1280)."
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "cad.patch_source",
       "toolName": "cad_patch_source",
       "description": "Replace one snippet in an existing part's OpenSCAD source and re-render. Use it for a small local edit instead of rewriting the file; the snippet must occur exactly once in the current source. Saves a new draft revision and returns the same measured report as cad_write_source.",

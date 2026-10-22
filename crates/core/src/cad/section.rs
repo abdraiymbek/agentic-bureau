@@ -76,21 +76,39 @@ fn inside(point: P2, poly: &[P2]) -> bool {
     }
     result
 }
+/// Is `c` within 1e-6 of the line through `p` and `q`?
+fn collinear(p: P2, c: P2, q: P2) -> bool {
+    let cross = (c[0] - p[0]) * (q[1] - c[1]) - (c[1] - p[1]) * (q[0] - c[0]);
+    let length = distance(p, q);
+    length > 0.0 && cross.abs() / length < 1e-6
+}
+
+/// Drop the points that lie on the line between the points kept around
+/// them. Each point is judged against kept neighbours only: judged against
+/// its original neighbours, both points of a nearly doubled corner look
+/// collinear and the corner was lost.
 fn simplify(points: Vec<P2>) -> Vec<P2> {
     if points.len() < 4 {
         return points;
     }
-    let mut result = Vec::new();
-    for i in 0..points.len() {
-        let p = points[(i + points.len() - 1) % points.len()];
-        let c = points[i];
-        let q = points[(i + 1) % points.len()];
-        let cross = (c[0] - p[0]) * (q[1] - c[1]) - (c[1] - p[1]) * (q[0] - c[0]);
-        let length = distance(p, q);
-        if length > 0.0 && cross.abs() / length < 1e-6 {
-            continue;
+    let mut result: Vec<P2> = Vec::with_capacity(points.len());
+    for &c in &points {
+        while result.len() >= 2 && collinear(result[result.len() - 2], result[result.len() - 1], c)
+        {
+            result.pop();
         }
         result.push(c);
+    }
+    // The seam: the last points against the first ones.
+    while result.len() > 3 {
+        let n = result.len();
+        if collinear(result[n - 2], result[n - 1], result[0]) {
+            result.pop();
+        } else if collinear(result[n - 1], result[0], result[1]) {
+            result.remove(0);
+        } else {
+            break;
+        }
     }
     if result.len() >= 3 {
         result
@@ -569,6 +587,26 @@ mod tests {
         assert_eq!(depths, vec![0, 0, 1, 2]);
         assert_eq!(cut.loops.iter().filter(|item| item.is_hole).count(), 1);
         assert!((cut.material_area - (400.0 - 256.0 + 16.0 + 25.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_nearly_doubled_corner_is_kept() {
+        // A cut just off a hole's vertex meets the hole wall twice, 6e-7 mm
+        // apart, at the corner of the outline.
+        let corner = 11.000_000_05;
+        let points = vec![
+            [corner, 0.0],
+            [0.0, 0.0],
+            [0.0, 6.0],
+            [5.0, 6.0],
+            [10.999_999_9, 6.0],
+            [corner, 6.0],
+            [corner, 3.0],
+        ];
+        assert_eq!(
+            simplify(points),
+            vec![[corner, 0.0], [0.0, 0.0], [0.0, 6.0], [corner, 6.0]]
+        );
     }
 
     #[test]

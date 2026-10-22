@@ -155,7 +155,14 @@ describe('OmenflowMcpServer over bridge frames', () => {
       expect(names).not.toContain(t);
     }
     // Served only by the Rust host: this server must not list a tool it cannot answer.
-    for (const t of ['work_status', 'project_coverage', 'guide_read', 'tool_call']) {
+    for (const t of [
+      'work_status',
+      'project_coverage',
+      'guide_read',
+      'tool_call',
+      'cad_view',
+      'image_view',
+    ]) {
       expect(names).not.toContain(t);
     }
     const check = list.result.tools.find((t) => t.name === 'cad_check')!;

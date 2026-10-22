@@ -787,7 +787,7 @@ mod tests {
             .filter(|tool| tool["tier"] == "core")
             .map(|tool| tool["tool"].as_str().unwrap())
             .collect::<Vec<_>>();
-        assert_eq!(core.len(), 13);
+        assert_eq!(core.len(), 15);
         assert_eq!(core[0], "project_summary");
         assert!(core.contains(&"work_status") && core.contains(&"tool_describe"));
         assert_eq!(catalogue["next"]["tool"], "tool_describe");

@@ -3,7 +3,9 @@
 //! the session's capability profile; what it runs goes through
 //! `dispatch_agent` like every other agent call.
 
+use super::images::{structured_content_hides_images, Image};
 use super::{current_grant, dispatch_agent, guide, present, AgentCall, Shared, Via};
+use base64::Engine;
 use interprocess::local_socket::Stream;
 use omenflow_contracts::{read_frame, write_frame};
 use serde_json::{json, Value};
@@ -110,9 +112,13 @@ fn handle(
             // error: a model can read and act on a result.
             let reply = dispatch_agent(shared, token, call)
                 .map_err(|error| (SERVER_ERROR, error.message))?;
+            let structured =
+                reply.images.is_empty() || !structured_content_hides_images(&grant.adapter_id);
             Ok(match reply.result {
-                Ok(value) => tool_result(value, false),
-                Err(error) => tool_result(present::error_body(&error, reply.profile), true),
+                Ok(value) => tool_result(value, false, &reply.images, structured),
+                Err(error) => {
+                    tool_result(present::error_body(&error, reply.profile), true, &[], true)
+                }
             })
         }
         "resources/list" => Ok(
@@ -145,20 +151,30 @@ fn handle(
 
 const SUMMARY_URI: &str = "omenflow://project/summary";
 
-/// A tool result: the body as compact JSON text for the model, and the same
-/// body as structured content for clients that prefer it.
-fn tool_result(body: Value, is_error: bool) -> Value {
+/// A tool result: the body as compact JSON text for the model, any pictures
+/// as image blocks after it, and the same body as structured content for
+/// clients that prefer it, unless `structured` is false. Structured content
+/// never holds picture bytes.
+fn tool_result(body: Value, is_error: bool, images: &[Image], structured: bool) -> Value {
     // Structured content must be an object.
     let body = if body.is_object() {
         body
     } else {
         json!({"result": body})
     };
-    json!({
-        "content": [{"type": "text", "text": compact(&body)}],
-        "structuredContent": body,
-        "isError": is_error,
-    })
+    let mut content = vec![json!({"type": "text", "text": compact(&body)})];
+    content.extend(images.iter().map(|image| {
+        json!({
+            "type": "image",
+            "data": base64::engine::general_purpose::STANDARD.encode(&image.bytes),
+            "mimeType": image.mime_type,
+        })
+    }));
+    let mut result = json!({"content": content, "isError": is_error});
+    if structured {
+        result["structuredContent"] = body;
+    }
+    result
 }
 
 fn compact(value: &Value) -> String {
@@ -175,6 +191,8 @@ mod tests {
         let result = tool_result(
             json!({"ready": true, "summary": "Nothing outstanding."}),
             false,
+            &[],
+            true,
         );
         assert_eq!(
             result,
@@ -184,10 +202,39 @@ mod tests {
                 "isError": false
             })
         );
-        let wrapped = tool_result(json!([1, 2]), true);
+        let wrapped = tool_result(json!([1, 2]), true, &[], true);
         assert_eq!(wrapped["structuredContent"], json!({"result": [1, 2]}));
         assert_eq!(wrapped["content"][0]["text"], "{\"result\":[1,2]}");
         assert_eq!(wrapped["isError"], true);
+    }
+
+    #[test]
+    fn images_follow_the_text_block_and_stay_out_of_structured_content() {
+        let body =
+            json!({"images": [{"path": ".omenflow/cache/views-v1/x.png", "attached": true}]});
+        let picture = Image {
+            mime_type: "image/png",
+            bytes: b"\x89PNG picture".to_vec(),
+        };
+        let result = tool_result(body.clone(), false, std::slice::from_ref(&picture), true);
+        let content = result["content"].as_array().unwrap();
+        assert_eq!(content.len(), 2);
+        assert_eq!(content[0]["text"], compact(&body));
+        assert_eq!(content[1]["type"], "image");
+        assert_eq!(content[1]["mimeType"], "image/png");
+        let data = content[1]["data"].as_str().unwrap();
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(data)
+                .unwrap(),
+            picture.bytes
+        );
+        assert_eq!(result["structuredContent"], body);
+        // For Codex the structured content is left out, so the image is seen.
+        let codex = tool_result(body.clone(), false, std::slice::from_ref(&picture), false);
+        assert!(codex.get("structuredContent").is_none());
+        assert_eq!(codex["content"][0]["text"], compact(&body));
+        assert_eq!(codex["content"][1], content[1]);
     }
 
     #[test]

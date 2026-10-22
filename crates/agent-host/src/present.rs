@@ -208,6 +208,10 @@ fn exempt_keys(op: &Operation) -> &'static [&'static str] {
         "guide.read" => &["text", "topics"],
         // Already bounded by `bound_page`; the text is what the caller came for.
         "research.read_page" => &["url", "title", "text"],
+        // Where each picture is and how its pixels map to the model: a cut
+        // list would point at the wrong panel or file.
+        "cad.view" => &["views", "sections", "images"],
+        "image.view" => &["images", "grid"],
         _ => &[],
     }
 }
@@ -902,6 +906,8 @@ mod tests {
                 "cad_write_source",
                 "cad_read_source",
                 "cad_check",
+                "cad_view",
+                "image_view",
                 "proposal_submit",
                 "work_status",
                 "guide_read",
@@ -918,11 +924,14 @@ mod tests {
         let sizes = Profile::ALL.map(model_facing_size);
         let wire = Profile::ALL.map(|profile| chars(&Value::Array(tool_listing(profile))));
         println!("model-facing listing chars (compact, standard, full): {sizes:?}; on the wire: {wire:?}");
-        assert!(sizes[0] <= 7_500, "compact listing is {}", sizes[0]);
+        // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
+        assert!(sizes[0] <= 8_500, "compact listing is {}", sizes[0]);
         // Standard lists full input schemas, as the contract's own listing
-        // budget does (packages/contracts ops.test.ts: 66,000 on the wire).
-        assert!(sizes[1] <= 60_000, "standard listing is {}", sizes[1]);
-        assert!(sizes[2] <= 66_000, "full listing is {}", sizes[2]);
+        // budget does (packages/contracts ops.test.ts: 68,800 on the wire).
+        // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
+        assert!(sizes[1] <= 62_600, "standard listing is {}", sizes[1]);
+        // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
+        assert!(sizes[2] <= 68_600, "full listing is {}", sizes[2]);
         assert!(sizes[0] < sizes[1] && sizes[1] < sizes[2]);
         // Title and annotations are for the client, at a fixed cost per tool.
         for (profile, (model, wire)) in Profile::ALL.into_iter().zip(sizes.into_iter().zip(wire)) {
