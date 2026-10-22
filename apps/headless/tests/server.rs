@@ -22,7 +22,7 @@ impl Running {
     /// A host that sees no model routing, whatever the developer's own variables and Claude
     /// settings say.
     fn start() -> Self {
-        Self::start_routed(|_, _| Routing::default())
+        Self::start_routed(|_, _, _| Routing::default())
     }
 
     fn start_routed(routing: RoutingLookup) -> Self {
@@ -804,7 +804,7 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
 #[cfg(unix)]
 #[test]
 fn a_headless_run_passes_a_routed_alias_as_written() {
-    let host = Running::start_routed(|spec, root| {
+    let host = Running::start_routed(|spec, _, root| {
         if root.is_some_and(|root| root.ends_with("Routed")) {
             Routing::read(
                 spec,

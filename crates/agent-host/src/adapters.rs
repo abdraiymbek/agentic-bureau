@@ -135,10 +135,15 @@ pub struct ModelAliases {
     /// The variable that points the CLI at another endpoint, and its default: any other value
     /// counts as routing, since a gateway may key on model names.
     pub endpoint: (&'static str, &'static str),
-    /// The CLI's own settings files that may set those variables (`env`) or map model ids
-    /// (`modelOverrides`), lowest precedence first, for a session in the given project.
-    pub settings_files: fn(Option<&Path>) -> Vec<PathBuf>,
+    /// Where the CLI reads settings that may set those variables (`env`) or map model ids
+    /// (`modelOverrides`), lowest precedence first, for a session with the adapter's configured
+    /// environment and arguments in the given project.
+    pub settings_sources: SettingsSources,
 }
+
+/// Where a CLI reads its settings, from the adapter's configured environment and arguments and
+/// the project folder.
+pub type SettingsSources = fn(&[(String, String)], &[String], Option<&Path>) -> Vec<SettingsSource>;
 
 impl ModelAliases {
     /// Every variable that can say models are routed.
@@ -151,29 +156,89 @@ impl ModelAliases {
     }
 }
 
+/// One place a CLI reads its settings from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SettingsSource {
+    /// A JSON settings file. One that is missing or is not a JSON object is skipped, as the CLI
+    /// skips it.
+    File(PathBuf),
+    /// Settings given as JSON text on the command line (`--settings '{…}'`).
+    Inline(String),
+    /// A macOS managed-preferences property list, read as JSON with `plutil`.
+    Plist(PathBuf),
+    /// A Windows registry key whose `Settings` value holds the settings as JSON.
+    Registry(&'static str),
+}
+
+/// The value of `key` the CLI's process sees: the adapter's configured environment over the
+/// inherited one. An empty value counts as unset.
+fn launch_var(env: &[(String, String)], key: &str) -> Option<std::ffi::OsString> {
+    env.iter()
+        .rev()
+        .find(|(name, _)| name == key)
+        .map(|(_, value)| value.into())
+        .or_else(|| std::env::var_os(key))
+        .filter(|value| !value.is_empty())
+}
+
+/// Every value an argument list gives `flag`, as `flag value` or `flag=value`.
+fn flag_values<'a>(args: &'a [String], flag: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+    args.iter().enumerate().filter_map(move |(at, arg)| {
+        if arg == flag {
+            args.get(at + 1).map(String::as_str)
+        } else {
+            arg.strip_prefix(flag)?.strip_prefix('=')
+        }
+    })
+}
+
 /// Claude Code's settings that apply to a session in `root`, lowest precedence first: the
-/// user's (`$CLAUDE_CONFIG_DIR` or `~/.claude`), the project's shared and local ones, then the
-/// machine's managed settings and their drop-in folder.
-fn claude_settings_files(root: Option<&Path>) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    let user = std::env::var_os("CLAUDE_CONFIG_DIR")
-        .filter(|dir| !dir.is_empty())
+/// user's (`$CLAUDE_CONFIG_DIR` or `~/.claude`, as the CLI's process will see them), the
+/// project's shared and local ones, any `--settings` among the adapter's arguments, then the
+/// machine's managed settings: the managed-settings file and its drop-in folder, and the
+/// operating system's policies (macOS managed preferences, the Windows registry).
+fn claude_settings_sources(
+    env: &[(String, String)],
+    args: &[String],
+    root: Option<&Path>,
+) -> Vec<SettingsSource> {
+    let mut sources = Vec::new();
+    let user = launch_var(env, "CLAUDE_CONFIG_DIR")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".claude")));
-    files.extend(user.map(|dir| dir.join("settings.json")));
+        .or_else(|| launch_var(env, "HOME").map(|home| PathBuf::from(home).join(".claude")));
+    sources.extend(user.map(|dir| SettingsSource::File(dir.join("settings.json"))));
     if let Some(root) = root {
-        files.push(root.join(".claude/settings.json"));
-        files.push(root.join(".claude/settings.local.json"));
+        sources.push(SettingsSource::File(root.join(".claude/settings.json")));
+        sources.push(SettingsSource::File(
+            root.join(".claude/settings.local.json"),
+        ));
     }
+    // A path or JSON text; the CLI runs in the project folder, so a relative path is read there.
+    for value in flag_values(args, "--settings") {
+        sources.push(if value.trim_start().starts_with('{') {
+            SettingsSource::Inline(value.to_owned())
+        } else {
+            let path = Path::new(value);
+            SettingsSource::File(match root {
+                Some(root) if path.is_relative() => root.join(path),
+                _ => path.to_owned(),
+            })
+        });
+    }
+    const HKCU: &str = r"HKCU\SOFTWARE\Policies\ClaudeCode";
+    const HKLM: &str = r"HKLM\SOFTWARE\Policies\ClaudeCode";
     let managed = if cfg!(target_os = "macos") {
         Some(Path::new("/Library/Application Support/ClaudeCode"))
+    } else if cfg!(windows) {
+        sources.push(SettingsSource::Registry(HKCU));
+        Some(Path::new(r"C:\Program Files\ClaudeCode"))
     } else if cfg!(target_os = "linux") {
         Some(Path::new("/etc/claude-code"))
     } else {
         None
     };
     if let Some(dir) = managed {
-        files.push(dir.join("managed-settings.json"));
+        sources.push(SettingsSource::File(dir.join("managed-settings.json")));
         let mut drop_ins = std::fs::read_dir(dir.join("managed-settings.d"))
             .into_iter()
             .flatten()
@@ -181,31 +246,48 @@ fn claude_settings_files(root: Option<&Path>) -> Vec<PathBuf> {
             .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
             .collect::<Vec<_>>();
         drop_ins.sort();
-        files.extend(drop_ins);
+        sources.extend(drop_ins.into_iter().map(SettingsSource::File));
     }
-    files
+    if cfg!(target_os = "macos") {
+        let preferences = Path::new("/Library/Managed Preferences");
+        let plist = "com.anthropic.claudecode.plist";
+        sources.push(SettingsSource::Plist(preferences.join(plist)));
+        let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME"));
+        if let Some(user) = user
+            .ok()
+            .filter(|user| !user.is_empty() && !user.contains('/'))
+        {
+            sources.push(SettingsSource::Plist(preferences.join(user).join(plist)));
+        }
+    } else if cfg!(windows) {
+        sources.push(SettingsSource::Registry(HKLM));
+    }
+    sources
 }
 
-/// How a host reads a CLI's model routing for a session in a project folder: [`Routing::system`],
-/// or a fixed answer in tests.
-pub type RoutingLookup = fn(&AdapterSpec, Option<&Path>) -> Routing;
+/// How a host reads a CLI's model routing for a session with an adapter configuration in a
+/// project folder: [`Routing::system`], or a fixed answer in tests.
+pub type RoutingLookup = fn(&AdapterSpec, &AdapterConfig, Option<&Path>) -> Routing;
 
 /// What the person's own configuration outside Omen Flow says about routing a CLI's models:
-/// the variables the host inherited and those the CLI's settings files set, and whether a
-/// settings file maps model ids itself. Reading it touches files, so it is never done under the
-/// workspace lock.
+/// the variables the host inherited and those the CLI's settings set, whether a setting maps
+/// model ids itself, and whether a source the CLI reads could not be read here. Reading it
+/// touches files and may run `plutil` or `reg`, so it is never done under the workspace lock.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Routing {
     inherited: Vec<(String, String)>,
-    /// From the CLI's settings files, lowest precedence first: the CLI applies these over its
+    /// From the CLI's settings, lowest precedence first: the CLI applies these over its
     /// environment.
     settings: Vec<(String, String)>,
     overrides: bool,
+    /// A managed policy exists that could not be read: it may route models, so an alias is
+    /// passed as written.
+    unread: bool,
 }
 
 impl Routing {
-    /// This machine's routing for a session of `spec` in `root`.
-    pub fn system(spec: &AdapterSpec, root: Option<&Path>) -> Self {
+    /// This machine's routing for a session of `spec`, configured as `config`, in `root`.
+    pub fn system(spec: &AdapterSpec, config: &AdapterConfig, root: Option<&Path>) -> Self {
         let Some(aliases) = spec.model_aliases else {
             return Self::default();
         };
@@ -213,12 +295,29 @@ impl Routing {
             .variables()
             .filter_map(|key| Some((key.to_owned(), std::env::var(key).ok()?)))
             .collect();
-        Self::read(spec, inherited, &(aliases.settings_files)(root))
+        let sources = (aliases.settings_sources)(&config.env, &config.args, root);
+        Self::from_sources(spec, inherited, &sources)
     }
 
     /// Routing from the given inherited variables and settings files. A file that is missing
     /// or is not a JSON object is skipped: a damaged file never blocks a session.
     pub fn read(spec: &AdapterSpec, inherited: Vec<(String, String)>, files: &[PathBuf]) -> Self {
+        let sources = files
+            .iter()
+            .cloned()
+            .map(SettingsSource::File)
+            .collect::<Vec<_>>();
+        Self::from_sources(spec, inherited, &sources)
+    }
+
+    /// Routing from the given inherited variables and settings sources. A file or text that
+    /// is not a JSON object is skipped, as the CLI skips it. A property list or registry value
+    /// that exists but cannot be read here counts as routing.
+    pub fn from_sources(
+        spec: &AdapterSpec,
+        inherited: Vec<(String, String)>,
+        sources: &[SettingsSource],
+    ) -> Self {
         let mut routing = Self {
             inherited,
             ..Self::default()
@@ -227,11 +326,16 @@ impl Routing {
             return routing;
         };
         let keys = aliases.variables().collect::<Vec<_>>();
-        for file in files {
-            let Some(document) = std::fs::read(file)
-                .ok()
-                .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-            else {
+        for source in sources {
+            let document = match source {
+                SettingsSource::File(path) => std::fs::read(path)
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok()),
+                SettingsSource::Inline(text) => serde_json::from_str::<Value>(text).ok(),
+                SettingsSource::Plist(path) => routing.policy(read_plist(path)),
+                SettingsSource::Registry(key) => routing.policy(read_registry(key)),
+            };
+            let Some(document) = document.filter(Value::is_object) else {
                 continue;
             };
             for (key, value) in document["env"].as_object().into_iter().flatten() {
@@ -246,6 +350,19 @@ impl Routing {
             };
         }
         routing
+    }
+
+    /// A managed policy's settings, or nothing; one that could not be read marks the routing
+    /// as unknown.
+    fn policy(&mut self, read: Policy) -> Option<Value> {
+        match read {
+            Policy::Absent => None,
+            Policy::Read(document) => Some(document),
+            Policy::Unread => {
+                self.unread = true;
+                None
+            }
+        }
     }
 
     /// Only for tests: routing as given, with no file read.
@@ -265,6 +382,7 @@ impl Routing {
             inherited: owned(inherited),
             settings: owned(settings),
             overrides,
+            unread: false,
         }
     }
 
@@ -282,6 +400,75 @@ impl Routing {
             .or_else(|| last(configured))
             .or_else(|| last(&self.inherited))
     }
+}
+
+/// A managed policy as read here.
+enum Policy {
+    /// Not set on this machine.
+    Absent,
+    /// Its settings, as JSON.
+    Read(Value),
+    /// Set, but it could not be read here.
+    Unread,
+}
+
+/// Longest a policy read may take, and the most it may print.
+const POLICY_TIMEOUT: Duration = Duration::from_secs(5);
+const POLICY_LIMIT: u64 = 2 * 1024 * 1024;
+
+/// A managed-preferences property list as JSON, converted by `plutil` as the CLI converts it.
+fn read_plist(path: &Path) -> Policy {
+    if !path.exists() {
+        return Policy::Absent;
+    }
+    let Some(path) = path.to_str() else {
+        return Policy::Unread;
+    };
+    let args = ["-convert", "json", "-o", "-", "--", path];
+    run_bounded(
+        Path::new("/usr/bin/plutil"),
+        &args,
+        POLICY_TIMEOUT,
+        POLICY_LIMIT,
+    )
+    .and_then(|json| serde_json::from_str(&json).ok())
+    .map_or(Policy::Unread, Policy::Read)
+}
+
+/// The `Settings` value of a registry key, as JSON. `reg query` fails when the key or the
+/// value does not exist.
+fn read_registry(key: &str) -> Policy {
+    if !cfg!(windows) {
+        return Policy::Absent;
+    }
+    let Some(output) = run_bounded(
+        Path::new("reg"),
+        &["query", key, "/v", "Settings"],
+        POLICY_TIMEOUT,
+        POLICY_LIMIT,
+    ) else {
+        return Policy::Absent;
+    };
+    match registry_value(&output, "Settings") {
+        None => Policy::Absent,
+        Some(text) => serde_json::from_str(text).map_or(Policy::Unread, Policy::Read),
+    }
+}
+
+/// A string value in `reg query` output: `    <name>    REG_SZ    <value>`.
+fn registry_value<'a>(output: &'a str, name: &str) -> Option<&'a str> {
+    const BLANK: [char; 2] = [' ', '\t'];
+    output.lines().find_map(|line| {
+        if !line.starts_with(BLANK) {
+            return None;
+        }
+        let (key, rest) = line.trim_start_matches(BLANK).split_once(BLANK)?;
+        let (kind, value) = rest.trim_start_matches(BLANK).split_once(BLANK)?;
+        let string =
+            kind.eq_ignore_ascii_case("REG_SZ") || kind.eq_ignore_ascii_case("REG_EXPAND_SZ");
+        let value = value.trim_start_matches(BLANK).trim_end();
+        (key.eq_ignore_ascii_case(name) && string && !value.is_empty()).then_some(value)
+    })
 }
 
 fn truthy(value: &str) -> bool {
@@ -490,7 +677,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
                 "CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD",
             ],
             endpoint: ("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
-            settings_files: claude_settings_files,
+            settings_sources: claude_settings_sources,
         }),
         tool_timeout: Duration::from_secs(600),
         startup_timeout: Duration::from_secs(30),
@@ -666,6 +853,7 @@ impl AdapterSpec {
         let value = |key: &str| routing.value(configured, key).map(str::trim);
         let (endpoint, default) = aliases.endpoint;
         let routed = routing.overrides
+            || routing.unread
             || value(alias.routed_by).is_some_and(|value| !value.is_empty())
             || aliases
                 .provider_switches
@@ -1406,23 +1594,209 @@ mod tests {
             Routing::read(adapter("codex").unwrap(), Vec::new(), &[user]),
             Routing::default()
         );
-        // The files Claude Code reads, lowest precedence first.
-        let files = claude_settings_files(Some(Path::new("/projects/rover")));
-        let project_files = [
-            PathBuf::from("/projects/rover/.claude/settings.json"),
-            PathBuf::from("/projects/rover/.claude/settings.local.json"),
-        ];
-        let at = files
+        // The files Claude Code reads, lowest precedence first: the user's, the project's,
+        // then the machine's managed settings and policies.
+        let sources = claude_settings_sources(&[], &[], Some(Path::new("/projects/rover")));
+        let file = |path: &str| SettingsSource::File(PathBuf::from(path));
+        let at = sources
             .iter()
-            .position(|file| *file == project_files[0])
+            .position(|source| *source == file("/projects/rover/.claude/settings.json"))
             .unwrap();
-        assert_eq!(files[at + 1], project_files[1]);
-        assert!(files[at + 2..]
+        assert_eq!(
+            sources[at + 1],
+            file("/projects/rover/.claude/settings.local.json")
+        );
+        assert!(sources[at + 2..].iter().all(|source| match source {
+            SettingsSource::File(path) => path.to_string_lossy().contains("managed-settings"),
+            SettingsSource::Plist(path) => path.ends_with("com.anthropic.claudecode.plist"),
+            _ => false,
+        }));
+        assert!(sources[..at].iter().all(
+            |source| matches!(source, SettingsSource::File(path) if path.ends_with("settings.json"))
+        ));
+    }
+
+    /// The user's settings are the ones the CLI's process will read: a `CLAUDE_CONFIG_DIR` or
+    /// `HOME` set for the adapter wins over the host's, and `--settings` adds a file or JSON.
+    #[test]
+    fn claude_settings_follow_the_adapter_s_environment_and_arguments() {
+        let root = Path::new("/projects/rover");
+        let env = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect::<Vec<_>>()
+        };
+        let file = |path: &str| SettingsSource::File(PathBuf::from(path));
+        let profile = claude_settings_sources(
+            &env(&[("CLAUDE_CONFIG_DIR", "/profiles/work")]),
+            &[],
+            Some(root),
+        );
+        assert_eq!(profile[0], file("/profiles/work/settings.json"));
+        // An empty CLAUDE_CONFIG_DIR is unset for the CLI: the user folder is under HOME.
+        let home = claude_settings_sources(
+            &env(&[("CLAUDE_CONFIG_DIR", ""), ("HOME", "/home/ada")]),
+            &[],
+            Some(root),
+        );
+        assert_eq!(home[0], file("/home/ada/.claude/settings.json"));
+        let args = [
+            "--model",
+            "haiku",
+            "--settings",
+            "bedrock.json",
+            "--settings=/etc/team/claude.json",
+            "--settings",
+            r#" {"env": {"CLAUDE_CODE_USE_VERTEX": "1"}}"#,
+        ]
+        .map(str::to_owned);
+        let given = claude_settings_sources(&env(&[("HOME", "/home/ada")]), &args, Some(root));
+        let local = given
             .iter()
-            .all(|file| file.to_string_lossy().contains("managed-settings")));
-        assert!(files[..at]
-            .iter()
-            .all(|file| file.ends_with("settings.json")));
+            .position(|source| *source == file("/projects/rover/.claude/settings.local.json"))
+            .unwrap();
+        assert_eq!(
+            given[local + 1..local + 4],
+            [
+                file("/projects/rover/bedrock.json"),
+                file("/etc/team/claude.json"),
+                SettingsSource::Inline(r#" {"env": {"CLAUDE_CODE_USE_VERTEX": "1"}}"#.into()),
+            ]
+        );
+
+        // Read end to end, with the machine's own sources left out.
+        let temp = tempfile::tempdir().unwrap();
+        let project = temp.path().join("project");
+        fs::create_dir_all(project.join(".claude")).unwrap();
+        fs::create_dir_all(temp.path().join("work")).unwrap();
+        fs::write(
+            temp.path().join("work/settings.json"),
+            r#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            project.join("bedrock.json"),
+            r#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}}"#,
+        )
+        .unwrap();
+        let claude = adapter("claude-code").unwrap();
+        let launch = |env: &[(String, String)], args: &[String]| {
+            let ours = claude_settings_sources(env, args, Some(&project))
+                .into_iter()
+                .filter(|source| match source {
+                    SettingsSource::File(path) => path.starts_with(temp.path()),
+                    SettingsSource::Inline(_) => true,
+                    _ => false,
+                })
+                .collect::<Vec<_>>();
+            claude.canonical_model(
+                "haiku",
+                env,
+                &Routing::from_sources(claude, Vec::new(), &ours),
+            )
+        };
+        let work = temp.path().join("work").to_string_lossy().into_owned();
+        let elsewhere = temp.path().join("elsewhere").to_string_lossy().into_owned();
+        assert_eq!(launch(&env(&[("CLAUDE_CONFIG_DIR", &work)]), &[]), "haiku");
+        assert_eq!(
+            launch(&env(&[("CLAUDE_CONFIG_DIR", &elsewhere)]), &[]),
+            "claude-haiku-5-5"
+        );
+        let settings = |value: &str| ["--settings".to_owned(), value.to_owned()];
+        assert_eq!(
+            launch(
+                &env(&[("CLAUDE_CONFIG_DIR", &elsewhere)]),
+                &settings("bedrock.json")
+            ),
+            "haiku"
+        );
+        assert_eq!(
+            launch(
+                &env(&[("CLAUDE_CONFIG_DIR", &elsewhere)]),
+                &settings(r#"{"modelOverrides": {"claude-haiku-5-5": "arn:aws:example"}}"#)
+            ),
+            "haiku"
+        );
+        assert_eq!(
+            launch(
+                &env(&[("CLAUDE_CONFIG_DIR", &elsewhere)]),
+                &settings("{ not json")
+            ),
+            "claude-haiku-5-5",
+            "text the CLI cannot read routes nothing"
+        );
+    }
+
+    /// A managed policy that exists but cannot be read may route models: the alias stays as
+    /// written. One that is not set changes nothing.
+    #[test]
+    fn an_unreadable_managed_policy_keeps_the_alias() {
+        let temp = tempfile::tempdir().unwrap();
+        let claude = adapter("claude-code").unwrap();
+        let damaged = temp.path().join("damaged.plist");
+        fs::write(&damaged, "not a property list").unwrap();
+        let read = |source: SettingsSource| {
+            let routing = Routing::from_sources(claude, Vec::new(), &[source]);
+            claude.canonical_model("haiku", &[], &routing)
+        };
+        assert_eq!(read(SettingsSource::Plist(damaged)), "haiku");
+        assert_eq!(
+            read(SettingsSource::Plist(temp.path().join("absent.plist"))),
+            "claude-haiku-5-5"
+        );
+        if cfg!(target_os = "macos") {
+            let plist = |env: &str| {
+                format!(
+                    r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>env</key><dict>{env}</dict></dict></plist>"#
+                )
+            };
+            let routed = temp.path().join("routed.plist");
+            fs::write(
+                &routed,
+                plist("<key>CLAUDE_CODE_USE_BEDROCK</key><string>1</string>"),
+            )
+            .unwrap();
+            assert_eq!(read(SettingsSource::Plist(routed)), "haiku");
+            let plain = temp.path().join("plain.plist");
+            fs::write(
+                &plain,
+                plist("<key>DISABLE_TELEMETRY</key><string>1</string>"),
+            )
+            .unwrap();
+            assert_eq!(read(SettingsSource::Plist(plain)), "claude-haiku-5-5");
+        }
+        // Off Windows there is no registry to read.
+        assert_eq!(
+            read(SettingsSource::Registry(
+                r"HKLM\SOFTWARE\Policies\ClaudeCode"
+            )),
+            "claude-haiku-5-5"
+        );
+    }
+
+    #[test]
+    fn a_registry_settings_value_is_read_from_reg_query_output() {
+        let output = "\r\nHKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\ClaudeCode\r\n    Settings    REG_SZ    {\"env\": {\"CLAUDE_CODE_USE_BEDROCK\": \"1\"}}\r\n\r\n";
+        assert_eq!(
+            registry_value(output, "Settings"),
+            Some(r#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}}"#)
+        );
+        assert_eq!(
+            registry_value("\tsettings\tREG_EXPAND_SZ\t{}\n", "Settings"),
+            Some("{}")
+        );
+        for other in [
+            "    Settings    REG_DWORD    0x1",
+            "Settings    REG_SZ    {}",
+            "    Other    REG_SZ    {}",
+            "    Settings    REG_SZ    ",
+            "",
+        ] {
+            assert_eq!(registry_value(other, "Settings"), None, "{other:?}");
+        }
     }
 
     #[test]

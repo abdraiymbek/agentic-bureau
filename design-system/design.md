@@ -317,26 +317,30 @@ navigation.
   choices, and human review. Charts are never evidence. A run's `ui.open_artifact` and
   `ui.request_review` become cards in its own turn instead of moving the stage; a terminal
   agent's still move it. Cards you open from the project record or `+` read “Opened by you”.
-  Recorded activity under each turn lists the host's call ledger for that run. The turn header
-  names the model in mono: what the CLI reported, else the id Omen Flow passed, with a warning
-  Notice when Claude Code reports another model than the full id it was given. Omen Flow never
+  Recorded activity under each turn lists the host's call ledger for that run, with what the
+  host also ran inside a call; a call whose check did not pass reads “Returned” in the warning
+  tone. The turn header names the model in mono: what the CLI reported, else the id Omen Flow
+  passed, with a warning Notice when Claude Code reports another model than the full id it was
+  given. Omen Flow never
   parses or shows a CLI's cost figure in its own interface; the Terminal pane is the CLI's own
   screen. An empty conversation asks “What are we making?” with three starters and the
   project's first objects.
 - **Completion gate**: when a response ends, the host reads `work_status` for the turn's agent
-  session and those of the turns it continues, and records it on the turn. With blockers left,
-  the turn ends with **Work not finished**: the eyebrow “Completion gate · work_status, recorded
-  by Omen Flow” with the time it was read, the summary, up to five items with their `work`
-  state and the tool that resolves each (“Needs you” otherwise), **Continue** (disabled while
-  the project is busy) and **Edit request** (the request the chain started from); a failed
-  turn shows it under the error. An earlier turn's record collapses to one dated line. A
-  response that called no Omen Flow tool and touched nothing says so in a quiet labelled line,
-  with Continue. Continue sends one fixed continuation, shown as “You asked the agent to
+  session and those of the turns it continues, and records it on the turn; a continuation's own
+  `work_status` reads the same sessions. With blockers left, the turn ends with **Work not
+  finished**: the eyebrow “Completion gate · work_status, recorded by Omen Flow” with the time it
+  was read, the summary, up to five items with their `work` state and the tool that resolves
+  each (“Needs you” otherwise), **Continue** (disabled while the project is busy) and **Edit
+  request** (the request the chain started from); a failed turn shows it under the error. An
+  earlier turn's record collapses to one dated line, which says who continued it below when a
+  continuation follows. A response that called no Omen Flow tool and touched nothing says so in
+  a quiet labelled line, with Continue. Continue sends one fixed continuation, shown as “You asked the agent to
   continue”. With Settings → Agents → **Unfinished work after a response: Continue once** (off
   by default), Omen Flow sends it itself once per message you sent, when a blocker is the
   agent's to resolve from the record, shown outlined as “Sent by Omen Flow, once, because
   work_status reported unfinished work”; sourcing and seller offers never qualify, it never
-  continues a continuation, and Stop prevents it. Claude Code continuations resume the CLI
+  continues its own continuation (a Continue you press counts as a message you sent, so it may
+  continue once after that), and Stop prevents it. Claude Code continuations resume the CLI
   conversation; Codex continuations replay the conversation text. Agents cannot present this
   record: it is not a `chat.present` kind.
 - **Prepare → Send**: editing a card's values and pressing Prepare attaches the exact literal
@@ -353,7 +357,8 @@ navigation.
   transcript, clear, activity, settings), the terminal, and the **activity rail**: only calls
   recorded in the host's ledger, grouped by pauses and sessions, failures with their selectable
   error, input repairs, what the host also ran inside a call (the check a write with `expect`
-  ran, its state in the vocabulary's words, the attached work status; a check that did not
+  ran, its state in the vocabulary's words, the attached work status, which a continuation
+  names as read over “this turn and the one it continues”; a check that did not
   pass, or a run that did not answer, in the warning tone, so an ok call is not read as
   verified), and touched objects as links. A group names a time range only when its
   shown times differ, and headers and call details wrap only between facts. The rail is

@@ -71,6 +71,7 @@ export function asAlsoRan(value: unknown): AgentCallAlsoRan[] {
         scope: text(v.scope),
         ready: flag(v.ready),
         blockers: count(v.blockers),
+        sessions: count(v.sessions),
       },
     ];
   });
@@ -78,8 +79,10 @@ export function asAlsoRan(value: unknown): AgentCallAlsoRan[] {
 
 /**
  * One line for something the host ran inside a call: its tool and what it answered, a check's state
- * in the state vocabulary's words. `warn` marks a run that did not answer or a check that did not
- * pass, so a call that was ok is not read as verified.
+ * in the state vocabulary's words, a work status's scope as it was read (a conversation
+ * continuation's covers the turns it continues, so their blockers are not called this session's).
+ * `warn` marks a run that did not answer or a check that did not pass, so a call that was ok is not
+ * read as verified.
  */
 export function alsoRanLine(entry: AgentCallAlsoRan): { text: string; warn: boolean } {
   if (!entry.ok)
@@ -101,8 +104,15 @@ export function alsoRanLine(entry: AgentCallAlsoRan): { text: string; warn: bool
     };
   }
   if (entry.op === 'work.status') {
+    const earlier = entry.sessions !== undefined && entry.sessions > 1 ? entry.sessions - 1 : 0;
     const scope =
-      entry.scope === 'session' ? ' (this session)' : entry.scope ? ` (${entry.scope})` : '';
+      entry.scope === 'session'
+        ? earlier
+          ? ` (this turn and the ${earlier === 1 ? 'one' : earlier} it continues)`
+          : ' (this session)'
+        : entry.scope
+          ? ` (${entry.scope})`
+          : '';
     const state =
       entry.ready === true
         ? 'ready'

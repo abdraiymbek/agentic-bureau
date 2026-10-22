@@ -25,7 +25,7 @@ mod write_check;
 
 pub use adapters::{
     adapter, AdapterConfig, AdapterSpec, GuideChannel, McpInjection, ModelAlias, ModelAliases,
-    Probe, Routing, RoutingLookup, SearchPath, Version, ADAPTERS,
+    Probe, Routing, RoutingLookup, SearchPath, SettingsSource, Version, ADAPTERS,
 };
 pub use guide::read as guide_read;
 pub use ledger::{AgentCallRecord, AgentSessionSummary, AlsoRan, Via};
@@ -70,6 +70,12 @@ pub struct Grant {
     pub profile: Profile,
     pub adapter_id: String,
     pub model: Option<String>,
+    /// For a conversation continuation: the agent sessions of the turns it
+    /// continues, oldest first. Its `work_status` (unless it asks for the
+    /// project) and the work status on its check replies read them and this
+    /// session as one scope, as the host's gate on its turn does. Empty for
+    /// every other session.
+    pub continues: Vec<String>,
 }
 
 impl Grant {
@@ -82,7 +88,16 @@ impl Grant {
             profile: Profile::default(),
             adapter_id: DIRECT_ADAPTER.to_owned(),
             model: None,
+            continues: Vec::new(),
         }
+    }
+
+    /// The sessions whose work this session's own work status covers: the
+    /// ones it continues, then itself.
+    fn work_sessions(&self) -> Vec<String> {
+        let mut sessions = self.continues.clone();
+        sessions.push(self.session_id.clone());
+        sessions
     }
 }
 
@@ -219,6 +234,27 @@ impl BridgeServer {
             .expect("grants lock")
             .insert(token.clone(), grant);
         token
+    }
+
+    /// Tell a session's grant which agent sessions it continues, oldest
+    /// first (a conversation continuation's earlier turns). Called before
+    /// its CLI starts, so every call the session makes sees them.
+    pub(crate) fn continue_sessions(&self, session_id: &str, earlier: &[String]) {
+        let earlier = earlier
+            .iter()
+            .filter(|earlier| *earlier != session_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        for grant in self
+            .shared
+            .grants
+            .lock()
+            .expect("grants lock")
+            .values_mut()
+            .filter(|grant| grant.session_id == session_id)
+        {
+            grant.continues.clone_from(&earlier);
+        }
     }
 
     pub fn revoke(&self, session_id: &str) {
@@ -617,6 +653,7 @@ fn run_agent_call(
     let result = match (op.name.as_str(), &shared.host_dispatch) {
         ("guide.read", _) => guide::read(&input),
         ("proposal.wait", _) => wait_for_review(shared, grant, &input),
+        ("work.status", _) => work_status(shared, grant, &input),
         (_, Some(host_dispatch)) if hosted => host_dispatch(
             op.name.clone(),
             input.clone(),
@@ -747,6 +784,39 @@ fn dispatch_core(
         idempotency_key,
         &mut |event| (shared.on_event)(event),
     )
+}
+
+/// `work_status` for an agent. A conversation continuation's own scope is
+/// the sessions of the turns it continues and its own, read as one
+/// (`CoreApp::work_status_sessions`): the work it was asked to finish is
+/// theirs, and the host's gate on its turn reads the same sessions. Every
+/// other session, and a call that asks for the project, gets the core's
+/// answer unchanged.
+pub(crate) fn work_status(
+    shared: &Shared,
+    grant: &Grant,
+    input: &Value,
+) -> Result<Value, ContractError> {
+    let Some(op) = registry().operation("work.status") else {
+        return Err(registry().unknown_operation("work.status"));
+    };
+    if grant.continues.is_empty() || input["scope"] == "project" {
+        return dispatch_core(shared, grant, op, input.clone(), None);
+    }
+    let sessions = grant.work_sessions();
+    let mut status = shared
+        .core
+        .lock()
+        .map_err(|_| ContractError::new("INTERNAL", "Application state unavailable"))?
+        .work_status_sessions(&grant.project_id, &sessions)?;
+    if let Some(fields) = status.as_object_mut() {
+        // The host's own reading of the gate; the agent's answer keeps the
+        // work_status shape and names the sessions it covers.
+        fields.remove("inScope");
+        fields.remove("jobsRunning");
+        fields.insert("sessionIds".into(), json!(sessions));
+    }
+    Ok(status)
 }
 
 /// Margin kept between the longest wait and the CLI's own tool-call limit.

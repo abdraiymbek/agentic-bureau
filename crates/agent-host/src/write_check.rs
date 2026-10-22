@@ -24,9 +24,25 @@ const NEW_PART: &str = "00000000-0000-4000-8000-000000000000";
 const DIGEST_BLOCKERS: usize = 3;
 
 /// What a reply says instead of "call work_status" when the work status it
-/// carries is ready. Recorded work is all the gate knows, so it never says
-/// the request is done.
-pub(crate) const READY: &str = "workStatus.ready is true: nothing recorded in this session blocks. Do the rest of the request if any; otherwise give your final answer, mention workStatus.summary, and say the work is a draft awaiting the person's review.";
+/// carries is ready, for the scope it covered. Recorded work is all the gate
+/// knows, so it never says the request is done.
+macro_rules! ready {
+    ($scope:literal) => {
+        concat!(
+            "workStatus.ready is true: nothing recorded in ",
+            $scope,
+            " blocks. Do the rest of the request if any; otherwise give your final answer, mention workStatus.summary, and say the work is a draft awaiting the person's review."
+        )
+    };
+}
+
+/// [`ready!`] for a work status of one session.
+pub(crate) const READY: &str = ready!("this session");
+
+/// [`ready!`] for a conversation continuation's, which read the sessions of
+/// the turns it continues with its own (`workStatus.sessionIds`).
+pub(crate) const READY_CONTINUED: &str =
+    ready!("this session or the turns it continues (workStatus.sessionIds)");
 
 /// What a reply says instead of "call work_status" when the work status it
 /// carries is not ready and its first blocker names no call.
@@ -215,7 +231,9 @@ pub(crate) fn merge(mut write: Value, check: Result<Value, ContractError>) -> Va
 
 /// Put the session's work status on a reply that committed a check:
 /// `{scope, ready, summary, blockers}` from work_status, as the agent would
-/// get it. A reply that pointed at work_status points past it.
+/// get it (for a conversation continuation, over the turns it continues
+/// too, named in `sessionIds`). A reply that pointed at work_status points
+/// past it.
 pub(crate) fn attach_work_status(
     shared: &Shared,
     grant: &Grant,
@@ -235,8 +253,10 @@ pub(crate) fn attach_work_status(
         return;
     };
     // A status that cannot be read is left out; the agent then calls
-    // work_status itself, as it always could.
-    let Ok(status) = dispatch_core(shared, grant, status_op, json!({}), None) else {
+    // work_status itself, as it always could. Read as the agent's own call
+    // would be, so a conversation continuation's covers the turns it
+    // continues.
+    let Ok(status) = super::work_status(shared, grant, &json!({})) else {
         return;
     };
     let mut digest = digest(&status);
@@ -248,6 +268,9 @@ pub(crate) fn attach_work_status(
         scope: status["scope"].as_str().map(str::to_owned),
         ready: status["ready"].as_bool(),
         blockers: status["counts"]["blockers"].as_u64(),
+        sessions: status["sessionIds"]
+            .as_array()
+            .map(|sessions| sessions.len() as u64),
         ..AlsoRan::default()
     });
     point_past_work_status(result, &digest);
@@ -259,7 +282,10 @@ pub(crate) fn attach_work_status(
 /// Not ready: the first blocker's own next call.
 fn point_past_work_status(result: &mut Value, digest: &Value) {
     let instead = if digest["ready"] == true {
-        json!({"tool": null, "why": READY})
+        let chain = digest["sessionIds"]
+            .as_array()
+            .is_some_and(|sessions| sessions.len() > 1);
+        json!({"tool": null, "why": if chain { READY_CONTINUED } else { READY }})
     } else {
         digest["blockers"][0]["next"]
             .as_object()
@@ -276,7 +302,9 @@ fn point_past_work_status(result: &mut Value, digest: &Value) {
     }
 }
 
-/// The part of a work_status answer a check reply carries.
+/// The part of a work_status answer a check reply carries, with the
+/// sessions it covers when the answer names them (a conversation
+/// continuation's).
 pub(crate) fn digest(status: &Value) -> Value {
     let blockers = status["outstanding"]
         .as_array()
@@ -288,7 +316,11 @@ pub(crate) fn digest(status: &Value) -> Value {
             json!({"kind": item["kind"], "artifactId": item["artifactId"], "title": item["title"], "next": item["next"]})
         })
         .collect::<Vec<_>>();
-    json!({"scope": status["scope"], "ready": status["ready"], "summary": status["summary"], "blockers": blockers})
+    let mut digest = json!({"scope": status["scope"], "ready": status["ready"], "summary": status["summary"], "blockers": blockers});
+    if let Some(sessions) = status.get("sessionIds").filter(|ids| ids.is_array()) {
+        digest["sessionIds"] = sessions.clone();
+    }
+    digest
 }
 
 #[cfg(test)]
@@ -388,6 +420,14 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(ids, ["a1", "a3", "a4"]);
         assert!(digest["blockers"][0].get("detail").is_none());
+        assert!(
+            digest.get("sessionIds").is_none(),
+            "an ordinary session's answer names no sessions"
+        );
+        // A conversation continuation's answer names the sessions it read.
+        let mut continued = status;
+        continued["sessionIds"] = json!(["s1", "s2"]);
+        assert_eq!(super::digest(&continued)["sessionIds"], json!(["s1", "s2"]));
     }
 
     #[test]
@@ -402,6 +442,20 @@ mod tests {
         assert_eq!(
             READY,
             "workStatus.ready is true: nothing recorded in this session blocks. Do the rest of the request if any; otherwise give your final answer, mention workStatus.summary, and say the work is a draft awaiting the person's review."
+        );
+        // A continuation's digest read the turns it continues too, and says so.
+        let mut continued = json!({"next": to_status});
+        point_past_work_status(
+            &mut continued,
+            &json!({"ready": true, "blockers": [], "sessionIds": ["s1", "s2"]}),
+        );
+        assert_eq!(
+            continued["next"],
+            json!({"tool": null, "why": READY_CONTINUED})
+        );
+        assert_eq!(
+            READY_CONTINUED,
+            "workStatus.ready is true: nothing recorded in this session or the turns it continues (workStatus.sessionIds) blocks. Do the rest of the request if any; otherwise give your final answer, mention workStatus.summary, and say the work is a draft awaiting the person's review."
         );
 
         let mut full = json!({"next": "Verified.", "nextStep": to_status});
@@ -730,6 +784,77 @@ mod engine_tests {
             (&json!("tool_call"), &json!("cad.set_param"))
         );
         assert_eq!(recorded["alsoRan"].as_array().unwrap().len(), 2);
+    }
+
+    /// A conversation continuation's work_status and its digest cover the
+    /// turns it continues: checking one part is not ready while the earlier
+    /// turn's other part is unverified, and is once that part is checked. A
+    /// new session that continues nothing answers for itself alone.
+    #[test]
+    fn a_continuations_digest_covers_the_turns_it_continues() {
+        let (workspace, _engine) = setup("Continued digest");
+        let mut earlier = workspace.mcp(Profile::Compact);
+        let written = |client: &mut crate::test_support::McpClient, title: &str| {
+            let reply = client.call(
+                "cad_write_source",
+                json!({"title": title, "source": "cube([20, 10, 2]);"}),
+            );
+            assert!(!reply.is_error, "{}", reply.text);
+            reply.body["artifactId"].clone()
+        };
+        let (bracket, spacer) = (
+            written(&mut earlier, "Bracket"),
+            written(&mut earlier, "Spacer"),
+        );
+        let mut unrelated = workspace.mcp(Profile::Compact);
+        let alone = unrelated.call("work_status", json!({}));
+        assert_eq!(alone.body["ready"], true, "{}", alone.text);
+
+        let mut continuation =
+            workspace.mcp_continuing(Profile::Compact, std::slice::from_ref(&earlier.session_id));
+        let status = continuation.call("work_status", json!({}));
+        assert_eq!(status.body["ready"], false, "{}", status.text);
+        assert_eq!(status.body["summary"], "2 parts are not verified.");
+        assert_eq!(
+            status.body["sessionIds"],
+            json!([earlier.session_id, continuation.session_id])
+        );
+        let check = |client: &mut crate::test_support::McpClient, id: &Value| {
+            let reply = client.call(
+                "cad_check",
+                json!({"artifactId": id, "autoCommit": true, "expect": {"size": [20, 10, 2], "bodies": 1}}),
+            );
+            assert!(!reply.is_error, "{}", reply.text);
+            assert_eq!(reply.body["committed"], true, "{}", reply.text);
+            reply.body
+        };
+        let chain = json!([earlier.session_id, continuation.session_id]);
+        let first = check(&mut continuation, &bracket);
+        let digest = &first["workStatus"];
+        assert_eq!(digest["ready"], false, "{first}");
+        assert_eq!(digest["blockers"][0]["artifactId"], spacer);
+        assert_eq!(digest["sessionIds"], chain, "the digest names what it read");
+        assert_eq!(first["next"], digest["blockers"][0]["next"]);
+        // The ledger says how many sessions the status read, so the
+        // earlier turn's blocker is not shown as this session's.
+        assert_eq!(
+            workspace.last_recorded()["alsoRan"],
+            json!([{"tool": "work_status", "op": "work.status", "ok": true, "scope": "session",
+                    "ready": false, "blockers": 1, "sessions": 2}])
+        );
+        let second = check(&mut continuation, &spacer);
+        assert_eq!(second["workStatus"]["ready"], true, "{second}");
+        assert_eq!(second["workStatus"]["sessionIds"], chain);
+        assert_eq!(
+            second["workStatus"]["summary"],
+            "2 parts verified. 2 drafts are not submitted for review."
+        );
+        assert_eq!(
+            second["next"],
+            json!({"tool": null, "why": READY_CONTINUED})
+        );
+        let status = continuation.call("work_status", json!({}));
+        assert_eq!(status.body["ready"], true, "{}", status.text);
     }
 
     /// A spec item without an assertion commits the check as partial: the

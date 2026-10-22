@@ -614,6 +614,11 @@ fn accept(
         .hooks
         .prepare(project, &prepare_input, resume.as_deref())?;
     let session_id = plan["sessionId"].as_str().unwrap().to_owned();
+    // A continuation's own work_status covers the turns it continues, as its gate will.
+    let earlier = continued
+        .map(|t| chain_sessions(book, &t.request_id))
+        .unwrap_or_default();
+    cx.bridge.continue_sessions(&session_id, &earlier);
     let resumed = plan["resumed"] == true;
     let prompt = if resumed {
         resume_prompt(request, gate.as_ref())
@@ -670,6 +675,7 @@ fn accept(
                 request: request.request_id.clone(),
                 adapter: request.adapter_id.clone(),
                 session: session_id,
+                continues: earlier,
                 plan,
                 prompt,
                 resumed,
@@ -767,8 +773,12 @@ fn gate_brief(gate: &Value) -> String {
             Some(tool) => format!("Next: {tool}."),
             None => "Needs the person.".to_owned(),
         };
+        let id = item["artifactId"]
+            .as_str()
+            .map(|id| format!(", artifactId {id}"))
+            .unwrap_or_default();
         brief.push_str(&format!(
-            "- {} ({}): {} {next}\n",
+            "- {} ({}{id}): {} {next}\n",
             text(&item["title"]),
             text(&item["kind"]),
             text(&item["detail"])
@@ -780,8 +790,13 @@ fn gate_brief(gate: &Value) -> String {
             "- {more} more: call work_status for the full list.\n"
         ));
     }
+    if !items.is_empty() || more > 0 {
+        brief.push_str(CHAIN_SCOPE);
+    }
     brief
 }
+/// What a continuation is told about its own work_status: it reads the same sessions as the gate.
+const CHAIN_SCOPE: &str = "In this run, work_status and the workStatus digest on check replies cover the previous replies' work as well as yours, and give each item's next call with its args.\n";
 
 /// The completion gate when a turn ended, as recorded on the turn (`ChatGate`).
 #[derive(Serialize)]
@@ -1501,6 +1516,8 @@ struct Run {
     request: String,
     adapter: String,
     session: String,
+    /// The agent sessions of the turns this run continues, oldest first; its grant carries them.
+    continues: Vec<String>,
     plan: Value,
     prompt: String,
     /// The plan resumes the CLI's own conversation.
@@ -1708,6 +1725,7 @@ fn restart(
         .prepare(&job.project, input, None)
         .map_err(|error| format!("{gone}, and a new run could not start: {}", error.message))?;
     let session = plan["sessionId"].as_str().unwrap_or_default().to_owned();
+    cx.bridge.continue_sessions(&session, &job.continues);
     let mut state = cx.state.lock().unwrap_or_else(PoisonError::into_inner);
     // Under the lock, as Stop sets it: a Stop before this point is seen, one after reaches
     // the new process.
@@ -2472,9 +2490,10 @@ mod tests {
             gate_brief(&recorded),
             "Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty. 1 component has no source.\n\
              Outstanding:\n\
-             - Notes (empty_payload): Draft r1 has no content yet. Next: artifact_update_draft.\n\
-             - Bracket (changes_requested): The reviewer asked for changes. Needs the person.\n\
-             - 2 more: call work_status for the full list.\n"
+             - Notes (empty_payload, artifactId a): Draft r1 has no content yet. Next: artifact_update_draft.\n\
+             - Bracket (changes_requested, artifactId b): The reviewer asked for changes. Needs the person.\n\
+             - 2 more: call work_status for the full list.\n\
+             In this run, work_status and the workStatus digest on check replies cover the previous replies' work as well as yours, and give each item's next call with its args.\n"
         );
         assert_eq!(
             resume_prompt(&next, Some(&recorded)),
@@ -2980,5 +2999,300 @@ mod tests {
             vec![None, Some("abc-1".to_owned())]
         );
         assert!(resumed.starts_with("Omen Flow resumed this conversation"));
+    }
+
+    /// Hooks that issue a real grant for every run they prepare, as the host does, and give
+    /// prepare call `n` the shell script `scripts[n]`. Call `hold` waits, after saying it was
+    /// entered, until the test lets it go; meanwhile its caller holds what it holds.
+    #[cfg(unix)]
+    struct Gated {
+        root: PathBuf,
+        bridge: Arc<BridgeServer>,
+        scripts: Vec<(String, bool)>,
+        hold: usize,
+        entered: Mutex<std::sync::mpsc::Sender<()>>,
+        release: Mutex<std::sync::mpsc::Receiver<()>>,
+        sessions: Mutex<Vec<String>>,
+        auto: bool,
+        start: Mutex<()>,
+    }
+    #[cfg(unix)]
+    impl Gated {
+        fn new(
+            workspace: &crate::test_support::Workspace,
+            scripts: Vec<(String, bool)>,
+            hold: usize,
+            auto: bool,
+        ) -> (
+            Arc<Self>,
+            std::sync::mpsc::Receiver<()>,
+            std::sync::mpsc::Sender<()>,
+        ) {
+            let (entered, entering) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let hooks = Arc::new(Self {
+                root: workspace.root(),
+                bridge: Arc::clone(&workspace.bridge),
+                scripts,
+                hold,
+                entered: Mutex::new(entered),
+                release: Mutex::new(released),
+                sessions: Mutex::new(Vec::new()),
+                auto,
+                start: Mutex::new(()),
+            });
+            (hooks, entering, release)
+        }
+        fn session(&self, n: usize) -> String {
+            self.sessions.lock().unwrap()[n].clone()
+        }
+        /// The grant a session holds now, if any.
+        fn grant(&self, session: &str) -> Option<crate::Grant> {
+            self.bridge
+                .shared
+                .grants
+                .lock()
+                .unwrap()
+                .values()
+                .find(|grant| grant.session_id == session)
+                .cloned()
+        }
+    }
+    #[cfg(unix)]
+    impl ChatHooks for Gated {
+        fn work_status(&self, _: &str, _: &[String]) -> Result<Value, ContractError> {
+            Ok(
+                json!({"ready": false, "summary": "1 draft is empty.", "waitingOnHuman": [],
+                "outstanding": [{"kind": "empty_payload", "severity": "blocker", "artifactId": "a", "title": "Notes",
+                    "detail": "Draft r1 has no content yet.", "next": {"tool": "artifact_update_draft", "why": "", "args": {}}}],
+                "counts": {"blockers": 1, "advice": 0}, "inScope": 1, "jobsRunning": 0}),
+            )
+        }
+        fn auto_continue(&self) -> bool {
+            self.auto
+        }
+        fn start_lock(&self) -> MutexGuard<'_, ()> {
+            self.start.lock().unwrap()
+        }
+        fn prepare(&self, _: &str, _: &Value, _: Option<&str>) -> Result<Value, ContractError> {
+            let session = uuid::Uuid::new_v4().to_string();
+            self.bridge.issue_token("p", &session);
+            let n = {
+                let mut sessions = self.sessions.lock().unwrap();
+                sessions.push(session.clone());
+                sessions.len() - 1
+            };
+            if n == self.hold {
+                let _ = self.entered.lock().unwrap().send(());
+                let _ = self
+                    .release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10));
+            }
+            let (script, resumed) = &self.scripts[n];
+            Ok(
+                json!({"sessionId": session, "executable": "/bin/sh", "args": ["-c", script],
+                "cwd": self.root, "env": {}, "envDefaults": {}, "files": [], "resumed": resumed}),
+            )
+        }
+    }
+
+    /// A first run that completes, then a continuation that runs until it is stopped.
+    #[cfg(unix)]
+    fn completes_then_waits() -> Vec<(String, bool)> {
+        vec![
+            (
+                "cat >/dev/null; printf '%s\\n' '{\"type\":\"turn.completed\"}'".into(),
+                false,
+            ),
+            ("cat >/dev/null; exec sleep 30".into(), false),
+        ]
+    }
+
+    /// An automatic continuation's grant carries the session of the turn it continues, so
+    /// its own work_status reads that turn's work too.
+    #[cfg(unix)]
+    #[test]
+    fn a_continuation_s_grant_carries_the_sessions_it_continues() {
+        let workspace = crate::test_support::Workspace::new("Chain grant");
+        let root = workspace.root();
+        let (hooks, _, _) = Gated::new(&workspace, completes_then_waits(), usize::MAX, true);
+        let host = ChatHost::new(
+            Arc::clone(&workspace.bridge),
+            Arc::new(Mutex::new(State::default())),
+            Arc::clone(&hooks) as Arc<dyn ChatHooks>,
+        );
+        let send = json!({"conversationId": "c", "requestId": "r1", "adapterId": "codex", "text": "Write the notes"});
+        host.command("chat.send", "p", &root, &send, false).unwrap();
+        let until = Instant::now() + Duration::from_secs(10);
+        let grant = loop {
+            let continued = hooks.sessions.lock().unwrap().len() == 2
+                && host.running_in(&root)
+                && host.cx.state.lock().unwrap().books[&root].conversations[0]
+                    .turns
+                    .len()
+                    == 2;
+            if continued {
+                break hooks.grant(&hooks.session(1)).unwrap();
+            }
+            assert!(Instant::now() < until, "the continuation never started");
+            thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(grant.continues, vec![hooks.session(0)]);
+        assert!(
+            hooks.grant(&hooks.session(0)).is_none(),
+            "the first run's grant ended with it"
+        );
+        host.stop_project(&root).unwrap();
+        assert!(!host.running());
+    }
+
+    /// Wait, under the chat lock as Stop sets it, until a Stop reached the project's run.
+    #[cfg(unix)]
+    fn until_stopped(host: &ChatHost, root: &Path) {
+        let until = Instant::now() + Duration::from_secs(10);
+        while !host
+            .cx
+            .state
+            .lock()
+            .unwrap()
+            .active
+            .get(root)
+            .is_some_and(|process| process.cancelled.load(Ordering::SeqCst))
+        {
+            assert!(Instant::now() < until, "Stop never reached the run");
+            thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// A Stop while a resumed run that found its conversation gone prepares its one replay
+    /// ends the turn stopped: the replay never runs, and both runs' grants are revoked.
+    #[cfg(unix)]
+    #[test]
+    fn stop_while_the_resume_falls_back_cancels_the_replay() {
+        let workspace = crate::test_support::Workspace::new("Fallback stop");
+        let root = workspace.root();
+        let ran = workspace.temp.path().join("replay-ran");
+        let replay = format!(
+            "touch '{}'; cat >/dev/null; printf '%s\\n' '{{\"type\":\"result\",\"subtype\":\"success\",\"result\":\"Done.\"}}'",
+            ran.display()
+        );
+        let gone =
+            "cat >/dev/null; echo 'No conversation found with session ID: abc-1' >&2; exit 1";
+        let (hooks, entered, release) = Gated::new(
+            &workspace,
+            vec![(gone.into(), true), (replay, false)],
+            1,
+            false,
+        );
+        let mut first = Turn::accepted(&request("r1", None), Some("s1".into()), &Value::Null);
+        first.adapter_id = "claude-code".into();
+        first.text = "Make the bracket".into();
+        first.response = "Made.".into();
+        first.state = "completed".into();
+        first.cli_conversation_id = Some("abc-1".into());
+        save(
+            &root,
+            &Book {
+                version: 1,
+                conversations: vec![Conversation {
+                    id: "c".into(),
+                    title: "Bracket".into(),
+                    turns: vec![first],
+                    cards: vec![],
+                }],
+            },
+        )
+        .unwrap();
+        let host = ChatHost::new(
+            Arc::clone(&workspace.bridge),
+            Arc::new(Mutex::new(State::default())),
+            Arc::clone(&hooks) as Arc<dyn ChatHooks>,
+        );
+        let send = json!({"conversationId": "c", "requestId": "r2", "adapterId": "claude-code",
+            "text": CONTINUE_TEXT, "continues": {"requestId": "r1"}});
+        host.command("chat.send", "p", &root, &send, false).unwrap();
+        // The resumed run said its conversation is gone; the replay is being prepared.
+        entered.recv_timeout(Duration::from_secs(10)).unwrap();
+        thread::scope(|scope| {
+            let stop = scope.spawn(|| host.stop_project(&root));
+            until_stopped(&host, &root);
+            release.send(()).unwrap();
+            stop.join().unwrap().unwrap();
+        });
+        let book = host
+            .command("chat.read", "p", &root, &json!({}), false)
+            .unwrap();
+        let turn = &book["conversations"][0]["turns"][1];
+        assert_eq!(turn["state"], "cancelled", "{book}");
+        assert!(turn.get("gate").is_none());
+        assert!(!ran.exists(), "the replay never ran");
+        assert_eq!(hooks.sessions.lock().unwrap().len(), 2);
+        assert!(hooks.grant(&hooks.session(0)).is_none());
+        assert!(
+            hooks.grant(&hooks.session(1)).is_none(),
+            "the replay's grant is revoked"
+        );
+        assert!(!host.running());
+    }
+
+    /// A Stop or a project close that lands while a run hands the project to its automatic
+    /// continuation waits for the hand-off, then reaches the continuation: it ends stopped,
+    /// within Stop's wait, and nothing is left running.
+    #[cfg(unix)]
+    #[test]
+    fn stop_during_the_continuation_hand_off_reaches_the_continuation() {
+        for close in [false, true] {
+            let workspace = crate::test_support::Workspace::new("Hand-off stop");
+            let root = workspace.root();
+            let (hooks, entered, release) = Gated::new(&workspace, completes_then_waits(), 1, true);
+            let host = ChatHost::new(
+                Arc::clone(&workspace.bridge),
+                Arc::new(Mutex::new(State::default())),
+                Arc::clone(&hooks) as Arc<dyn ChatHooks>,
+            );
+            let send = json!({"conversationId": "c", "requestId": "r1", "adapterId": "codex", "text": "Write the notes"});
+            host.command("chat.send", "p", &root, &send, false).unwrap();
+            // The first run settled and is accepting its continuation, holding the chat lock.
+            entered.recv_timeout(Duration::from_secs(10)).unwrap();
+            let started = Instant::now();
+            thread::scope(|scope| {
+                let stop = scope.spawn(|| {
+                    if close {
+                        host.stop_project(&root)
+                    } else {
+                        host.command(
+                            "chat.cancel",
+                            "p",
+                            &root,
+                            &json!({"conversationId": "c"}),
+                            false,
+                        )
+                        .map(drop)
+                    }
+                });
+                // Give the Stop time to wait for the chat lock the hand-off holds.
+                thread::sleep(Duration::from_millis(100));
+                release.send(()).unwrap();
+                stop.join().unwrap().unwrap();
+            });
+            assert!(started.elapsed() < Duration::from_secs(5), "close {close}");
+            let book = host
+                .command("chat.read", "p", &root, &json!({}), false)
+                .unwrap();
+            let turns = book["conversations"][0]["turns"].as_array().unwrap();
+            assert_eq!(turns.len(), 2, "{book}");
+            assert_eq!(turns[0]["state"], "completed");
+            assert_eq!(
+                turns[0]["gate"]["auto"],
+                json!({"state": "started", "requestId": "r1-auto"})
+            );
+            assert_eq!(turns[1]["requestId"], "r1-auto");
+            assert_eq!(turns[1]["state"], "cancelled", "close {close}: {book}");
+            assert!(turns[1].get("gate").is_none());
+            assert!(!host.running() && !host.running_in(&root));
+            assert!(hooks.grant(&hooks.session(1)).is_none());
+        }
     }
 }

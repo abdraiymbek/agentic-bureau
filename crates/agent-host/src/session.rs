@@ -57,7 +57,8 @@ pub struct LaunchRequest<'a> {
     pub mode: LaunchMode<'a>,
     /// What the project held when the launch was prepared, for the brief.
     /// `None` when it was not read: the brief then says nothing about the
-    /// project, and the agent starts with project_summary.
+    /// project, and the agent starts with project_summary. Its `resumed`
+    /// is set here, from whether the plan resumes a conversation.
     pub snapshot: Option<&'a guide::Snapshot>,
 }
 
@@ -107,11 +108,30 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
     let adapter = request.adapter;
     let work = work_dir(request.project_root, request.session_id);
     let helper = request.helper.to_string_lossy().into_owned();
+    // A headless CLI told not to keep its sessions has none to resume later, and none of its
+    // earlier runs left one: it starts fresh.
+    let persists = !(request.mode.headless()
+        && request
+            .config
+            .args
+            .iter()
+            .any(|arg| arg == "--no-session-persistence"));
+    let wanted = match request.mode {
+        LaunchMode::Resume { conversation_id } => Some(conversation_id),
+        LaunchMode::HeadlessResume { conversation_id } if persists => Some(conversation_id),
+        _ => None,
+    };
+    // The brief says what the agent read before may be out of date only when the CLI really
+    // continues a conversation: a terminal "Start again" or a conversation turn's resume.
+    let snapshot = request.snapshot.map(|snapshot| guide::Snapshot {
+        resumed: adapter.resume.is_some() && wanted.is_some(),
+        ..snapshot.clone()
+    });
     let guidance = guide::launch_guidance(
         request.profile,
         request.project_name,
         request.project_root,
-        request.snapshot,
+        snapshot.as_ref(),
     );
     let bridge = [
         request.socket_path,
@@ -276,19 +296,6 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
         }
     }
 
-    // A headless CLI told not to keep its sessions has none to resume later, and none of its
-    // earlier runs left one: it starts fresh.
-    let persists = !(headless.is_some()
-        && request
-            .config
-            .args
-            .iter()
-            .any(|arg| arg == "--no-session-persistence"));
-    let wanted = match request.mode {
-        LaunchMode::Resume { conversation_id } => Some(conversation_id),
-        LaunchMode::HeadlessResume { conversation_id } if persists => Some(conversation_id),
-        _ => None,
-    };
     let (conversation_id, resumed) = match (adapter.resume, wanted, request.mode) {
         (Some(_), Some(id), _) if !plain_id(id) => {
             return Err(ContractError::validation(
@@ -1003,6 +1010,73 @@ mod tests {
                     expected
                 );
             }
+        }
+    }
+
+    /// A brief says what the agent read before may be out of date exactly
+    /// when the CLI continues a conversation: a terminal resume, or a
+    /// conversation turn that resumes Claude Code's conversation. A run that
+    /// starts fresh, kept sessions or not, says when it started.
+    #[test]
+    fn a_resumed_conversation_s_brief_says_it_continues_one() {
+        let earlier = "11111111-2222-4333-8444-555555555555";
+        let snapshot = guide::Snapshot {
+            intent: Some("Rover parts".into()),
+            ..guide::Snapshot::default()
+        };
+        let continues = "This session continues an earlier conversation; what you read then may be out of date.";
+        let brief = |args: Value, mode: LaunchMode<'_>| {
+            let plan = plan_launch(&LaunchRequest {
+                adapter: adapter("claude-code").unwrap(),
+                config: &AdapterConfig::from_value(&json!({"args": args})),
+                executable: Path::new("/usr/local/bin/claude"),
+                helper: Path::new("/Applications/Omen Flow.app/Contents/Resources/omenflow"),
+                project_id: "project-1",
+                project_name: "Sable rover",
+                project_root: Path::new("/projects/rover"),
+                session_id: SESSION,
+                socket_path: "/data/run/bridge.sock",
+                token: "secret-token",
+                profile: Profile::Compact,
+                path: "/usr/bin",
+                mode,
+                snapshot: Some(&snapshot),
+            })
+            .unwrap();
+            let file = plan
+                .files
+                .iter()
+                .find(|file| file.path.ends_with("guide.md"))
+                .unwrap();
+            assert_eq!(file.contents, plan.guidance);
+            (plan.resumed, plan.guidance)
+        };
+        for mode in [
+            LaunchMode::Resume {
+                conversation_id: earlier,
+            },
+            LaunchMode::HeadlessResume {
+                conversation_id: earlier,
+            },
+        ] {
+            let (resumed, guidance) = brief(json!([]), mode);
+            assert!(resumed, "{mode:?}");
+            assert!(guidance.contains(continues), "{mode:?}");
+        }
+        for (args, mode) in [
+            (json!([]), LaunchMode::Interactive),
+            (json!([]), LaunchMode::Headless),
+            (
+                json!(["--no-session-persistence"]),
+                LaunchMode::HeadlessResume {
+                    conversation_id: earlier,
+                },
+            ),
+        ] {
+            let (resumed, guidance) = brief(args, mode);
+            assert!(!resumed, "{mode:?}");
+            assert!(!guidance.contains(continues), "{mode:?}");
+            assert!(guidance.contains("When this session started the project was empty"));
         }
     }
 

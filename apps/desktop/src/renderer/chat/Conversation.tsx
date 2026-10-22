@@ -32,7 +32,6 @@ import {
   Menu,
   Notice,
   Spinner,
-  State,
   Time,
   TypeGlyph,
   typeMeta,
@@ -40,6 +39,7 @@ import {
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { InlineCards, InputAttachment } from './InlineCards';
 import { ContinuationMessage, NoToolCalls, WorkNotFinished } from './InlineGate';
+import { RecordedCall } from './RecordedCall';
 import { CompactContext } from './compact';
 import { modelMismatch, turnModel } from './model';
 import { useChat, type ProjectChat } from './chat-store';
@@ -845,7 +845,6 @@ function Turn({
           gate.inScope === 0 && (
             <NoToolCalls
               latest={latest}
-              continuedBy={continuedBy}
               blocked={blocked}
               refused={refused}
               onContinue={onContinue}
@@ -884,31 +883,13 @@ function Turn({
               activity.calls.length ? (
                 <ol>
                   {activity.calls.map((call) => (
-                    <li key={call.seq}>
-                      <State
-                        state={call.ok ? 'passed' : 'failed'}
-                        label={call.ok ? 'Returned' : 'Failed'}
-                      />
-                      <code>{call.tool}</code>
-                      <span>{call.durationMs} ms</span>
-                      {call.message && <small>{call.message}</small>}
-                      {call.artifactIds.map((id) => (
-                        <button
-                          type="button"
-                          key={id}
-                          onClick={() =>
-                            report(
-                              useChat
-                                .getState()
-                                .open(projectId, { kind: 'artifact', artifactId: id }),
-                            )
-                          }
-                        >
-                          Inspect object {id.slice(-6)}
-                          <ArrowRight size={11} />
-                        </button>
-                      ))}
-                    </li>
+                    <RecordedCall
+                      key={call.seq}
+                      call={call}
+                      onInspect={(artifactId) =>
+                        report(useChat.getState().open(projectId, { kind: 'artifact', artifactId }))
+                      }
+                    />
                   ))}
                 </ol>
               ) : (

@@ -8,12 +8,15 @@ import { ListChecks } from '@phosphor-icons/react';
 import type { ChatGate, ChatTurn } from '@omenflow/contracts';
 import { Button, Notice, State, Time } from '../ui/kit';
 
-/** What the turn's gate says Omen Flow did, or did not do, about the unfinished work. */
-export function autoCaption(gate: ChatGate, continuedBy?: ChatTurn): string | null {
-  if (continuedBy)
-    return continuedBy.continues?.automatic
-      ? 'Omen Flow continued once, automatically, below.'
-      : 'You continued this below.';
+/** Who continued an earlier turn, said on its collapsed record. */
+export function continuedCaption(continuedBy: ChatTurn): string {
+  return continuedBy.continues?.automatic
+    ? 'Omen Flow continued once, automatically, below.'
+    : 'You continued this below.';
+}
+
+/** Why Omen Flow did not continue the latest turn's unfinished work by itself, when it did not. */
+export function autoCaption(gate: ChatGate): string | null {
   const auto = gate.auto;
   if (auto?.state !== 'skipped') return null;
   switch (auto.reason) {
@@ -38,7 +41,11 @@ export function autoCaption(gate: ChatGate, continuedBy?: ChatTurn): string | nu
   }
 }
 
-/** A turn's gate that lists blockers. Earlier turns' records collapse to one quiet line. */
+/**
+ * A turn's gate that lists blockers. Earlier turns' records collapse to one quiet line, which says
+ * who continued the turn when a continuation follows it. Only the latest turn can be continued, and
+ * a continuation is always added after it, so the latest turn is never one that was continued.
+ */
 export function WorkNotFinished({
   gate,
   latest,
@@ -51,7 +58,7 @@ export function WorkNotFinished({
   gate: ChatGate;
   /** The conversation's latest turn: only it can be continued. */
   latest: boolean;
-  /** The turn that continues this one, when there is one. */
+  /** The turn that continues this one, when there is one (an earlier turn's). */
   continuedBy?: ChatTurn;
   /** The project is busy or read-only: Continue waits. */
   blocked: boolean;
@@ -68,11 +75,12 @@ export function WorkNotFinished({
         <span>
           Work not finished when this response ended, per work_status recorded by Omen Flow:{' '}
           {gate.summary}
+          {continuedBy && ` ${continuedCaption(continuedBy)}`}
         </span>
         <Time value={gate.checkedAt} />
       </p>
     );
-  const caption = autoCaption(gate, continuedBy);
+  const caption = autoCaption(gate);
   return (
     <section className="inline-card chat-gate" aria-label="Work not finished">
       <header className="inline-card-head">
@@ -116,11 +124,9 @@ export function WorkNotFinished({
         </Notice>
       )}
       <div className="inline-card-actions">
-        {!continuedBy && (
-          <Button variant="primary" size="sm" disabled={blocked} onClick={onContinue}>
-            Continue
-          </Button>
-        )}
+        <Button variant="primary" size="sm" disabled={blocked} onClick={onContinue}>
+          Continue
+        </Button>
         <Button variant="ghost" size="sm" onClick={onEdit}>
           Edit request
         </Button>
@@ -135,13 +141,12 @@ export function WorkNotFinished({
  */
 export function NoToolCalls({
   latest,
-  continuedBy,
   blocked,
   refused,
   onContinue,
 }: {
+  /** The conversation's latest turn: only it can be continued. */
   latest: boolean;
-  continuedBy?: ChatTurn;
   blocked: boolean;
   refused?: string;
   onContinue: () => void;
@@ -152,7 +157,7 @@ export function NoToolCalls({
         <span className="chat-eyebrow">Recorded by Omen Flow</span>
         No Omen Flow tools were called in this response.
       </p>
-      {latest && !continuedBy && (
+      {latest && (
         <Button size="sm" variant="ghost" disabled={blocked} onClick={onContinue}>
           Continue
         </Button>

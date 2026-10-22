@@ -432,6 +432,13 @@
   flex-basis: 100%;
   color: var(--err);
 }
+/* What the host also ran inside the call; a check that did not pass in the warning tone. */
+.chat-call-ledger li > small.chat-call-also {
+  color: var(--text-2);
+}
+.chat-call-ledger li > small.chat-call-also.warn {
+  color: var(--warn);
+}
 .chat-call-ledger li > button {
   color: var(--text-2);
   text-decoration: underline;

@@ -350,13 +350,7 @@ impl PtyHost {
                 .map_err(|_| failure("Application state unavailable"))?;
             core.assert_project_writable(project_id)?;
             let snapshot = session::carries_brief(spec)
-                .then(|| {
-                    read_snapshot(
-                        &mut core,
-                        project_id,
-                        matches!(mode, LaunchMode::Resume { .. }),
-                    )
-                })
+                .then(|| read_snapshot(&mut core, project_id))
                 .flatten();
             let root = core.project_root(project_id)?;
             let open = core.dispatch("project.list_open", json!({}), Origin::System, None)?;
@@ -373,7 +367,8 @@ impl PtyHost {
         };
         // Read with the workspace lock released: it may read the CLI's settings files. From
         // here on the profile, the grant, `--model` and the session all name the full id.
-        let config = config.canonicalize(spec, &self.routing()(spec, Some(&root)));
+        let routing = self.routing()(spec, &config, Some(&root));
+        let config = config.canonicalize(spec, &routing);
         if !self.cli_path.is_file() {
             return Err(ContractError::new(
                 "TOOL_MISSING",
@@ -402,6 +397,7 @@ impl PtyHost {
             profile: resolved.profile,
             adapter_id: adapter_id.to_owned(),
             model: config.model.clone(),
+            continues: Vec::new(),
         });
         let helper_dir = self.cli_path.parent().unwrap_or(Path::new("/usr/bin"));
         let plan = plan_launch(&LaunchRequest {
@@ -543,7 +539,8 @@ impl PtyHost {
                 .map(|(spec, config)| {
                     let search = &search;
                     scope.spawn(move || {
-                        let config = config.canonicalize(spec, &routing(spec, None));
+                        let routed = routing(spec, &config, None);
+                        let config = config.canonicalize(spec, &routed);
                         spec.status(&config, &search.probe(spec, &config))
                     })
                 })
@@ -592,7 +589,8 @@ impl PtyHost {
                 core.project_root(project_id).ok(),
             )
         };
-        let config = config.canonicalize(spec, &self.routing()(spec, root.as_deref()));
+        let routing = self.routing()(spec, &config, root.as_deref());
+        let config = config.canonicalize(spec, &routing);
         let tested_at = now();
         let steps = self.test_steps(project_id, spec, &config);
         let failed = steps.iter().find(|step| step["ok"] == false);
@@ -679,6 +677,7 @@ impl PtyHost {
             // present a test as work done with the adapter.
             adapter_id: format!("connection-test:{}", spec.id),
             model: config.model.clone(),
+            continues: Vec::new(),
         });
         let env = [
             ("OMENFLOW_BRIDGE_SOCK", self.bridge.socket_path()),
@@ -925,8 +924,9 @@ impl Drop for PtyHost {
 
 /// What the project holds now, read as the system for a session's brief:
 /// summaries only, at most `SNAPSHOT_LISTED` artifact rows. A project that
-/// cannot be read gives no snapshot rather than a wrong one.
-fn read_snapshot(core: &mut CoreApp, project_id: &str, resumed: bool) -> Option<guide::Snapshot> {
+/// cannot be read gives no snapshot rather than a wrong one. Whether the
+/// session resumes a conversation is the plan's to say (`plan_launch`).
+fn read_snapshot(core: &mut CoreApp, project_id: &str) -> Option<guide::Snapshot> {
     let summary = core
         .dispatch(
             "project.summary",
@@ -943,7 +943,7 @@ fn read_snapshot(core: &mut CoreApp, project_id: &str, resumed: bool) -> Option<
             Some(project_id),
         )
         .ok()?;
-    Some(guide::Snapshot::from_replies(&summary, &listing, resumed))
+    Some(guide::Snapshot::from_replies(&summary, &listing, false))
 }
 
 fn known_adapter(id: &str) -> Result<&'static AdapterSpec, ContractError> {
@@ -1511,7 +1511,7 @@ mod tests {
                 }),
             );
             // The developer's own Claude settings and variables never change a result.
-            host.set_routing(|_, _| Routing::default());
+            host.set_routing(|_, _, _| Routing::default());
             Self {
                 host,
                 events,

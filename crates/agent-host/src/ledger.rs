@@ -103,6 +103,11 @@ pub struct AlsoRan {
     pub ready: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blockers: Option<u64>,
+    /// work_status: how many agent sessions it read as one scope, when it
+    /// named them (a conversation continuation's: the turns it continues and
+    /// its own).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sessions: Option<u64>,
 }
 
 /// What `dispatch_agent` knows about a finished call.

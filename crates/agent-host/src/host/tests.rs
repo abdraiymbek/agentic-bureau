@@ -1082,14 +1082,120 @@ fn unfinished_work_is_continued_once_when_the_setting_is_on() {
     let prompt = std::fs::read_to_string(dir.join("prompt-2")).unwrap();
     assert!(prompt.contains("User: Write the test notes\n"), "{prompt}");
     assert!(prompt.contains("Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty."));
-    assert!(prompt.contains(
-        "- Test notes (empty_payload): Draft r1 has no content yet. Next: artifact_update_draft."
-    ));
+    let notes = reply["result"]["artifact"]["id"].as_str().unwrap();
+    assert!(prompt.contains(&format!(
+        "- Test notes (empty_payload, artifactId {notes}): Draft r1 has no content yet. Next: artifact_update_draft."
+    )));
+    assert!(prompt.contains("In this run, work_status and the workStatus digest on check replies cover the previous replies' work as well as yours"));
     assert!(prompt.contains(&format!(
         "Omen Flow (automatic continuation): {}\n",
         crate::chat::CONTINUE_TEXT
     )));
     assert_eq!(executions(&dir), 2);
+    f.host.shutdown();
+}
+
+/// A Codex stand-in that keeps each run's bridge token as `token-<n>` and holds run `n` until
+/// `finish-<n>` exists, so a test can call as each run's own session, through its own grant.
+#[cfg(unix)]
+fn holding_agent(f: &Fixture) -> PathBuf {
+    let dir = f._temp.path().to_owned();
+    let message = json!({"type": "item.completed", "item": {"id": "m", "type": "agent_message", "text": "Worked on it."}});
+    chat_agent(
+        f,
+        &format!(
+            "n=$(($(cat '{count}' 2>/dev/null || echo 0) + 1)); echo $n > '{count}'\ncat >/dev/null\nprintf '%s' \"$OMENFLOW_BRIDGE_TOKEN\" > '{dir}/token.tmp' && mv '{dir}/token.tmp' '{dir}/token-'$n\nwhile [ ! -e '{dir}/finish-'$n ]; do sleep 0.05; done\nprintf '%s\\n' '{message}' '{completed}'",
+            count = dir.join("executions").display(),
+            dir = dir.display(),
+            completed = json!({"type": "turn.completed"}),
+        ),
+    );
+    dir
+}
+
+/// The token run `n` of [`holding_agent`] was started with.
+#[cfg(unix)]
+fn run_token(dir: &Path, n: usize) -> String {
+    let path = dir.join(format!("token-{n}"));
+    let until = Instant::now() + Duration::from_secs(10);
+    while !path.exists() {
+        assert!(Instant::now() < until, "run {n} never started");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    std::fs::read_to_string(path).unwrap()
+}
+
+/// A continuation's own work_status covers the turns it continues, as the gate on its turn
+/// does: it is not ready while their work is unfinished, and ready once the continuation has
+/// done it. Any other session's answer, and the project scope, are unchanged.
+#[test]
+#[cfg(unix)]
+fn a_continuations_own_work_status_covers_the_turns_it_continues() {
+    let f = fixture();
+    let dir = holding_agent(&f);
+    let first = session_of(&chat_send(&f, "conversation", "r1", "Write the test notes"));
+    let earlier = run_token(&dir, 1);
+    let drafted = call_with_token(
+        &f,
+        &earlier,
+        "artifact.create_draft",
+        json!({"type": "note", "title": "Test notes", "payload": {"markdown": ""}}),
+    );
+    assert_eq!(drafted["ok"], true, "{drafted}");
+    std::fs::write(dir.join("finish-1"), "").unwrap();
+    let turns = settled_turns(&f);
+    assert_eq!(turns[0]["gate"]["ready"], false, "{turns:?}");
+    let item = &turns[0]["gate"]["outstanding"][0];
+    assert_eq!(item["kind"], "empty_payload");
+    let notes = item["artifactId"].as_str().unwrap().to_owned();
+
+    // The person presses Continue.
+    ok(f.host.command(
+        "chat.send",
+        json!({"conversationId": "conversation", "requestId": "r2", "text": crate::chat::CONTINUE_TEXT,
+               "adapterId": "codex", "continues": {"requestId": "r1"}}),
+        Some(&f.project_id),
+        None,
+    ));
+    let token = run_token(&dir, 2);
+    let status = call_with_token(&f, &token, "work.status", json!({}));
+    assert_eq!(status["ok"], true, "{status}");
+    let status = &status["result"];
+    let second = status["sessionId"].as_str().unwrap().to_owned();
+    assert_ne!(second, first);
+    assert_eq!(status["scope"], "session");
+    assert_eq!(status["ready"], false, "{status}");
+    assert_eq!(status["sessionIds"], json!([first, second]));
+    assert_eq!(status["summary"], "1 draft is empty.");
+    let blocker = &status["outstanding"][0];
+    assert_eq!(blocker["artifactId"], notes.as_str());
+    assert_eq!(blocker["next"]["args"]["artifactId"], notes.as_str());
+    assert!(status.get("inScope").is_none() && status.get("jobsRunning").is_none());
+    // A session that continues nothing still answers for itself alone.
+    let unrelated = agent_call(&f, "unrelated-session", "work.status", json!({}));
+    assert_eq!(unrelated["result"]["ready"], true, "{unrelated}");
+    assert!(unrelated["result"].get("sessionIds").is_none());
+    // The project scope is the core's, whoever asks.
+    let project = call_with_token(&f, &token, "work.status", json!({"scope": "project"}));
+    assert_eq!(project["result"]["scope"], "project", "{project}");
+    assert_eq!(project["result"]["ready"], false);
+
+    // The continuation finishes the earlier turn's work: now it is ready.
+    let filled = call_with_token(
+        &f,
+        &token,
+        "artifact.update_draft",
+        json!({"artifactId": notes, "payload": {"markdown": "Measured 4.9 V at the rail."}}),
+    );
+    assert_eq!(filled["ok"], true, "{filled}");
+    let status = call_with_token(&f, &token, "work.status", json!({}));
+    assert_eq!(status["result"]["ready"], true, "{status}");
+    std::fs::write(dir.join("finish-2"), "").unwrap();
+    let turns = settled_turns(&f);
+    assert_eq!(turns.len(), 2);
+    assert_eq!(turns[1]["sessionId"], second.as_str());
+    assert_eq!(turns[1]["gate"]["sessionIds"], json!([first, second]));
+    assert_eq!(turns[1]["gate"]["ready"], true, "{turns:?}");
     f.host.shutdown();
 }
 
@@ -1441,8 +1547,14 @@ fn a_send_racing_project_close_never_deadlocks() {
 /// One call from an agent session on the bridge, as the `omenflow` helper makes it.
 #[cfg(unix)]
 fn agent_call(f: &Fixture, session: &str, op: &str, payload: Value) -> Value {
-    use omenflow_contracts::{read_frame, write_frame};
     let token = f.host.bridge().issue_token(&f.project_id, session);
+    call_with_token(f, &token, op, payload)
+}
+
+/// One call on the bridge with a token a session was given.
+#[cfg(unix)]
+fn call_with_token(f: &Fixture, token: &str, op: &str, payload: Value) -> Value {
+    use omenflow_contracts::{read_frame, write_frame};
     let mut stream =
         std::os::unix::net::UnixStream::connect(f.host.bridge().socket_path()).unwrap();
     write_frame(

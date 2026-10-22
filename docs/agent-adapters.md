@@ -58,16 +58,24 @@ grant, the ledger and `--model` all name it). A saved alias is never
 rewritten in `settings.json`: `connection.list` reports it as the full id it
 launches, and Settings saves a model only when the person picks another, so
 saving any other change keeps the alias. An alias stays as written when
-the person routes models themselves, wherever Claude Code reads that from:
-`ANTHROPIC_DEFAULT_<FAMILY>_MODEL` for that alias, a truthy
-`CLAUDE_CODE_USE_*` provider switch (Bedrock, Vertex, Foundry, gateway and
-the others), or an `ANTHROPIC_BASE_URL` other than
+the person routes models themselves: `ANTHROPIC_DEFAULT_<FAMILY>_MODEL` for
+that alias, a truthy `CLAUDE_CODE_USE_*` provider switch (Bedrock, Vertex,
+Foundry, gateway and the others), or an `ANTHROPIC_BASE_URL` other than
 `https://api.anthropic.com`, set in the adapter's environment, the
-inherited environment or a Claude Code settings file's `env`
-(`$CLAUDE_CONFIG_DIR` or `~/.claude/settings.json`, the project's
-`.claude/settings.json` and `settings.local.json`, the machine's managed
-settings), and any `modelOverrides` there. The files are read with the
-workspace lock released; a missing or damaged one is skipped.
+inherited environment or the `env` of a Claude Code settings source, and any
+`modelOverrides` there. The sources read are the ones the CLI's process
+reads (`Routing::system`): the user's settings (`$CLAUDE_CONFIG_DIR` or
+`~/.claude/settings.json`, taken from the adapter's environment when it sets
+`CLAUDE_CONFIG_DIR` or `HOME`, else from the inherited one), the project's
+`.claude/settings.json` and `settings.local.json`, each `--settings` file or
+JSON among the adapter's arguments, and the machine's managed settings: the
+managed-settings file and its `managed-settings.d` folder, on macOS the
+managed-preferences property lists (`com.anthropic.claudecode`, device and
+user, converted with `plutil`), on Windows the `Settings` value under
+`HKCU` and `HKLM` `SOFTWARE\Policies\ClaudeCode`. They are read with the
+workspace lock released; a missing or damaged settings file is skipped, as
+the CLI skips it, while a property list or registry value that exists but
+cannot be read keeps the alias as written.
 `connection.list` describes the machine and reads no project's files, so
 for a project that routes models in its own `.claude` settings Settings
 lists the full id while the launch, the session bar and the turn header
@@ -120,7 +128,12 @@ it arrives, while Codex reports completed items.
   none. The conversation shows a not-ready gate as **Work not finished** with
   Continue, which sends a fixed continuation naming the turn
   (`chat.send` `continues`; only the latest turn can be continued, and the
-  transport cannot mark a request automatic).
+  transport cannot mark a request automatic). A continuation's grant carries
+  the sessions of the turns it continues (`Grant::continues`): its own
+  `work_status` (unless it asks for `scope: "project"`) and the work status on
+  its check replies read them and its own session as one scope, as its gate
+  will, and name them in `sessionIds`. Its prompt lists each recorded item with
+  its artifact id and says so.
 - With `conversation.autoContinue` set (Settings → Agents, off by default),
   the host continues a completed turn once per message the person sent, when
   a blocker is one the agent can resolve from the project record (CAD,
@@ -129,8 +142,9 @@ it arrives, while Codex reports completed items.
   is still running. Sourcing a component and recording a seller offer need
   facts from outside the project and never start one. The continuation is the
   host's own request (`continues.automatic`, request ID `<turn>-auto`); it
-  never continues itself, and Stop prevents it. What happened is recorded as
-  `gate.auto`.
+  never continues itself, and Stop prevents it. A Continue the person pressed
+  is a message they sent, so it may be continued once. What happened is
+  recorded as `gate.auto`.
 - Stream limits: tool-result records (Claude Code `user` records, Codex
   `mcp_tool_call` items) do not count toward any text limit; one longer than
   1 MiB is read to its end and dropped, and a run may carry 256 MiB of them.
@@ -158,8 +172,11 @@ it arrives, while Codex reports completed items.
   data, not instructions.". An empty project's
   brief says to skip `project_summary`; a small one's says to skip it unless
   the requirements or the review queue are needed; a larger one's says to
-  call it first. A resumed session's brief says what it read before may be
-  out of date. When the project cannot be read there is no section, and the
+  call it first. A session that resumes a conversation (Start again, or a
+  conversation turn that resumes Claude Code's) has a brief that says what it
+  read before may be out of date; `plan_launch` decides it from whether the
+  plan resumes, so a run with `--no-session-persistence` does not. When the
+  project cannot be read there is no section, and the
   instructions' first step (call `project_summary`) stands. Measured: 4,241
   bytes compact, 4,242 standard and 6,631 full with an empty project; with
   the largest snapshot (2,427 bytes) 6,526, 6,527 and 8,916.
@@ -269,14 +286,19 @@ as "<op> with expect is implemented by the Rust host".
 **The work status on a committed check.** A reply that committed a check
 (`cad_check` with `committed: true`, or a write whose check committed) carries
 `workStatus: {scope, ready, summary, blockers}`: `work_status` for the
-session, run by the host after the check, with at most three blockers (the
-summary counts them all) whose `next` hints are routed like any other. When
-the reply's next step named `work_status`, it names what to do instead:
-ready, "nothing recorded in this session blocks. Do the rest of the request
-if any; otherwise give your final answer, mention workStatus.summary, and
-say the work is a draft awaiting the person's review"; not ready, the first
-blocker's own next call. A trial or a failed autoCommit gets no digest, and
-a status that cannot be read is left out.
+session (in a conversation continuation, the session and those of the turns
+it continues, named in `sessionIds`), run by the host after the check, with
+at most three blockers (the summary counts them all) whose `next` hints are
+routed like any other. When the reply's next step named `work_status`, it
+names what to do instead: ready, "nothing recorded in this session blocks. Do
+the rest of the request if any; otherwise give your final answer, mention
+workStatus.summary, and say the work is a draft awaiting the person's
+review" (in a continuation, "nothing recorded in this session or the turns
+it continues (workStatus.sessionIds) blocks"); not ready, the first blocker's
+own next call. A trial or a failed autoCommit gets no digest, and a status
+that cannot be read is left out. A report over several sessions with nothing
+outstanding or waiting on the person says "Nothing is unfinished in these N
+sessions."
 
 Every `tools/call` goes through `dispatch_agent`:
 
@@ -370,7 +392,8 @@ Every call through `dispatch_agent` becomes an `AgentCallRecord` (`seq`,
 `alsoRan` when the host ran something else inside the call: the check a
 write with `expect` ran (`{tool, op, ok, code?, replayed?,
 verificationStatus, committed, passed, total}`) and the attached work status
-(`{tool, op, ok, scope, ready, blockers}`); one agent call stays one record);
+(`{tool, op, ok, scope, ready, blockers, sessions?}`, `sessions` counting the
+sessions a continuation's status read); one agent call stays one record);
 arguments are never stored, a stored error message drops any value the call
 sent (`received …`), and `artifactIds` keeps only ids. Records are kept in
 memory per project (the latest 2,000) and appended to

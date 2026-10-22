@@ -134,6 +134,8 @@ pub(super) struct WorkReport {
     scope: &'static str,
     /// The last of the sessions the report covers.
     session_id: Option<String>,
+    /// How many sessions the report covers as one scope; 0 for the project.
+    sessions: usize,
     /// A session was asked for and no agent session exists.
     no_session: bool,
     items: Vec<Item>,
@@ -201,7 +203,11 @@ impl WorkReport {
             ));
         }
         if self.items.is_empty() && self.waiting.is_empty() {
-            sentences.push(format!("Nothing is unfinished in this {}", self.scope));
+            sentences.push(if self.sessions > 1 {
+                format!("Nothing is unfinished in these {} sessions", self.sessions)
+            } else {
+                format!("Nothing is unfinished in this {}", self.scope)
+            });
         }
         format!("{}.", sentences.join(". "))
     }
@@ -347,6 +353,7 @@ fn build_for(handle: &ProjectHandle, sessions: Option<Vec<String>>) -> CoreResul
             "project"
         },
         session_id: sessions.as_ref().and_then(|ids| ids.last().cloned()),
+        sessions: sessions.as_ref().map_or(0, Vec::len),
         no_session: sessions.as_ref().is_some_and(Vec::is_empty),
         items: Vec::new(),
         waiting: Vec::new(),
@@ -1884,6 +1891,14 @@ mod tests {
             "No agent session has recorded work in this project."
         );
         assert_eq!(none["inScope"], 0);
+        // A chain that left nothing says it read the whole chain, not one session.
+        let idle = sessions_status(project.handle(), &["s3".into(), "s4".into()]).unwrap();
+        assert_eq!(
+            idle["summary"],
+            "Nothing is unfinished in these 2 sessions."
+        );
+        let once = sessions_status(project.handle(), &["s3".into(), "s3".into()]).unwrap();
+        assert_eq!(once["summary"], "Nothing is unfinished in this session.");
 
         // The later session resolves what the earlier one left.
         let mut offer = item(&status, "component_no_offer")["next"]["args"].clone();

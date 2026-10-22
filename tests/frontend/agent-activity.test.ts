@@ -3,6 +3,7 @@ import type { AgentCallRecord } from '@omenflow/contracts';
 import {
   activitySignal,
   alsoRanLine,
+  asAlsoRan,
   asCallRecord,
   durationLabel,
   groupCalls,
@@ -94,6 +95,20 @@ describe('agent call records', () => {
       ],
     })!;
     expect(parsed.alsoRan).toEqual([check, { tool: 'work_status', op: 'work_status', ok: false }]);
+    // A continuation's status says how many sessions it read; a count that is not one is dropped.
+    const chain = {
+      tool: 'work_status',
+      op: 'work.status',
+      ok: true,
+      scope: 'session',
+      ready: false,
+      blockers: 1,
+      sessions: 2,
+    };
+    expect(asAlsoRan([chain, { ...chain, sessions: 'two' }])).toEqual([
+      chain,
+      { ...chain, sessions: undefined },
+    ]);
     // Absent when nothing else ran, as the host records it.
     expect(
       asCallRecord({ seq: 1, at: 'x', sessionId: 's', tool: 't', ok: true }),
@@ -142,6 +157,18 @@ describe('agent call records', () => {
     });
     expect(alsoRanLine({ ...status, ready: false, blockers: 1 }).text).toBe(
       'work_status (this session): not ready, 1 blocker',
+    );
+    // A conversation continuation's status read the turns it continues: their blockers are not
+    // called this session's.
+    expect(alsoRanLine({ ...status, ready: false, blockers: 1, sessions: 2 })).toEqual({
+      text: 'work_status (this turn and the one it continues): not ready, 1 blocker',
+      warn: false,
+    });
+    expect(alsoRanLine({ ...status, ready: true, blockers: 0, sessions: 3 }).text).toBe(
+      'work_status (this turn and the 2 it continues): ready',
+    );
+    expect(alsoRanLine({ ...status, ready: true, blockers: 0, sessions: 1 }).text).toBe(
+      'work_status (this session): ready',
     );
   });
 

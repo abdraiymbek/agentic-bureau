@@ -70,6 +70,7 @@ impl Workspace {
             profile,
             adapter_id: adapter_id.into(),
             model: Some("gpt-6-luna".into()),
+            continues: Vec::new(),
         });
         (token, session_id)
     }
@@ -82,7 +83,18 @@ impl Workspace {
     /// As [`Workspace::mcp`], for a session run by `adapter_id`.
     pub fn mcp_for(&self, profile: Profile, adapter_id: &str) -> McpClient {
         let (token, session_id) = self.grant_for(profile, adapter_id);
-        let mut client = McpClient::connect(&self.bridge, &token, "mcp");
+        self.initialized(&token, session_id)
+    }
+
+    /// As [`Workspace::mcp`], for a conversation continuation of the `earlier` sessions.
+    pub fn mcp_continuing(&self, profile: Profile, earlier: &[String]) -> McpClient {
+        let (token, session_id) = self.grant_for(profile, "codex");
+        self.bridge.continue_sessions(&session_id, earlier);
+        self.initialized(&token, session_id)
+    }
+
+    fn initialized(&self, token: &str, session_id: String) -> McpClient {
+        let mut client = McpClient::connect(&self.bridge, token, "mcp");
         client.session_id = session_id;
         let reply = client.request(
             "initialize",

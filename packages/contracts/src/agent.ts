@@ -70,6 +70,12 @@ export interface AgentCallAlsoRan {
   scope?: string;
   ready?: boolean;
   blockers?: number;
+  /**
+   * work_status: how many agent sessions it read as one scope, when its answer named them
+   * (`WorkStatus.sessionIds`: a conversation continuation's covers the turns it continues and
+   * its own). Absent for one session's answer, and on records of earlier builds.
+   */
+  sessions?: number;
 }
 
 export interface AgentSessionSummary {
@@ -151,6 +157,12 @@ export interface WorkStatus {
   summary: string;
   outstanding: WorkStatusItem[];
   waitingOnHuman: WorkStatusWaiting[];
+  /**
+   * The agent sessions a session-scoped answer covers, oldest first. Present only on the answer
+   * to a conversation continuation (its own `work_status`, and the digest on its check replies):
+   * the sessions of the turns it continues, then its own.
+   */
+  sessionIds?: string[];
 }
 
 /* ------------------------------------------------------------------ */
