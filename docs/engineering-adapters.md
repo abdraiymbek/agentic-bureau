@@ -37,7 +37,7 @@ OpenSCAD is installed separately; it is not bundled.
 | `cad_patch_source`, `cad_set_param`, `cad_compose` | yes         | Edit the source by replacement, change one parameter's effective assignment, or compose parts; each renders like a write                                                                                                             |
 | `cad_read_source`                                  | no          | The source and parameters of the newest (or a given) revision, and whether it has a render                                                                                                                                           |
 | `cad_inspect`                                      | no revision | The report for any revision, with chosen cutting planes, probe points and `-D` overrides; a re-render is recorded as a job, nothing is committed                                                                                     |
-| `cad_check`                                        | yes         | Verifies explicit expectations and returns pass or fail per assertion with measured against expected values                                                                                                                          |
+| `cad_check`                                        | yes         | Verifies explicit expectations and returns pass or fail per assertion, with measured against expected values, and per listed item                                                                                                    |
 | `cad_view`                                         | no revision | Draws a revision or a `-D` variant as one picture: views at one scale, an isometric view and sections. A variant or a missing render runs as a render job. Writes the picture under `.omenflow/cache/views-v1/`                      |
 | `image_view`                                       | no          | A PNG or JPEG file in the project with a grid labelled in fractions of its size, or a region of it enlarged up to 4x. Writes the picture under `.omenflow/cache/views-v1/`                                                           |
 | `cad_export`                                       | yes         | Writes a part as STEP (exact `brep` or `faceted`, below), STL or SCAD; full profile, and only when the person asked for a file                                                                                                       |
@@ -66,16 +66,63 @@ and verifies nothing, and only `cad_check` verifies.
 it: `size`, `holes: [{at, d, axis?}]` (a section, a centre and diameter, and an empty probe),
 `bodies` and one default `tol`.
 
+**Spec items.** `expect.spec` lists the request item by item: `{item, requirementId?, …}` with
+the item in the request's words (at most 200 characters) and its assertions under the same keys
+as the top level (`size`, `holes`, `bodies`, `shells`, `bbox`, `volume`, `solid`, `empty`,
+`sections`). The core checks each item's assertions strictly, whoever sends them.
+
+- Every item's assertions are merged into the top level before anything is measured: lists join
+  without repeats, sections join by plane, and a single value that disagrees (two diameters for
+  one plane's outline) is refused with both places named: the item path and the other item, the
+  top level of `expect`, or the requirement that states it. The canonical form keeps the items
+  under `spec`, so they are hashed, committed and bound by the scope guard like any assertion.
+  At most 128 items.
+- Each check line belongs to the items whose assertions produce it, so every item gets a state:
+  `passed`, `failed`, or `unasserted` when it has no assertion. Lines no item asks for
+  (`watertight`, `self-intersections`) belong to none.
+- Identity across checks: an item that had assertions is kept by any item that still asserts all
+  of them, whatever its words; one without assertions is kept by the same words, case and
+  spacing aside. A `requirementId` may be added to an item, never changed or removed. Dropping
+  an item, or the words of one without assertions, is a scope change.
+- Replies and the gate echo the request form: the top level keeps only what no item asserts, so
+  each assertion appears once.
+- **Linked requirements add items.** A requirement counts when it is a revision input or a
+  manual edge (`validates`, `derived_from`, `depends_on`) of the part, or when the check names it
+  in `requirementIds` or an item's `requirementId`. Each of its `features` (`{label, quantity?,
+expect?}`, validated on write) becomes an item; the feature's `expect` is taken only when the
+  requirement links to this one mechanical part, since it is written in that part's frame.
+  A requirement without features whose target is a length, area, volume or angle gives one row
+  that only an item naming it with a dimensional assertion (`size`, `bbox`, `volume`,
+  `sections` or `holes`) shows; a body count or points alone do not. An item in the words of
+  the requirement's title is that row, not a second one. A requirement with no target, an
+  unknown one, or another quantity (mass, time, a percentage) gives a row no check shows ("No
+  check shows this requirement"): it never blocks and never passes. A requirement archived
+  after a committed check named it is accepted, and its items are checked as listed items.
+- A requirement's own assertions replace those sent for its feature; a listed value that
+  disagrees with them is refused, naming both. Two linked requirements that state one assertion
+  differently leave no check of the part to run: every `cad_check` is refused, and `work_status`
+  names both requirements with no `next`, since a person has to reconcile them.
+- A requirement row says whose assertions show it (`assertedBy`): the requirement's own, or ones
+  listed for it (a statement row, or a feature of a requirement linked to several parts).
+- The limit, plainly: without recorded requirements the item list is the agent's own reading of
+  the request, and a requested feature left out of it is not checked. It adds independence only
+  when a person records or approves the requirements behind it. Evidence says which:
+  `requirementAuthority` is `requirements_and_declared` only when some item is shown by a
+  requirement's own assertions, and every requirement whose assertions the check took is
+  approved and linked by a person.
+
 **Verification.** A check is a trial (exploratory, binds nothing) or committed. With
-`autoCommit: true` the check runs once and is recorded as committed only when it passes;
-otherwise it is a trial. A committed check binds the revision and its expectation hash. The
-status of a revision is `passed`, `failed`, `scope_changed` (the expectations differ from the
-committed ones, for example an assertion dropped or a tolerance loosened), `partial` or
-`unverified`, with `ready`
+`autoCommit: true` the check runs once and commits when every assertion passes and no committed
+assertion is dropped or changed; items without assertions stay partial, and a check of generic
+mesh properties alone stays a trial. A committed check binds the revision and its expectation
+hash. The status of a revision is `passed`, `failed`, `scope_changed` (the expectations differ
+from the committed ones, for example an assertion dropped or a tolerance loosened), `partial`
+(only generic checks ran, or listed items have no assertion) or `unverified`, with `ready`
 and a `nextAction` (`commit_assertions`, `repair_geometry`, `resolve_inputs`,
 `request_review`, …). The same state is what `cad_check` answers, what `work_status` reports
-(`cad_unverified`, `cad_check_failed`, `cad_scope_changed`, `cad_render_failed`) and what a
-proposal shows. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
+(`cad_unverified`, `cad_spec_unasserted`, `cad_check_failed`, `cad_scope_changed`,
+`cad_render_failed`) and what a proposal shows. A scope with listed items that lack an assertion
+cannot be accepted. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
 section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose);
 evidence from earlier checkers stays readable.
 
@@ -89,7 +136,28 @@ evidence from earlier checkers stays readable.
   `cad_write_source` first.
 - A part that passed its check against older revisions of its inputs is its own
   `cad_unverified` item: the next call rebuilds it (`artifact_update_draft` with the current
-  inputs), or there is none while those inputs only await approval.
+  inputs), or there is none while those inputs only await approval. A draft requirement as an
+  input therefore leaves the part unverified until a person approves it; an edge does not.
+- `cad_spec_unasserted` names a draft whose committed check has listed items without an
+  assertion, or does not show a linked requirement as it stands: not taken into account
+  (`not_considered`, for example a check made before 0.2.4), linked after the check
+  (`linked_after`, from the edge's time), or changed since (`revised`, when what the check
+  derives from it differs). Its `next` is a `cad_check` with the committed expect as the linked
+  requirements state it now, the new requirement items, and an item naming each statement
+  requirement no item shows yet, without assertions: the agent adds them. For a changed
+  statement target it names the items that show the requirement, to restate. When the call
+  changes committed values (a changed requirement, or one whose values differ from committed
+  ones) it has no `autoCommit`, so the changed scope is recorded for a person.
+- A check's scope changes are split by cause. What linked requirements now state differently
+  (changed since, or linked since with other values) is listed in the evidence's
+  `spec.replaced`, what the check changed itself in `spec.checkChanges`; every earlier scope is
+  read as the requirements state it now, so a failed check in between does not move the blame.
+  When only requirements changed it, the `cad_scope_changed` item has no `next` and the reply no
+  `committedExpect`: a person accepts the new scope. When the check also dropped something
+  itself, the item names that and its `next` restores it.
+- Requirements linked or changed after an approved baseline's check do not change its recorded
+  status: review shows a notice, and `build.preview` lists them under the item's `notices`
+  without refusing the export.
 - A render identity in a draft's payload is kept only when its `renderJobId` names a succeeded
   `cad_render` job of this project with the same source hash, parameters and output hash;
   otherwise every derived output is removed, so a draft cannot claim a render it did not have.

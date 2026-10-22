@@ -136,6 +136,7 @@ pub(super) fn preview(handle: &ProjectHandle, include_drafts: bool) -> CoreResul
             });
         }
         let mut verification = Value::Null;
+        let mut notices = Vec::<String>::new();
         if let Some(revision) = &revision {
             file_issues(handle, title, revision, &mut issues)?;
             if artifact["type"] == "mechanical" {
@@ -150,6 +151,23 @@ pub(super) fn preview(handle: &ProjectHandle, include_drafts: bool) -> CoreResul
                                 format!("CAD verification: {status}"),
                                 "a committed CAD verification that passed for this revision",
                                 format!("Run cad_check on {title} with its expectations until it passes and is committed."),
+                            ));
+                        }
+                        // Requirements linked or changed after the committed
+                        // check are named; they do not hold the export.
+                        let since = found["spec"]["linkedSince"]
+                            .as_array()
+                            .map(Vec::as_slice)
+                            .unwrap_or(&[]);
+                        if !since.is_empty() {
+                            notices.push(format!(
+                                "The committed check of {title} does not show {} as {} now.",
+                                cad::requirements(since),
+                                if since.len() == 1 {
+                                    "it stands"
+                                } else {
+                                    "they stand"
+                                }
                             ));
                         }
                         verification = found;
@@ -182,14 +200,18 @@ pub(super) fn preview(handle: &ProjectHandle, include_drafts: bool) -> CoreResul
                 format!("Approve, reject or request changes on the pending proposal for {title}."),
             ));
         }
-        items.push(json!({
+        let mut item = json!({
             "artifactId": id, "title": artifact["title"], "type": artifact["type"],
             "revisionId": revision.as_ref().map(|r| r["id"].clone()),
             "state": revision.as_ref().map(|r| r["reviewState"].clone()).unwrap_or(json!("none")),
             "verification": verification,
             "issues": issues.iter().map(|issue| issue.message.clone()).collect::<Vec<_>>(),
             "issueDetails": issues.iter().map(Issue::detail).collect::<Vec<_>>(),
-        }));
+        });
+        if !notices.is_empty() {
+            item["notices"] = json!(notices);
+        }
+        items.push(item);
     }
     let with_issues = items.iter().filter(|item| has_issues(item)).count();
     Ok(

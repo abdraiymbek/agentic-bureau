@@ -7,7 +7,14 @@
  * omits `baseMoved`, it is derived from the same recorded fact the core checks on approval:
  * the change's base revision against the artifact's selected revision.
  */
-import type { Artifact, Proposal, ProposedChange, Revision } from '@omenflow/contracts';
+import type {
+  Artifact,
+  CadSpecReadiness,
+  CadSpecReport,
+  Proposal,
+  ProposedChange,
+  Revision,
+} from '@omenflow/contracts';
 import { needsYou, supersededBy } from '../lib/proposals';
 
 export { needsYou, supersededBy, waitingOnAgent } from '../lib/proposals';
@@ -27,6 +34,8 @@ export interface VerificationEvidence {
     limitations?: string[];
     requirementAuthority?: string;
   };
+  /** The check's listed items and linked requirements, when it had any. */
+  spec?: CadSpecReport;
 }
 
 /** `proposal.read` verification for a mechanical change (`cad::latest_verification`). */
@@ -34,6 +43,8 @@ export interface VerificationReview {
   status: string;
   evidenceHash?: string;
   evidence?: VerificationEvidence;
+  /** Gaps of the recorded items, and requirements linked or changed since the check. */
+  spec?: CadSpecReadiness;
 }
 
 export type ReviewChange = ProposedChange & { baseMoved?: boolean };

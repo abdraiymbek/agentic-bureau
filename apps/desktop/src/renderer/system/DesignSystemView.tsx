@@ -20,6 +20,8 @@ import { PayloadDiff } from '../decide/PayloadDiff';
 import { diffPayload } from '../lib/diff';
 import { ContinuationMessage, WorkNotFinished } from '../chat/InlineGate';
 import { InlineVerification } from '../chat/InlineVerification';
+import { SpecItems } from '../decide/SpecItems';
+import type { CadSpecReadiness, CadSpecReport } from '@omenflow/contracts';
 import { useAgentUi } from '../shell/agent/agent-store';
 import { ActivityBar } from '../shell/ActivityBar';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
@@ -203,9 +205,93 @@ const DIMENSION_NOTES: Record<StateDimension, string> = {
   evidence: 'How a value is known; coverage',
   result: 'A recorded test result',
   verification: 'A committed CAD check',
+  spec: 'A listed item of a CAD check',
   execution: 'Sessions and jobs',
   part: 'A component in selection',
   work: 'What work_status says is unfinished',
+};
+
+/** Listed items as a check records them; specimen only, no engine was run. */
+const SPEC_SPECIMEN: CadSpecReport = {
+  listedBy: 'agent',
+  items: [
+    {
+      item: 'outer diameter 60 mm · specimen',
+      from: 'listed',
+      state: 'passed',
+      checks: ['section z=2: outer circle d60'],
+    },
+    {
+      item: 'groove bottom Ø50 at z = 8 · specimen',
+      from: 'requirement',
+      requirementId: 'specimen-requirement',
+      state: 'failed',
+      checks: ['section z=8: outer circle d50'],
+      assertedBy: 'listed',
+    },
+    { item: 'both flanks straight · specimen', from: 'listed', state: 'unasserted', checks: [] },
+    {
+      item: 'Belt load · specimen',
+      from: 'requirement',
+      requirementId: 'specimen-load',
+      statement: true,
+      state: 'not_shown',
+      checks: [],
+      reason:
+        'No check shows this requirement: it states a force target (200 N), which a geometry check cannot show.',
+    },
+  ],
+  requirements: [
+    {
+      artifactId: 'specimen-requirement',
+      revisionId: 'specimen-revision',
+      title: 'V-groove profile',
+      priority: 'must',
+      review: 'draft',
+      via: ['edge'],
+      linkedBy: 'agent',
+      kind: 'features',
+      derivedHash: 'specimen',
+    },
+    {
+      artifactId: 'specimen-load',
+      revisionId: 'specimen-revision',
+      title: 'Belt load',
+      priority: 'should',
+      review: 'approved',
+      via: ['edge'],
+      linkedBy: 'person',
+      kind: 'advice',
+      derivedHash: 'specimen',
+    },
+  ],
+  counts: { items: 4, passed: 1, failed: 1, unasserted: 1, notShown: 1, blocking: 1 },
+};
+
+const SPEC_READINESS_SPECIMEN: CadSpecReadiness = {
+  counts: SPEC_SPECIMEN.counts,
+  missing: [{ item: 'both flanks straight · specimen' }],
+  linkedSince: [
+    {
+      requirementId: 'specimen-envelope',
+      revisionId: 'specimen-revision',
+      title: 'Envelope · specimen',
+      change: 'linked_after',
+    },
+  ],
+  linkedSinceCount: 1,
+  blocking: 2,
+};
+
+/** Linked requirements that disagree, so no check of the part can run; specimen only. */
+const SPEC_CONFLICT_SPECIMEN: CadSpecReadiness = {
+  counts: { items: 0, passed: 0, failed: 0, unasserted: 0, notShown: 0, blocking: 0 },
+  missing: [],
+  linkedSince: [],
+  linkedSinceCount: 0,
+  blocking: 0,
+  conflict:
+    'requirements "Close fit · specimen" and "Snug fit · specimen" state different size for this part',
 };
 
 const PRINCIPLES = [
@@ -809,6 +895,37 @@ export function DesignSystemView() {
                   </Notice>
                 </div>
               </div>
+            )}
+          </Themes>
+          <Themes label="Listed items of a CAD check · labelled specimen">
+            {() => <SpecItems spec={SPEC_SPECIMEN} readiness={SPEC_READINESS_SPECIMEN} />}
+          </Themes>
+          <Themes label="Linked requirements that disagree · labelled specimen">
+            {() => <SpecItems readiness={SPEC_CONFLICT_SPECIMEN} />}
+          </Themes>
+          <Themes label="Review evidence with listed items · labelled specimen">
+            {() => (
+              <InlineVerification
+                verification={{
+                  status: 'partial',
+                  evidenceHash: 'specimen-only-no-engine-run',
+                  evidence: {
+                    pass: true,
+                    checks: [
+                      {
+                        name: 'section z=2: outer circle d60 · specimen',
+                        pass: true,
+                        detail: 'Illustrative recorded-result layout',
+                      },
+                    ],
+                    integrity: { pass: true, detail: 'Specimen only; no geometry was checked.' },
+                    spec: SPEC_SPECIMEN,
+                  },
+                }}
+                accepted={false}
+                onAccept={() => {}}
+                disabled
+              />
             )}
           </Themes>
         </Section>

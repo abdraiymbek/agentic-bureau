@@ -217,6 +217,36 @@ describe('new V1 operations', () => {
     expect(() =>
       op('cad.export').input.parse({ artifactId: part, destPath: 'a.step', timeoutMs: 300_001 }),
     ).toThrow();
+    // cad.check: expect may be left out, and items and requirement ids are added.
+    const requirement = '00000000-0000-4000-8000-000000000002';
+    expect(
+      op('cad.check').input.parse({ artifactId: part, requirementIds: [requirement] }),
+    ).toEqual({
+      artifactId: part,
+      requirementIds: [requirement],
+    });
+    const spec = {
+      bodies: 1,
+      spec: [
+        { item: 'plate 40 x 30 x 5 mm', size: [40, 30, 5] },
+        { item: 'answers the envelope', requirementId: requirement, bbox: { min: [0, 0, 0] } },
+        { item: 'groove bottom' },
+      ],
+    };
+    expect(op('cad.check').input.parse({ artifactId: part, expect: spec }).expect).toEqual(spec);
+    expect(op('cad.check').input.parse({ artifactId: part, expect: { size: [1, 2, 3] } })).toEqual({
+      artifactId: part,
+      expect: { size: [1, 2, 3] },
+    });
+    expect(() =>
+      op('cad.check').input.parse({ artifactId: part, expect: { spec: [{ item: '' }] } }),
+    ).toThrow();
+    expect(() =>
+      op('cad.check').input.parse({
+        artifactId: part,
+        expect: { spec: [{ item: 'x'.repeat(201) }] },
+      }),
+    ).toThrow();
   });
 
   it('parses sessions and adapters recorded before V1 and fills the new fields', () => {
@@ -453,19 +483,19 @@ describe('listing budgets', () => {
   const size = (profile: Parameters<typeof toolListing>[0]) =>
     JSON.stringify(toolListing(profile)).length;
 
-  it('keeps the compact tools list within 8,000 characters', () => {
-    // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
-    expect(size('compact')).toBeLessThanOrEqual(8000);
+  it('keeps the compact tools list within 8,300 characters', () => {
+    // 0.2.4: +992 chars for cad_view and image_view, +937 for spec items in the compact cad_check overlay (recorded in audit/v0.2.4)
+    expect(size('compact')).toBeLessThanOrEqual(8300);
   });
 
   // Ceilings a little above the measured sizes, so that growth is a decision.
   // The merged V1 registry (CAD short forms, paging, BOM, wiring and test
   // inputs) measures 64,363 standard and 72,457 full characters.
   it('bounds the standard and full tools lists', () => {
-    // 0.2.4: +2,761 chars for cad_view and image_view (recorded in audit/v0.2.4)
-    expect(size('standard')).toBeLessThanOrEqual(68_800);
-    // 0.2.4: +1,427 chars for cad_export and the STEP converter, +2,761 for cad_view and image_view (recorded in audit/v0.2.4)
-    expect(size('full')).toBeLessThanOrEqual(78_400);
+    // 0.2.4: +2,761 chars for cad_view and image_view, +985 for cad_check spec items (recorded in audit/v0.2.4)
+    expect(size('standard')).toBeLessThanOrEqual(69_800);
+    // 0.2.4: +1,427 chars for cad_export and the STEP converter, +2,761 for cad_view and image_view, +985 for cad_check spec items (recorded in audit/v0.2.4)
+    expect(size('full')).toBeLessThanOrEqual(79_400);
   });
 });
 

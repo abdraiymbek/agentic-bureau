@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { idSchema } from './ids.js';
 
 /**
  * CAD verification vocabulary shared by the agent-facing `cad.check` op and
@@ -84,7 +85,8 @@ export const sectionSpecSchema = z.object({
     .describe('Net material area in the plane (mm²).'),
 });
 
-export const expectationSchema = z.object({
+/** The assertion groups `expect` takes at the top level and in each spec item. */
+const assertionVocabulary = z.object({
   size: vec3.optional().describe('Overall size [x, y, z] in mm, wherever the part sits.'),
   holes: z
     .array(flatHoleSchema)
@@ -159,6 +161,68 @@ export const expectationSchema = z.object({
     ),
 });
 
+/**
+ * Keys of a spec item that carry assertions, in the same form as at the top
+ * level of `expect`. The core validates them strictly (cad/spec.rs).
+ */
+export const SPEC_ITEM_ASSERTION_KEYS = [
+  'size',
+  'holes',
+  'bodies',
+  'shells',
+  'bbox',
+  'volume',
+  'solid',
+  'empty',
+  'sections',
+] as const;
+
+/**
+ * One requested dimension or feature with the assertions that show it. The
+ * assertion keys are declared by their outer type only, to keep the tool
+ * listing small; the core checks each one against the full vocabulary above.
+ */
+export const specItemSchema = z.object({
+  item: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe("One requested dimension or feature, in the request's words."),
+  requirementId: idSchema.optional().describe('Requirement it answers.'),
+  size: z.array(z.number()).optional(),
+  holes: z.array(z.unknown()).optional(),
+  bodies: z.number().optional(),
+  shells: z.number().optional(),
+  bbox: z.record(z.unknown()).optional(),
+  volume: z.record(z.unknown()).optional(),
+  solid: z.array(z.unknown()).optional(),
+  empty: z.array(z.unknown()).optional(),
+  sections: z.array(z.unknown()).optional(),
+});
+
+export const expectationSchema = assertionVocabulary.extend({
+  spec: z
+    .array(specItemSchema)
+    .optional()
+    .describe(
+      'The request item by item, each with its assertions (keys above); an item without one stays partial.',
+    ),
+});
+
+/** Typing aid: the assertion groups a spec item or a requirement feature carries. */
+export const specAssertionsSchema = assertionVocabulary.pick({
+  size: true,
+  holes: true,
+  bodies: true,
+  shells: true,
+  bbox: true,
+  volume: true,
+  solid: true,
+  empty: true,
+  sections: true,
+});
+export type SpecAssertions = z.infer<typeof specAssertionsSchema>;
+
 export type HoleSpec = z.infer<typeof holeSpecSchema>;
 export type FlatHole = z.infer<typeof flatHoleSchema>;
 
@@ -167,5 +231,106 @@ export type FlatHole = z.infer<typeof flatHoleSchema>;
  * assertions; evidence never contains `holes` or `bodies`.
  */
 export const EXPECTATION_SHORT_FORM_KEYS = ['size', 'holes', 'bodies', 'tol'] as const;
+/** Keys of `expect` only the Rust host understands: the short form and spec items. */
+export const EXPECTATION_RUST_ONLY_KEYS = [...EXPECTATION_SHORT_FORM_KEYS, 'spec'] as const;
 export type SectionSpec = z.infer<typeof sectionSpecSchema>;
 export type Expectation = z.infer<typeof expectationSchema>;
+
+/* ------------------------------------------------------------------ */
+/* cad.check spec items: what the result and the evidence report       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `passed`, `failed` or `unasserted` (nothing in the check shows it; it keeps
+ * the check partial). `not_shown` is a linked requirement no geometry check
+ * shows: it never blocks and never passes.
+ */
+export type CadSpecItemState = 'passed' | 'failed' | 'unasserted' | 'not_shown';
+
+export interface CadSpecItemResult {
+  /** The item's words, or the title of a requirement row. */
+  item: string;
+  /** `listed`: in the check's own list. `requirement`: from a linked requirement. */
+  from: 'listed' | 'requirement';
+  requirementId?: string;
+  /** The row standing for a linked requirement that has no features. */
+  statement?: true;
+  state: CadSpecItemState;
+  /** Names of the check lines that measured this row. */
+  checks: string[];
+  /** Why no check shows a `not_shown` row. */
+  reason?: string;
+  /**
+   * Whose assertions show a requirement row that has some: `requirement`, the requirement's own
+   * (taken when it is linked to this part alone); `listed`, ones listed for it in the check.
+   */
+  assertedBy?: 'requirement' | 'listed';
+}
+
+export interface CadSpecRequirement {
+  artifactId: string;
+  revisionId: string;
+  title: string;
+  priority: 'must' | 'should' | 'could';
+  /** Review state of the requirement revision the check read. */
+  review: 'approved' | 'in_review' | 'draft';
+  /** How the requirement reached the check: a revision input, an edge, or named by the check. */
+  via: ('input' | 'edge' | 'check' | 'item')[];
+  /** Whether a person or an agent made the link. */
+  linkedBy: 'person' | 'agent';
+  /** `features` and `statement` give rows that block; `advice` rows never do. */
+  kind: 'features' | 'statement' | 'advice';
+  /** Hash of what the check derived from the requirement. */
+  derivedHash: string;
+}
+
+export interface CadSpecCounts {
+  items: number;
+  passed: number;
+  failed: number;
+  unasserted: number;
+  notShown: number;
+  /** Rows that keep the check from passing: the unasserted ones. */
+  blocking: number;
+}
+
+/** `spec` of a cad_check result and of its evidence. */
+export interface CadSpecReport {
+  /** Who listed the check's own items: the agent session or a person. */
+  listedBy: 'agent' | 'person';
+  items: CadSpecItemResult[];
+  requirements: CadSpecRequirement[];
+  counts: CadSpecCounts;
+  /**
+   * Committed assertions that requirements changed since replace, in words; present only when the
+   * check changed the committed scope. Only a person accepts them.
+   */
+  replaced?: string[];
+  /** With `replaced`: the scope changes the check made itself, which repeating the scope restores. */
+  checkChanges?: string[];
+}
+
+/** How a linked requirement stands against the committed check. */
+export type CadSpecLinkChange = 'not_considered' | 'linked_after' | 'revised';
+
+/** `spec` of a verification read: gaps of the recorded report, and links made since. */
+export interface CadSpecReadiness {
+  counts: CadSpecCounts;
+  /** The first rows without an assertion (at most 10; counts.unasserted has them all). */
+  missing: { item: string; requirementId?: string; statement?: true }[];
+  /** Linked requirements the committed check does not show as they stand (at most 10). */
+  linkedSince: {
+    requirementId: string;
+    revisionId: string;
+    title: string;
+    change: CadSpecLinkChange;
+    kind?: 'features' | 'statement';
+    /** A statement requirement's target as it stands, e.g. `25 mm`. */
+    target?: string;
+  }[];
+  linkedSinceCount: number;
+  /** Rows without an assertion plus requirements linked or changed since. */
+  blocking: number;
+  /** Why no check of the part can run: linked requirements state one assertion differently. */
+  conflict?: string;
+}

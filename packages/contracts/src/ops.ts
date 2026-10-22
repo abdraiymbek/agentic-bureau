@@ -744,14 +744,20 @@ const cadCheck = z.object({
   params: scadParams
     .optional()
     .describe('Check a parameter variant instead of the recorded values (nothing is committed).'),
-  expect: expectationSchema.describe(
-    'What must be true of the part, taken from the request: size, bodies and holes, or envelope, volume, points and cross-sections for more detail.',
-  ),
+  expect: expectationSchema
+    .optional()
+    .describe(
+      'What must be true of the part, taken from the request: size, bodies and holes, or envelope, volume, points and cross-sections for more detail.',
+    ),
+  requirementIds: z
+    .array(idSchema)
+    .optional()
+    .describe('Requirements this check answers; their features become spec items.'),
   autoCommit: z
     .boolean()
     .optional()
     .describe(
-      'true: trial the complete check and commit it in the same call only when everything passes and no committed assertion is dropped or changed. A failing run binds nothing.',
+      'true: commit in the same call when every assertion passes and no committed assertion is dropped or changed; items without assertions stay partial. A failing run binds nothing.',
     ),
   exploratory: z
     .boolean()
@@ -1294,6 +1300,7 @@ const appDiagnostics = z.object({});
  */
 
 const vec3Compact = z.array(z.number()).length(3);
+const vec2Compact = z.array(z.number()).length(2);
 
 const projectSummaryCompact = z.object({});
 const artifactListCompact = z.object({
@@ -1327,30 +1334,55 @@ const cadWriteSourceCompact = z.object({
 const cadReadSourceCompact = z.object({ artifactId: z.string() });
 const cadCheckCompact = z.object({
   artifactId: z.string(),
+  requirementIds: z.array(z.string()).optional(),
   expect: z
     .object({
-      size: vec3Compact.optional().describe('Overall size [x,y,z], mm.'),
       bodies: z.number().int().optional().describe('Separate bodies; 1 for one part.'),
-      holes: z
+      spec: z
         .array(
           z.object({
-            at: vec3Compact.describe('Point on the hole axis, inside the material.'),
-            d: z.number().describe('Diameter, mm.'),
-            axis: z.enum(['x', 'y', 'z']).optional().describe('Hole direction, default z.'),
+            item: z.string().describe("In the request's words."),
+            requirementId: z.string().optional(),
+            size: vec3Compact.optional().describe('Overall size [x,y,z], mm.'),
+            holes: z
+              .array(
+                z.object({
+                  at: vec3Compact.describe('Point on the hole axis, inside the material.'),
+                  d: z.number().describe('Diameter, mm.'),
+                  axis: z.enum(['x', 'y', 'z']).optional().describe('Hole direction, default z.'),
+                }),
+              )
+              .optional()
+              .describe('Round holes.'),
+            bbox: z
+              .object({ min: vec3Compact, max: vec3Compact })
+              .optional()
+              .describe('Envelope corners, when position matters.'),
+            volume: z.object({ value: z.number() }).optional().describe('Solid volume, mm³.'),
+            solid: z.array(vec3Compact).optional().describe('Points [x,y,z] inside material.'),
+            empty: z.array(vec3Compact).optional().describe('Points [x,y,z] in empty space.'),
+            sections: z
+              .array(
+                z.object({
+                  axis: z.enum(['x', 'y', 'z']),
+                  at: z.number(),
+                  outer: z
+                    .object({ d: z.number().optional(), size: vec2Compact.optional() })
+                    .optional(),
+                  holes: z.array(z.object({ center: vec2Compact, d: z.number() })).optional(),
+                }),
+              )
+              .optional()
+              .describe('Cut at axis=at through the feature; hole center in that plane.'),
           }),
         )
-        .optional()
-        .describe('Round holes.'),
-      bbox: z
-        .object({ min: vec3Compact, max: vec3Compact })
-        .optional()
-        .describe('Envelope corners, when position matters.'),
-      volume: z.object({ value: z.number() }).optional().describe('Solid volume, mm³.'),
-      solid: z.array(vec3Compact).optional().describe('Points [x,y,z] inside material.'),
-      empty: z.array(vec3Compact).optional().describe('Points [x,y,z] in empty space.'),
+        .describe('One item per requested dimension or feature.'),
     })
     .describe('From the request, never copied from the report.'),
-  autoCommit: z.boolean().optional().describe('true: commit when everything passes.'),
+  autoCommit: z
+    .boolean()
+    .optional()
+    .describe('true: commit when every assertion passes; items without assertions stay partial.'),
 });
 const cadViewCompact = z.object({
   artifactId: z.string(),
@@ -1990,17 +2022,19 @@ export const OPS: OpDef[] = [
     cadCheck,
     'both',
     true,
-    'Verify a part against expectations taken from the request, never copied from the measured report: overall size, bodies, holes by position and diameter and, for more detail, envelope corners, volume, solid and empty points, cross-section outlines and preservation of unrelated geometry. Call it with autoCommit true: the complete check runs as a trial and is committed as the verification only when everything passes. A failing run binds nothing, so fix the part or the mistaken assertion and call again. Returns each assertion result, ready, verificationStatus, the normalized expectation and the next action. Only ready true is verified; do not claim completion on failed, scope_changed, partial or unverified. Example: {"artifactId":"<part id>","autoCommit":true,"expect":{"size":[40,30,5],"bodies":1,"holes":[{"at":[10,10,2.5],"d":4}]}}',
+    'Verify a part against the request, never against the measured report. In expect.spec, give each requested dimension or feature in the request\'s words with the assertions that show it: size, holes, envelope corners, volume, solid and empty points, cross-sections. Linked requirements add their items. Call it with autoCommit true: it commits when every assertion passes; items without assertions stay partial; a failing run binds nothing, so fix the part or the wrong assertion and call again. Returns each assertion and item result, ready, verificationStatus and the next step. Never claim completion unless ready is true. Example: {"artifactId":"<part id>","autoCommit":true,"expect":{"bodies":1,"spec":[{"item":"plate 40 x 30 x 5 mm","size":[40,30,5]},{"item":"Ø4 hole at (10, 10)","holes":[{"at":[10,10,2.5],"d":4}]}]}}',
     {
       tier: 'core',
-      summary: 'Verify a part against request dimensions; autoCommit binds only a passing check.',
+      summary: 'Verify a part item by item; autoCommit commits when every assertion passes.',
       example: {
         artifactId: EX.artifact,
         autoCommit: true,
         expect: {
-          size: [40, 30, 5],
           bodies: 1,
-          holes: [{ at: [10, 10, 2.5], d: 4 }],
+          spec: [
+            { item: 'plate 40 x 30 x 5 mm', size: [40, 30, 5] },
+            { item: 'Ø4 hole at (10, 10)', holes: [{ at: [10, 10, 2.5], d: 4 }] },
+          ],
         },
       },
       compactSchema: cadCheckCompact,
@@ -2275,7 +2309,7 @@ export const OPS: OpDef[] = [
     workStatus,
     'both',
     false,
-    'Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.',
+    'Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.',
     {
       tier: 'core',
       summary: 'Call before your final answer: lists unfinished work and the next call for each.',

@@ -1,6 +1,8 @@
 import React from 'react';
 import type { VerificationReview } from '../decide/model';
 import { Checkbox } from '../ui/kit';
+import { stateLabel } from '../ui/vocabulary';
+import { orderedRows, originOf, sinceText } from '../decide/SpecItems';
 
 const statusLabels: Record<string, string> = {
   passed: 'Passed declared checks',
@@ -31,11 +33,16 @@ export function InlineVerification({
     .filter((check) => !check.pass)
     .concat(checks.filter((check) => check.pass));
   const scope = evidence?.coverage;
+  const spec = evidence?.spec;
+  // The core refuses a scope whose listed items lack assertions; so does this card.
   const canAccept =
     !!verification?.evidenceHash &&
     verification.status !== 'unverified' &&
     evidence?.pass === true &&
-    evidence.integrity?.pass === true;
+    evidence.integrity?.pass === true &&
+    (spec?.counts.blocking ?? 0) === 0;
+  const open = spec ? orderedRows(spec).filter((row) => row.state !== 'passed') : [];
+  const since = verification?.spec?.linkedSince ?? [];
   const renderChecks = (items: typeof checks) => (
     <ul className="inline-check-results">
       {items.map((check, index) => (
@@ -72,6 +79,44 @@ export function InlineVerification({
           No recorded assertion results are available. Approval does not establish verification.
         </p>
       )}
+      {spec && (
+        <p className="inline-check-summary">
+          {spec.counts.passed} of {spec.counts.items} listed items pass
+          {spec.counts.unasserted ? ` · ${spec.counts.unasserted} without an assertion` : ''}
+          {spec.counts.notShown ? ` · ${spec.counts.notShown} not shown by a check` : ''}
+        </p>
+      )}
+      {spec && !!open.length && (
+        <ul className="inline-check-results" aria-label="Listed items that do not pass">
+          {open.slice(0, 3).map((row, index) => (
+            <li key={`${row.item}-${index}`}>
+              <span className={row.state === 'not_shown' ? '' : 'tone-warn-text'}>
+                {stateLabel(row.state, 'spec')}
+              </span>
+              <div>
+                <strong>{row.item}</strong>
+                <p>
+                  {row.state === 'failed' && row.checks.length
+                    ? row.checks.join(' · ')
+                    : row.state === 'not_shown'
+                      ? (row.reason ?? originOf(row, spec))
+                      : originOf(row, spec)}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {spec && open.length > 3 && (
+        <p className="inline-check-scope">
+          {open.length - 3} more listed {open.length - 3 === 1 ? 'item does' : 'items do'} not pass.
+        </p>
+      )}
+      {since.map((entry) => (
+        <p className="tone-warn-text" key={entry.requirementId}>
+          {sinceText(entry)}
+        </p>
+      ))}
       {!!scope?.assertions?.length && (
         <p className="inline-check-scope">
           <strong>Declared scope: </strong>

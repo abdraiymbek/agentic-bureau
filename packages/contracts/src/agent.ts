@@ -64,6 +64,7 @@ export interface AgentActivity {
 
 export const workStatusKinds = [
   'cad_unverified',
+  'cad_spec_unasserted',
   'cad_check_failed',
   'cad_scope_changed',
   'cad_render_failed',

@@ -262,8 +262,13 @@ The same three-part grammar: **queue · proposal · impact**.
   quantities change atomically with their bounds: **0.3 kg → 0.5 kg**. A new object shows its
   complete content; files show sizes and line diffs. Mechanical changes show Proposed /
   Baseline / Side by side / Overlay without resetting the camera, verification in words with
-  its readiness, scope acceptance with the reason when it is refused, envelope, parameters,
-  source diff and provenance.
+  its readiness, the listed items of the check with what shows each one (who listed each, or
+  which requirement it comes from, that requirement's review state, and who asserted it when
+  the assertions are not the requirement's own; a requirement no geometry check shows says so,
+  one linked or changed after the check is named without changing the recorded status, and
+  requirements that disagree say that no check can run), scope acceptance with the reason when it is refused, envelope,
+  parameters, source diff and provenance. A new requirement shows the features it asks of a
+  linked part, read-only, with their assertions in words.
 - The decision bar is pinned to the bottom of the stage: rationale (required to reject or
   request changes), then **Reject** (demoted, far left, two presses), **Request changes**, and
   **Approve changes** (`⌘↵`). One guard (`decide/guard.ts`) decides for buttons and keys:
@@ -493,7 +498,7 @@ All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled
 | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `Mark`, `Brand`      | Identity                                                                                                         |
 | `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types                                        |
-| `State`, `Pulse`     | Labelled state from one vocabulary by dimension (`ui/vocabulary.ts`); live pulse for running things              |
+| `State`, `Pulse`     | Labelled state by dimension (`ui/vocabulary.ts`; `spec` for listed CAD items); live pulse for running things     |
 | `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`; `busy` keeps its width; `shortcut`  |
 | `IconButton`         | Named icon-only action, 26 / 32 / 38 px; the label is its accessible name and its tooltip; `pressed`, `shortcut` |
 | `Tooltip`            | Names a control on hover and when Tab reaches it; `TooltipProvider` wraps the application                        |
@@ -514,8 +519,9 @@ All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled
 
 Composite patterns: map node, map legend and peek, Needs-you row, rail link node, folding rail,
 stage header, revision banner, underneath notice, save bar, viewport tool island, render and
-export job rows, STEP export outcome, diff row (short and stacked), line diff, phase notice, change-underneath notice, decision
-bar, handoff card, lens table row, totals strip, evidence chip, activity bar, session bar,
+export job rows, STEP export outcome, diff row (short and stacked), line diff, phase notice,
+change-underneath notice, listed items of a CAD check, decision bar, handoff card, lens table
+row, totals strip, evidence chip, activity bar, session bar,
 pane switch, conversation turn and composer, input attachment, inline card (part, record,
 quantities, chart, choices, review), work-not-finished card, continuation message, turn model
 and model-mismatch notice, activity rail and call row, agent onboarding panel,

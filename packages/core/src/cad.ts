@@ -11,6 +11,7 @@ import {
   dimOf,
   isUnknown,
   newId,
+  unitDef,
   type Artifact,
   type Expectation,
   type Revision,
@@ -1018,6 +1019,40 @@ export async function cadInspect(
 /* cad.check                                                           */
 /* ------------------------------------------------------------------ */
 
+const EVALUATING = new Set(['validates', 'derived_from', 'depends_on']);
+
+/**
+ * Titles of the requirements linked to a part that the Rust host turns into
+ * spec items of every check: those with features, or with a target a
+ * geometry check can show (a length, area, volume or angle; a unit this
+ * core does not know is counted as one). This core checks neither, so it
+ * refuses such a check instead of verifying less than the host would.
+ */
+function specRequirements(ctx: ProjectContext, part: Artifact, rev: Revision): string[] {
+  const ids = new Set<string>();
+  for (const input of rev.inputs ?? [])
+    if (EVALUATING.has(input.relationship ?? 'depends_on')) ids.add(input.artifactId);
+  for (const edge of ctx.repo.allEdges())
+    if (edge.downstreamArtifactId === part.id && EVALUATING.has(edge.relationship))
+      ids.add(edge.upstreamArtifactId);
+  return [...ids].flatMap((id) => {
+    const requirement = ctx.repo.getArtifact(id);
+    if (!requirement || requirement.type !== 'requirement' || requirement.archived) return [];
+    const current =
+      (requirement.selectedRevisionId && ctx.repo.getRevision(requirement.selectedRevisionId)) ||
+      ctx.repo.listRevisions(id).at(-1);
+    const payload = (current?.payload ?? {}) as {
+      features?: unknown[];
+      target?: { unit?: string; unknown?: boolean };
+    };
+    const unit = payload.target?.unknown ? undefined : payload.target?.unit;
+    const dim = unit === undefined ? undefined : unitDef(unit)?.dim;
+    const geometric =
+      unit !== undefined && (dim === undefined || dim === 'length' || dim === 'angle');
+    return payload.features?.length || geometric ? [requirement.title] : [];
+  });
+}
+
 export async function cadCheck(
   ctx: ProjectContext,
   input: {
@@ -1051,6 +1086,20 @@ export async function cadCheck(
   };
   next: string;
 }> {
+  const part = requireMechanical(ctx, input.artifactId);
+  const linked = specRequirements(ctx, part, pickRevision(ctx, part, input.revisionId));
+  if (linked.length) {
+    const unsupported = linked.map((title) => `linked requirement "${title}"`);
+    throw new OmenflowError(
+      ErrorCodes.VALIDATION,
+      `cad.check with ${unsupported.join(', ')} is implemented by the Rust host`,
+      {
+        repair:
+          'Call it through the desktop app: the Rust host checks the part against the items of its linked requirements.',
+        details: { op: 'cad.check', unsupported, implementedBy: 'rust-host' },
+      },
+    );
+  }
   const exploratory = input.exploratory === true;
   const job = ctx.createJob({
     kind: 'cad_check',

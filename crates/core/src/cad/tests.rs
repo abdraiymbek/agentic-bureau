@@ -396,6 +396,36 @@ fn readiness_is_the_same_in_check_results_work_state_and_summaries() {
         (&generic["verificationStatus"], &generic["committed"]),
         (&json!("partial"), &json!(false))
     );
+
+    // A listed item without an assertion reads the same everywhere too.
+    let listed = plate(&sandbox);
+    let partial = check(
+        &sandbox,
+        &listed["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": [
+            {"item": "plate 40 x 30 x 4", "size": [40, 30, 4]}, {"item": "edges broken 0.5 mm"}]}}),
+    );
+    assert_eq!(
+        (&partial["verificationStatus"], &partial["committed"]),
+        (&json!("partial"), &json!(true))
+    );
+    let revision = sandbox.revision(&listed["revisionId"]);
+    sandbox.with_handle(|handle| {
+        let latest = latest_verification(handle, &revision).unwrap();
+        assert_eq!(latest["status"], partial["verificationStatus"]);
+        assert_eq!(latest["ready"], partial["ready"]);
+        assert_eq!(latest["nextAction"], partial["nextAction"]);
+        assert_eq!(latest["spec"]["counts"]["blocking"], 1);
+        assert_eq!(
+            latest["spec"]["missing"],
+            json!([{"item": "edges broken 0.5 mm"}])
+        );
+    });
+    let ready = readiness_of(&sandbox, &listed["revisionId"]);
+    assert_eq!(
+        (&ready["status"], &ready["nextAction"]),
+        (&json!("partial"), &json!("commit_assertions"))
+    );
 }
 
 #[test]
@@ -1393,4 +1423,326 @@ fn a_part_with_hundreds_of_thousands_of_triangles_is_rendered_measured_and_check
     assert_eq!(checked["ready"], true, "{checked}");
     assert_eq!(checked["total"], 8);
     eprintln!("{triangles} triangles: write {written:?}, check {measured:?}");
+}
+
+/// The V-pulley of the CAD evaluation: a Ø60 × 16 mm pulley with a Ø8 bore
+/// and a symmetric V-groove whose sharp bottom is at Ø50, z = 8.
+const V_PULLEY: &str = "$fn = 128;\nrotate_extrude() polygon([[4, 0], [30, 0], [30, 4], [25, 8], [30, 12], [30, 16], [4, 16]]);\n";
+/// The same pulley with a flat groove bottom at Ø52.
+const FLAT_GROOVE: &str = "$fn = 128;\nrotate_extrude() polygon([[4, 0], [30, 0], [30, 4], [26, 7], [26, 9], [30, 12], [30, 16], [4, 16]]);\n";
+
+fn pulley_items() -> Value {
+    json!([
+        {"item": "outer diameter 60 mm", "sections": [{"axis": "z", "at": 2, "outer": {"d": 60}}, {"axis": "z", "at": 14, "outer": {"d": 60}}]},
+        {"item": "overall width 16 mm (z 0…16)", "bbox": {"min": [-30, -30, 0], "max": [30, 30, 16]}},
+        {"item": "Ø8 mm bore through the full width", "holes": [{"at": [0, 0, 2], "d": 8}, {"at": [0, 0, 14], "d": 8}]},
+        {"item": "V-groove centered at z = 8, 8 mm wide at Ø60 (z 4…12)", "solid": [[29.5, 0, 3.5], [29.5, 0, 12.5]], "empty": [[29.5, 0, 8]]},
+        {"item": "sharp groove bottom at Ø50 (5 mm deep)", "sections": [{"axis": "z", "at": 8, "outer": {"d": 50}}]},
+        {"item": "both flanks straight", "sections": [{"axis": "z", "at": 6, "outer": {"d": 55}}, {"axis": "z", "at": 10, "outer": {"d": 55}}]}
+    ])
+}
+
+#[test]
+fn the_v_pulley_items_attribute_lines_and_an_unasserted_item_keeps_it_partial() {
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    let pulley = write(&sandbox, "V-pulley", V_PULLEY);
+    let full = check(
+        &sandbox,
+        &pulley["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": pulley_items()}}),
+    );
+    assert_eq!(
+        (&full["verificationStatus"], &full["passed"], &full["total"]),
+        (&json!("passed"), &json!(15), &json!(15)),
+        "{full}"
+    );
+    assert_eq!(full["spec"]["counts"]["passed"], 6);
+    assert_eq!(
+        full["spec"]["items"][4]["checks"],
+        json!(["section z=8: outer circle d50"])
+    );
+    assert_eq!(
+        full["spec"]["items"][0]["checks"],
+        json!([
+            "section z=2: outer circle d60",
+            "section z=14: outer circle d60"
+        ])
+    );
+    // The reply echoes the request form: each assertion once, under its item.
+    assert_eq!(full["normalizedExpect"]["shells"], 1);
+    assert_eq!(full["normalizedExpect"].as_object().unwrap().len(), 2);
+    assert_eq!(evidence(&sandbox, &full)["spec"]["counts"]["items"], 6);
+
+    // The 0.2.3 failure: the groove bottom is listed without an assertion.
+    let other = write(&sandbox, "V-pulley again", V_PULLEY);
+    let mut items = pulley_items();
+    items[4] = json!({"item": "sharp groove bottom at Ø50 (5 mm deep)"});
+    let partial = check(
+        &sandbox,
+        &other["artifactId"],
+        json!({"autoCommit": true, "detail": "brief", "expect": {"bodies": 1, "spec": items}}),
+    );
+    assert_eq!(
+        (
+            &partial["verificationStatus"],
+            &partial["committed"],
+            &partial["ready"]
+        ),
+        (&json!("partial"), &json!(true), &json!(false)),
+        "{partial}"
+    );
+    assert_eq!(
+        (&partial["passed"], &partial["total"]),
+        (&json!(14), &json!(14))
+    );
+    assert_eq!(
+        partial["spec"],
+        json!({"items": 6, "passed": 5, "unasserted": ["sharp groove bottom at Ø50 (5 mm deep)"]})
+    );
+    assert_eq!(partial["nextAction"], "commit_assertions");
+    assert_eq!(partial["next"]["tool"], "cad_check");
+    assert_eq!(partial["next"]["args"]["autoCommit"], true);
+    assert_eq!(
+        partial["next"]["args"]["expect"]["spec"][4],
+        json!({"item": "sharp groove bottom at Ø50 (5 mm deep)"})
+    );
+    assert!(partial.get("normalizedExpect").is_none());
+    let ready = readiness_of(&sandbox, &other["revisionId"]);
+    assert_eq!(ready["status"], "partial");
+    assert_eq!(
+        ready["summary"],
+        "Checks pass, but 1 listed item has no assertion: \"sharp groove bottom at Ø50 (5 mm deep)\"."
+    );
+    // Giving it its assertion is not a scope change, and verifies the part.
+    let fixed = check(
+        &sandbox,
+        &other["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": pulley_items()}}),
+    );
+    assert_eq!(fixed["verificationStatus"], "passed", "{fixed}");
+    assert!(fixed["scopeChanges"].as_array().unwrap().is_empty());
+
+    // A wrong groove fails the items that show it, and binds nothing.
+    let flat = write(&sandbox, "Flat groove", FLAT_GROOVE);
+    let wrong = check(
+        &sandbox,
+        &flat["artifactId"],
+        json!({"autoCommit": true, "detail": "brief", "expect": {"bodies": 1, "spec": pulley_items()}}),
+    );
+    assert_eq!(
+        (&wrong["verificationStatus"], &wrong["committed"]),
+        (&json!("failed"), &json!(false))
+    );
+    assert_eq!(
+        wrong["spec"]["failed"],
+        json!([
+            "sharp groove bottom at Ø50 (5 mm deep)",
+            "both flanks straight"
+        ])
+    );
+}
+
+#[test]
+fn a_linked_requirement_feature_joins_the_check_and_binds() {
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    let pulley = write(&sandbox, "V-pulley", V_PULLEY);
+    let groove = sandbox
+        .call(
+            "artifact.create_draft",
+            json!({"type": "requirement", "title": "V-groove profile", "payload": {
+                "statement": "The pulley carries the belt in a symmetric V-groove centred at z = 8.",
+                "acceptanceCriterion": "Groove bottom Ø50 at z = 8 and straight flanks.",
+                "priority": "must",
+                "features": [
+                    {"label": "Groove bottom Ø50 at z = 8", "quantity": {"value": 50, "unit": "mm"},
+                     "expect": {"sections": [{"axis": "z", "at": 8, "outer": {"d": 50}}]}},
+                    {"label": "Both flanks straight"}]}}),
+        )
+        .unwrap();
+    let groove_id = groove["artifact"]["id"].clone();
+    sandbox
+        .call(
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": groove_id, "downstreamArtifactId": pulley["artifactId"], "relationship": "validates"}]}),
+        )
+        .unwrap();
+    let mut items = pulley_items().as_array().unwrap()[..4].to_vec();
+    let partial = check(
+        &sandbox,
+        &pulley["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": items}}),
+    );
+    assert_eq!(
+        partial["derivedSpec"],
+        json!([
+            "added from requirement \"V-groove profile\": Groove bottom Ø50 at z = 8",
+            "added from requirement \"V-groove profile\": Both flanks straight"
+        ])
+    );
+    // The feature's section is measured and binding; the other has none yet.
+    assert_eq!(
+        partial["normalizedExpect"]["spec"][4],
+        json!({"item": "Groove bottom Ø50 at z = 8", "requirementId": groove_id, "sections": [{"axis": "z", "at": 8, "outer": {"d": 50}}]})
+    );
+    assert_eq!(
+        (&partial["verificationStatus"], &partial["committed"]),
+        (&json!("partial"), &json!(true))
+    );
+    let rows = &partial["spec"]["items"];
+    assert_eq!(
+        (&rows[4]["from"], &rows[4]["state"]),
+        (&json!("requirement"), &json!("passed"))
+    );
+    assert_eq!(rows[5]["state"], "unasserted");
+    assert_eq!(partial["spec"]["requirements"][0]["via"], json!(["edge"]));
+    assert_eq!(partial["spec"]["requirements"][0]["review"], "draft");
+    // A draft requirement does not stand behind the items.
+    assert_eq!(
+        evidence(&sandbox, &partial)["coverage"]["requirementAuthority"],
+        "agent_or_user_declared"
+    );
+    items.push(json!({"item": "Both flanks straight", "requirementId": groove_id,
+        "sections": [{"axis": "z", "at": 6, "outer": {"d": 55}}, {"axis": "z", "at": 10, "outer": {"d": 55}}]}));
+    let passed = check(
+        &sandbox,
+        &pulley["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": items}}),
+    );
+    assert_eq!(passed["verificationStatus"], "passed", "{passed}");
+    assert_eq!(passed["spec"]["counts"]["items"], 6);
+
+    // The same requirement fails a part without the groove bottom.
+    let flat = write(&sandbox, "Flat groove", FLAT_GROOVE);
+    sandbox
+        .call(
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": groove_id, "downstreamArtifactId": flat["artifactId"], "relationship": "validates"}]}),
+        )
+        .unwrap();
+    // Linked to two parts, the requirement's assertions are not taken for
+    // either: each check has to give its own.
+    let shared = check(
+        &sandbox,
+        &flat["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1}}),
+    );
+    assert_eq!(shared["spec"]["counts"]["unasserted"], 2, "{shared}");
+    let failed = check(
+        &sandbox,
+        &flat["artifactId"],
+        json!({"autoCommit": true, "expect": {"bodies": 1, "spec": [
+            {"item": "Groove bottom Ø50 at z = 8", "requirementId": groove_id, "sections": [{"axis": "z", "at": 8, "outer": {"d": 50}}]}]}}),
+    );
+    assert_eq!(failed["verificationStatus"], "failed", "{failed}");
+    assert_eq!(failed["spec"]["items"][0]["state"], "failed");
+}
+
+#[test]
+fn requirement_ids_name_a_requirement_for_one_check() {
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    let part = plate(&sandbox);
+    let width = sandbox
+        .call(
+            "artifact.create_draft",
+            json!({"type": "requirement", "title": "Plate width", "payload": {
+                "statement": "The plate is 40 mm wide.", "acceptanceCriterion": "Measured",
+                "target": {"value": 40, "unit": "mm"}}}),
+        )
+        .unwrap()["artifact"]["id"]
+        .clone();
+    let named = check(
+        &sandbox,
+        &part["artifactId"],
+        json!({"autoCommit": true, "requirementIds": [width], "expect": plate_expectation()}),
+    );
+    assert_eq!(named["verificationStatus"], "partial", "{named}");
+    assert_eq!(
+        named["spec"]["items"],
+        json!([{"item": "Plate width", "requirementId": width, "from": "requirement",
+            "statement": true, "state": "unasserted", "checks": []}])
+    );
+    assert_eq!(named["spec"]["requirements"][0]["via"], json!(["check"]));
+    assert_eq!(
+        named["nextStep"]["args"]["expect"]["spec"],
+        json!([{"item": "Plate width", "requirementId": width}])
+    );
+    let shown = check(
+        &sandbox,
+        &part["artifactId"],
+        json!({"autoCommit": true, "requirementIds": [width], "expect": {"size": [40, 30, 4], "bodies": 1,
+            "holes": plate_expectation()["holes"],
+            "spec": [{"item": "Plate width", "requirementId": width, "size": [40, 30, 4]}]}}),
+    );
+    assert_eq!(shown["verificationStatus"], "passed", "{shown}");
+    // The item in the requirement's words is its row, not a second one; the
+    // assertion that shows it is the one listed for it.
+    assert_eq!(
+        shown["spec"]["items"],
+        json!([{"item": "Plate width", "requirementId": width, "from": "requirement",
+            "statement": true, "state": "passed", "checks": ["overall size"], "assertedBy": "listed"}])
+    );
+
+    // Archived after the committed check named it, the requirement is still
+    // accepted there, and its item is checked as a listed item.
+    sandbox
+        .call(
+            "artifact.archive",
+            json!({"artifactId": width, "archived": true}),
+        )
+        .unwrap();
+    let archived = check(
+        &sandbox,
+        &part["artifactId"],
+        json!({"autoCommit": true, "expect": {"size": [40, 30, 4], "bodies": 1,
+            "holes": plate_expectation()["holes"],
+            "spec": [{"item": "Plate width", "requirementId": width, "size": [40, 30, 4]}]}}),
+    );
+    assert_eq!(archived["verificationStatus"], "passed", "{archived}");
+    assert_eq!(
+        archived["notes"],
+        json!([
+            "requirement \"Plate width\" is archived; items naming it are checked as listed items"
+        ])
+    );
+    assert_eq!(archived["spec"]["items"][0]["from"], "listed");
+    let other = plate(&sandbox);
+    let error = sandbox
+        .call(
+            "cad.check",
+            json!({"artifactId": other["artifactId"], "requirementIds": [width], "expect": {}}),
+        )
+        .unwrap_err();
+    assert_eq!(error.issues()[0].path, "requirementIds[0]");
+    assert!(error.message.contains("is archived"), "{}", error.message);
+
+    // Ids that are not current requirements are refused with their path.
+    let error = sandbox
+        .call(
+            "cad.check",
+            json!({"artifactId": part["artifactId"], "requirementIds": [part["artifactId"]], "expect": {}}),
+        )
+        .unwrap_err();
+    assert_eq!(error.issues()[0].path, "requirementIds[0]");
+    assert!(
+        error.message.contains("not a requirement"),
+        "{}",
+        error.message
+    );
+    let error = sandbox
+        .call(
+            "cad.check",
+            json!({"artifactId": part["artifactId"], "expect": {"spec": [
+                {"item": "x", "requirementId": "00000000-0000-4000-8000-000000000009"}]}}),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "NOT_FOUND");
 }

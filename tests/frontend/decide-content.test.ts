@@ -123,6 +123,32 @@ describe('a new object is reviewed as its complete content', () => {
     expect(out).not.toContain('{&quot;');
   });
 
+  it('shows the features a requirement asks of a linked part, with their assertions', () => {
+    const out = renderToStaticMarkup(
+      React.createElement(ArtifactContent, {
+        type: 'requirement',
+        payload: {
+          statement: 'The pulley carries the belt in a V-groove.',
+          acceptanceCriterion: 'Measured',
+          priority: 'must',
+          features: [
+            {
+              label: 'Groove bottom Ø50 at z = 8',
+              quantity: { value: 50, unit: 'mm' },
+              expect: { sections: [{ axis: 'z', at: 8, outer: { d: 50 } }] },
+            },
+            { label: 'Both flanks straight' },
+          ],
+        },
+      }),
+    ).replace(/<!-- -->/g, '');
+    expect(out).toContain('Features a linked part must show');
+    expect(out).toContain('<strong>Groove bottom Ø50 at z = 8</strong>');
+    expect(out).toContain('50 mm');
+    expect(out).toContain('section z = 8 mm: outer Ø50 mm');
+    expect(out).toContain('No assertions recorded; a check of a linked part has to give its own.');
+  });
+
   it('says plainly what was not recorded instead of leaving gaps', () => {
     const out = renderToStaticMarkup(
       React.createElement(ArtifactContent, {

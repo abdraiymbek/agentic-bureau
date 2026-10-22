@@ -23,6 +23,7 @@ import { errMsg } from '../api';
 import { useStore } from '../store';
 import { linkDestination, safeMarkdown, safeSvg } from '../lib/markdown';
 import { LocalTime, RefTitle, ShownValue } from './parts';
+import { describeAssertions } from '../lib/spec-format';
 
 type ArchitecturePayload = { markdown?: string; diagramSvg?: string };
 
@@ -107,6 +108,39 @@ function Svg({ source }: { source: string }) {
 
 const PRIORITY: Record<string, string> = { must: 'Must', should: 'Should', could: 'Could' };
 
+/**
+ * What a linked part must show, read-only: each feature with its value and the cad_check
+ * assertions recorded for it. Approving the requirement approves these too.
+ */
+function Features({ features }: { features: NonNullable<RequirementPayload['features']> }) {
+  return (
+    <Block title="Features a linked part must show">
+      <ul className="requirement-features">
+        {features.map((feature, i) => {
+          const assertions = describeAssertions(feature.expect);
+          return (
+            <li key={i}>
+              <strong>{feature.label}</strong>
+              {feature.quantity !== undefined && <ShownValue value={describe(feature.quantity)} />}
+              {assertions.length ? (
+                <ul className="requirement-feature-assertions mono">
+                  {assertions.map((line, j) => (
+                    <li key={j}>{line}</li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="review-muted">
+                  No assertions recorded; a check of a linked part has to give its own.
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Block>
+  );
+}
+
 function Requirement({ p }: { p: RequirementPayload }) {
   return (
     <>
@@ -120,6 +154,7 @@ function Requirement({ p }: { p: RequirementPayload }) {
           ['Source', p.sourceId ? <RefTitle id={p.sourceId} /> : undefined],
         ]}
       />
+      {!!p.features?.length && <Features features={p.features} />}
     </>
   );
 }

@@ -37,6 +37,48 @@ checkbox present at 1024:
   and … points through it agree”). Covered by `tests/frontend/render-jobs.test.ts`; not looked at
   again in the preview.
 
+## Listed items of a CAD check · 22 October 2026
+
+A mechanical change's verification shows the check's listed items above all its assertions
+(`decide/SpecItems.tsx`, styles in `styles/decide.css`): each with its state from the new `spec`
+vocabulary (Passed, Failed, Not asserted, Not shown), who listed it or which requirement it comes
+from with that requirement's priority and review state when checked, the lines a failed item
+failed on, and, under “What measured each item”, the lines behind every item. Items without an
+assertion come first. A requirement no geometry check shows says why; one linked or changed
+after the check is a warning notice that leaves the recorded status as it is. The readiness line
+says when listed items have no assertion, scope acceptance is refused for the same reason, and
+the footnote says whose list the items are. The inline review card counts the listed items, shows
+up to three that do not pass and offers no acceptance while any lacks an assertion. A new
+requirement shows its features read-only with their assertions in words (`lib/spec-format.ts`).
+Catalogue: “Listed items of a CAD check” and “Review evidence with listed items”, both labelled
+specimens, and the `spec` dimension in the State vocabulary.
+
+Checks on the working tree: `pnpm typecheck`; eslint and prettier on the changed files (no
+errors; the warnings are existing ones in `evals/agent/judge.ts`); `pnpm exec vitest run` (108
+files: 1071 passed, 2 existing skips, 3 failed in `packages/agent-host/src/pty.test.ts` with
+`posix_spawnp failed`, a PTY launch this sandbox refuses, in a file this change does not touch)
+including the new `spec-items` and `spec-format` tests; `pnpm test:conformance` (9 files, 64
+tests, including the new engine case `spec-items.conformance.ts`).
+
+A copy of the Rust design preview with a real V-pulley check (three listed items, a linked draft
+requirement with two features, one of them without an assertion) and its proposal was reviewed in
+Graphite at 1440 × 900 and in Paper at 1024 × 700: the decision showed “Not ready: some listed
+items have no assertion”, the five rows with their origins, the measuring lines, the refused
+scope acceptance and the requirement's features. The catalogue specimens were checked in both
+themes at both sizes. Found and fixed during the review: the item count was cut at the right edge
+of a narrow pane (it now wraps), and the requirement's review state read as current although it
+is the state when the check ran (“draft when checked”).
+
+Not covered: native `pnpm dev`, VoiceOver, and a review with a requirement linked after an
+approved baseline's check outside the catalogue specimen.
+
+After review, the same day: a requirement row whose assertions were listed for it rather than
+taken from the requirement now ends “asserted by the agent” (or “by a person”); the notice for
+replaced assertions also names what the check changed itself; and linked requirements that
+disagree show an error notice that no check can run (catalogue: “Linked requirements that
+disagree”). Checked with `spec-items.test.ts`, `pnpm typecheck` and `pnpm test:conformance`;
+these text and notice changes were not looked at again in the preview.
+
 ## Introduction · 21 October 2026
 
 A first-run introduction over the launcher (`renderer/intro/`, `styles/intro.css`): four acts on

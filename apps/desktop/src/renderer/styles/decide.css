@@ -499,6 +499,23 @@
 .review-facts dd {
   overflow-wrap: anywhere;
 }
+/* A requirement's features in review content (decide/ArtifactContent.tsx). */
+.requirement-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  font-size: var(--text-sm);
+}
+.requirement-features > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.requirement-feature-assertions {
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
 .review-quote {
   padding-left: var(--s-4);
   border-left: 2px solid var(--line-strong);
@@ -678,6 +695,69 @@
 .check-detail {
   color: var(--text-2);
   font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* Listed items of a CAD check (decide/SpecItems.tsx), above the full list of assertions. */
+.spec-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.spec-items-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-3);
+}
+.spec-items-count {
+  font-weight: 400;
+}
+.spec-item-list {
+  display: flex;
+  flex-direction: column;
+}
+.spec-item {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: var(--s-3);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+}
+.spec-item:last-child {
+  border-bottom: 0;
+}
+.spec-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.spec-item-text {
+  overflow-wrap: anywhere;
+}
+.spec-item-origin,
+.spec-item-note {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+.spec-item-lines {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--s-2) var(--s-4);
+  font-size: var(--text-xs);
+}
+.spec-item-lines dt {
+  color: var(--text-2);
+}
+.spec-item-lines dd {
+  color: var(--text-2);
   overflow-wrap: anywhere;
 }
 

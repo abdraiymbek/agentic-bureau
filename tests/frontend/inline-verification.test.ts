@@ -79,6 +79,41 @@ describe('readable recorded verification in a human review', () => {
     expect(render({ ...record, status: 'unverified' })).not.toContain('inline-scope-acceptance');
     expect(render({ ...record, status: 'unverified' })).toContain('Not verified for this revision');
   });
+  it('shows listed items, those without an assertion first, and refuses acceptance while any lacks one', () => {
+    const verification: VerificationReview = {
+      ...record,
+      status: 'partial',
+      evidence: {
+        ...record.evidence,
+        spec: {
+          listedBy: 'agent',
+          items: [
+            { item: 'plate 64 x 46 mm', from: 'listed', state: 'passed', checks: ['overall size'] },
+            { item: 'chamfered edges', from: 'listed', state: 'unasserted', checks: [] },
+          ],
+          requirements: [],
+          counts: { items: 2, passed: 1, failed: 0, unasserted: 1, notShown: 0, blocking: 1 },
+        },
+      },
+      spec: {
+        counts: { items: 2, passed: 1, failed: 0, unasserted: 1, notShown: 0, blocking: 2 },
+        missing: [{ item: 'chamfered edges' }],
+        linkedSince: [
+          { requirementId: 'r1', revisionId: 'r1a', title: 'Envelope', change: 'linked_after' },
+        ],
+        linkedSinceCount: 1,
+        blocking: 2,
+      },
+    };
+    const html = render(verification);
+    expect(html).toContain('1 of 2 listed items pass · 1 without an assertion');
+    expect(html).toContain('Not asserted');
+    expect(html).toContain('<strong>chamfered edges</strong>');
+    expect(html).toContain('Listed by the agent');
+    expect(html).toContain('Requirement “Envelope” was linked to this part after this check');
+    expect(html).not.toContain('inline-scope-acceptance');
+  });
+
   it('keeps a completed decision readable without another scope-acceptance control', () => {
     const html = renderToStaticMarkup(
       React.createElement(InlineVerification, {

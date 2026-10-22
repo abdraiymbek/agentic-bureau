@@ -1330,6 +1330,7 @@ fn insert_artifact_with_draft(
         },
     )?;
     wiring::complete_payload(handle, type_name, &mut body)?;
+    cad::check_features(type_name, &mut body)?;
     let files = ingest_files(handle, &payload["files"])?;
     let (body, files) = if type_name == "mechanical" {
         mechanical::normalize(handle, body, files, None)?
@@ -1436,6 +1437,7 @@ fn insert_draft_revision(
             .unwrap_or_else(|| json!({})),
     )?;
     wiring::complete_payload(handle, type_name, &mut body)?;
+    cad::check_features(type_name, &mut body)?;
     let files = if let Some(files) = carried_files {
         files
     } else if input.get("files").is_some() {

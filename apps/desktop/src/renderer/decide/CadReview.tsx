@@ -10,6 +10,7 @@ import { readRevisionFile } from './io';
 import { LineDiff } from './parts';
 import { PayloadDiff } from './PayloadDiff';
 import { ArtifactContent } from './ArtifactContent';
+import { SpecItems } from './SpecItems';
 
 export type ReviewStatus =
   { state: 'loading' } | { state: 'ready' } | { state: 'error'; reason: string };
@@ -113,9 +114,10 @@ const STATUS: Record<string, { label: string; tone: Tone; readiness: string }> =
 
 function explicitScope(expect: unknown): boolean {
   if (!expect || typeof expect !== 'object') return false;
+  // Listed items count through the assertions they add, as in the core.
   return Object.entries(expect).some(
     ([k, v]) =>
-      !['watertight', 'minRoundness'].includes(k) &&
+      !['watertight', 'minRoundness', 'tol', 'spec'].includes(k) &&
       v !== undefined &&
       v !== null &&
       (!Array.isArray(v) || v.length > 0),
@@ -132,7 +134,26 @@ export function scopeRefusal(v: VerificationReview | undefined): string | null {
   if (e.integrity?.pass !== true) return 'The mesh integrity check did not pass.';
   if (!explicitScope(e.expect))
     return 'Only generic checks were declared, so there is no specific scope to accept.';
+  if ((e.spec?.counts.blocking ?? 0) > 0)
+    return 'Listed items have no assertion, so this scope does not show the request.';
   return null;
+}
+
+/** Who the listed items and their requirements come from, for the footnote. */
+function scopeNote(e: NonNullable<VerificationReview['evidence']>): string {
+  if (!e.spec)
+    return `Checks establish only the declared scope${
+      e.coverage?.requirementAuthority === 'agent_or_user_declared'
+        ? ', which the agent or a person declared'
+        : ''
+    }. The engineering requirements may ask for more.`;
+  const lister = e.spec.listedBy === 'person' ? 'a person' : 'the agent';
+  const linked = e.spec.requirements.length;
+  return `Checks establish the listed items: the request as ${lister} listed it${
+    linked
+      ? `, with the items of ${linked} linked ${linked === 1 ? 'requirement' : 'requirements'}`
+      : ''
+  }. The request and the requirements may ask for more.`;
 }
 
 function Verification({
@@ -179,8 +200,11 @@ function Verification({
       <p className="verify-ready">
         {verification.status === 'unverified' && e
           ? 'Not ready: a check was recorded, but this object or one of its inputs changed since, or the mesh no longer matches the check.'
-          : meta.readiness}
+          : verification.status === 'partial' && (e?.spec?.counts.blocking ?? 0) > 0
+            ? 'Not ready: some listed items have no assertion.'
+            : meta.readiness}
       </p>
+      <SpecItems spec={e?.spec} readiness={verification.spec} />
       {!e ? null : (
         <>
           {e.exploratory && (
@@ -191,7 +215,12 @@ function Verification({
               The declared scope changed: {e.scopeChanges.join(', ')}. Review it below.
             </Notice>
           )}
-          <div className="checks" role="list" aria-label="Checks">
+          {e.spec && (
+            <div className="spec-items-head">
+              <span>All assertions</span>
+            </div>
+          )}
+          <div className="checks" role="list" aria-label={e.spec ? 'All assertions' : 'Checks'}>
             {e.integrity && (
               <div className="verify-row" role="listitem">
                 <State
@@ -216,13 +245,7 @@ function Verification({
             ))}
             {!e.checks?.length && <p className="review-muted">No assertions were declared.</p>}
           </div>
-          <p className="footnote">
-            Checks establish only the declared scope
-            {e.coverage?.requirementAuthority === 'agent_or_user_declared'
-              ? ', which the agent or a person declared'
-              : ''}
-            . The engineering requirements may ask for more.
-          </p>
+          <p className="footnote">{scopeNote(e)}</p>
           <Disclosure
             label="Declared scope"
             meta={[e.coverage?.units, e.coverage?.frame && frameWords(e.coverage.frame)]

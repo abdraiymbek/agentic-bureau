@@ -19,6 +19,8 @@ export type StateDimension =
   | 'result'
   /** A committed CAD verification. */
   | 'verification'
+  /** A listed item or linked requirement of a CAD check. */
+  | 'spec'
   /** Work running now: agent sessions and jobs. */
   | 'execution'
   /** A component's place in selection. */
@@ -82,6 +84,12 @@ export const VOCABULARY: Record<StateDimension, Record<string, StateWord>> = {
     partial: w('Partly verified', 'warn'),
     scope_changed: w('Scope changed', 'warn'),
     failed: w('Check failed', 'err'),
+  },
+  spec: {
+    passed: w('Passed', 'ok'),
+    failed: w('Failed', 'err'),
+    unasserted: w('Not asserted', 'warn'),
+    not_shown: w('Not shown', 'neutral'),
   },
   execution: {
     queued: w('Queued', 'neutral'),

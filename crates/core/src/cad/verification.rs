@@ -36,6 +36,9 @@ pub(crate) struct Measured {
     pub integrity: bool,
     /// The mesh that was measured is the revision's own stored render.
     pub matching: bool,
+    /// Spec rows without an assertion (cad/spec.rs); any keeps the check
+    /// from passing.
+    pub unasserted: usize,
 }
 
 /// How the request asked for the result to be recorded.
@@ -45,7 +48,10 @@ pub(crate) enum Mode {
     Commit,
     /// Diagnostic only; never binds.
     Trial,
-    /// Bind only when the result is `passed`; otherwise record a trial.
+    /// Bind when every assertion passes and no committed one is dropped or
+    /// changed: the result is `passed`, or `partial` because items have no
+    /// assertion while the request's other assertions pass. Otherwise record
+    /// a trial; a check of generic mesh properties alone stays one.
     AutoCommit,
 }
 
@@ -61,6 +67,20 @@ pub(crate) struct Judgement {
     /// What a check has to repeat to keep every scope committed before this
     /// one (`committed_expect`), or null.
     pub committed: Value,
+    /// The earlier scopes the check was compared with: the accepted one and
+    /// each bound check's, once per scope.
+    pub priors: Vec<Prior>,
+}
+
+/// An earlier scope a check is held to, with the evidence it was recorded
+/// in.
+#[derive(Clone)]
+pub(crate) struct Prior {
+    pub expect: Value,
+    pub evidence: Option<String>,
+    pub hash: Option<String>,
+    /// The scope a person accepted, rather than a committed check's.
+    pub accepted: bool,
 }
 
 fn meta(handle: &ProjectHandle, key: &str) -> CoreResult<Value> {
@@ -150,6 +170,7 @@ fn status_of(
     matching: bool,
     scope_changed: bool,
     explicit: bool,
+    unasserted: bool,
 ) -> &'static str {
     if !pass || !integrity {
         "failed"
@@ -157,7 +178,7 @@ fn status_of(
         "unverified"
     } else if scope_changed {
         "scope_changed"
-    } else if !explicit {
+    } else if !explicit || unasserted {
         "partial"
     } else {
         "passed"
@@ -201,20 +222,55 @@ fn binding<'a>(
     bound
 }
 
-/// The one expectation that satisfies every bound scope: the accepted scope
-/// or a bound check whose assertions cover all the others. When none covers
-/// them all, a human has to accept a scope; the accepted one, else the most
-/// recently committed, is named. Null when nothing binds.
-fn covering_expect(accepted: &Value, bound: &[&Record]) -> Value {
-    let accepted = accepted.get("expect").filter(|value| value.is_object());
-    let candidates = bound
+/// The scopes a check is held to: the accepted one, then each bound check's,
+/// the most recently committed first, once per scope.
+fn priors(accepted: &Value, bound: &[&Record]) -> Vec<Prior> {
+    let mut out = Vec::<Prior>::new();
+    if accepted["expect"].is_object() {
+        out.push(Prior {
+            expect: accepted["expect"].clone(),
+            evidence: accepted["evidenceHash"].as_str().map(str::to_owned),
+            hash: accepted["specHash"].as_str().map(str::to_owned),
+            accepted: true,
+        });
+    }
+    for record in bound {
+        let Some(previous) = record
+            .inputs
+            .get("expect")
+            .filter(|value| value.is_object())
+        else {
+            continue;
+        };
+        let hash = expect::spec_hash(previous);
+        if out
+            .iter()
+            .all(|prior| prior.hash.as_deref() != Some(hash.as_str()))
+        {
+            out.push(Prior {
+                expect: previous.clone(),
+                evidence: record.outputs["verification"].as_str().map(str::to_owned),
+                hash: Some(hash),
+                accepted: false,
+            });
+        }
+    }
+    out
+}
+
+/// The one expectation that satisfies every earlier scope: the accepted
+/// scope or a bound check whose assertions cover all the others. When none
+/// covers them all, a human has to accept a scope; the accepted one, else
+/// the most recently committed, is named. Null when nothing binds.
+pub(crate) fn covering(priors: &[Prior]) -> Value {
+    let accepted = priors
         .iter()
-        .filter_map(|record| {
-            record
-                .inputs
-                .get("expect")
-                .filter(|value| value.is_object())
-        })
+        .find(|prior| prior.accepted)
+        .map(|prior| &prior.expect);
+    let candidates = priors
+        .iter()
+        .filter(|prior| !prior.accepted)
+        .map(|prior| &prior.expect)
         .chain(accepted)
         .collect::<Vec<_>>();
     let covering = candidates.iter().copied().find(|candidate| {
@@ -230,13 +286,31 @@ fn covering_expect(accepted: &Value, bound: &[&Record]) -> Value {
 }
 
 /// The normalised expectation a check of `revision` has to repeat to keep
-/// every committed and accepted scope, or null when nothing binds it yet.
+/// every committed and accepted scope, each read as the linked requirements
+/// state it now, or null when nothing binds it yet.
 pub(crate) fn committed_expect(handle: &ProjectHandle, revision: &Value) -> CoreResult<Value> {
+    committed_scope(handle, revision).map(|(expect, _)| expect)
+}
+
+/// `committed_expect`, and whether reading it with the requirements as they
+/// stand changes what a committed or accepted scope asserts: repeating it
+/// is then a changed scope, which a person accepts.
+pub(crate) fn committed_scope(
+    handle: &ProjectHandle,
+    revision: &Value,
+) -> CoreResult<(Value, bool)> {
     let artifact_id = required_str(revision, "artifactId")?;
     let history = history(handle, artifact_id)?;
     let accepted = accepted_scope(handle, artifact_id)?;
     let bound = binding(&history, revision, &ancestors(handle, revision)?, &accepted);
-    Ok(covering_expect(&accepted, &bound))
+    let priors = priors(&accepted, &bound);
+    let linked = spec::linked_naming(handle, revision, priors.iter().map(|prior| &prior.expect))?;
+    let restored = spec::restore(&priors, &linked);
+    let committed = covering(&priors);
+    let changed = committed.is_object()
+        && restored.is_object()
+        && !expect::scope_changes(&committed, &restored).is_empty();
+    Ok((restored, changed))
 }
 
 /// Judge a measurement against what this artifact has already committed to:
@@ -260,26 +334,18 @@ pub(crate) fn judge(
         .count();
     let pass = !measured.lines.is_empty() && passed == measured.lines.len();
     let mut changes = BTreeSet::<String>::new();
-    let mut prior_hashes = Vec::<String>::new();
-    if accepted["expect"].is_object() {
-        prior_hashes.extend(accepted["specHash"].as_str().map(str::to_owned));
-        changes.extend(expect::scope_changes(&accepted["expect"], expect));
+    let bound = binding(history, revision, ancestors, accepted);
+    let priors = priors(accepted, &bound);
+    for prior in &priors {
+        changes.extend(expect::scope_changes(&prior.expect, expect));
     }
+    let prior_hashes = priors
+        .iter()
+        .filter_map(|prior| prior.hash.clone())
+        .collect::<Vec<_>>();
     let mut prior_failures = BTreeSet::<String>::new();
     let mut last_results: Option<&Value> = None;
-    let bound = binding(history, revision, ancestors, accepted);
     for record in &bound {
-        if let Some(previous) = record
-            .inputs
-            .get("expect")
-            .filter(|value| value.is_object())
-        {
-            let hash = expect::spec_hash(previous);
-            if !prior_hashes.contains(&hash) {
-                prior_hashes.push(hash);
-                changes.extend(expect::scope_changes(previous, expect));
-            }
-        }
         // Weakening guard: an assertion that failed on this same geometry and
         // is now simply absent, or passes only with a looser tolerance.
         if record.inputs["revisionId"] == revision["id"]
@@ -317,12 +383,15 @@ pub(crate) fn judge(
         measured.matching && !variant,
         !changes.is_empty(),
         expect::explicit(expect),
+        measured.unasserted > 0,
     );
     let exploratory = variant
         || match mode {
             Mode::Commit => false,
             Mode::Trial => true,
-            Mode::AutoCommit => status != "passed",
+            Mode::AutoCommit => {
+                !(status == "passed" || (status == "partial" && expect::explicit(expect)))
+            }
         };
     Judgement {
         status,
@@ -333,7 +402,8 @@ pub(crate) fn judge(
         prior_hashes,
         dropped,
         loosened,
-        committed: covering_expect(accepted, &bound),
+        committed: covering(&priors),
+        priors,
     }
 }
 
@@ -341,6 +411,11 @@ fn canonical_params(params: &Value) -> Value {
     params::effective_params(params)
         .map(Value::Object)
         .unwrap_or_else(|_| json!({}))
+}
+
+/// Spec rows of the evidence that have no assertion.
+fn unasserted(evidence: &Value) -> u64 {
+    evidence["spec"]["counts"]["blocking"].as_u64().unwrap_or(0)
 }
 
 /// The status a reader should act on: what the evidence recorded, adjusted
@@ -359,6 +434,7 @@ fn resolved_status(evidence: &Value, accepted: &Value, stale: bool) -> String {
         && evidence["pass"] == true
         && evidence["integrity"]["pass"] == true
         && expect::explicit(&evidence["expect"])
+        && unasserted(evidence) == 0
         && accepted["specHash"] == evidence["specHash"]
     {
         "passed"
@@ -502,11 +578,20 @@ pub(crate) fn latest_verification(handle: &ProjectHandle, revision: &Value) -> C
         let stale = stale_inputs(handle, revision)?;
         let accepted = accepted_scope(handle, artifact_id)?;
         let status = resolved_status(&evidence, &accepted, !stale.is_empty());
+        // Requirements linked or changed since are reported, not folded into
+        // the recorded status: the gate holds a draft for them, and an
+        // approved baseline keeps what was approved.
+        let linked = spec::linked(handle, revision)?;
+        let since = spec::since(&linked, &evidence, &record.finished_at);
+        let spec = spec::readiness(&evidence, since, spec::conflict(&linked));
         let mut result = json!({"status": status, "ready": status == "passed",
             "nextAction": next_action(&status, false, !stale.is_empty()),
             "render": "ok", "evidenceHash": hash, "evidence": evidence});
         if !stale.is_empty() {
             result["staleInputs"] = json!(stale);
+        }
+        if let Some(spec) = spec {
+            result["spec"] = spec;
         }
         return Ok(result);
     }
@@ -546,11 +631,37 @@ pub fn readiness(handle: &ProjectHandle, revision: &Value) -> CoreResult<Value> 
         ("scope_changed", _) => {
             "Checks pass, but committed assertions were removed or changed; a human must accept the new scope.".to_owned()
         }
+        ("partial", _) if unasserted(evidence) > 0 => {
+            let missing = latest["spec"]["missing"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+            let count = unasserted(evidence) as usize;
+            format!(
+                "Checks pass, but {count} listed {} no assertion: {}.",
+                if count == 1 { "item has" } else { "items have" },
+                quoted(missing, count)
+            )
+        }
         ("partial", _) => "Only generic mesh checks ran; nothing from the request was asserted.".to_owned(),
         _ if latest["staleInputs"].is_array() => {
             "Checks pass, but an input of this part is no longer the approved baseline.".to_owned()
         }
         _ => "No committed check for this revision.".to_owned(),
+    };
+    let since = latest["spec"]["linkedSince"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let summary = if since.is_empty() {
+        summary
+    } else {
+        format!(
+            "{summary} The committed check does not show {} as {} now.",
+            requirements(since),
+            if since.len() == 1 {
+                "it stands"
+            } else {
+                "they stand"
+            }
+        )
     };
     let mut result = json!({
         "artifactId": revision["artifactId"], "revisionId": revision["id"],
@@ -562,12 +673,46 @@ pub fn readiness(handle: &ProjectHandle, revision: &Value) -> CoreResult<Value> 
         result["total"] = json!(total);
         result["passed"] = json!(total - result["failed"].as_array().map(Vec::len).unwrap_or(0));
     }
-    for key in ["evidenceHash", "staleInputs", "renderError"] {
+    for key in ["evidenceHash", "staleInputs", "renderError", "spec"] {
         if !latest[key].is_null() {
             result[key] = latest[key].clone();
         }
     }
     Ok(result)
+}
+
+/// `"a", "b" and 3 more`: the rows named, then how many of `count` are not.
+pub(crate) fn quoted(rows: &[Value], count: usize) -> String {
+    let shown = rows
+        .iter()
+        .take(5)
+        .map(|row| match row["statement"] == true {
+            true => format!("requirement \"{}\"", row["item"].as_str().unwrap_or("")),
+            false => format!("\"{}\"", row["item"].as_str().unwrap_or("")),
+        })
+        .collect::<Vec<_>>();
+    let more = count.saturating_sub(shown.len());
+    match more {
+        0 => shown.join(", "),
+        _ => format!("{} and {more} more", shown.join(", ")),
+    }
+}
+
+/// `requirement "A"` or `requirements "A", "B"`, for linked-since entries.
+pub(crate) fn requirements(entries: &[Value]) -> String {
+    let titles = entries
+        .iter()
+        .map(|entry| format!("\"{}\"", entry["title"].as_str().unwrap_or("")))
+        .collect::<Vec<_>>();
+    format!(
+        "{} {}",
+        if titles.len() == 1 {
+            "requirement"
+        } else {
+            "requirements"
+        },
+        titles.join(", ")
+    )
 }
 
 pub(crate) fn validate_scope_accept(
@@ -593,6 +738,12 @@ pub(crate) fn validate_scope_accept(
             "Failed, stale or generic-only checks cannot establish verified scope",
         )
         .with_repair("Approve the part as unverified, or have it checked against dimensional assertions first."));
+    }
+    if unasserted(evidence) > 0 {
+        return Err(ContractError::validation(
+            "Listed items without an assertion cannot establish verified scope",
+        )
+        .with_repair("Approve the part as unverified, or have each listed item asserted first."));
     }
     Ok(
         json!({"evidenceHash":evidence_hash,"specHash":evidence["specHash"],
@@ -706,6 +857,7 @@ pub(crate) fn evidence(
     preservation: &Value,
     integrity: bool,
     judgement: &Judgement,
+    spec: Option<&Value>,
 ) -> Value {
     let not_evaluated = lines
         .iter()
@@ -716,7 +868,47 @@ pub(crate) fn evidence(
         })
         .map(|line| line["name"].clone())
         .collect::<Vec<_>>();
-    json!({"version":1,"artifactId":artifact["id"],"revisionId":revision["id"],
+    // Requirements stand behind the items only through assertions they
+    // record themselves, and only when every one that gave the check such
+    // an assertion is approved and a person linked it. Assertions listed
+    // for a requirement are declared ones.
+    let list = |key: &str| {
+        spec.and_then(|spec| spec[key].as_array())
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    };
+    let asserting = list("items")
+        .iter()
+        .filter(|row| row["assertedBy"] == "requirement")
+        .filter_map(|row| row["requirementId"].as_str())
+        .collect::<HashSet<_>>();
+    let contributing = list("requirements")
+        .iter()
+        .filter(|requirement| {
+            requirement["artifactId"]
+                .as_str()
+                .is_some_and(|id| asserting.contains(id))
+        })
+        .collect::<Vec<_>>();
+    let authority = if !contributing.is_empty()
+        && contributing.iter().all(|requirement| {
+            requirement["review"] == "approved" && requirement["linkedBy"] == "person"
+        }) {
+        "requirements_and_declared"
+    } else {
+        "agent_or_user_declared"
+    };
+    let mut limitations = vec![
+        "Checks cover only the declared assertions, not the completeness of the engineering request.",
+        "Triangle mesh and sampled cross-section and preservation checks are approximate and can miss unsampled defects.",
+        "Material, mass, strength, fit tolerances and manufacturability are not assessed.",
+        "A changed assertion scope requires explicit human acceptance of this evidence; acceptance does not establish completeness of the request.",
+        "cad_inspect and exploratory cad_check are diagnostics; they do not bind or replace the committed assertions.",
+    ];
+    if spec.is_some() {
+        limitations.push("Listed items are the request as the agent or a person listed it, with the features of linked requirements; a requested feature left out of the list is not checked.");
+    }
+    let mut evidence = json!({"version":1,"artifactId":artifact["id"],"revisionId":revision["id"],
         "inputFingerprint":identity["inputFingerprint"],"outputHash":identity["outputHash"],
         "specHash":expect::spec_hash(expect),"checkerVersion":CHECKER,"expect":expect,"checks":lines,"preservation":preservation,
         "integrity":{"pass":integrity,"detail":"Mandatory finite, nonempty, closed, positive-volume mesh with outward source winding. Self-intersections and physical safety are only assessed where explicitly declared."},
@@ -724,12 +916,33 @@ pub(crate) fn evidence(
         "exploratory":judgement.exploratory,"coverage":{"units":"mm","frame":"right-handed-z-up",
         "assertions":lines.iter().map(|line| line["name"].clone()).collect::<Vec<_>>(),
         "notEvaluated":not_evaluated,
-        "requirementAuthority":"agent_or_user_declared",
-        "limitations":["Checks cover only the declared assertions, not the completeness of the engineering request.",
-            "Triangle mesh and sampled cross-section and preservation checks are approximate and can miss unsampled defects.",
-            "Material, mass, strength, fit tolerances and manufacturability are not assessed.",
-            "A changed assertion scope requires explicit human acceptance of this evidence; acceptance does not establish completeness of the request.",
-            "cad_inspect and exploratory cad_check are diagnostics; they do not bind or replace the committed assertions."]}})
+        "requirementAuthority":authority,
+        "limitations":limitations}});
+    if let Some(spec) = spec {
+        evidence["spec"] = spec.clone();
+    }
+    evidence
+}
+
+/// A sentence naming linked requirements no check shows, for a reply that
+/// otherwise says verified; empty when there are none.
+fn not_shown(spec: &Value) -> String {
+    let rows = spec["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|row| row["state"] == "not_shown")
+        .collect::<Vec<_>>();
+    if rows.is_empty() {
+        return String::new();
+    }
+    let titles = rows
+        .iter()
+        .take(5)
+        .map(|row| format!("\"{}\"", row["item"].as_str().unwrap_or("")))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(" No geometry check shows linked requirement {titles}; say so rather than counting it as verified.")
 }
 
 /// The response to `cad.check`, built from the stored evidence so that it
@@ -767,10 +980,39 @@ pub(crate) fn response(
         action,
     )?;
     let again = json!({"artifactId": artifact_id});
+    let spec = &evidence["spec"];
+    let unasserted = unasserted(evidence) as usize;
+    let words = |key: &str| {
+        spec[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    // Committed assertions that linked requirements now state differently
+    // wait on a person; the check's own changes are restored by the caller.
+    let replaced = words("replaced");
+    let own = if replaced.is_empty() {
+        judgement.scope_changes.clone()
+    } else {
+        words("checkChanges")
+    };
+    let by_requirements = !replaced.is_empty() && own.is_empty();
     // A changed scope is repaired by repeating what was committed, so the
     // answer names it instead of leaving the caller to rebuild it by trial.
-    let committed = (status == "scope_changed" && judgement.committed.is_object())
-        .then(|| judgement.committed.clone());
+    let committed =
+        (status == "scope_changed" && !by_requirements && judgement.committed.is_object())
+            .then(|| expect::request_form(&judgement.committed));
+    let replaced_text = if replaced.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " Linked requirements now state other committed values differently ({}); only a person accepts those.",
+            replaced.join("; ")
+        )
+    };
     let restore = match &committed {
         Some(expect) => json!({"artifactId": artifact_id, "expect": expect}),
         None => again.clone(),
@@ -795,12 +1037,21 @@ pub(crate) fn response(
                 format!("NOT VERIFIED: {failing} of {total} committed assertions fail. Fix the source with cad_write_source and repeat the same assertions; they stay binding. Do not claim verified completion."),
                 json!({"tool": "cad_write_source", "why": "Fix the geometry the failing assertions describe, then check again.", "args": again}),
             ),
+            // Linked requirements now state what was committed differently,
+            // and the check changed nothing else: restoring would not hold.
+            ("scope_changed", _) if by_requirements => (
+                format!("NOT VERIFIED: linked requirements now state committed values differently, and their assertions replace the committed ones ({}). {} Only a person can accept the new scope: {}name it in your final response.",
+                    replaced.join("; "),
+                    if exploratory { "Nothing was committed." } else { "This scope is recorded for review." },
+                    if exploratory { "commit this check without autoCommit so it is recorded for review, then " } else { "" }),
+                json!({"tool": "work_status", "why": "See what waits on the person's review."}),
+            ),
             ("scope_changed", true) => (
-                format!("Trial passes, but it drops or changes committed assertions ({}). Nothing was committed. Restore them, or ask the human to accept the changed scope.{restore_text}", judgement.scope_changes.join(", ")),
+                format!("Trial passes, but it drops or changes committed assertions ({}). Nothing was committed. Restore them, or ask the human to accept the changed scope.{replaced_text}{restore_text}", own.join(", ")),
                 json!({"tool": "cad_check", "why": "Restore the committed assertions and check again.", "args": restore}),
             ),
             ("scope_changed", false) => (
-                format!("NOT VERIFIED: assertion scope changed ({}). Restore the committed assertions or request explicit human scope acceptance. State this unresolved status in your final response; passing individual checks does not resolve it.{restore_text}", judgement.scope_changes.join(", ")),
+                format!("NOT VERIFIED: assertion scope changed ({}). Restore the committed assertions or request explicit human scope acceptance. State this unresolved status in your final response; passing individual checks does not resolve it.{replaced_text}{restore_text}", own.join(", ")),
                 json!({"tool": "cad_check", "why": "Restore the committed assertions and check again.", "args": restore}),
             ),
             ("unverified", _) if !stale.is_empty() => (
@@ -811,6 +1062,27 @@ pub(crate) fn response(
                 "NOT VERIFIED: this revision has no stored render that matches its source. Save the source again with cad_write_source, then check the new revision.".to_owned(),
                 json!({"tool": "cad_write_source", "why": "Save the source so the revision carries its render.", "args": again}),
             ),
+            ("partial", _) if unasserted > 0 => {
+                let rows = spec["items"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|row| row["state"] == "unasserted")
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let total = spec["counts"]["items"].as_u64().unwrap_or(0);
+                let first = quoted(&rows[..1.min(rows.len())], unasserted);
+                (
+                    format!("NOT VERIFIED: {unasserted} of {total} listed items have no assertion: {}. {} Give each the assertions that show it (size, holes, bbox, sections with axis, at and outer d or size, solid and empty points) and check again, keeping every other item; the next step's args.expect is the expect to send, with them added. Name any item the geometry cannot show instead of asserting something else.",
+                        quoted(&rows, unasserted),
+                        if exploratory { "Nothing was committed." } else { "The assertions that pass are committed and stay binding." }),
+                    json!({"tool": "cad_check",
+                        "why": format!("Give {first} the assertions that show {}, keep every other item, then check again.", if unasserted == 1 { "it" } else { "them" }),
+                        "args": {"artifactId": artifact_id, "autoCommit": true,
+                            "expect": spec::next_expect(handle, revision, &evidence["expect"], &json!({"missing": rows}))
+                                .unwrap_or_else(|_| expect::request_form(&evidence["expect"]))}}),
+                )
+            }
             ("partial", _) => (
                 "NOT VERIFIED: only generic mesh checks ran. Add assertions taken from the request (size, holes, bodies, solid and empty points) and check again.".to_owned(),
                 json!({"tool": "cad_check", "why": "Assert the request's dimensions.", "args": again}),
@@ -820,7 +1092,7 @@ pub(crate) fn response(
                 json!({"tool": "cad_check", "why": "Commit the passing trial: same expect, exploratory false.", "args": {"artifactId": artifact_id, "exploratory": false}}),
             ),
             ("passed", false) => (
-                "Verified: declared assertions and mandatory integrity pass for this exact revision. Summarize coverage and limitations; human approval remains separate.".to_owned(),
+                format!("Verified: declared assertions and mandatory integrity pass for this exact revision. Summarize coverage and limitations; human approval remains separate.{}", not_shown(spec)),
                 json!({"tool": "work_status", "why": "Confirm nothing else is outstanding."}),
             ),
             _ => (
@@ -841,7 +1113,23 @@ pub(crate) fn response(
         "evidenceHash":evidence_hash,"specHash":evidence["specHash"],
         "scopeChanges":judgement.scope_changes,"checks":evidence["checks"],"droppedFailingAssertions":judgement.dropped,"exploratory":exploratory,
         "work":work,"nextAction":action,"nextStep":step,"next":format!("{text}{warnings}"),
-        "normalizedExpect":normalized.expect,"expectChanged":normalized.changed,"ignored":ignored});
+        "normalizedExpect":expect::request_form(&normalized.expect),"expectChanged":normalized.changed,"ignored":ignored});
+    if spec.is_object() {
+        result["spec"] = spec.clone();
+    }
+    if !normalized.added.is_empty() || !normalized.replaced.is_empty() {
+        result["derivedSpec"] = json!(normalized
+            .added
+            .iter()
+            .cloned()
+            .chain(
+                normalized
+                    .replaced
+                    .iter()
+                    .map(|item| format!("replaced from the requirement: {item}"))
+            )
+            .collect::<Vec<_>>());
+    }
     if !judgement.loosened.is_empty() {
         result["loosenedAssertions"] = json!(judgement.loosened);
     }
@@ -879,6 +1167,7 @@ mod tests {
             lines: lines(results),
             integrity: true,
             matching: true,
+            unasserted: 0,
         }
     }
 
@@ -919,12 +1208,26 @@ mod tests {
 
     #[test]
     fn status_follows_one_fixed_order() {
-        assert_eq!(status_of(false, true, true, false, true), "failed");
-        assert_eq!(status_of(true, false, true, false, true), "failed");
-        assert_eq!(status_of(true, true, false, true, false), "unverified");
-        assert_eq!(status_of(true, true, true, true, false), "scope_changed");
-        assert_eq!(status_of(true, true, true, false, false), "partial");
-        assert_eq!(status_of(true, true, true, false, true), "passed");
+        assert_eq!(status_of(false, true, true, false, true, false), "failed");
+        assert_eq!(status_of(true, false, true, false, true, false), "failed");
+        assert_eq!(
+            status_of(true, true, false, true, false, false),
+            "unverified"
+        );
+        assert_eq!(
+            status_of(true, true, true, true, false, false),
+            "scope_changed"
+        );
+        assert_eq!(status_of(true, true, true, false, false, false), "partial");
+        assert_eq!(status_of(true, true, true, false, true, false), "passed");
+        // Listed items without an assertion keep a passing check partial,
+        // after every other state.
+        assert_eq!(status_of(true, true, true, false, true, true), "partial");
+        assert_eq!(status_of(false, true, true, false, true, true), "failed");
+        assert_eq!(
+            status_of(true, true, true, true, true, true),
+            "scope_changed"
+        );
     }
 
     #[test]
@@ -1136,8 +1439,11 @@ mod tests {
         assert_eq!(contradicting.scope_changes, vec!["size"]);
     }
 
+    /// Renamed from `auto_commit_binds_exactly_when_a_committed_check_would_pass`:
+    /// autoCommit now also binds a check whose assertions all pass while
+    /// listed items have none (0.2.4). Every earlier assertion is kept.
     #[test]
-    fn auto_commit_binds_exactly_when_a_committed_check_would_pass() {
+    fn auto_commit_binds_when_every_assertion_passes_and_nothing_committed_changes() {
         let passing = run(
             &measured(&[("overall size", true)]),
             size(),
@@ -1197,6 +1503,46 @@ mod tests {
             &[],
         );
         assert_eq!((variant.status, variant.exploratory), ("unverified", true));
+        // Items without an assertion: the passing assertions bind, the check
+        // stays partial. A failing line still makes it a trial.
+        let unasserted = Measured {
+            unasserted: 1,
+            ..measured(&[("overall size", true)])
+        };
+        let partial = run(&unasserted, size(), Mode::AutoCommit, &[]);
+        assert_eq!((partial.status, partial.exploratory), ("partial", false));
+        let failing = Measured {
+            unasserted: 1,
+            ..measured(&[("overall size", false)])
+        };
+        assert_eq!(
+            run(&failing, size(), Mode::AutoCommit, &[]).status,
+            "failed"
+        );
+        assert!(run(&failing, size(), Mode::AutoCommit, &[]).exploratory);
+        // Generic mesh checks alone with an unasserted item stay a trial.
+        let generic = Measured {
+            unasserted: 1,
+            ..measured(&[("watertight", true)])
+        };
+        assert_eq!(
+            (
+                run(&generic, json!({}), Mode::AutoCommit, &[]).status,
+                run(&generic, json!({}), Mode::AutoCommit, &[]).exploratory
+            ),
+            ("partial", true)
+        );
+    }
+
+    #[test]
+    fn accepting_a_scope_never_hides_unasserted_items() {
+        let evidence = |blocking: u64| json!({"status": "scope_changed", "pass": true, "integrity": {"pass": true}, "expect": {"size": [40, 30, 4]}, "specHash": "h", "spec": {"counts": {"blocking": blocking}}});
+        let accepted = json!({"specHash": "h", "expect": {"size": [40, 30, 4]}});
+        assert_eq!(resolved_status(&evidence(0), &accepted, false), "passed");
+        assert_eq!(
+            resolved_status(&evidence(1), &accepted, false),
+            "scope_changed"
+        );
     }
 
     #[test]

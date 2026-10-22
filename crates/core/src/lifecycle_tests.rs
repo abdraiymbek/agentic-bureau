@@ -804,6 +804,54 @@ fn accepting_a_draft_directly_can_accept_its_verified_scope() {
     assert_eq!(f.selected(&artifact), revision);
 }
 
+#[test]
+fn listed_items_without_an_assertion_never_establish_verified_scope() {
+    if !engine_available() {
+        return;
+    }
+    let mut f = fixture();
+    let part = f.agent(
+        "cad.write_source",
+        json!({"title": "Plate", "source": "cube([20,10,2]);", "timeoutMs": 60000}),
+    );
+    let (artifact, revision) = (text(&part["artifactId"]), text(&part["revisionId"]));
+    let check = f.agent(
+        "cad.check",
+        json!({"artifactId": artifact, "autoCommit": true, "expect": {"spec": [
+            {"item": "plate 20 x 10 x 2", "size": [20, 10, 2]}, {"item": "1 mm chamfer"}]}}),
+    );
+    assert_eq!(check["verificationStatus"], "partial", "{check}");
+    assert_eq!(check["committed"], true);
+    let expected = "Listed items without an assertion cannot establish verified scope";
+    // Accepting the draft with that evidence as its scope is refused…
+    let refused = f
+        .call(
+            Origin::User,
+            "artifact.accept_draft",
+            json!({"artifactId": artifact, "draftRevisionId": revision, "verificationEvidenceHash": check["evidenceHash"]}),
+        )
+        .unwrap_err();
+    assert_eq!(
+        (refused.code.as_str(), refused.message.as_str()),
+        ("VALIDATION", expected)
+    );
+    assert_eq!(f.selected(&artifact), Value::Null);
+    // …and so is approving a proposal with it.
+    let proposal = id_of(&f.submit(json!([change(&artifact, &revision, None)]), "plate"));
+    let mut evidence = serde_json::Map::new();
+    evidence.insert(artifact.clone(), check["evidenceHash"].clone());
+    let refused = f
+        .call(
+            Origin::User,
+            "proposal.approve",
+            json!({"proposalId": proposal, "verificationEvidence": evidence}),
+        )
+        .unwrap_err();
+    assert_eq!(refused.message, expected);
+    assert!(f.events_of("cad.scope.accepted").is_empty());
+    assert_eq!(f.selected(&artifact), Value::Null);
+}
+
 // 4. Baseline changes and staleness.
 
 /// `up` with a baseline, and `down` with a baseline recorded against it.
@@ -1836,6 +1884,66 @@ fn an_undeclared_key_in_an_agent_payload_is_rejected_with_the_nearest_key() {
         .unwrap_err();
     assert_eq!(error.code, "VALIDATION");
     assert_eq!(error.issues()[0].path, "rational");
+}
+
+#[test]
+fn requirement_features_survive_ui_and_agent_writes() {
+    let mut f = fixture();
+    let features = json!([
+        {"label": "Groove bottom Ø50 at z = 8", "quantity": {"value": 50, "unit": "mm"},
+         "expect": {"sections": [{"axis": "z", "at": 8, "outer": {"d": 50}}]}},
+        {"label": "Both flanks straight"}]);
+    let payload = json!({"statement": "A V-groove at z = 8.", "acceptanceCriterion": "Measured.",
+        "priority": "must", "features": features});
+    let created = f.agent(
+        "artifact.create_draft",
+        json!({"type": "requirement", "title": "V-groove", "payload": payload}),
+    );
+    assert_eq!(created["revision"]["payload"]["features"], features);
+    let artifact = text(&created["artifact"]["id"]);
+    // A person's edit of another field keeps them, as the stage form sends
+    // the recorded payload back.
+    let mut edited = payload.clone();
+    edited["statement"] = json!("A symmetric V-groove at z = 8.");
+    let updated = f.user(
+        "artifact.update_draft",
+        json!({"artifactId": artifact, "payload": edited}),
+    );
+    assert_eq!(updated["revision"]["payload"]["features"], features);
+    // An assertion the checker would not read is refused on write, with its path.
+    let mut wrong = payload.clone();
+    wrong["features"][0]["expect"]["sections"][0]["outer"]["diameter"] = json!(50);
+    let error = f
+        .call(
+            agent(),
+            "artifact.update_draft",
+            json!({"artifactId": artifact, "payload": wrong}),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "VALIDATION");
+    assert_eq!(
+        error.issues()[0].path,
+        "payload.features[0].expect.sections[0].outer.diameter"
+    );
+    let error = f
+        .call(
+            Origin::User,
+            "artifact.update_draft",
+            json!({"artifactId": artifact, "payload": wrong}),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "VALIDATION");
+    // Labels are short: the words of one dimension or feature.
+    let mut long = payload;
+    long["features"][1]["label"] = json!("x".repeat(201));
+    let error = f
+        .call(
+            agent(),
+            "artifact.update_draft",
+            json!({"artifactId": artifact, "payload": long}),
+        )
+        .unwrap_err();
+    assert_eq!(error.code, "VALIDATION");
 }
 
 #[test]

@@ -16,6 +16,7 @@ enum Kind {
     CadCheckFailed,
     CadScopeChanged,
     CadUnverified,
+    CadSpecUnasserted,
     ComponentUnsourced,
     ComponentNoOffer,
     WiringFindings,
@@ -28,11 +29,12 @@ enum Kind {
 }
 
 impl Kind {
-    const ALL: [Kind; 13] = [
+    const ALL: [Kind; 14] = [
         Kind::CadRenderFailed,
         Kind::CadCheckFailed,
         Kind::CadScopeChanged,
         Kind::CadUnverified,
+        Kind::CadSpecUnasserted,
         Kind::ComponentUnsourced,
         Kind::ComponentNoOffer,
         Kind::WiringFindings,
@@ -50,6 +52,7 @@ impl Kind {
             Kind::CadCheckFailed => "cad_check_failed",
             Kind::CadScopeChanged => "cad_scope_changed",
             Kind::CadUnverified => "cad_unverified",
+            Kind::CadSpecUnasserted => "cad_spec_unasserted",
             Kind::ComponentUnsourced => "component_unsourced",
             Kind::ComponentNoOffer => "component_no_offer",
             Kind::WiringFindings => "wiring_findings",
@@ -80,6 +83,10 @@ impl Kind {
                 "parts dropped assertions they had committed",
             ),
             Kind::CadUnverified => ("part is not verified", "parts are not verified"),
+            Kind::CadSpecUnasserted => (
+                "part has items its committed check does not show",
+                "parts have items their committed checks do not show",
+            ),
             Kind::ComponentUnsourced => ("component has no source", "components have no source"),
             Kind::ComponentNoOffer => (
                 "component has no seller offer",
@@ -712,6 +719,18 @@ impl Draft<'_> {
                 json!({"artifactId": self.id}),
             ));
         }
+        // Linked requirements that disagree leave nothing a check could
+        // pass; only a person can reconcile them.
+        if let Ok(Some(conflict)) = cad::requirement_conflict(self.handle, self.revision) {
+            return Some(item(
+                Kind::CadUnverified,
+                self.id,
+                self.artifact,
+                self.revision["id"].as_str(),
+                format!("No check of {label} can run: {conflict}. A person must reconcile them."),
+                None,
+            ));
+        }
         let verification = match cad::latest_verification(self.handle, self.revision) {
             Ok(verification) => verification,
             Err(error) => {
@@ -735,7 +754,8 @@ impl Draft<'_> {
             return Some(self.checked_on_old_inputs(artifacts, stale));
         }
         match verification["status"].as_str() {
-            Some("passed") => None,
+            // Passed, unless requirements were linked or changed since.
+            Some("passed") => self.spec_item(&verification),
             Some("failed") => {
                 let checks = evidence["checks"]
                     .as_array()
@@ -765,22 +785,60 @@ impl Draft<'_> {
                 ))
             }
             Some("scope_changed") => {
-                let changes = evidence["scopeChanges"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                fn words(value: &Value) -> Vec<&str> {
+                    value
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str)
+                        .collect()
+                }
+                let replaced = words(&evidence["spec"]["replaced"]);
+                let own = if replaced.is_empty() {
+                    words(&evidence["scopeChanges"])
+                } else {
+                    words(&evidence["spec"]["checkChanges"])
+                };
+                // Linked requirements now state committed assertions
+                // differently: nothing is left for the agent to restore.
+                if own.is_empty() && !replaced.is_empty() {
+                    return Some(item(
+                        Kind::CadScopeChanged,
+                        self.id,
+                        self.artifact,
+                        self.revision["id"].as_str(),
+                        format!(
+                            "The committed check of {label} replaced committed assertions with what linked requirements now state: {}. A person must accept the new scope.",
+                            replaced.join("; ")
+                        ),
+                        None,
+                    ));
+                }
+                let requirements = if replaced.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        " Linked requirements now state others differently ({}); a person accepts those.",
+                        replaced.join("; ")
+                    )
+                };
                 Some(self.item(
                     Kind::CadScopeChanged,
                     format!(
-                        "The committed check of {label} drops or loosens assertions committed before: {changes}."
+                        "The committed check of {label} drops or loosens assertions committed before: {}.{requirements}",
+                        own.join(", ")
                     ),
                     "cad_check",
                     format!("Check {label} again with every assertion committed before"),
                     self.check_again(),
                 ))
+            }
+            Some("partial")
+                if verification["spec"]["counts"]["blocking"]
+                    .as_u64()
+                    .is_some_and(|blocking| blocking > 0) =>
+            {
+                self.spec_item(&verification)
             }
             Some("partial") => Some(self.item(
                 Kind::CadUnverified,
@@ -799,12 +857,119 @@ impl Draft<'_> {
         }
     }
 
+    /// Listed items the committed check has no assertion for, and linked
+    /// requirements it does not show as they stand: one blocker that names
+    /// them, with the expect that adds them. `None` when there are none.
+    fn spec_item(&self, verification: &Value) -> Option<Item> {
+        let spec = &verification["spec"];
+        let rows = |key: &str| spec[key].as_array().map(Vec::as_slice).unwrap_or(&[]);
+        let (missing, since) = (rows("missing"), rows("linkedSince"));
+        let unasserted = spec["counts"]["unasserted"].as_u64().unwrap_or(0) as usize;
+        if unasserted == 0 && since.is_empty() {
+            return None;
+        }
+        let label = self.label();
+        let mut detail = Vec::new();
+        if unasserted > 0 {
+            let total = spec["counts"]["items"].as_u64().unwrap_or(0);
+            detail.push(format!(
+                "The committed check of {label} has no assertion for {unasserted} of {total} listed {}: {}.",
+                if total == 1 { "item" } else { "items" },
+                cad::quoted(missing, unasserted)
+            ));
+        }
+        let mut revised = false;
+        for entry in since {
+            let title = entry["title"].as_str().unwrap_or("");
+            detail.push(match entry["change"].as_str() {
+                Some("linked_after") => format!("Requirement \"{title}\" was linked to this part after the committed check of {label}, so the check does not show it."),
+                Some("revised") => {
+                    revised = true;
+                    let target = entry["target"]
+                        .as_str()
+                        .map(|target| format!(" (it now states {target})"))
+                        .unwrap_or_default();
+                    format!("Requirement \"{title}\" changed after the committed check of {label}{target}, so the check does not show it as it stands.")
+                }
+                _ => format!("The committed check of {label} does not take requirement \"{title}\" into account."),
+            });
+        }
+        // A changed requirement, or one that states a committed value
+        // differently, changes committed values, which only a person
+        // accepts; a plain commit records that scope for review.
+        let mut args = json!({"artifactId": self.id});
+        let scope = cad::committed_scope(self.handle, self.revision);
+        let restated = scope.as_ref().is_ok_and(|(_, restated)| *restated);
+        if restated && !revised {
+            detail.push(
+                "Its linked requirements now state committed values differently; the next check takes theirs, and a person accepts that scope."
+                    .to_owned(),
+            );
+        }
+        if !revised && !restated {
+            args["autoCommit"] = json!(true);
+        }
+        let expect = scope.and_then(|(committed, _)| {
+            cad::next_expect(self.handle, self.revision, &committed, spec)
+        });
+        // Without a readable record the part is still named; the agent
+        // rebuilds the expect.
+        if let Some(expect) = expect
+            .ok()
+            .filter(|expect| expect.as_object().is_some_and(|e| !e.is_empty()))
+        {
+            args["expect"] = expect;
+        }
+        let why = if unasserted > 0 {
+            let first = cad::quoted(&missing[..1.min(missing.len())], unasserted);
+            format!(
+                "Give {first} the assertions that show {} (size, holes, bbox, sections with axis, at and outer d or size), keep every other item, then run cad_check; name any the geometry cannot show instead of asserting something else",
+                if unasserted == 1 { "it" } else { "them" }
+            )
+        } else if revised {
+            // A changed target is shown by the items that name it, which
+            // the agent restates; nothing is added beside them.
+            let restate = since
+                .iter()
+                .filter(|entry| entry["change"] == "revised" && entry["kind"] == "statement")
+                .flat_map(|entry| {
+                    args["expect"]["spec"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(move |item| item["requirementId"] == entry["requirementId"])
+                        .filter_map(|item| item["item"].as_str())
+                        .map(|text| format!("\"{text}\""))
+                })
+                .collect::<Vec<_>>();
+            if restate.is_empty() {
+                format!("Check {label} against the requirement as it stands; a changed committed value then waits on a person's acceptance")
+            } else {
+                format!("Restate {} against the requirement as it stands and run cad_check; a changed committed value then waits on a person's acceptance", restate.join(", "))
+            }
+        } else {
+            "Run cad_check again so the linked requirements add their items to the check".to_owned()
+        };
+        Some(self.item(
+            Kind::CadSpecUnasserted,
+            detail.join(" "),
+            "cad_check",
+            why,
+            args,
+        ))
+    }
+
     /// `cad_check` arguments that repeat the expectation every committed
     /// and accepted scope of this part requires, so it is not rebuilt by
     /// trial.
     fn check_again(&self) -> Value {
         let mut args = json!({"artifactId": self.id});
-        if let Ok(expect) = cad::committed_expect(self.handle, self.revision) {
+        let committed = cad::committed_expect(self.handle, self.revision);
+        if let Some(committed) = committed.ok().filter(Value::is_object) {
+            // As the linked requirements state it now, so repeating it does
+            // not trip on a value a requirement changed.
+            let expect = cad::next_expect(self.handle, self.revision, &committed, &Value::Null)
+                .unwrap_or_else(|_| cad::request_form(&committed));
             if expect.as_object().is_some_and(|fields| !fields.is_empty()) {
                 args["expect"] = expect;
             }
@@ -1107,7 +1272,8 @@ mod tests {
         let mut sorted = names.to_vec();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted.len(), 13);
+        // 0.2.4 adds cad_spec_unasserted.
+        assert_eq!(sorted.len(), 14);
         for kind in Kind::ALL {
             assert_eq!(
                 kind.blocker(),
@@ -2033,5 +2199,656 @@ mod tests {
         let status = project.agent("s1", "work.status", json!({}));
         assert_eq!(about(&status, &plate), [("draft_unproposed", "advice")]);
         assert_eq!(status["counts"]["verifiedParts"], 1);
+    }
+
+    fn plate_part(project: &mut TestProject) -> String {
+        let written = project.agent(
+            "s1",
+            "cad.write_source",
+            json!({"title": "Plate", "source": "cube([20, 10, 2]);", "timeoutMs": 60_000}),
+        );
+        written["artifactId"].as_str().unwrap().to_owned()
+    }
+
+    fn bay(target_mm: f64) -> Value {
+        json!({"statement": "Fits the 20 mm bay", "acceptanceCriterion": "Shown by test",
+            "priority": "could", "target": {"value": target_mm, "unit": "mm"}})
+    }
+
+    #[test]
+    fn listed_items_without_an_assertion_block_until_a_check_gives_them_one() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let checked = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1, "spec": [
+                {"item": "plate 20 x 10 x 2 mm", "size": [20, 10, 2]},
+                {"item": "material at the centre"}]}}),
+        );
+        // Every assertion passes, so the check is committed and binds; the
+        // item without one keeps it partial.
+        assert_eq!(
+            (&checked["verificationStatus"], &checked["committed"]),
+            (&json!("partial"), &json!(true)),
+            "{checked}"
+        );
+        assert_eq!(checked["spec"]["counts"]["blocking"], 1);
+        let committed = json!({"shells": 1, "spec": [
+            {"item": "plate 20 x 10 x 2 mm", "size": [20, 10, 2]},
+            {"item": "material at the centre"}]});
+        assert_eq!(
+            checked["nextStep"]["args"],
+            json!({"artifactId": plate, "autoCommit": true, "expect": committed})
+        );
+
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_spec_unasserted", "blocker")]);
+        assert_eq!(status["ready"], false);
+        assert_eq!(status["counts"]["verifiedParts"], 0);
+        assert_eq!(
+            status["summary"],
+            "1 part has items its committed check does not show."
+        );
+        let found = item(&status, "cad_spec_unasserted");
+        assert_eq!(
+            found["detail"],
+            "The committed check of r1 has no assertion for 1 of 2 listed items: \"material at the centre\"."
+        );
+        assert_eq!(found["next"]["tool"], "cad_check");
+        assert_eq!(found["next"]["args"], checked["nextStep"]["args"]);
+
+        // Following it with the assertion added verifies the part.
+        let mut args = found["next"]["args"].clone();
+        args["expect"]["spec"][1]["solid"] = json!([[10, 5, 1]]);
+        let fixed = project.agent("s1", "cad.check", args);
+        assert_eq!(fixed["verificationStatus"], "passed", "{fixed}");
+        assert!(fixed["scopeChanges"].as_array().unwrap().is_empty());
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("draft_unproposed", "advice")]);
+        assert_eq!(status["counts"]["verifiedParts"], 1);
+    }
+
+    #[test]
+    fn a_requirement_linked_after_the_check_reopens_the_draft_but_not_the_baseline() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let passed = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1, "spec": [
+                {"item": "plate 20 x 10 x 2 mm", "size": [20, 10, 2]}]}}),
+        );
+        assert_eq!(passed["verificationStatus"], "passed", "{passed}");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let (fits, _) = project.draft(
+            agent("s1"),
+            "requirement",
+            "Fits the bay",
+            bay(20.0),
+            json!([]),
+        );
+        project.agent(
+            "s1",
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": fits, "downstreamArtifactId": plate, "relationship": "validates"}]}),
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_spec_unasserted", "blocker")]);
+        let found = item(&status, "cad_spec_unasserted");
+        assert_eq!(
+            found["detail"],
+            "Requirement \"Fits the bay\" was linked to this part after the committed check of r1, so the check does not show it."
+        );
+        // The next check adds an item naming the requirement, without an
+        // assertion: it shows where one is missing.
+        assert_eq!(
+            found["next"]["args"],
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"shells": 1, "spec": [
+                {"item": "plate 20 x 10 x 2 mm", "size": [20, 10, 2]},
+                {"item": "Fits the bay", "requirementId": fits}]}})
+        );
+        // The recorded status stays what was committed.
+        let latest = {
+            let handle = project.handle();
+            let revision = get_revision(handle, passed["revisionId"].as_str().unwrap())
+                .unwrap()
+                .unwrap();
+            cad::readiness(handle, &revision).unwrap()
+        };
+        assert_eq!(latest["status"], "passed");
+        assert_eq!(latest["spec"]["linkedSince"][0]["change"], "linked_after");
+        assert!(latest["summary"].as_str().unwrap().ends_with(
+            "The committed check does not show requirement \"Fits the bay\" as it stands now."
+        ));
+
+        // Sent as it is, the placeholder blocks, once: it is the
+        // requirement's row. With a dimension it shows the requirement.
+        let bare = project.agent("s1", "cad.check", found["next"]["args"].clone());
+        assert_eq!(bare["verificationStatus"], "partial", "{bare}");
+        assert_eq!(bare["spec"]["counts"]["blocking"], 1);
+        assert_eq!(bare["spec"]["counts"]["items"], 2);
+        let mut args = found["next"]["args"].clone();
+        args["expect"]["spec"][1]["size"] = json!([20, 10, 2]);
+        let shown = project.agent("s1", "cad.check", args);
+        assert_eq!(shown["verificationStatus"], "passed", "{shown}");
+        assert_eq!(shown["spec"]["items"][1]["state"], "passed");
+        assert_eq!(shown["spec"]["items"][1]["statement"], true);
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("draft_unproposed", "advice")]);
+
+        // An approved part keeps its recorded status when a requirement is
+        // linked later: the build names it and does not refuse for it.
+        let head = project.agent("s1", "cad.read_source", json!({"artifactId": plate}))
+            ["revisionId"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        project.accept(&plate, &head);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let (wider, _) = project.draft(
+            Origin::User,
+            "requirement",
+            "Clears the lid",
+            bay(2.0),
+            json!([]),
+        );
+        project.user(
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": wider, "downstreamArtifactId": plate, "relationship": "validates"}]}),
+        );
+        let preview = project.user("build.preview", json!({}));
+        let part = preview["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["artifactId"] == plate.as_str())
+            .unwrap();
+        assert_eq!(part["verification"]["status"], "passed");
+        assert!(part["issues"].as_array().unwrap().is_empty(), "{part}");
+        assert_eq!(
+            part["notices"],
+            json!(["The committed check of Plate does not show requirement \"Clears the lid\" as it stands now."])
+        );
+        let status = project.user("work.status", json!({"scope": "project"}));
+        assert!(about(&status, &plate).is_empty(), "{status}");
+    }
+
+    #[test]
+    fn a_draft_requirement_as_an_input_still_waits_on_approval() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let (fits, _) = project.draft(
+            agent("s1"),
+            "requirement",
+            "Fits the bay",
+            bay(20.0),
+            json!([]),
+        );
+        let plate = plate_part(&mut project);
+        project.agent(
+            "s1",
+            "artifact.update_draft",
+            json!({"artifactId": plate, "inputs": [{"artifactId": fits, "relationship": "validates"}]}),
+        );
+        let checked = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"spec": [
+                {"item": "fits the bay", "requirementId": fits, "size": [20, 10, 2]}]}}),
+        );
+        assert_eq!(checked["spec"]["items"][0]["state"], "passed", "{checked}");
+        assert_eq!(checked["spec"]["items"][0]["statement"], true);
+        assert_eq!(checked["verificationStatus"], "unverified");
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_unverified", "blocker")]);
+        assert!(item(&status, "cad_unverified")["next"].is_null());
+    }
+
+    #[test]
+    fn a_requirement_that_changed_replaces_its_items_and_waits_on_a_person() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let features = |expect: Value| {
+            json!({"statement": "The plate fills the bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "features": [{"label": "Plate envelope", "expect": expect}]})
+        };
+        let (envelope, at) = project.approved(
+            "requirement",
+            "Plate envelope",
+            features(json!({"size": [20, 10, 2]})),
+            json!([]),
+        );
+        project.user(
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": envelope, "downstreamArtifactId": plate, "relationship": "validates"}]}),
+        );
+        let derived = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true}),
+        );
+        assert_eq!(derived["verificationStatus"], "passed", "{derived}");
+        assert_eq!(
+            derived["derivedSpec"],
+            json!(["added from requirement \"Plate envelope\": Plate envelope"])
+        );
+        assert_eq!(derived["spec"]["items"][0]["from"], "requirement");
+        // The requirement's own assertion shows its feature, and an approved
+        // requirement a person linked stands behind the check.
+        assert_eq!(derived["spec"]["items"][0]["assertedBy"], "requirement");
+        assert_eq!(
+            evidence(&project, &derived)["coverage"]["requirementAuthority"],
+            "requirements_and_declared"
+        );
+
+        // A person states the envelope as corners instead of a size.
+        let revised = project.redraft(
+            Origin::User,
+            &envelope,
+            json!({"baseRevisionId": at, "payload": features(json!({"bbox": {"min": [0, 0, 0], "max": [20, 10, 2]}}))}),
+        );
+        project.accept(&envelope, &revised);
+        let status = project.agent("s1", "work.status", json!({}));
+        let found = item(&status, "cad_spec_unasserted");
+        assert_eq!(
+            found["detail"],
+            "Requirement \"Plate envelope\" changed after the committed check of r1, so the check does not show it as it stands."
+        );
+        // A plain commit records the changed scope for the person.
+        assert!(found["next"]["args"]["autoCommit"].is_null());
+        assert_eq!(
+            found["next"]["args"]["expect"]["spec"][0]["bbox"],
+            json!({"min": [0, 0, 0], "max": [20, 10, 2]})
+        );
+        let changed = project.agent("s1", "cad.check", found["next"]["args"].clone());
+        assert_eq!(changed["verificationStatus"], "scope_changed", "{changed}");
+        assert_eq!(
+            changed["spec"]["replaced"],
+            json!(["\"Plate envelope\" from requirement \"Plate envelope\""])
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        let waiting = item(&status, "cad_scope_changed");
+        assert!(waiting["next"].is_null(), "{waiting}");
+        assert!(waiting["detail"]
+            .as_str()
+            .unwrap()
+            .ends_with("A person must accept the new scope."));
+    }
+
+    fn evidence(project: &TestProject, checked: &Value) -> Value {
+        let hash = checked["evidenceHash"].as_str().unwrap();
+        serde_json::from_slice(&project.handle().object_store().unwrap().read(hash).unwrap())
+            .unwrap()
+    }
+
+    /// The outstanding item about one artifact.
+    fn of(status: &Value, artifact_id: &str) -> Value {
+        status["outstanding"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["artifactId"] == artifact_id)
+            .cloned()
+            .unwrap_or_else(|| panic!("nothing about {artifact_id} in {status}"))
+    }
+
+    fn link(project: &mut TestProject, requirement: &str, part: &str) {
+        project.user(
+            "graph.propose_edges",
+            json!({"edges": [{"upstreamArtifactId": requirement, "downstreamArtifactId": part, "relationship": "validates"}]}),
+        );
+    }
+
+    fn envelope(expect: Value) -> Value {
+        json!({"statement": "The plate fills the bay", "acceptanceCriterion": "Shown by test",
+            "priority": "must", "features": [{"label": "Plate envelope", "expect": expect}]})
+    }
+
+    #[test]
+    fn a_changed_requirement_the_part_fails_waits_on_a_person_once_the_part_meets_it() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (requirement, at) = project.approved(
+            "requirement",
+            "Envelope",
+            envelope(json!({"size": [20, 10, 2]})),
+            json!([]),
+        );
+        link(&mut project, &requirement, &plate);
+        let first = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1}}),
+        );
+        assert_eq!(first["verificationStatus"], "passed", "{first}");
+        // A person makes the plate thicker; the part does not meet it yet.
+        let revised = project.redraft(
+            Origin::User,
+            &requirement,
+            json!({"baseRevisionId": at, "payload": envelope(json!({"size": [20, 10, 3]}))}),
+        );
+        project.accept(&requirement, &revised);
+        let status = project.agent("s1", "work.status", json!({}));
+        let next = item(&status, "cad_spec_unasserted")["next"]["args"].clone();
+        let failed = project.agent("s1", "cad.check", next);
+        assert_eq!(
+            (&failed["verificationStatus"], &failed["committed"]),
+            (&json!("failed"), &json!(true)),
+            "{failed}"
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        let again = item(&status, "cad_check_failed")["next"]["args"].clone();
+        assert_eq!(again["expect"]["spec"][0]["size"], json!([20, 10, 3]));
+        // The geometry is fixed and checked again as the gate says: what
+        // is left is the person's acceptance of the requirement's value.
+        project.agent(
+            "s1",
+            "cad.write_source",
+            json!({"artifactId": plate, "source": "cube([20, 10, 3]);", "timeoutMs": 60_000}),
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        let fixed = project.agent(
+            "s1",
+            "cad.check",
+            of(&status, &plate)["next"]["args"].clone(),
+        );
+        assert_eq!(fixed["verificationStatus"], "scope_changed", "{fixed}");
+        assert_eq!(
+            fixed["spec"]["replaced"],
+            json!(["\"Plate envelope\" from requirement \"Envelope\""])
+        );
+        assert_eq!(fixed["spec"]["checkChanges"], json!([]));
+        // Nothing for the agent to repeat.
+        assert!(fixed.get("committedExpect").is_none(), "{fixed}");
+        assert_eq!(fixed["nextStep"]["tool"], "work_status");
+        let status = project.agent("s1", "work.status", json!({}));
+        let waiting = item(&status, "cad_scope_changed");
+        assert!(waiting["next"].is_null(), "{waiting}");
+        assert!(waiting["detail"]
+            .as_str()
+            .unwrap()
+            .ends_with("A person must accept the new scope."));
+    }
+
+    #[test]
+    fn a_requirement_that_states_a_committed_value_differently_is_taken_and_reviewed() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let listed =
+            json!({"bodies": 1, "spec": [{"item": "plate 20 x 10 x 2", "size": [20, 10, 2]}]});
+        let passed = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": listed}),
+        );
+        assert_eq!(passed["verificationStatus"], "passed", "{passed}");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        // Within tolerance of the part, but not the value committed.
+        let (close, _) = project.approved(
+            "requirement",
+            "Close fit",
+            envelope(json!({"size": [20, 10, 2.05]})),
+            json!([]),
+        );
+        link(&mut project, &close, &plate);
+        // Sent as it was committed, the check names both places.
+        let refused = project
+            .call(
+                agent("s1"),
+                "cad.check",
+                json!({"artifactId": plate, "autoCommit": true, "expect": listed}),
+            )
+            .unwrap_err();
+        assert_eq!(refused.issues()[0].path, "expect.spec[0].size");
+        assert_eq!(
+            refused.issues()[0].message,
+            "disagrees with the size requirement \"Close fit\" states for \"Plate envelope\""
+        );
+        // The gate's next restates the scope with the requirement's value,
+        // committed for a person to accept rather than by autoCommit.
+        let status = project.agent("s1", "work.status", json!({}));
+        let found = item(&status, "cad_spec_unasserted");
+        assert!(found["next"]["args"]["autoCommit"].is_null(), "{found}");
+        assert!(found["detail"]
+            .as_str()
+            .unwrap()
+            .contains("Its linked requirements now state committed values differently"));
+        assert_eq!(
+            found["next"]["args"]["expect"]["spec"],
+            json!([{"item": "Plate envelope", "requirementId": close, "size": [20, 10, 2.05]}])
+        );
+        let restated = project.agent("s1", "cad.check", found["next"]["args"].clone());
+        assert_eq!(
+            restated["verificationStatus"], "scope_changed",
+            "{restated}"
+        );
+        assert_eq!(
+            restated["spec"]["replaced"],
+            json!(["size of \"plate 20 x 10 x 2\" (requirement \"Close fit\" states it)"])
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        assert!(item(&status, "cad_scope_changed")["next"].is_null());
+
+        // Two requirements that disagree leave no check to run.
+        let (snug, _) = project.approved(
+            "requirement",
+            "Snug fit",
+            envelope(json!({"size": [20, 10, 1.95]})),
+            json!([]),
+        );
+        link(&mut project, &snug, &plate);
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_unverified", "blocker")]);
+        let blocked = item(&status, "cad_unverified");
+        assert!(blocked["next"].is_null(), "{blocked}");
+        assert_eq!(
+            blocked["detail"],
+            "No check of r1 can run: requirements \"Close fit\" and \"Snug fit\" state different size for this part. A person must reconcile them."
+        );
+        let refused = project
+            .call(
+                agent("s1"),
+                "cad.check",
+                json!({"artifactId": plate, "exploratory": true}),
+            )
+            .unwrap_err();
+        assert!(
+            refused
+                .message
+                .contains("requirements \"Close fit\" and \"Snug fit\""),
+            "{}",
+            refused.message
+        );
+        assert!(refused
+            .repair
+            .unwrap()
+            .starts_with("A person must reconcile the requirements"));
+    }
+
+    #[test]
+    fn a_changed_statement_target_is_restated_not_doubled() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let width = |mm: f64| {
+            json!({"statement": "Fits the bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "target": {"value": mm, "unit": "mm"}})
+        };
+        let (bay, at) = project.approved("requirement", "Bay width", width(20.0), json!([]));
+        link(&mut project, &bay, &plate);
+        let item_20 = json!({"item": "fits 20 mm", "requirementId": bay, "size": [20, 10, 2]});
+        let passed = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1, "spec": [item_20]}}),
+        );
+        assert_eq!(passed["verificationStatus"], "passed", "{passed}");
+        let revised = project.redraft(
+            Origin::User,
+            &bay,
+            json!({"baseRevisionId": at, "payload": width(25.0)}),
+        );
+        project.accept(&bay, &revised);
+        let status = project.agent("s1", "work.status", json!({}));
+        let found = item(&status, "cad_spec_unasserted");
+        assert_eq!(
+            found["detail"],
+            "Requirement \"Bay width\" changed after the committed check of r1 (it now states 25 mm), so the check does not show it as it stands."
+        );
+        // The item that shows it is named to restate; nothing is added
+        // beside it.
+        assert_eq!(found["next"]["args"]["expect"]["spec"], json!([item_20]));
+        assert!(found["next"]["args"]["autoCommit"].is_null());
+        assert!(
+            found["next"]["why"]
+                .as_str()
+                .unwrap()
+                .starts_with("Restate \"fits 20 mm\" against the requirement"),
+            "{found}"
+        );
+        // The part is made to the new width and the item restated with it:
+        // the person accepts the changed value.
+        project.agent(
+            "s1",
+            "cad.write_source",
+            json!({"artifactId": plate, "source": "cube([25, 10, 2]);", "timeoutMs": 60_000}),
+        );
+        let restated = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "expect": {"bodies": 1, "spec": [
+                {"item": "fits 25 mm", "requirementId": bay, "size": [25, 10, 2]}]}}),
+        );
+        assert_eq!(
+            restated["verificationStatus"], "scope_changed",
+            "{restated}"
+        );
+        assert_eq!(
+            restated["spec"]["replaced"],
+            json!(["\"fits 20 mm\" (requirement \"Bay width\" changed)"])
+        );
+        assert_eq!(restated["spec"]["checkChanges"], json!([]));
+        let status = project.agent("s1", "work.status", json!({}));
+        assert!(item(&status, "cad_scope_changed")["next"].is_null());
+    }
+
+    #[test]
+    fn what_a_check_drops_itself_is_named_beside_a_changed_requirement() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (requirement, at) = project.approved(
+            "requirement",
+            "Envelope",
+            envelope(json!({"size": [20, 10, 2]})),
+            json!([]),
+        );
+        link(&mut project, &requirement, &plate);
+        let first = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1, "spec": [
+                {"item": "centre is solid", "solid": [[10, 5, 1]]}]}}),
+        );
+        assert_eq!(first["verificationStatus"], "passed", "{first}");
+        let corners = json!({"min": [0, 0, 0], "max": [20, 10, 2]});
+        let revised = project.redraft(
+            Origin::User,
+            &requirement,
+            json!({"baseRevisionId": at, "payload": envelope(json!({"bbox": corners}))}),
+        );
+        project.accept(&requirement, &revised);
+        // The check leaves out its own item as the requirement changes.
+        let dropped = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "expect": {"bodies": 1}}),
+        );
+        assert_eq!(dropped["verificationStatus"], "scope_changed", "{dropped}");
+        assert_eq!(
+            dropped["spec"]["checkChanges"],
+            json!(["solid", "spec item \"centre is solid\""])
+        );
+        let restore = json!({"shells": 1, "spec": [
+            {"item": "centre is solid", "solid": [[10, 5, 1]]},
+            {"item": "Plate envelope", "requirementId": requirement, "bbox": corners}]});
+        assert_eq!(dropped["committedExpect"], restore);
+        let status = project.agent("s1", "work.status", json!({}));
+        let found = item(&status, "cad_scope_changed");
+        assert_eq!(
+            found["detail"],
+            "The committed check of r1 drops or loosens assertions committed before: solid, spec item \"centre is solid\". Linked requirements now state others differently (\"Plate envelope\" from requirement \"Envelope\"); a person accepts those."
+        );
+        assert_eq!(
+            found["next"]["args"],
+            json!({"artifactId": plate, "expect": restore})
+        );
+        // Restoring its own item leaves only what the person accepts.
+        let restored = project.agent("s1", "cad.check", found["next"]["args"].clone());
+        assert_eq!(
+            restored["verificationStatus"], "scope_changed",
+            "{restored}"
+        );
+        assert_eq!(restored["spec"]["checkChanges"], json!([]));
+        let status = project.agent("s1", "work.status", json!({}));
+        assert!(item(&status, "cad_scope_changed")["next"].is_null());
+    }
+
+    #[test]
+    fn assertions_listed_for_a_shared_requirement_are_not_the_requirement_s() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let first = plate_part(&mut project);
+        let second = plate_part(&mut project);
+        let (requirement, _) = project.approved(
+            "requirement",
+            "Envelope",
+            envelope(json!({"size": [20, 10, 2]})),
+            json!([]),
+        );
+        link(&mut project, &requirement, &first);
+        link(&mut project, &requirement, &second);
+        // Linked to two parts, its assertion is not taken; the agent's own
+        // stands for the feature, and says so.
+        let checked = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": first, "autoCommit": true, "expect": {"bodies": 1, "spec": [
+                {"item": "Plate envelope", "requirementId": requirement, "solid": [[10, 5, 1]]}]}}),
+        );
+        assert_eq!(checked["verificationStatus"], "passed", "{checked}");
+        let row = &checked["spec"]["items"][0];
+        assert_eq!(
+            (&row["from"], &row["assertedBy"]),
+            (&json!("requirement"), &json!("listed"))
+        );
+        assert_eq!(
+            evidence(&project, &checked)["coverage"]["requirementAuthority"],
+            "agent_or_user_declared"
+        );
     }
 }

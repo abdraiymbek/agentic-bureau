@@ -255,6 +255,42 @@ fn copy_present(full: &Value, out: &mut Value, keys: &[&str]) {
     }
 }
 
+/// Spec items in brief: how many pass, and the words of those that fail,
+/// have no assertion or no check shows, each list cut at ten with its count.
+fn brief_spec(spec: &Value) -> Value {
+    let counts = &spec["counts"];
+    let mut out = json!({"items": counts["items"], "passed": counts["passed"]});
+    let rows = spec["items"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    for (state, key, count) in [
+        ("failed", "failed", "failed"),
+        ("unasserted", "unasserted", "unasserted"),
+        ("not_shown", "notShown", "notShown"),
+    ] {
+        let named = rows
+            .iter()
+            .filter(|row| row["state"] == state)
+            .map(|row| match row["statement"] == true {
+                true => json!(format!(
+                    "requirement \"{}\"",
+                    row["item"].as_str().unwrap_or("")
+                )),
+                false => row["item"].clone(),
+            })
+            .collect::<Vec<_>>();
+        if named.is_empty() {
+            continue;
+        }
+        if named.len() > LISTED_ITEMS {
+            out[format!("{key}Count")] = counts[count].clone();
+        }
+        out[key] = json!(named.into_iter().take(LISTED_ITEMS).collect::<Vec<_>>());
+    }
+    out
+}
+
+/// Entries a brief list of spec items carries.
+const LISTED_ITEMS: usize = 10;
+
 /// The brief form of a CAD result: identifiers, the outcome, what failed and
 /// the next step. It is a projection of the full result; nothing in it is
 /// computed differently, and the evidence it points at is the same.
@@ -291,9 +327,15 @@ pub fn brief(op: &str, full: &Value) -> Value {
                     "staleInputs",
                     "notEvaluated",
                     "ignored",
+                    "derivedSpec",
+                    "notes",
                 ],
             );
-            if full["expectChanged"] == true {
+            if full["spec"].is_object() {
+                out["spec"] = brief_spec(&full["spec"]);
+            } else if full["expectChanged"] == true {
+                // With items the echo would about double the reply, and the
+                // caller has just sent them.
                 out["normalizedExpect"] = full["normalizedExpect"].clone();
             }
             out["evidenceHash"] = full["evidenceHash"].clone();

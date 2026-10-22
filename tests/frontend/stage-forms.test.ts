@@ -32,6 +32,20 @@ describe('requirement saves', () => {
     expect(saved).toMatchObject({ sourceId: banded.sourceId, verification: 'Ramp test' });
     expect(requirementPayload.parse(saved)).toEqual({ ...banded, statement: form.statement });
   });
+  it('keeps the features an agent recorded when a person edits another field', () => {
+    const features = [
+      {
+        label: 'Groove bottom Ø50',
+        expect: { sections: [{ axis: 'z' as const, at: 8, outer: { d: 50 } }] },
+      },
+    ];
+    const payload = { ...banded, features };
+    const form = { ...requirementForm(payload), statement: 'The rover shall carry the pack.' };
+    expect(requirementPayloadFromForm(payload, form).features).toEqual(features);
+    expect(requirementPayload.parse(requirementPayloadFromForm(payload, form)).features).toEqual(
+      features,
+    );
+  });
   it('keeps one-sided bands one-sided', () => {
     const payload = { ...banded, target: { value: 45, unit: 'min', min: 40 } };
     expect(requirementPayloadFromForm(payload, requirementForm(payload)).target).toEqual({

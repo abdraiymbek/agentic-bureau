@@ -122,6 +122,75 @@
         },
         "verification": {
           "type": "string"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "The dimension or feature in the words of the requirement, e.g. \"Groove bottom Ø50 mm\"."
+              },
+              "quantity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "number"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "min": {
+                        "type": "number"
+                      },
+                      "max": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "unit"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "unknown": {
+                        "type": "boolean",
+                        "const": true
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "unknown",
+                      "reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "The value it states, with its unit."
+              },
+              "expect": {
+                "type": "object",
+                "additionalProperties": {},
+                "description": "cad_check assertions that show it (size, holes, bodies, bbox, volume, solid, empty, sections), in the frame of the part."
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "description": "The dimensions and features a linked part must show, one per entry."
         }
       },
       "required": [
@@ -4610,7 +4679,7 @@
     {
       "name": "cad.check",
       "toolName": "cad_check",
-      "description": "Verify a part against expectations taken from the request, never copied from the measured report: overall size, bodies, holes by position and diameter and, for more detail, envelope corners, volume, solid and empty points, cross-section outlines and preservation of unrelated geometry. Call it with autoCommit true: the complete check runs as a trial and is committed as the verification only when everything passes. A failing run binds nothing, so fix the part or the mistaken assertion and call again. Returns each assertion result, ready, verificationStatus, the normalized expectation and the next action. Only ready true is verified; do not claim completion on failed, scope_changed, partial or unverified. Example: {\"artifactId\":\"<part id>\",\"autoCommit\":true,\"expect\":{\"size\":[40,30,5],\"bodies\":1,\"holes\":[{\"at\":[10,10,2.5],\"d\":4}]}}",
+      "description": "Verify a part against the request, never against the measured report. In expect.spec, give each requested dimension or feature in the request's words with the assertions that show it: size, holes, envelope corners, volume, solid and empty points, cross-sections. Linked requirements add their items. Call it with autoCommit true: it commits when every assertion passes; items without assertions stay partial; a failing run binds nothing, so fix the part or the wrong assertion and call again. Returns each assertion and item result, ready, verificationStatus and the next step. Never claim completion unless ready is true. Example: {\"artifactId\":\"<part id>\",\"autoCommit\":true,\"expect\":{\"bodies\":1,\"spec\":[{\"item\":\"plate 40 x 30 x 5 mm\",\"size\":[40,30,5]},{\"item\":\"Ø4 hole at (10, 10)\",\"holes\":[{\"at\":[10,10,2.5],\"d\":4}]}]}}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
@@ -4618,25 +4687,33 @@
       "agentTool": true,
       "tier": "core",
       "pack": "cad",
-      "summary": "Verify a part against request dimensions; autoCommit binds only a passing check.",
+      "summary": "Verify a part item by item; autoCommit commits when every assertion passes.",
       "example": {
         "artifactId": "00000000-0000-4000-8000-000000000001",
         "autoCommit": true,
         "expect": {
-          "size": [
-            40,
-            30,
-            5
-          ],
           "bodies": 1,
-          "holes": [
+          "spec": [
             {
-              "at": [
-                10,
-                10,
-                2.5
-              ],
-              "d": 4
+              "item": "plate 40 x 30 x 5 mm",
+              "size": [
+                40,
+                30,
+                5
+              ]
+            },
+            {
+              "item": "Ø4 hole at (10, 10)",
+              "holes": [
+                {
+                  "at": [
+                    10,
+                    10,
+                    2.5
+                  ],
+                  "d": 4
+                }
+              ]
             }
           ]
         }
@@ -4647,125 +4724,216 @@
           "artifactId": {
             "type": "string"
           },
+          "requirementIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "expect": {
             "type": "object",
             "properties": {
-              "size": {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3,
-                "description": "Overall size [x,y,z], mm."
-              },
               "bodies": {
                 "type": "integer",
                 "description": "Separate bodies; 1 for one part."
               },
-              "holes": {
+              "spec": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "properties": {
-                    "at": {
+                    "item": {
+                      "type": "string",
+                      "description": "In the request's words."
+                    },
+                    "requirementId": {
+                      "type": "string"
+                    },
+                    "size": {
                       "type": "array",
                       "items": {
                         "type": "number"
                       },
                       "minItems": 3,
                       "maxItems": 3,
-                      "description": "Point on the hole axis, inside the material."
+                      "description": "Overall size [x,y,z], mm."
                     },
-                    "d": {
-                      "type": "number",
-                      "description": "Diameter, mm."
+                    "holes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            },
+                            "minItems": 3,
+                            "maxItems": 3,
+                            "description": "Point on the hole axis, inside the material."
+                          },
+                          "d": {
+                            "type": "number",
+                            "description": "Diameter, mm."
+                          },
+                          "axis": {
+                            "type": "string",
+                            "enum": [
+                              "x",
+                              "y",
+                              "z"
+                            ],
+                            "description": "Hole direction, default z."
+                          }
+                        },
+                        "required": [
+                          "at",
+                          "d"
+                        ]
+                      },
+                      "description": "Round holes."
                     },
-                    "axis": {
-                      "type": "string",
-                      "enum": [
-                        "x",
-                        "y",
-                        "z"
+                    "bbox": {
+                      "type": "object",
+                      "properties": {
+                        "min": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        },
+                        "max": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        }
+                      },
+                      "required": [
+                        "min",
+                        "max"
                       ],
-                      "description": "Hole direction, default z."
+                      "description": "Envelope corners, when position matters."
+                    },
+                    "volume": {
+                      "type": "object",
+                      "properties": {
+                        "value": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "value"
+                      ],
+                      "description": "Solid volume, mm³."
+                    },
+                    "solid": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "description": "Points [x,y,z] inside material."
+                    },
+                    "empty": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      },
+                      "description": "Points [x,y,z] in empty space."
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "axis": {
+                            "type": "string",
+                            "enum": [
+                              "x",
+                              "y",
+                              "z"
+                            ]
+                          },
+                          "at": {
+                            "type": "number"
+                          },
+                          "outer": {
+                            "type": "object",
+                            "properties": {
+                              "d": {
+                                "type": "number"
+                              },
+                              "size": {
+                                "type": "array",
+                                "items": {
+                                  "type": "number"
+                                },
+                                "minItems": 2,
+                                "maxItems": 2
+                              }
+                            }
+                          },
+                          "holes": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "center": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "number"
+                                  },
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                "d": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "center",
+                                "d"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "axis",
+                          "at"
+                        ]
+                      },
+                      "description": "Cut at axis=at through the feature; hole center in that plane."
                     }
                   },
                   "required": [
-                    "at",
-                    "d"
+                    "item"
                   ]
                 },
-                "description": "Round holes."
-              },
-              "bbox": {
-                "type": "object",
-                "properties": {
-                  "min": {
-                    "type": "array",
-                    "items": {
-                      "type": "number"
-                    },
-                    "minItems": 3,
-                    "maxItems": 3
-                  },
-                  "max": {
-                    "type": "array",
-                    "items": {
-                      "type": "number"
-                    },
-                    "minItems": 3,
-                    "maxItems": 3
-                  }
-                },
-                "required": [
-                  "min",
-                  "max"
-                ],
-                "description": "Envelope corners, when position matters."
-              },
-              "volume": {
-                "type": "object",
-                "properties": {
-                  "value": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "value"
-                ],
-                "description": "Solid volume, mm³."
-              },
-              "solid": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  },
-                  "minItems": 3,
-                  "maxItems": 3
-                },
-                "description": "Points [x,y,z] inside material."
-              },
-              "empty": {
-                "type": "array",
-                "items": {
-                  "type": "array",
-                  "items": {
-                    "type": "number"
-                  },
-                  "minItems": 3,
-                  "maxItems": 3
-                },
-                "description": "Points [x,y,z] in empty space."
+                "description": "One item per requested dimension or feature."
               }
             },
+            "required": [
+              "spec"
+            ],
             "description": "From the request, never copied from the report."
           },
           "autoCommit": {
             "type": "boolean",
-            "description": "true: commit when everything passes."
+            "description": "true: commit when every assertion passes; items without assertions stay partial."
           }
         },
         "required": [
@@ -5184,14 +5352,82 @@
                 ],
                 "additionalProperties": false,
                 "description": "Require unrelated geometry to match the approved baseline (or initial draft ancestor) (sampled points outside changeRegions)."
+              },
+              "spec": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "description": "One requested dimension or feature, in the request's words."
+                    },
+                    "requirementId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Requirement it answers."
+                    },
+                    "size": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "holes": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "bodies": {
+                      "type": "number"
+                    },
+                    "shells": {
+                      "type": "number"
+                    },
+                    "bbox": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "volume": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    },
+                    "solid": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "empty": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {}
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The request item by item, each with its assertions (keys above); an item without one stays partial."
               }
             },
             "additionalProperties": false,
             "description": "What must be true of the part, taken from the request: size, bodies and holes, or envelope, volume, points and cross-sections for more detail."
           },
+          "requirementIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Requirements this check answers; their features become spec items."
+          },
           "autoCommit": {
             "type": "boolean",
-            "description": "true: trial the complete check and commit it in the same call only when everything passes and no committed assertion is dropped or changed. A failing run binds nothing."
+            "description": "true: commit in the same call when every assertion passes and no committed assertion is dropped or changed; items without assertions stay partial. A failing run binds nothing."
           },
           "exploratory": {
             "type": "boolean",
@@ -5213,8 +5449,7 @@
           }
         },
         "required": [
-          "artifactId",
-          "expect"
+          "artifactId"
         ],
         "additionalProperties": false,
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -6882,7 +7117,7 @@
     {
       "name": "work.status",
       "toolName": "work_status",
-      "description": "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.",
+      "description": "Check what is still unfinished before you say the work is done. Returns ready, a one-line summary, and each outstanding item (unverified or failing parts, listed items no check shows, components without a source or offer, unvalidated wiring, calculations not run, changes the reviewer requested, empty drafts) with the exact tool call that resolves it, plus the proposals waiting on the human. Call it before your final answer and again after fixing items. Finish only when ready is true, or name every remaining blocker.",
       "capability": "both",
       "mutating": false,
       "agentVisible": true,

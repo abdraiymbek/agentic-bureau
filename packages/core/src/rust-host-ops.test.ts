@@ -53,6 +53,12 @@ describe('cad.check inputs the legacy TypeScript core does not understand', () =
       ['expect.holes', 'expect.bodies'],
     ],
     [{ expect: { shells: 1, tol: 0.2 }, autoCommit: true }, ['autoCommit', 'expect.tol']],
+    [{ expect: { spec: [{ item: 'plate 40 x 30 x 5 mm', size: [40, 30, 5] }] } }, ['expect.spec']],
+    [
+      { requirementIds: ['00000000-0000-4000-8000-000000000002'], expect: { shells: 1 } },
+      ['requirementIds'],
+    ],
+    [{}, ['expect omitted']],
   ])('refuses %j instead of verifying less than was asked', async (input, unsupported) => {
     await expect(
       app.dispatch('cad.check', { artifactId, ...input }, agent, projectId),
@@ -67,6 +73,51 @@ describe('cad.check inputs the legacy TypeScript core does not understand', () =
     await expect(
       app.dispatch('cad.check', { artifactId, expect: { shells: 1 } }, agent, projectId),
     ).rejects.toMatchObject({ code: ErrorCodes.NOT_FOUND });
+  });
+
+  it('refuses a part linked to a requirement the Rust host makes spec items of', async () => {
+    const draft = async (type: string, title: string, payload: unknown, inputs: unknown[] = []) =>
+      (await app.dispatch(
+        'artifact.create_draft',
+        { type, title, payload, inputs },
+        user,
+        projectId,
+      )) as { artifact: { id: string }; revision: { id: string } };
+    const requirement = (target: unknown) => ({
+      statement: 'Fits the bay',
+      acceptanceCriterion: 'Measured',
+      target,
+    });
+    const fits = await draft('requirement', 'Fits the bay', requirement({ value: 20, unit: 'mm' }));
+    const carries = await draft('requirement', 'Carries', requirement({ value: 0.3, unit: 'kg' }));
+    const link = (made: { artifact: { id: string }; revision: { id: string } }) => ({
+      artifactId: made.artifact.id,
+      revisionId: made.revision.id,
+      relationship: 'validates',
+    });
+    const linked = await draft('mechanical', 'Plate', {}, [link(fits), link(carries)]);
+    await expect(
+      app.dispatch(
+        'cad.check',
+        { artifactId: linked.artifact.id, expect: { shells: 1 } },
+        user,
+        projectId,
+      ),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION,
+      message: 'cad.check with linked requirement "Fits the bay" is implemented by the Rust host',
+      details: { unsupported: ['linked requirement "Fits the bay"'], implementedBy: 'rust-host' },
+    });
+    // A requirement no geometry check shows changes nothing here.
+    const other = await draft('mechanical', 'Tray', {}, [link(carries)]);
+    await expect(
+      app.dispatch(
+        'cad.check',
+        { artifactId: other.artifact.id, expect: { shells: 1 } },
+        user,
+        projectId,
+      ),
+    ).rejects.not.toMatchObject({ details: { implementedBy: 'rust-host' } });
   });
 });
 
@@ -180,6 +231,34 @@ describe('other inputs the legacy TypeScript core would ignore', () => {
         'connections[0].from.componentRevisionId omitted',
         'connections[0].to.componentRevisionId omitted',
       ],
+    ],
+    [
+      'artifact.create_draft',
+      {
+        type: 'requirement',
+        title: 'V-groove',
+        payload: {
+          statement: 'A V-groove',
+          acceptanceCriterion: 'Measured',
+          features: [{ label: 'Groove bottom Ø50' }],
+        },
+      },
+      ['payload.features'],
+    ],
+    [
+      'artifact.update_draft',
+      { artifactId: id, payload: { features: [{ label: 'Groove bottom Ø50' }] } },
+      ['payload.features'],
+    ],
+    [
+      'artifact.apply_edit',
+      {
+        artifactId: id,
+        baseRevisionId: id,
+        payloadPatch: { features: [{ label: 'Groove bottom Ø50' }] },
+        rationale: 'Add the groove',
+      },
+      ['payloadPatch.features'],
     ],
   ] as const)(
     '%s refuses %j instead of doing less than was asked',

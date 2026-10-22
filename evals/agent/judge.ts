@@ -114,7 +114,13 @@ export function nothingApproved(state: ProjectState, seededApproved: string[]): 
   };
 }
 
-const CAD_KINDS = ['cad_unverified', 'cad_check_failed', 'cad_scope_changed', 'cad_render_failed'];
+const CAD_KINDS = [
+  'cad_unverified',
+  'cad_spec_unasserted',
+  'cad_check_failed',
+  'cad_scope_changed',
+  'cad_render_failed',
+];
 
 /**
  * Whether the part's newest revision carries a committed, passing check:
@@ -124,7 +130,10 @@ const CAD_KINDS = ['cad_unverified', 'cad_check_failed', 'cad_scope_changed', 'c
 export function committedVerification(state: ProjectState, artifact: ArtifactState): Criterion {
   const revisionId = artifact.latest?.id;
   const items = (state.projectStatus.outstanding as any[]).filter(
-    (item) => item.artifactId === artifact.id && CAD_KINDS.includes(item.kind),
+    (item) =>
+      item.artifactId === artifact.id &&
+      item.severity === 'blocker' &&
+      CAD_KINDS.includes(item.kind),
   );
   const job = state.jobs.find(
     (candidate) =>

@@ -43,6 +43,15 @@ describe('state vocabulary', () => {
     });
   });
 
+  it('names listed CAD items apart from the verification they belong to', () => {
+    expect(stateWord('unasserted', 'spec')).toEqual({ label: 'Not asserted', tone: 'warn' });
+    expect(stateWord('not_shown', 'spec')).toEqual({ label: 'Not shown', tone: 'neutral' });
+    expect(stateLabel('passed', 'spec')).toBe('Passed');
+    expect(stateTone('failed', 'spec')).toBe('err');
+    // Looked up without a dimension, "passed" still reads as a test verdict.
+    expect(stateLabel('unasserted')).toBe('Unasserted');
+  });
+
   it('marks only running work as live', () => {
     for (const [dimension, words] of Object.entries(VOCABULARY))
       for (const [state, word] of Object.entries(words))

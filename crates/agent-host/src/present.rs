@@ -930,8 +930,8 @@ mod tests {
         // budget does (packages/contracts ops.test.ts: 68,800 on the wire).
         // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
         assert!(sizes[1] <= 62_600, "standard listing is {}", sizes[1]);
-        // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
-        assert!(sizes[2] <= 68_600, "full listing is {}", sizes[2]);
+        // 0.2.4: +2,570 chars for cad_view and image_view, +956 for cad_check spec items (recorded in audit/v0.2.4)
+        assert!(sizes[2] <= 70_000, "full listing is {}", sizes[2]);
         assert!(sizes[0] < sizes[1] && sizes[1] < sizes[2]);
         // Title and annotations are for the client, at a fixed cost per tool.
         for (profile, (model, wire)) in Profile::ALL.into_iter().zip(sizes.into_iter().zip(wire)) {

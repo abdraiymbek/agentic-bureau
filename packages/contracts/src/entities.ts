@@ -70,6 +70,31 @@ const sourcedQuantity = z.object({
   observedAt: z.string().optional(),
 });
 
+/**
+ * One dimension or feature a requirement asks of a part. A part linked to the
+ * requirement is checked for it: the feature becomes an item of every
+ * cad_check of the part, with `expect` as its assertions when the requirement
+ * links that one part only; without them it stays unasserted until a check
+ * gives it some.
+ */
+export const requirementFeatureSchema = z.object({
+  label: z
+    .string()
+    .min(1)
+    .max(200)
+    .describe(
+      'The dimension or feature in the words of the requirement, e.g. "Groove bottom Ø50 mm".',
+    ),
+  quantity: maybeQuantitySchema.optional().describe('The value it states, with its unit.'),
+  expect: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      'cad_check assertions that show it (size, holes, bodies, bbox, volume, solid, empty, sections), in the frame of the part.',
+    ),
+});
+export type RequirementFeature = z.infer<typeof requirementFeatureSchema>;
+
 export const requirementPayload = z.object({
   statement: z.string(),
   target: maybeQuantitySchema.optional(),
@@ -77,6 +102,10 @@ export const requirementPayload = z.object({
   priority: z.enum(['must', 'should', 'could']).default('should'),
   sourceId: idSchema.optional(),
   verification: z.string().optional(),
+  features: z
+    .array(requirementFeatureSchema)
+    .optional()
+    .describe('The dimensions and features a linked part must show, one per entry.'),
 });
 export type RequirementPayload = z.infer<typeof requirementPayload>;
 

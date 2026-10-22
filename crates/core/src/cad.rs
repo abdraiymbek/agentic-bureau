@@ -22,17 +22,21 @@ mod python;
 mod render;
 mod report;
 mod section;
+mod spec;
 mod stage;
 mod step;
 mod verification;
 mod view;
 
+pub(super) use expect::request_form;
 pub use report::brief;
+pub(super) use spec::{check_features, next_expect, requirement_conflict};
 pub(crate) use stage::{committing, planning, with_probes};
 pub(super) use step::export;
 pub use verification::readiness;
 pub(super) use verification::{
-    committed_expect, latest_verification, record_scope_acceptance, validate_scope_accept,
+    committed_expect, committed_scope, latest_verification, quoted, record_scope_acceptance,
+    requirements, validate_scope_accept,
 };
 pub use view::pictures;
 pub(crate) use view::{view_image, view_part};
@@ -1618,6 +1622,11 @@ struct CheckPipeline {
     params: Value,
     variant: bool,
     normalized: expect::Normalized,
+    /// Requirements linked to the part or named by the check.
+    linked: Vec<spec::Linked>,
+    /// Repairs and acceptances of the spec input, for the reply.
+    notes: Vec<String>,
+    requirement_ids: Value,
     mode: verification::Mode,
     context: checks::Context,
     mesh: MeshSource,
@@ -1720,6 +1729,13 @@ impl CheckPipeline {
             }
         }
         let payload_identity = &self.revision["payload"]["renderIdentity"];
+        let expect = &self.normalized.expect;
+        let mut report = spec::assess(
+            expect,
+            &self.linked,
+            &outcome.lines,
+            spec::listed_by(origin),
+        )?;
         let measured = verification::Measured {
             lines: outcome.lines.clone(),
             integrity: mesh.watertight
@@ -1729,9 +1745,12 @@ impl CheckPipeline {
             matching: render_matches(&self.revision)
                 && payload_identity["inputFingerprint"] == identity["inputFingerprint"]
                 && payload_identity["outputHash"] == identity["outputHash"],
+            unasserted: report
+                .as_ref()
+                .and_then(|report| report["counts"]["blocking"].as_u64())
+                .unwrap_or(0) as usize,
         };
-        let expect = &self.normalized.expect;
-        let judgement = verification::judge(
+        let mut judgement = verification::judge(
             &measured,
             expect,
             &self.params,
@@ -1742,6 +1761,25 @@ impl CheckPipeline {
             &verification::accepted_scope(handle, artifact_id)?,
             &verification::history(handle, artifact_id)?,
         );
+        // What restores the committed scope is that scope as the linked
+        // requirements state it now.
+        judgement.committed = spec::restore(&judgement.priors, &self.linked);
+        if let Some(report) = report
+            .as_mut()
+            .filter(|_| !judgement.scope_changes.is_empty())
+        {
+            let attribution = spec::attribute(
+                handle,
+                &judgement.priors,
+                expect,
+                &self.linked,
+                &judgement.dropped,
+            );
+            if !attribution.replaced.is_empty() {
+                report["replaced"] = json!(attribution.replaced);
+                report["checkChanges"] = json!(attribution.own);
+            }
+        }
         let evidence = verification::evidence(
             &self.artifact,
             &self.revision,
@@ -1751,6 +1789,7 @@ impl CheckPipeline {
             &outcome.preservation,
             measured.integrity,
             &judgement,
+            report.as_ref(),
         );
         let evidence_hash = handle
             .object_store()
@@ -1801,12 +1840,16 @@ impl CheckPipeline {
                         measured.lines.len()
                     ))
                 }),
-                inputs: Some(
-                    json!({"artifactId": artifact_id, "revisionId": self.revision["id"],
+                inputs: Some({
+                    let mut inputs = json!({"artifactId": artifact_id, "revisionId": self.revision["id"],
                     "params": self.params, "expect": expect, "preservation": outcome.preservation,
                     "exploratory": judgement.exploratory, "commitOrder": commit_order,
-                    "results": measured.lines.iter().map(|line| json!({"name": line["name"], "pass": line["pass"], "tightness": line["tightness"]})).collect::<Vec<_>>()}),
-                ),
+                    "results": measured.lines.iter().map(|line| json!({"name": line["name"], "pass": line["pass"], "tightness": line["tightness"]})).collect::<Vec<_>>()});
+                    if !self.requirement_ids.is_null() {
+                        inputs["requirementIds"] = self.requirement_ids.clone();
+                    }
+                    inputs
+                }),
                 command: None,
             },
             origin,
@@ -1823,6 +1866,13 @@ impl CheckPipeline {
             &self.normalized,
             self.normalized.ignored.clone(),
         )?;
+        let response = if self.notes.is_empty() {
+            response
+        } else {
+            let mut response = response;
+            response["notes"] = json!(self.notes);
+            response
+        };
         Ok(if self.brief {
             report::brief("cad.check", &response)
         } else {
@@ -1873,7 +1923,12 @@ pub(super) fn check(handle: &ProjectHandle, input: &Value, origin: &Origin) -> C
         let (_, source) = source_of(handle, &revision)?;
         let overrides = params::override_params(&input["params"], &params::parameters(&source))?;
         let variant = overrides.as_object().is_some_and(|map| !map.is_empty());
-        let mut normalized = expect::normalize(&input["expect"])?;
+        // Items are checked strictly and linked requirements add theirs
+        // before the expectation is canonical, hashed or measured.
+        let (expect_input, mut notes) = spec::checked_items(&input["expect"])?;
+        let (linked, accepted) = spec::for_check(handle, &revision, input, &expect_input, origin)?;
+        notes.extend(accepted);
+        let mut normalized = expect::normalize_with(&expect_input, &spec::derived(&linked))?;
         let mode = if input["exploratory"] == true {
             verification::Mode::Trial
         } else if input["autoCommit"] == true {
@@ -1930,6 +1985,9 @@ pub(super) fn check(handle: &ProjectHandle, input: &Value, origin: &Origin) -> C
             params: overrides,
             variant,
             normalized,
+            linked,
+            notes,
+            requirement_ids: input["requirementIds"].clone(),
             mode,
             mesh,
             reference,

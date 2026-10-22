@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   ErrorCodes,
-  EXPECTATION_SHORT_FORM_KEYS,
+  EXPECTATION_RUST_ONLY_KEYS,
   OPS_BY_NAME,
   Origin,
   RUST_HOST_OPS,
@@ -508,15 +508,27 @@ const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
 const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
   'cad.check': (input) => [
     ...(input.autoCommit === undefined ? [] : ['autoCommit']),
-    ...EXPECTATION_SHORT_FORM_KEYS.filter((key) => fields(input.expect)[key] !== undefined).map(
+    ...(input.expect === undefined ? ['expect omitted'] : []),
+    ...(input.requirementIds === undefined ? [] : ['requirementIds']),
+    ...EXPECTATION_RUST_ONLY_KEYS.filter((key) => fields(input.expect)[key] !== undefined).map(
       (key) => `expect.${key}`,
     ),
   ],
   'artifact.list': (input) => (input.cursor === undefined ? [] : ['cursor']),
   'artifact.history': (input) =>
     ['fields', 'limit', 'cursor'].filter((field) => input[field] !== undefined),
-  'artifact.create_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
-  'artifact.update_draft': (input) => wiringIdsOmitted(fields(input.payload).connections),
+  'artifact.create_draft': (input) => [
+    ...wiringIdsOmitted(fields(input.payload).connections),
+    ...featuresIn(input.payload, 'payload'),
+  ],
+  'artifact.update_draft': (input) => [
+    ...wiringIdsOmitted(fields(input.payload).connections),
+    ...featuresIn(input.payload, 'payload'),
+  ],
+  'artifact.apply_edit': (input) => [
+    ...featuresIn(input.payload, 'payload'),
+    ...featuresIn(input.payloadPatch, 'payloadPatch'),
+  ],
   'wiring.set_connections': (input) => wiringIdsOmitted(input.connections),
   'component.add_candidate': (input) => (input.source === undefined ? [] : ['source']),
   'component.propose_selection': (input) =>
@@ -538,6 +550,14 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
       : []),
   ],
 };
+
+/**
+ * Requirement features: this core would store them and never check a part
+ * against them, so it refuses them.
+ */
+function featuresIn(payload: unknown, name: string): string[] {
+  return fields(payload).features === undefined ? [] : [`${name}.features`];
+}
 
 function wiringIdsOmitted(connections: unknown): string[] {
   return list(connections).flatMap((value, index) => {

@@ -3,6 +3,7 @@
 //! a failing line says what is off and what usually causes it.
 use super::*;
 use expect::{LINEAR_TOLERANCE, MIN_ROUNDNESS, PERCENT_TOLERANCE};
+use std::collections::HashSet;
 
 /// Facts about the part that are not in the mesh.
 #[derive(Clone, Copy, Default)]
@@ -600,6 +601,103 @@ pub(crate) fn run(mesh: &mesh::Mesh, expect: &Value, context: Context) -> CoreRe
     Ok(checks)
 }
 
+/// In-plane axes of a section normal to x, y or z, as `section::Section`
+/// names them.
+const PLANE_AXES: [[&str; 2]; 3] = [["y", "z"], ["x", "z"], ["x", "y"]];
+
+/// Every line name `run` can give for these canonical assertion groups. A
+/// line belongs to a spec item when its name is among the item's.
+pub(crate) fn assertion_names(groups: &Value) -> CoreResult<HashSet<String>> {
+    let mut names = HashSet::new();
+    let mut name = |text: String| {
+        names.insert(text);
+    };
+    if groups["size"].is_array() {
+        name("overall size".to_owned());
+    }
+    if groups["bbox"].is_object() {
+        name("bounding box".to_owned());
+    }
+    if groups["volume"].is_object() {
+        name("volume".to_owned());
+    }
+    if groups["shells"].is_u64() {
+        name("single body".to_owned());
+    }
+    for point in groups["solid"].as_array().into_iter().flatten() {
+        name(format!("solid at {}", vec(&p3(point))));
+    }
+    for point in groups["empty"].as_array().into_iter().flatten() {
+        name(format!("empty at {}", vec(&p3(point))));
+    }
+    for spec in groups["sections"].as_array().into_iter().flatten() {
+        let axis = axis_index(required_str(spec, "axis")?)?;
+        let label = format!(
+            "section {}={}",
+            ["x", "y", "z"][axis],
+            fmt(number(&spec["at"]))
+        );
+        let axes = PLANE_AXES[axis];
+        let at = |center: [f64; 2]| {
+            format!(
+                "({}={}, {}={})",
+                axes[0],
+                fmt(center[0]),
+                axes[1],
+                fmt(center[1])
+            )
+        };
+        // A plane that asserts nothing, or whose cut is open, fails every
+        // item that asserts something in it.
+        name(format!("{label}: assertions"));
+        name(format!("{label}: closed"));
+        if spec["holeCount"].is_u64() {
+            name(format!("{label}: hole count"));
+        }
+        if spec["outerCount"].is_u64() {
+            name(format!("{label}: body count"));
+        }
+        for hole in spec["holes"].as_array().into_iter().flatten() {
+            name(format!(
+                "{label}: hole d{} at {}",
+                fmt(number(&hole["d"])),
+                at(p2(&hole["center"]))
+            ));
+        }
+        for slot in spec["slots"].as_array().into_iter().flatten() {
+            name(format!(
+                "{label}: cut-out {} at {}",
+                by(&p2(&slot["size"])),
+                at(p2(&slot["center"]))
+            ));
+        }
+        for polygon in spec["polygons"].as_array().into_iter().flatten() {
+            name(format!(
+                "{label}: {}-gon across-flats {} at {}",
+                polygon["sides"].as_u64().unwrap_or(0),
+                fmt(number(&polygon["acrossFlats"])),
+                at(p2(&polygon["center"]))
+            ));
+        }
+        let outline = &spec["outer"];
+        if outline.is_object() {
+            name(format!("{label}: outer profile"));
+            if outline["size"].is_array() {
+                name(format!(
+                    "{label}: outer rectangle {}",
+                    by(&p2(&outline["size"]))
+                ));
+            } else if let Some(diameter) = outline["d"].as_f64() {
+                name(format!("{label}: outer circle d{}", fmt(diameter)));
+            }
+        }
+        if spec["materialArea"].is_object() {
+            name(format!("{label}: material area"));
+        }
+    }
+    Ok(names)
+}
+
 /// Modification support: sample points across both parts and require
 /// inside/outside agreement everywhere outside the declared change regions.
 pub(crate) fn preservation(
@@ -711,6 +809,52 @@ mod tests {
 
     fn plate() -> mesh::Mesh {
         mesh(plate_with_hole([40.0, 30.0, 4.0], [10.0, 12.0], 3.2, 64))
+    }
+
+    #[test]
+    fn assertion_names_are_the_names_run_gives() {
+        let expect = json!({
+            "size": [40, 30, 4],
+            "bbox": {"min": [0, 0, 0], "max": [40, 30, 4]},
+            "volume": {"value": 4767.8},
+            "shells": 1,
+            "solid": [[1, 1, 1]],
+            "empty": [[10, 12, 2], [10.5, 12.25, 2]],
+            "sections": [
+                {"axis": "z", "at": 2, "holes": [{"center": [10, 12], "d": 3.2}], "holeCount": 1,
+                 "outerCount": 1, "outer": {"size": [40, 30]}, "materialArea": {"value": 1192},
+                 "slots": [{"center": [10, 12], "size": [3.2, 3.2]}],
+                 "polygons": [{"center": [10, 12], "sides": 6, "acrossFlats": 3}]},
+                {"axis": "x", "at": 20.5, "outer": {"d": 5}},
+                {"axis": "y", "at": 15},
+            ],
+        });
+        let lines = check(&plate(), expect.clone());
+        let names = assertion_names(&expect).unwrap();
+        for line in &lines {
+            let name = line["name"].as_str().unwrap();
+            assert!(
+                name == "watertight" || names.contains(name),
+                "{name} in {names:?}"
+            );
+        }
+        // Every name but the plane-level variants comes from some line here.
+        for name in &names {
+            if [": assertions", ": closed", ": outer profile"]
+                .iter()
+                .any(|variant| name.ends_with(variant))
+            {
+                continue;
+            }
+            assert!(
+                lines.iter().any(|line| line["name"] == name.as_str()),
+                "{name}"
+            );
+        }
+        assert!(names.contains("section y=15: assertions"));
+        assert!(lines
+            .iter()
+            .any(|line| line["name"] == "section y=15: assertions"));
     }
 
     #[test]
