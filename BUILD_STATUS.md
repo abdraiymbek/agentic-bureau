@@ -6,12 +6,12 @@ pointer. Its last text is in git history (`git show 4f8afe2:BUILD_STATUS.md`).
 
 ## Current
 
-**0.2.3, 21 October 2026: a published preview, ad hoc signed and not notarized.** Releases
-0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered the same day; see
+**0.2.4, 22 October 2026: a preview, ad hoc signed and not notarized.** Releases
+0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered on 21 October 2026; see
 [release](docs/release.md).
 
 - What Omen Flow is, how to build it and its limits: [README](README.md).
-- What was verified for 0.2.3: [its verification record](audit/v0.2.3/README.md); for the
+- What was verified for 0.2.4: [its verification record](audit/v0.2.4/README.md); for the
   14 October V1 work, with the commands and counts: [V1 readiness record](audit/v1/README.md),
   and for the interface [design verification](design-system/verification.md).
 - How to qualify a release, and what is still open: [release](docs/release.md).

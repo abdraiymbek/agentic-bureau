@@ -1,7 +1,7 @@
 # Release
 
-Version **0.2.3** is the current release; its checks and remaining limits are recorded in
-the [0.2.3 verification record](../audit/v0.2.3/README.md).
+Version **0.2.4** is the current release; its checks and remaining limits are recorded in
+the [0.2.4 verification record](../audit/v0.2.4/README.md).
 
 Omen Flow is a preview, so its version line starts below 1.0. The four releases first published
 as 1.0.0 (15 October 2026 UTC) to 1.0.3 (21 October 2026) were withdrawn on 21 October 2026 and
@@ -11,7 +11,7 @@ three builds were not republished. Their records keep their original numbers: th
 [1.0.1](../audit/v1.0.1/README.md) verification records, and for 1.0.0 the
 [V1 readiness record](../audit/v1/README.md). Since 0.2.0 the macOS bundle carries identifier
 `app.omenflow.desktop`; the earlier 0.1.0 bundle described in the V1 readiness record was
-replaced. The next release is 0.2.4 or later.
+replaced. The next release is 0.2.5 or later.
 
 Publication and automated checks do not establish native manual acceptance. The last recorded
 native walkthrough by hand is the [26 September first-use audit](../audit/v1-readiness/README.md),
@@ -150,7 +150,7 @@ helper is quarantined, Omen Flow writes a byte-for-byte copy into its own `bin/o
 folder for the agent (`apps/rust-desktop/src/helper.rs`). This leaves the signed app untouched.
 The packaged smoke checks that helper path and the bridge capability boundaries.
 
-The [0.2.3 verification record](../audit/v0.2.3/README.md) records the current package checks.
+The [0.2.4 verification record](../audit/v0.2.4/README.md) records the current package checks.
 `codesign --verify --deep --strict` validates signature consistency. `syspolicy_check distribution`
 and `spctl` separately report policy: ad hoc signing and a missing notarization ticket remain
 expected blockers, and must not be reported as accepted notarization. A fresh browser download
@@ -289,7 +289,7 @@ What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 
 |               | `.deb` / `.rpm`                                                                                                                                                                                                             | AppImage                                 |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Name, version | `omen-flow` 0.2.3 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_0.2.3_<arch>.AppImage`        |
+| Name, version | `omen-flow` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_0.2.4_<arch>.AppImage`        |
 | App           | `/usr/bin/omen-flow`                                                                                                                                                                                                        | `usr/bin/omen-flow` inside the image     |
 | Helper        | `/usr/lib/Omen Flow/omenflow`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                          | `$APPDIR/usr/lib/Omen Flow/omenflow`     |
 | Menu entry    | `/usr/share/applications/Omen Flow.desktop`: `Name=Omen Flow`, `Exec=omen-flow`, `Icon=omen-flow`, `StartupWMClass=omen-flow` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image          |
@@ -336,7 +336,7 @@ uses the same script, attaches packages to an existing release and updates `SHA2
 [1.0.0 run](https://github.com/abdraiymbek/omen-flow/actions/runs/38671472644) completed
 successfully on 15 October 2026 UTC; those three assets were attached to the 1.0.0 release, since
 withdrawn. This supersedes the earlier statement that no x86_64 package had been built or
-launched. Results for 0.2.3 belong in its [verification record](../audit/v0.2.3/README.md).
+launched. Results for 0.2.4 belong in its [verification record](../audit/v0.2.4/README.md).
 
 Known limits:
 

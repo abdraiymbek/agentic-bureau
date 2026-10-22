@@ -11,7 +11,7 @@ Everything lives in the project folder: a schema 1 SQLite record, an object stor
 files, and readable working files. The packaged app is Rust (Tauri) with a React renderer in the
 operating system's webview; it contains no Electron and no Node runtime.
 
-**[Download Omen Flow 0.2.3](https://github.com/abdraiymbek/omen-flow/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
+**[Download Omen Flow 0.2.4](https://github.com/abdraiymbek/omen-flow/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
 Apache-2.0
 
 ## Install
@@ -32,7 +32,7 @@ Apache-2.0
 
 ### macOS
 
-Download `Omen-Flow-0.2.3-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
+Download `Omen-Flow-0.2.4-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
 but is not notarized by Apple. macOS may require approval on first launch:
 
 1. Open the DMG and drag **Omen Flow** onto **Applications**.
@@ -53,12 +53,12 @@ Download the file for your system and architecture (`amd64`/`x86_64` for most PC
 
 | System                    | File                              | Install                                                 |
 | ------------------------- | --------------------------------- | ------------------------------------------------------- |
-| Ubuntu 22.04+, Debian 12+ | `omen-flow_0.2.3_amd64.deb`       | `sudo apt install ./omen-flow_0.2.3_amd64.deb`          |
-| Fedora 42+                | `omen-flow-0.2.3-1.x86_64.rpm`    | `sudo dnf install ./omen-flow-0.2.3-1.x86_64.rpm`       |
-| Other distributions       | `Omen-Flow-0.2.3-x86_64.AppImage` | `chmod +x Omen-Flow-0.2.3-x86_64.AppImage`, then run it |
+| Ubuntu 22.04+, Debian 12+ | `omen-flow_0.2.4_amd64.deb`       | `sudo apt install ./omen-flow_0.2.4_amd64.deb`          |
+| Fedora 42+                | `omen-flow-0.2.4-1.x86_64.rpm`    | `sudo dnf install ./omen-flow-0.2.4-1.x86_64.rpm`       |
+| Other distributions       | `Omen-Flow-0.2.4-x86_64.AppImage` | `chmod +x Omen-Flow-0.2.4-x86_64.AppImage`, then run it |
 
-The `arm64` files are named the same way (`omen-flow_0.2.3_arm64.deb`,
-`omen-flow-0.2.3-1.aarch64.rpm`, `Omen-Flow-0.2.3-aarch64.AppImage`). The packages install
+The `arm64` files are named the same way (`omen-flow_0.2.4_arm64.deb`,
+`omen-flow-0.2.4-1.aarch64.rpm`, `Omen-Flow-0.2.4-aarch64.AppImage`). The packages install
 **Omen Flow** in the applications menu and the `omen-flow` command, and apt or dnf pulls in
 WebKitGTK and the other libraries. The AppImage needs FUSE 3 (`sudo apt install fuse3`) or
 `APPIMAGE_EXTRACT_AND_RUN=1`. The Linux build has been installed and run in fresh Ubuntu, Debian
@@ -237,7 +237,7 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
 
 ## Limits
 
-- The macOS app (version 0.2.3, identifier `app.omenflow.desktop`, macOS 13.3 or later, Apple
+- The macOS app (version 0.2.4, identifier `app.omenflow.desktop`, macOS 13.3 or later, Apple
   Silicon only) is ad hoc signed, not notarized, so macOS asks you to allow it once (see
   [Install](#macos)). Intel Macs and Windows are not supported by this release.
 - Linux packages (`.deb`, `.rpm`, AppImage; unsigned) are built by `node scripts/linux-package.mjs`
@@ -249,7 +249,7 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
   FUSE (`fuse3`) to mount, or `APPIMAGE_EXTRACT_AND_RUN=1`. Nobody has used them on a real Linux
   desktop: Wayland, GPU drivers, HiDPI and the on-screen look of native dialogs are unverified,
   and Linux x86_64 packages use the same recipe in the release workflow. See
-  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v0.2.3/README.md).
+  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v0.2.4/README.md).
 - The Rust app was verified with automated suites, browser walkthroughs and a QA pass on the Rust
   headless host, and an adversarial review whose fixes each carry a regression test. The release
   bundle was launched only by the packaged smoke and a window check; the last native
@@ -282,7 +282,7 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
   If you go back, check parts again before relying on them, and again when you return. See
   [going back to 0.2.3](docs/project-format.md#going-back-to-023).
 
-Current status and verification numbers: [0.2.3 verification record](audit/v0.2.3/README.md).
+Current status and verification numbers: [0.2.4 verification record](audit/v0.2.4/README.md).
 Releases 0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered on 21 October 2026,
 because Omen Flow is a preview, not a 1.0; the earlier records keep the original numbers.
 Earlier records: [V1 readiness record](audit/v1/README.md), [`audit/`](audit/); [build status](BUILD_STATUS.md) says where the Electron-era
