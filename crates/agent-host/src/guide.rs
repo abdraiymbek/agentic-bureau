@@ -768,18 +768,17 @@ mod tests {
         assert!(compact.len() <= standard.len() && standard.len() < full.len());
         // Codex carries this as one -c value; the verified size was 6.1 KB.
         assert!(largest[2] <= 9_000, "full guidance is {}", largest[2]);
-        // 0.2.4: +2,613 bytes (1,348 to 3,961; cap 1,600 to 4,300) for the CAD
-        // playbook in every brief and the empty project's snapshot: each
-        // playbook read was a model request (about 32,000 cached prompt
-        // tokens for Claude Code), and the CAD path needs no other. The cap
-        // leaves room for the merged groups' CAD lines (recorded in
-        // audit/v0.2.4).
+        // 0.2.4: +2,893 bytes (1,348 to 4,241; cap 1,600 to 4,300) for the CAD
+        // playbook in every brief, with its drawing, picture and STEP lines,
+        // and the empty project's snapshot: each playbook read was a model
+        // request (about 32,000 cached prompt tokens for Claude Code), and the
+        // CAD path needs no other (recorded in audit/v0.2.4).
         assert!(
             compact.len() <= 4_300,
             "compact guidance is {}",
             compact.len()
         );
-        // 0.2.4: new; 6,246 bytes measured with the largest snapshot (2,427).
+        // 0.2.4: new; 6,526 bytes measured with the largest snapshot (2,427).
         assert!(
             largest[0] <= 6_600,
             "compact guidance with the largest snapshot is {}",

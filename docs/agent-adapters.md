@@ -124,7 +124,8 @@ it arrives, while Codex reports completed items.
 - With `conversation.autoContinue` set (Settings → Agents, off by default),
   the host continues a completed turn once per message the person sent, when
   a blocker is one the agent can resolve from the project record (CAD,
-  wiring, a calculation not run, an empty draft) and no job of its sessions
+  including listed items no check asserts, wiring, a calculation not run, an
+  empty draft) and no job of its sessions
   is still running. Sourcing a component and recording a seller offer need
   facts from outside the project and never start one. The continuation is the
   host's own request (`continues.automatic`, request ID `<turn>-auto`); it
@@ -159,9 +160,9 @@ it arrives, while Codex reports completed items.
   the requirements or the review queue are needed; a larger one's says to
   call it first. A resumed session's brief says what it read before may be
   out of date. When the project cannot be read there is no section, and the
-  instructions' first step (call `project_summary`) stands. Measured: 3,961
-  bytes compact, 3,962 standard and 6,222 full with an empty project; with
-  the largest snapshot (2,427 bytes) 6,246, 6,247 and 8,507.
+  instructions' first step (call `project_summary`) stands. Measured: 4,241
+  bytes compact, 4,242 standard and 6,631 full with an empty project; with
+  the largest snapshot (2,427 bytes) 6,526, 6,527 and 8,916.
 - Inherited `OMENFLOW_*` variables are removed, configured variables cannot
   replace the session's credentials, `TERM=xterm-256color`,
   `COLORTERM=truecolor`, and `LANG=en_US.UTF-8` when none is inherited.
@@ -218,14 +219,14 @@ standard; no model → the adapter's default (standard; custom: compact).
 
 | Profile  | Tools listed                                 | Listing as sent to the model | Result cap   |
 | -------- | -------------------------------------------- | ---------------------------- | ------------ |
-| compact  | 15 core tools: summary + compact schema      | 7,282 chars                  | 6,000 chars  |
-| standard | 45: description + input schema (no overlays) | 60,088 chars                 | 16,000 chars |
-| full     | 60: description + input schema               | 67,267 chars                 | 32,000 chars |
+| compact  | 15 core tools: summary + compact schema      | 8,399 chars                  | 6,000 chars  |
+| standard | 45: description + input schema (no overlays) | 62,063 chars                 | 16,000 chars |
+| full     | 60: description + input schema               | 70,469 chars                 | 32,000 chars |
 
 Sizes are `name`, `description`, `inputSchema` as compact JSON, measured on
 the registry of this build by the agent host's
 `listing_sizes_stay_within_their_budgets` test; with `title` and
-`annotations` the `tools/list` payloads are 9,220, 65,986 and 74,993
+`annotations` the `tools/list` payloads are 10,337, 67,961 and 78,322
 characters. Only compact uses the compact schema overlays, as the
 TypeScript `toolListing` does. Listed schemas drop `$schema`,
 `additionalProperties: false` and `idempotencyKey` (still accepted when
@@ -329,7 +330,10 @@ the text block, only when it is a picture file in that folder with the
 recorded hash; it marks the entry `attached: true` or `false` and says why in
 `notes`. A picture is at most 1 MiB and a reply carries at most one, so the
 base64 stays far below the 8 MiB frame. Picture bytes never enter the JSON,
-the structured content, the ledger or an `omenflow call` reply.
+the structured content, the ledger or an `omenflow call` reply. In the
+conversation pane, the CLI's stream carries the picture again in its
+tool-result record; the host reads that record to its end without keeping it
+(the stream limits above), so a picture never reaches the conversation record.
 
 - **Claude Code** gives the model every non-text block of a result before
   the text (the JSON of `structuredContent`), so the picture reaches the

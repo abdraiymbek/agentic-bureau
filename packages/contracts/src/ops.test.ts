@@ -484,18 +484,17 @@ describe('listing budgets', () => {
     JSON.stringify(toolListing(profile)).length;
 
   it('keeps the compact tools list within 8,500 characters', () => {
-    // 0.2.4: +992 chars for cad_view and image_view, +937 for spec items in the compact cad_check overlay, +141 for write-and-check (recorded in audit/v0.2.4)
+    // 0.2.4: raised from 7,000 to 8,500 for cad_view and image_view, cad_check spec items and write-and-check expect, measured 8,399 (recorded in audit/v0.2.4)
     expect(size('compact')).toBeLessThanOrEqual(8500);
   });
 
   // Ceilings a little above the measured sizes, so that growth is a decision.
-  // The merged V1 registry (CAD short forms, paging, BOM, wiring and test
-  // inputs) measures 64,363 standard and 72,457 full characters.
+  // The 0.2.4 registry measures 69,358 standard and 79,336 full characters.
   it('bounds the standard and full tools lists', () => {
-    // 0.2.4: +2,761 chars for cad_view and image_view, +985 for cad_check spec items (recorded in audit/v0.2.4)
-    expect(size('standard')).toBeLessThanOrEqual(69_800);
-    // 0.2.4: +1,427 chars for cad_export and the STEP converter, +2,761 for cad_view and image_view, +985 for cad_check spec items (recorded in audit/v0.2.4)
-    expect(size('full')).toBeLessThanOrEqual(79_400);
+    // 0.2.4: raised from 66,000 to 70,000 for cad_view and image_view, cad_check spec items and write-and-check expect, measured 69,358 (recorded in audit/v0.2.4)
+    expect(size('standard')).toBeLessThanOrEqual(70_000);
+    // 0.2.4: raised from 74,000 to 80,000 for cad_export, cad_view and image_view, cad_check spec items and write-and-check expect, measured 79,336 (recorded in audit/v0.2.4)
+    expect(size('full')).toBeLessThanOrEqual(80_000);
   });
 });
 

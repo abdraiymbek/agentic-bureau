@@ -16,6 +16,7 @@ contains (observed on a project built with `pnpm fixture:rover`):
     state.sqlite (-wal, -shm)   the engineering record (SQLite, WAL mode)
     objects/<xx>/<sha256>       immutable content-addressed files
     work/<sessionId>/           one folder per agent session (below)
+    chat/conversations.json     the conversation pane's turns and the host's gate records
     recovery/                   rename journal, idempotency result journals
     cache/render-rust-v1/       render results by input fingerprint (regenerable)
     cache/views-v1/             pictures drawn by cad_view and image_view (regenerable)
@@ -70,7 +71,13 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
 - the sidecar files under `.omenflow/work/` and `.omenflow/cache/`, including the pictures in
   `.omenflow/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
   drawn for an agent by `cad_view` and `image_view`. They are never read back as a cache, are
-  pruned to the newest 256 files and 128 MiB, and an earlier build ignores the folder.
+  pruned to the newest 256 files and 128 MiB, and an earlier build ignores the folder;
+- in `.omenflow/chat/conversations.json`, turn fields `gate` (the host's completion-gate
+  record), `continues`, `model`, `resolvedModel`, `usage` (tokens only) and
+  `cliConversationId` (0.2.4); turn keys a later build adds are kept on save, and an earlier
+  build drops these fields when it saves the conversation again;
+- `alsoRan` in `calls.jsonl` records (0.2.4): what the host also ran inside the call, such as
+  the check a write with `expect` ran.
 
 `cad.export` records an event and, for STEP, a job, so it now counts as a change: a project
 opened read-only refuses it with `READ_ONLY`, where earlier builds copied STL and SCAD files
@@ -95,11 +102,11 @@ including through symlinks, are refused, and working files can never be written 
 
 `.omenflow/work/<sessionId>/` holds two kinds of files:
 
-| File                                                             | Lifetime                                               | Contents                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mcp.json` (Claude Code), `guide.md`, `gemini.json`, `qwen.json` | Written `0600` at start, removed when the session ends | The CLI's MCP configuration and guidance. Claude Code's `mcp.json` contains the session's bridge token; the others reference the variables                                                                                                 |
-| `calls.jsonl`                                                    | Kept                                                   | One `AgentCallRecord` per agent call: `seq`, `at`, `projectId`, `sessionId`, `tool`, `op`, `via`, `ok`, `code`, `message` (one line, at most 300 characters), `durationMs`, `mutating`, `artifactIds` (at most 8), `notes` (input repairs) |
-| `session.json`                                                   | Kept                                                   | The session summary: `sessionId`, `adapterId`, `model`, `profile`, `startedAt`, `endedAt`                                                                                                                                                  |
+| File                                                             | Lifetime                                               | Contents                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp.json` (Claude Code), `guide.md`, `gemini.json`, `qwen.json` | Written `0600` at start, removed when the session ends | The CLI's MCP configuration and guidance. Claude Code's `mcp.json` contains the session's bridge token; the others reference the variables                                                                                                            |
+| `calls.jsonl`                                                    | Kept                                                   | One `AgentCallRecord` per agent call: `seq`, `at`, `projectId`, `sessionId`, `tool`, `op`, `via`, `ok`, `code`, `message` (one line, at most 300 characters), `durationMs`, `mutating`, `artifactIds` (at most 8), `notes` (input repairs), `alsoRan` |
+| `session.json`                                                   | Kept                                                   | The session summary: `sessionId`, `adapterId`, `model`, `profile`, `startedAt`, `endedAt`                                                                                                                                                             |
 
 The ledger loads these files the first time a project's activity is read or a session starts
 (the newest 200 session folders; the latest 2,000 records stay in memory), so the activity rail

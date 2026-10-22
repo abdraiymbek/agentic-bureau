@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { workStatusKinds } from '@omenflow/contracts';
 import {
   VOCABULARY,
   stateLabel,
@@ -41,6 +42,10 @@ describe('state vocabulary', () => {
       label: 'Requirement unchecked',
       tone: 'neutral',
     });
+  });
+
+  it('has its own words for every kind work_status reports', () => {
+    for (const kind of workStatusKinds) expect(VOCABULARY.work).toHaveProperty(kind);
   });
 
   it('names listed CAD items apart from the verification they belong to', () => {

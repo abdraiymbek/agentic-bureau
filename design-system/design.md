@@ -502,7 +502,7 @@ All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled
 | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `Mark`, `Brand`      | Identity                                                                                                         |
 | `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types                                        |
-| `State`, `Pulse`     | Labelled state by dimension (`ui/vocabulary.ts`; `spec` for listed CAD items); live pulse for running things     |
+| `State`, `Pulse`     | Labelled state by dimension (`ui/vocabulary.ts`; `spec` for listed CAD items, `work` for the gate); live pulse   |
 | `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`; `busy` keeps its width; `shortcut`  |
 | `IconButton`         | Named icon-only action, 26 / 32 / 38 px; the label is its accessible name and its tooltip; `pressed`, `shortcut` |
 | `Tooltip`            | Names a control on hover and when Tab reaches it; `TooltipProvider` wraps the application                        |

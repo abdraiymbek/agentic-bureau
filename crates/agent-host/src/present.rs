@@ -924,14 +924,14 @@ mod tests {
         let sizes = Profile::ALL.map(model_facing_size);
         let wire = Profile::ALL.map(|profile| chars(&Value::Array(tool_listing(profile))));
         println!("model-facing listing chars (compact, standard, full): {sizes:?}; on the wire: {wire:?}");
-        // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
+        // 0.2.4: raised from 7,500 to 8,500 for cad_view and image_view, cad_check spec items and write-and-check expect, measured 8,399 (recorded in audit/v0.2.4)
         assert!(sizes[0] <= 8_500, "compact listing is {}", sizes[0]);
         // Standard lists full input schemas, as the contract's own listing
-        // budget does (packages/contracts ops.test.ts: 68,800 on the wire).
-        // 0.2.4: +2,570 chars for cad_view and image_view (recorded in audit/v0.2.4)
+        // budget does (packages/contracts ops.test.ts: 70,000 on the wire).
+        // 0.2.4: raised from 60,000 to 62,600 for cad_view and image_view, cad_check spec items and write-and-check expect, measured 62,063 (recorded in audit/v0.2.4)
         assert!(sizes[1] <= 62_600, "standard listing is {}", sizes[1]);
-        // 0.2.4: +2,570 chars for cad_view and image_view, +956 for cad_check spec items, +791 for write-and-check (recorded in audit/v0.2.4)
-        assert!(sizes[2] <= 70_800, "full listing is {}", sizes[2]);
+        // 0.2.4: raised from 66,000 to 71,000 for cad_export, cad_view and image_view, cad_check spec items and write-and-check expect, measured 70,469 (recorded in audit/v0.2.4)
+        assert!(sizes[2] <= 71_000, "full listing is {}", sizes[2]);
         assert!(sizes[0] < sizes[1] && sizes[1] < sizes[2]);
         // Title and annotations are for the client, at a fixed cost per tool.
         for (profile, (model, wire)) in Profile::ALL.into_iter().zip(sizes.into_iter().zip(wire)) {

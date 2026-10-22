@@ -591,7 +591,7 @@ fn each_profile_gets_its_instructions_and_its_tool_list() {
     for (profile, tool_count) in [
         (Profile::Compact, 15),
         (Profile::Standard, 45),
-        (Profile::Full, 59),
+        (Profile::Full, 60),
     ] {
         let (token, _) = workspace.grant(profile);
         let mut client = McpClient::connect(&workspace.bridge, &token, "mcp");
@@ -653,7 +653,7 @@ fn each_profile_gets_its_instructions_and_its_tool_list() {
     println!(
         "compact tools/list: {compact} chars to the model; on the wire by profile: {wire_sizes:?}"
     );
-    // 0.2.4: +992 chars for cad_view and image_view (recorded in audit/v0.2.4)
+    // 0.2.4: raised from 7,500 to 8,500 for cad_view and image_view, cad_check spec items and write-and-check expect, measured 8,399 (recorded in audit/v0.2.4)
     assert!(compact <= 8_500, "compact tools/list is {compact} chars");
     assert!(wire_sizes[0] < wire_sizes[1] && wire_sizes[1] < wire_sizes[2]);
 

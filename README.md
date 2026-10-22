@@ -133,9 +133,8 @@ Closing a project stops its agent. A project written by a newer build opens read
   project held at launch in its session brief, other playbooks on demand (`guide_read`), a part
   written and checked in one call, reported input repairs and a server-owned completion gate
   (`work_status`). A large model keeps the full surface of 60 tools. Verification rules are the
-  same in every
-  profile, and every agent-allowed operation stays callable through `tool_call`. Details:
-  [agent adapters](docs/agent-adapters.md).
+  same in every profile, and every agent-allowed operation stays callable through `tool_call`.
+  Details: [agent adapters](docs/agent-adapters.md).
 - **The agent can see.** `cad_view` draws a part as a drawing sheet (front, top and right views
   at one scale with hidden edges dashed, an isometric view and filled cross-sections), and
   `image_view` shows a drawing in the project with a labelled grid or enlarges a region of it

@@ -429,47 +429,46 @@ mod tests {
 
     /// A checked write's example is in its description, its `example` and
     /// every VALIDATION reply about its expect, so an agent that copies it
-    /// must not be refused again. While cad_check's schema has no
-    /// `expect.spec`, the example's one refusal is pinned here; once it has
-    /// one, the example must pass, so the two cannot drift apart unnoticed.
+    /// must not be refused again: each one's expect is the spec form
+    /// cad_check accepts, and the description shows the same expect.
     #[test]
     fn every_checked_write_example_is_an_expect_cad_check_accepts() {
-        let takes_spec = check_op().input_schema["properties"]["expect"]["properties"]
-            .get("spec")
-            .is_some();
+        assert!(
+            check_op().input_schema["properties"]["expect"]["properties"]
+                .get("spec")
+                .is_some(),
+            "cad_check takes expect.spec"
+        );
         let mut shown = 0;
         for name in CHECKED_WRITES {
             let op = registry().operation(name).unwrap();
-            let Some(mut example) = op.example.clone() else {
+            let Some(example) = op.example.clone() else {
                 continue;
             };
             if example.get("expect").is_none() {
                 continue;
             }
             shown += 1;
-            let mut trace = CallTrace {
-                op: name.to_owned(),
-                mutating: true,
-                input: Value::Null,
-                notes: Vec::new(),
-                images: Vec::new(),
-                also_ran: Vec::new(),
-            };
-            let taken = take_expect(op, &mut example, &mut trace);
-            if takes_spec {
-                let expect = taken.unwrap_or_else(|error| panic!("{name}'s example: {error:?}"));
+            let described = op
+                .description
+                .split_once("Example: ")
+                .map(|(_, json)| serde_json::from_str::<Value>(json).unwrap());
+            if let Some(described) = &described {
+                assert_eq!(described["expect"], example["expect"], "{name}");
+            }
+            for mut input in [Some(example), described].into_iter().flatten() {
+                let mut trace = CallTrace {
+                    op: name.to_owned(),
+                    mutating: true,
+                    input: Value::Null,
+                    notes: Vec::new(),
+                    images: Vec::new(),
+                    also_ran: Vec::new(),
+                };
+                let expect = take_expect(op, &mut input, &mut trace)
+                    .unwrap_or_else(|error| panic!("{name}'s example: {error:?}"));
                 assert!(expect.is_some_and(|expect| expect.get("spec").is_some()));
-                assert!(example.get("expect").is_none(), "taken out of the write");
-            } else {
-                let error = taken.expect_err("a cad_check without spec refuses the spec form");
-                assert_eq!(error.code, "VALIDATION");
-                let paths = error.details.as_deref().unwrap()["issues"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|issue| issue["path"].clone())
-                    .collect::<Vec<_>>();
-                assert_eq!(paths, [json!("expect.spec")], "{name}");
+                assert!(input.get("expect").is_none(), "taken out of the write");
             }
         }
         assert!(shown > 0, "cad_write_source's example shows expect");
@@ -731,5 +730,57 @@ mod engine_tests {
             (&json!("tool_call"), &json!("cad.set_param"))
         );
         assert_eq!(recorded["alsoRan"].as_array().unwrap().len(), 2);
+    }
+
+    /// A spec item without an assertion commits the check as partial: the
+    /// passing assertions bind, and the digest is not ready and names the
+    /// item through its own next call.
+    #[test]
+    fn a_partial_check_gives_a_digest_that_names_the_missing_item() {
+        let (workspace, engine) = setup("Partial digest");
+        let mut client = workspace.mcp(Profile::Compact);
+        let missing = "Ø4 hole through the middle";
+        let partial = client.call(
+            "cad_write_source",
+            json!({"title": "Box", "source": "cube([20, 10, 2]);", "expect": {"bodies": 1, "spec": [
+                {"item": "box 20 x 10 x 2 mm", "size": [20, 10, 2]},
+                {"item": missing}]}}),
+        );
+        assert!(!partial.is_error, "{}", partial.text);
+        let body = &partial.body;
+        assert_eq!(body["check"]["committed"], true, "{}", partial.text);
+        assert_eq!(
+            (&body["ready"], &body["verificationStatus"]),
+            (&json!(false), &json!("partial"))
+        );
+        let status = &body["workStatus"];
+        assert_eq!(status["ready"], false, "{}", partial.text);
+        let blocker = &status["blockers"][0];
+        assert_eq!(
+            (&blocker["kind"], &blocker["artifactId"]),
+            (&json!("cad_spec_unasserted"), &body["artifactId"])
+        );
+        assert_eq!(blocker["next"]["tool"], "cad_check");
+        let items = blocker["next"]["args"]["expect"]["spec"]
+            .as_array()
+            .unwrap();
+        assert!(
+            items.iter().any(|item| item["item"] == missing),
+            "the next call carries the item to assert: {blocker}"
+        );
+        assert!(blocker["next"]["why"].as_str().unwrap().contains(missing));
+        assert_eq!(
+            status["summary"],
+            "1 part has items its committed check does not show."
+        );
+        // The reply's own next is the same repair, never another work_status.
+        assert_eq!(body["next"]["tool"], "cad_check");
+        assert!(body["next"]["why"].as_str().unwrap().contains(missing));
+        assert_eq!(engine.renders(), 1);
+        assert_eq!(
+            workspace.last_recorded()["alsoRan"][1],
+            json!({"tool": "work_status", "op": "work.status", "ok": true, "scope": "session",
+                   "ready": false, "blockers": 1})
+        );
     }
 }

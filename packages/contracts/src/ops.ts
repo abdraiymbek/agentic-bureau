@@ -630,7 +630,9 @@ const sectionRequest = z.object({
 const inlineExpect = z
   .record(z.unknown())
   .optional()
-  .describe('cad_check expect from the request (spec items), checked in this call.');
+  .describe(
+    'cad_check expect from the request (spec items), checked in this call; committed when every assertion passes.',
+  );
 
 const cadWriteSource = z.object({
   expectedRevisionId: idSchema
@@ -760,7 +762,7 @@ const cadCheck = z.object({
   expect: expectationSchema
     .optional()
     .describe(
-      'What must be true of the part, taken from the request: size, bodies and holes, or envelope, volume, points and cross-sections for more detail.',
+      "What must be true of the part, from the request: bodies 1, and in spec one item per requested dimension or feature, in the request's words, with the assertions that show it.",
     ),
   requirementIds: z
     .array(idSchema)
@@ -1353,7 +1355,9 @@ const cadWriteSourceCompact = z.object({
   expect: z
     .record(z.unknown())
     .optional()
-    .describe('cad_check expect from the request (spec items), checked in this call.'),
+    .describe(
+      'cad_check expect from the request (spec items), checked in this call; committed when every assertion passes.',
+    ),
 });
 const cadReadSourceCompact = z.object({ artifactId: z.string() });
 const cadCheckCompact = z.object({
@@ -2001,7 +2005,7 @@ export const OPS: OpDef[] = [
     cadWriteSource,
     'both',
     true,
-    'Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change. With expect it also checks the saved revision in the same call (cad_check with autoCommit); without it, verify with cad_check. Example: {"title":"Motor mount plate","source":"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}","expect":{"bodies":1,"spec":[{"item":"plate 40 x 30 x 5 mm","size":[40,30,5]},{"item":"Ø4 hole at (10, 10)","holes":[{"at":[10,10,2.5],"d":4}]}]}}',
+    'Create a part (give title) or revise one (give artifactId) from complete OpenSCAD source. Saves the source as a new draft revision, renders it with OpenSCAD and returns a measured geometry report: envelope, volume, watertightness, body count, mid-plane cross-sections with holes and outlines, detected parameters and render warnings. Use it for every geometry change. With expect it also checks the saved revision in the same call, as cad_check with autoCommit: committed when every assertion passes, items without assertions stay partial; without it, verify with cad_check. Example: {"title":"Motor mount plate","source":"$fn = 64;\\ndifference() {\\n  cube([40, 30, 5]);\\n  translate([10, 10, -1]) cylinder(d = 4, h = 7);\\n}","expect":{"bodies":1,"spec":[{"item":"plate 40 x 30 x 5 mm","size":[40,30,5]},{"item":"Ø4 hole at (10, 10)","holes":[{"at":[10,10,2.5],"d":4}]}]}}',
     {
       tier: 'core',
       summary:

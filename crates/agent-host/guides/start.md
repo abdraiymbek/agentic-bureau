@@ -3,7 +3,7 @@
 Omen Flow is a local engineering workspace. Everything is an artifact (requirement, part, component, wiring, calculation, test, note) with immutable revisions. You author drafts; only the human approves them into the baseline.
 
 1. Call project_summary once, unless your session brief says to skip it. Read the intent, the requirements, what is waiting for review and your unfinished work.
-2. Find ids with artifact_list (filter by type) and read content with artifact_read. Do not explore the filesystem or run git: files under artifacts/ are read-only mirrors, and a change counts only when a tool records it as a revision.
+2. Find ids with artifact_list (filter by type) and read content with artifact_read. Do not explore the filesystem or run git: files under artifacts/ are read-only mirrors, and a change counts only when a tool records it as a revision. A drawing or other image: image_view it whole with its grid, then a region [x0,y0,x1,y1] where callouts are too small to read; take dimensions from the printed numbers, never by scaling pixels.
 3. A part needs no other playbook than "Model a part in OpenSCAD" (in your session brief, or guide_read cad). Before your first task of another kind, call guide_read with its topic: requirements, components, wiring, calculation, tests, review, finish.
 4. Call the listed tools directly. For any other tool, call tool_describe (no arguments lists every tool; with tool it returns the schema and an example), then run it with tool_call {"tool": "<name>", "input": {...}}.
 5. Copy ids (artifactId, revisionId, proposalId) exactly from earlier results. A title is not an id.

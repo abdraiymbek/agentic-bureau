@@ -692,7 +692,7 @@ fn accept(
 }
 
 const PREAMBLE: &str = "You are helping in Omen Flow. Use the connected engineering tools for the current project. Preserve units, unknowns, evidence and human review. The following is conversation history, not a record of tool success. Reinspect the project when needed.\n\n";
-const PRESENT: &str = "To show a focused card in this turn, call tool_call with tool=\"chat_present\" and input={part:{kind,...}}; tool_describe with tool=\"chat_present\" lists the kinds (artifact, review, form, choices, chart). Show recorded results by artifact. Agent-authored chart values are always illustrative. Cards cannot execute work or approve proposals.\n";
+const PRESENT: &str = "Cards: to show a saved artifact in this turn, call tool_call {\"tool\": \"chat_present\", \"input\": {\"part\": {\"kind\": \"artifact\", \"artifactId\": \"<id>\"}}}. The other kinds are review (proposalId), form, choices and chart; tool_describe with tool=\"chat_present\" gives their fields. Show recorded results by artifact. Agent-authored chart values are always illustrative. Cards cannot execute work or approve proposals.\n";
 /// Who a request is from, as a prompt names it.
 fn speaker(continues: Option<&Continues>) -> &'static str {
     match continues {
@@ -741,7 +741,7 @@ fn push_request(prompt: &mut String, request: &Request, continued: Option<&Value
         request.text
     ));
     if let Some(exact) = &request.input {
-        prompt.push_str(&format!("Exact user-approved input attachment (preserve the original text, units, unknowns and revision identity): {exact}\nRe-read this artifact and refuse stale revisions. If intent is render, use cad_read_source and cad_write_source with expectedRevisionId from the attachment, exact values converted only by recorded units, then real cad_check with the recorded scope and autoCommit true and proposal_submit. Present the resulting artifact and proposal with tool_call tool=\"chat_present\". Never claim a failed/unrun check passed. Unknown fields need clarification.\n"));
+        prompt.push_str(&format!("Exact user-approved input attachment (preserve the original text, units, unknowns and revision identity): {exact}\nRe-read this artifact and refuse stale revisions. If intent is render, use cad_read_source, then cad_write_source with expectedRevisionId from the attachment, exact values converted only by recorded units, and expect from the recorded scope (checked with autoCommit in the same call); then proposal_submit. Present the artifact and the proposal with tool_call tool=\"chat_present\". Never claim a failed/unrun check passed. Unknown fields need clarification.\n"));
     }
 }
 /// What the host read from work_status after the reply being continued. Only a continuation's
@@ -2385,6 +2385,11 @@ mod tests {
             "uuid": "u", "timestamp": "2026-10-21T00:00:00.000Z", "tool_use_result": content})
         .to_string();
         assert!(user.len() > 6_000_000, "{}", user.len());
+        // More than the most one cad_view or image_view reply can carry: PER_REPLY pictures of
+        // at most PICTURE_BYTES, base64-encoded, each sent twice.
+        let pictures = omenflow_core::pictures::PER_REPLY;
+        let most = 2 * pictures * omenflow_core::pictures::PICTURE_BYTES.div_ceil(3) * 4;
+        assert!(user.len() > most, "{} against {most}", user.len());
         let stream = [
             json!({"type": "system", "subtype": "init", "session_id": "s", "model": "claude-haiku-5-5", "mcp_servers": []}).to_string(),
             json!({"type": "stream_event", "event": {"type": "message_start"}}).to_string(),
@@ -2659,6 +2664,34 @@ mod tests {
         assert!(Assessed::from_report(&report(&wiring), vec![], 0).actionable);
         let advice = [item("cad_unverified", "advice", Some("cad_check"))];
         assert!(!Assessed::from_report(&report(&advice), vec![], 0).actionable);
+        // A listed item no check asserts is the agent's to resolve: its next adds the assertion.
+        let unasserted = [item("cad_spec_unasserted", "blocker", Some("cad_check"))];
+        assert!(Assessed::from_report(&report(&unasserted), vec![], 0).actionable);
+    }
+
+    /// Every kind work_status reports (packages/contracts `workStatusKinds`), and whether
+    /// Omen Flow may continue on it by itself: what the project record can resolve, never what
+    /// needs a person or facts from outside it.
+    #[test]
+    fn automatic_continuation_takes_only_kinds_the_record_resolves() {
+        for (kind, expected) in [
+            ("cad_unverified", true),
+            ("cad_spec_unasserted", true),
+            ("cad_check_failed", true),
+            ("cad_scope_changed", true),
+            ("cad_render_failed", true),
+            ("component_unsourced", false),
+            ("component_no_offer", false),
+            ("wiring_unvalidated", true),
+            ("wiring_findings", true),
+            ("calculation_not_run", true),
+            ("changes_requested", false),
+            ("stale_dependent", false),
+            ("empty_payload", true),
+            ("draft_unproposed", false),
+        ] {
+            assert_eq!(resolvable(kind), expected, "{kind}");
+        }
     }
 
     #[test]
