@@ -44,11 +44,115 @@ const AXES: [&str; 3] = ["x", "y", "z"];
 fn r3(v: f64) -> f64 {
     (v * 1000.0).round() / 1000.0
 }
+/// The grid segment ends are joined on, and the farthest apart two ends
+/// that no key joins may be to join.
+const STEP: f64 = 1e-6;
 fn key(p: P2) -> (i64, i64) {
-    ((p[0] / 1e-6).round() as i64, (p[1] / 1e-6).round() as i64)
+    ((p[0] / STEP).round() as i64, (p[1] / STEP).round() as i64)
 }
 fn distance(a: P2, b: P2) -> f64 {
     (a[0] - b[0]).hypot(a[1] - b[1])
+}
+/// The two ends of an edge in one fixed order, whichever way a triangle
+/// walks it.
+fn ordered(p: [f64; 3], q: [f64; 3]) -> ([f64; 3], [f64; 3]) {
+    let later = p
+        .iter()
+        .zip(&q)
+        .map(|(a, b)| a.total_cmp(b))
+        .find(|order| order.is_ne())
+        == Some(std::cmp::Ordering::Greater);
+    if later {
+        (q, p)
+    } else {
+        (p, q)
+    }
+}
+
+/// Join segments end to end: the closed loops, as points, and how many
+/// chains stayed open. Ends join by their rounded key. An end with nothing
+/// left at its key joins the nearest end within one step instead, or closes
+/// its loop when that is the start: a crossing that falls on a rounding
+/// boundary, computed a hair to either side, still meets its twin.
+fn chain(segments: &[(P2, P2)]) -> (Vec<Vec<P2>>, usize) {
+    let mut by_end = HashMap::<(i64, i64), Vec<usize>>::new();
+    for (i, (a, b)) in segments.iter().enumerate() {
+        by_end.entry(key(*a)).or_default().push(i);
+        by_end.entry(key(*b)).or_default().push(i);
+    }
+    // The nearest end of an unused segment within one step of `point`:
+    // its distance, the segment, and whether it is the segment's first end.
+    let near = |point: P2, used: &[bool]| {
+        let (x, y) = key(point);
+        let mut best: Option<(f64, usize, bool)> = None;
+        for cell in (-1..=1).flat_map(|dx| (-1..=1).map(move |dy| (x + dx, y + dy))) {
+            for &j in by_end.get(&cell).into_iter().flatten() {
+                if used[j] {
+                    continue;
+                }
+                for (first, end) in [(true, segments[j].0), (false, segments[j].1)] {
+                    let gap = distance(point, end);
+                    if gap <= STEP && best.is_none_or(|(nearest, _, _)| gap < nearest) {
+                        best = Some((gap, j, first));
+                    }
+                }
+            }
+        }
+        best
+    };
+    let mut used = vec![false; segments.len()];
+    let mut closed = Vec::new();
+    let mut open_chains = 0;
+    for i in 0..segments.len() {
+        if used[i] {
+            continue;
+        }
+        used[i] = true;
+        let (start, mut current) = segments[i];
+        let mut path = vec![start, current];
+        let mut done = false;
+        for _ in 0..=segments.len() {
+            let ck = key(current);
+            if ck == key(start) {
+                done = true;
+                break;
+            }
+            let exact = by_end
+                .get(&ck)
+                .and_then(|list| list.iter().find(|&&j| !used[j]))
+                .map(|&j| (j, key(segments[j].0) == ck));
+            let next = match exact {
+                Some(next) => next,
+                None => {
+                    let back = distance(current, start);
+                    match near(current, &used) {
+                        Some((gap, j, first)) if gap < back => (j, first),
+                        _ if back <= STEP => {
+                            done = true;
+                            break;
+                        }
+                        Some((_, j, first)) => (j, first),
+                        None => break,
+                    }
+                }
+            };
+            let (j, from_first) = next;
+            used[j] = true;
+            current = if from_first {
+                segments[j].1
+            } else {
+                segments[j].0
+            };
+            path.push(current);
+        }
+        if done {
+            path.pop();
+            closed.push(path);
+        } else {
+            open_chains += 1;
+        }
+    }
+    (closed, open_chains)
 }
 fn area(points: &[P2]) -> f64 {
     points
@@ -252,8 +356,10 @@ impl Section {
         for triangle in &mesh.triangles {
             let mut points = Vec::new();
             for e in 0..3 {
-                let p = triangle[e];
-                let q = triangle[(e + 1) % 3];
+                // The two triangles that share an edge walk it in opposite
+                // directions; taking its ends in one order gives both the
+                // same crossing to the last bit, so they join.
+                let (p, q) = ordered(triangle[e], triangle[(e + 1) % 3]);
                 let pa = distance_to_plane(p);
                 let qa = distance_to_plane(q);
                 if (pa > 0.0 && qa > 0.0) || (pa < 0.0 && qa < 0.0) || pa == qa {
@@ -271,51 +377,12 @@ impl Section {
                 segments.push((points[0], points[1]));
             }
         }
-        let mut by_end = HashMap::<(i64, i64), Vec<usize>>::new();
-        for (i, (a, b)) in segments.iter().enumerate() {
-            by_end.entry(key(*a)).or_default().push(i);
-            by_end.entry(key(*b)).or_default().push(i);
-        }
-        let mut used = vec![false; segments.len()];
-        let mut paths = Vec::new();
-        let mut open_chains = 0;
-        for i in 0..segments.len() {
-            if used[i] {
-                continue;
-            }
-            used[i] = true;
-            let mut path = vec![segments[i].0, segments[i].1];
-            let mut current = segments[i].1;
-            let start = key(segments[i].0);
-            let mut closed = false;
-            for _ in 0..=segments.len() {
-                let ck = key(current);
-                if ck == start {
-                    closed = true;
-                    break;
-                }
-                let next = by_end
-                    .get(&ck)
-                    .and_then(|list| list.iter().find(|&&j| !used[j]))
-                    .copied();
-                let Some(j) = next else {
-                    break;
-                };
-                used[j] = true;
-                let (a, b) = segments[j];
-                current = if key(a) == ck { b } else { a };
-                path.push(current);
-            }
-            if closed {
-                path.pop();
-                let simple = simplify(path);
-                if simple.len() >= 3 {
-                    paths.push(simple);
-                }
-            } else {
-                open_chains += 1;
-            }
-        }
+        let (closed, open_chains) = chain(&segments);
+        let paths = closed
+            .into_iter()
+            .map(simplify)
+            .filter(|simple| simple.len() >= 3)
+            .collect::<Vec<_>>();
         let mut loops = Vec::new();
         for points in paths {
             let signed = area(&points);
@@ -607,6 +674,55 @@ mod tests {
             simplify(points),
             vec![[corner, 0.0], [0.0, 0.0], [0.0, 6.0], [corner, 6.0]]
         );
+    }
+
+    /// The box x 0..7.5, y 10..50, z 0..6 with its bottom and top faces
+    /// split along the diagonal from (7.5, 10) to (0, 50), as the plate of a
+    /// reported cad_view was: the corner at (0, 50) to the first vertex of a
+    /// Ø5 hole at (5, 10).
+    fn diagonal_box() -> Vec<mesh::Triangle> {
+        cuboid([0.0, 10.0, 0.0], [7.5, 50.0, 6.0], false)
+            .into_iter()
+            .map(|triangle| triangle.map(|p| [7.5 - p[0], p[1], p[2]]))
+            .collect()
+    }
+
+    #[test]
+    fn a_crossing_on_a_rounding_boundary_still_closes_its_loop() {
+        // y = 25.001 crosses the diagonal at x = 7.5 × 24.999 / 40 =
+        // 4.6873125, a half-micron: the two triangles that share the edge
+        // walk it in opposite directions, and one of them computed
+        // 4.687312499999999, which rounded to the neighbouring key.
+        let cut = Section::from_mesh(&mesh(diagonal_box()), 1, 25.001);
+        assert_eq!((cut.loops.len(), cut.open_chains), (1, 0));
+        let outline = &cut.loops[0];
+        assert_eq!(outline.rectangle.as_ref().unwrap().size, [7.5, 6.0]);
+        assert!((cut.material_area - 45.0).abs() < 1e-9);
+        assert_eq!(
+            cut.report(None)["loops"],
+            json!(["material rectangle 7.5×6 centered (x=3.75, z=3)"])
+        );
+    }
+
+    #[test]
+    fn ends_a_hair_apart_across_a_key_boundary_join_and_ends_farther_apart_do_not() {
+        // 4.6873125 / 1e-6 rounds up, 4.687312499999999 / 1e-6 down.
+        let (a, twin) = ([4.687_312_5, 0.0], [4.687_312_499_999_999, 0.0]);
+        assert_ne!(key(a), key(twin));
+        let (top, origin, left) = ([4.687_312_5, 3.0], [0.0, 0.0], [0.0, 3.0]);
+        // Inside the chain…
+        let (closed, open) = chain(&[(origin, a), (twin, top), (top, left), (left, origin)]);
+        assert_eq!((closed.len(), open), (1, 0));
+        assert_eq!(closed[0].len(), 4);
+        // …and where it closes on its start.
+        let (closed, open) = chain(&[(a, origin), (origin, left), (left, top), (top, twin)]);
+        assert_eq!((closed.len(), open), (1, 0));
+        assert_eq!(closed[0], vec![a, origin, left, top]);
+        // A gap wider than one step stays open, as before: the chain is
+        // walked from each side of it.
+        let gap = [4.687_32, 0.0];
+        let (closed, open) = chain(&[(origin, a), (gap, top), (top, left), (left, origin)]);
+        assert_eq!((closed.len(), open), (0, 2));
     }
 
     #[test]

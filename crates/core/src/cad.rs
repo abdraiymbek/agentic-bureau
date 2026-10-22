@@ -1419,19 +1419,23 @@ impl MeshSource {
         })
     }
 
-    /// Open the render job, when this source needs the engine.
+    /// Open the render job, when this source needs the engine. The job
+    /// names the operation it renders for (`for`): such a render commits
+    /// nothing to the part, so it does not bring the part into a session's
+    /// work (`gate::touched_by`).
     fn open(
         &mut self,
         handle: &ProjectHandle,
         revision: &Value,
         origin: &Origin,
+        op: &str,
     ) -> CoreResult<()> {
         if let Self::Render { request, job_id } = self {
             *job_id = jobs::start(
                 handle,
                 "cad_render",
                 "openscad",
-                &json!({"artifactId": revision["artifactId"], "revisionId": revision["id"], "params": request.params}),
+                &json!({"artifactId": revision["artifactId"], "revisionId": revision["id"], "params": request.params, "for": op}),
                 &json!({"source": request.source_hash}),
                 origin,
             )?;
@@ -1566,7 +1570,7 @@ pub(super) fn inspect(handle: &ProjectHandle, input: &Value, origin: &Origin) ->
         shown.extend(overrides.as_object().cloned().unwrap_or_default());
         let list = |key: &str| input[key].as_array().cloned().unwrap_or_default();
         let mut mesh = MeshSource::plan(&revision, &source, &overrides, render::timeout_ms(input))?;
-        mesh.open(handle, &revision, origin)?;
+        mesh.open(handle, &revision, origin, "cad.inspect")?;
         Ok(Box::new(InspectPipeline {
             mesh,
             parameters: effective_parameters(&source, &Value::Object(shown)),
@@ -1643,7 +1647,8 @@ struct CheckPipeline {
     params: Value,
     variant: bool,
     normalized: expect::Normalized,
-    /// Requirements linked to the part or named by the check.
+    /// Requirements linked to the part or named by the check, as planned;
+    /// the commit adds those a check that committed meanwhile named.
     linked: Vec<spec::Linked>,
     /// Repairs and acceptances of the spec input, for the reply.
     notes: Vec<String>,
@@ -1749,14 +1754,13 @@ impl CheckPipeline {
                 ));
             }
         }
+        // A check that committed while this one ran may have named a
+        // requirement this one has to keep; the record is read again here,
+        // under the lock, as the committed scope is by `judge`.
+        let (linked, late_notes) = spec::carried_since(handle, &self.revision, &self.linked)?;
         let payload_identity = &self.revision["payload"]["renderIdentity"];
         let expect = &self.normalized.expect;
-        let mut report = spec::assess(
-            expect,
-            &self.linked,
-            &outcome.lines,
-            spec::listed_by(origin),
-        )?;
+        let mut report = spec::assess(expect, &linked, &outcome.lines, spec::listed_by(origin))?;
         let measured = verification::Measured {
             lines: outcome.lines.clone(),
             integrity: mesh.watertight
@@ -1784,7 +1788,7 @@ impl CheckPipeline {
         );
         // What restores the committed scope is that scope as the linked
         // requirements state it now.
-        judgement.committed = spec::restore(&judgement.priors, &self.linked);
+        judgement.committed = spec::restore(&judgement.priors, &linked);
         if let Some(report) = report
             .as_mut()
             .filter(|_| !judgement.scope_changes.is_empty())
@@ -1793,7 +1797,7 @@ impl CheckPipeline {
                 handle,
                 &judgement.priors,
                 expect,
-                &self.linked,
+                &linked,
                 &judgement.dropped,
             );
             if !attribution.replaced.is_empty() {
@@ -1887,11 +1891,17 @@ impl CheckPipeline {
             &self.normalized,
             self.normalized.ignored.clone(),
         )?;
-        let response = if self.notes.is_empty() {
+        let mut notes = self.notes.clone();
+        for note in late_notes {
+            if !notes.contains(&note) {
+                notes.push(note);
+            }
+        }
+        let response = if notes.is_empty() {
             response
         } else {
             let mut response = response;
-            response["notes"] = json!(self.notes);
+            response["notes"] = json!(notes);
             response
         };
         Ok(if self.brief {
@@ -1984,9 +1994,9 @@ pub(super) fn check(handle: &ProjectHandle, input: &Value, origin: &Origin) -> C
         };
         let mut mesh = MeshSource::plan(&revision, &source, &overrides, timeout_ms)?;
         if let Some(Some((reference, source))) = &mut reference {
-            source.open(handle, reference, origin)?;
+            source.open(handle, reference, origin, "cad.check")?;
         }
-        mesh.open(handle, &revision, origin)?;
+        mesh.open(handle, &revision, origin, "cad.check")?;
         let job_id = jobs::start(
             handle,
             "cad_check",

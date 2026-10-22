@@ -1376,3 +1376,45 @@ fn a_rendered_plate_is_drawn_with_its_sections() {
             <= 768
     );
 }
+
+/// The automatic section of this plate, y = 25.001, crosses the bottom-face
+/// edge from the corner (0, 50) to the hole vertex (7.5, 10) at x =
+/// 4.6873125, a half-micron that the two triangles sharing the edge rounded
+/// to neighbouring keys: the picture drew half the part and called the mesh
+/// open.
+#[test]
+fn the_automatic_section_of_a_slotted_plate_closes_every_loop() {
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    let source = "$fn = 64;\nw = 80; d = 50; t = 6;\ndifference() {\n  cube([w, d, t]);\n  for (x = [10, 70]) for (y = [10, 40]) translate([x, y, -1]) cylinder(d = 5, h = t + 2);\n  translate([40, 25, -1]) cylinder(d = 20, h = t + 2);\n  translate([-1, 20, 4]) cube([w + 2, 10, 3]);\n}\n";
+    let part = sandbox
+        .call(
+            "cad.write_source",
+            json!({"title": "Slotted plate", "source": source, "timeoutMs": 60_000}),
+        )
+        .unwrap();
+    assert_eq!(part["render"]["ok"], true, "{part}");
+    let view = sandbox
+        .call_as(
+            agent(),
+            "cad.view",
+            json!({"artifactId": part["artifactId"], "views": ["front"], "size": 512}),
+        )
+        .unwrap();
+    let section = &view["sections"][0];
+    assert_eq!(
+        (&section["plane"], &section["auto"]),
+        (&json!("y=25.001"), &json!(true)),
+        "{section}"
+    );
+    assert_eq!(section["openChains"], 0, "{section}");
+    assert_eq!(
+        section["loops"],
+        json!([
+            "material rectangle 30×4 centered (x=15, z=2)",
+            "material rectangle 30×4 centered (x=65, z=2)"
+        ])
+    );
+}

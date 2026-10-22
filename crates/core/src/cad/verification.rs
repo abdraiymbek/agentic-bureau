@@ -10,7 +10,9 @@ use super::*;
 use std::collections::{BTreeSet, HashSet};
 
 /// v3 (0.2.4): section loops keep a corner a cut meets twice, a hair apart,
-/// next to a hole's vertex; v2 could lose it and measure less material.
+/// next to a hole's vertex; v2 could lose it and measure less material. A
+/// crossing that falls on a rounding boundary closes its loop; v2 left it
+/// as open chains and failed the section on a closed mesh.
 pub(crate) const CHECKER: &str = "omenflow-rust-mesh-checks-v3";
 const EARLIER_CHECKERS: [&str; 3] = [
     "omenflow-rust-mesh-checks-v2",
@@ -28,6 +30,8 @@ pub(crate) struct Record {
     /// released, so the order they were planned in is not the order their
     /// results became part of the record.
     pub finished_at: String,
+    /// The agent session that ran the check; `None` when a person did.
+    pub session_id: Option<String>,
 }
 
 /// What a check measured, before it is judged against the project's history.
@@ -125,7 +129,7 @@ pub(crate) fn history(handle: &ProjectHandle, artifact_id: &str) -> CoreResult<V
     // checks recorded before it existed follow, by when they finished.
     let mut statement = handle
         .db
-        .prepare("SELECT inputs,output_hashes,log,COALESCE(finished_at,created_at) AS committed FROM job WHERE kind='cad_check' AND json_extract(inputs,'$.artifactId')=?1 AND status IN ('succeeded','failed') ORDER BY json_extract(inputs,'$.commitOrder') IS NULL, json_extract(inputs,'$.commitOrder') DESC, committed DESC, rowid DESC")
+        .prepare("SELECT inputs,output_hashes,log,COALESCE(finished_at,created_at) AS committed,session_id FROM job WHERE kind='cad_check' AND json_extract(inputs,'$.artifactId')=?1 AND status IN ('succeeded','failed') ORDER BY json_extract(inputs,'$.commitOrder') IS NULL, json_extract(inputs,'$.commitOrder') DESC, committed DESC, rowid DESC")
         .map_err(internal)?;
     let rows = statement
         .query_map([artifact_id], |row| {
@@ -134,16 +138,18 @@ pub(crate) fn history(handle: &ProjectHandle, artifact_id: &str) -> CoreResult<V
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
             ))
         })
         .map_err(internal)?;
     rows.map(|row| {
-        let (inputs, outputs, log, finished_at) = row.map_err(internal)?;
+        let (inputs, outputs, log, finished_at, session_id) = row.map_err(internal)?;
         Ok(Record {
             inputs: serde_json::from_str(&inputs).unwrap_or(Value::Null),
             outputs: serde_json::from_str(&outputs).unwrap_or(Value::Null),
             log,
             finished_at,
+            session_id,
         })
     })
     .collect()
@@ -253,6 +259,55 @@ fn priors(accepted: &Value, bound: &[&Record]) -> Vec<Prior> {
                 hash: Some(hash),
                 accepted: false,
             });
+        }
+    }
+    out
+}
+
+/// A requirement committed checks named in `requirementIds`.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Named {
+    pub id: String,
+    /// A person ran at least one of the checks that named it.
+    pub by_person: bool,
+}
+
+/// The requirements the checks that bind `revision` named in
+/// `requirementIds`, the earliest named first, once each. A requirement a
+/// committed check took into account stays in the checks that follow: a
+/// statement requirement leaves no item in the committed expectation, so
+/// this is what keeps a later check from leaving it out unseen.
+pub(crate) fn committed_requirement_ids(
+    handle: &ProjectHandle,
+    revision: &Value,
+) -> CoreResult<Vec<Named>> {
+    let artifact_id = required_str(revision, "artifactId")?;
+    let history = history(handle, artifact_id)?;
+    let accepted = accepted_scope(handle, artifact_id)?;
+    let bound = binding(&history, revision, &ancestors(handle, revision)?, &accepted);
+    Ok(named_by(&bound))
+}
+
+/// `committed_requirement_ids` of the bound checks, each linked by a person
+/// when a person ran a check that named it (a check job records the agent
+/// session that ran it, and none for a person).
+fn named_by(bound: &[&Record]) -> Vec<Named> {
+    let mut out = Vec::<Named>::new();
+    for record in bound.iter().rev() {
+        let by_person = record.session_id.is_none();
+        let named = record.inputs["requirementIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str);
+        for id in named {
+            match out.iter_mut().find(|known| known.id == id) {
+                Some(known) => known.by_person |= by_person,
+                None => out.push(Named {
+                    id: id.to_owned(),
+                    by_person,
+                }),
+            }
         }
     }
     out
@@ -444,6 +499,29 @@ fn resolved_status(evidence: &Value, accepted: &Value, stale: bool) -> String {
     .to_owned()
 }
 
+/// Committed assertions that linked requirements now state differently
+/// (`spec.replaced`), when the check changed nothing else itself: repeating
+/// the committed scope would not restore it, and only a person accepts it.
+fn changed_by_requirements(evidence: &Value) -> bool {
+    let words = |key: &str| {
+        evidence["spec"][key]
+            .as_array()
+            .is_some_and(|entries| !entries.is_empty())
+    };
+    words("replaced") && !words("checkChanges")
+}
+
+/// `next_action` for a reader of `evidence`. A scope that only linked
+/// requirements changed waits on a person (`accept_scope`, as the gate's
+/// `next: null` says); a trial of it is committed first, so a person can.
+fn action_for(status: &str, exploratory: bool, stale: bool, evidence: &Value) -> &'static str {
+    match status {
+        "scope_changed" if changed_by_requirements(evidence) && exploratory => "commit_assertions",
+        "scope_changed" if changed_by_requirements(evidence) => "accept_scope",
+        _ => next_action(status, exploratory, stale),
+    }
+}
+
 /// The single next action for a status, in the vocabulary the work record
 /// has always used. A trial that did not pass is never told to commit.
 pub(crate) fn next_action(status: &str, exploratory: bool, stale: bool) -> &'static str {
@@ -580,12 +658,13 @@ pub(crate) fn latest_verification(handle: &ProjectHandle, revision: &Value) -> C
         let status = resolved_status(&evidence, &accepted, !stale.is_empty());
         // Requirements linked or changed since are reported, not folded into
         // the recorded status: the gate holds a draft for them, and an
-        // approved baseline keeps what was approved.
-        let linked = spec::linked(handle, revision)?;
+        // approved baseline keeps what was approved. They are the ones every
+        // check of the revision takes, those a committed check named included.
+        let linked = spec::standing(handle, revision)?;
         let since = spec::since(&linked, &evidence, &record.finished_at);
         let spec = spec::readiness(&evidence, since, spec::conflict(&linked));
         let mut result = json!({"status": status, "ready": status == "passed",
-            "nextAction": next_action(&status, false, !stale.is_empty()),
+            "nextAction": action_for(&status, false, !stale.is_empty(), &evidence),
             "render": "ok", "evidenceHash": hash, "evidence": evidence});
         if !stale.is_empty() {
             result["staleInputs"] = json!(stale);
@@ -965,7 +1044,7 @@ pub(crate) fn response(
     let accepted = accepted_scope(handle, artifact_id)?;
     let status = resolved_status(evidence, &accepted, !stale.is_empty());
     let exploratory = judgement.exploratory;
-    let action = next_action(&status, exploratory, !stale.is_empty());
+    let action = action_for(&status, exploratory, !stale.is_empty(), evidence);
     let total = evidence["checks"].as_array().map(Vec::len).unwrap_or(0);
     let failing = total - judgement.passed;
     if variant && mode == Mode::AutoCommit {
@@ -1044,7 +1123,12 @@ pub(crate) fn response(
                     replaced.join("; "),
                     if exploratory { "Nothing was committed." } else { "This scope is recorded for review." },
                     if exploratory { "commit this check without autoCommit so it is recorded for review, then " } else { "" }),
-                json!({"tool": "work_status", "why": "See what waits on the person's review."}),
+                if exploratory {
+                    json!({"tool": "cad_check", "why": "Commit this check so a person can accept its scope.",
+                        "args": {"artifactId": artifact_id, "expect": expect::request_form(&evidence["expect"])}})
+                } else {
+                    json!({"tool": "work_status", "why": "See what waits on the person's review."})
+                },
             ),
             ("scope_changed", true) => (
                 format!("Trial passes, but it drops or changes committed assertions ({}). Nothing was committed. Restore them, or ask the human to accept the changed scope.{replaced_text}{restore_text}", own.join(", ")),
@@ -1185,6 +1269,7 @@ mod tests {
             outputs: json!({"verification": format!("evidence-{revision_id}-{finished_at}")}),
             log: String::new(),
             finished_at: finished_at.to_owned(),
+            session_id: Some("s1".to_owned()),
         }
     }
 
@@ -1607,6 +1692,60 @@ mod tests {
             "commit_matching_render"
         );
         assert_eq!(next_action("unverified", false, true), "resolve_inputs");
+    }
+
+    #[test]
+    fn a_requirement_a_person_named_in_any_bound_check_is_linked_by_the_person() {
+        let mut by_agent = record("r1", size(), false, "2026-01-01T00:00:01Z");
+        by_agent.inputs["requirementIds"] = json!(["q1", "q2"]);
+        let mut by_person = record("r1", size(), false, "2026-01-01T00:00:02Z");
+        by_person.inputs["requirementIds"] = json!(["q2", "q3"]);
+        by_person.session_id = None;
+        // A history is the most recently committed first.
+        let history = [by_person, by_agent];
+        let named = |id: &str, by_person: bool| Named {
+            id: id.to_owned(),
+            by_person,
+        };
+        assert_eq!(
+            named_by(&history.iter().collect::<Vec<_>>()),
+            [named("q1", false), named("q2", true), named("q3", true)]
+        );
+    }
+
+    #[test]
+    fn a_scope_only_linked_requirements_changed_waits_on_a_person() {
+        let evidence = |replaced: Value, own: Value| json!({"spec": {"replaced": replaced, "checkChanges": own}});
+        let by_requirements = evidence(
+            json!(["\"Plate envelope\" from requirement \"Plate envelope\""]),
+            json!([]),
+        );
+        assert_eq!(
+            action_for("scope_changed", false, false, &by_requirements),
+            "accept_scope"
+        );
+        // A trial of it is committed first, so a person can accept it.
+        assert_eq!(
+            action_for("scope_changed", true, false, &by_requirements),
+            "commit_assertions"
+        );
+        // What the check changed itself is still restored by the caller.
+        let both = evidence(
+            json!(["\"Plate envelope\" from requirement \"Plate envelope\""]),
+            json!(["shells"]),
+        );
+        assert_eq!(
+            action_for("scope_changed", false, false, &both),
+            "restore_assertions"
+        );
+        assert_eq!(
+            action_for("scope_changed", false, false, &json!({})),
+            "restore_assertions"
+        );
+        assert_eq!(
+            action_for("passed", false, false, &by_requirements),
+            "request_review"
+        );
     }
 
     #[test]

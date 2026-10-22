@@ -70,7 +70,10 @@ export interface ChatGate {
   sessionIds: string[];
   /** Calls those sessions made to Omen Flow, from the host's call ledger. */
   calls: number;
-  /** Artifacts those sessions wrote, ran a job on or proposed. */
+  /**
+   * Artifacts those sessions wrote, checked, changed through a job or proposed; exporting or only
+   * viewing a part does not count.
+   */
   inScope: number;
   /** Jobs of those sessions still queued or running when the turn ended. */
   jobsRunning: number;

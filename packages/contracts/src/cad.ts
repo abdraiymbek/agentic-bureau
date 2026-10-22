@@ -274,9 +274,15 @@ export interface CadSpecRequirement {
   priority: 'must' | 'should' | 'could';
   /** Review state of the requirement revision the check read. */
   review: 'approved' | 'in_review' | 'draft';
-  /** How the requirement reached the check: a revision input, an edge, or named by the check. */
+  /**
+   * How the requirement reached the check: a revision input, an edge, named in `requirementIds`
+   * of this check or of a committed one that binds it (`check`), or by an item (`item`).
+   */
   via: ('input' | 'edge' | 'check' | 'item')[];
-  /** Whether a person or an agent made the link. */
+  /**
+   * Whether a person made at least one of the links (`person`) or an agent made them all. A
+   * `check` link is a person's when a person ran a check that named the requirement.
+   */
   linkedBy: 'person' | 'agent';
   /** `features` and `statement` give rows that block; `advice` rows never do. */
   kind: 'features' | 'statement' | 'advice';

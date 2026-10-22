@@ -865,6 +865,198 @@ mod tests {
         assert_eq!(status["counts"]["verifiedParts"], 0);
     }
 
+    fn agent_s1() -> Origin {
+        Origin::Agent {
+            session_id: "s1".into(),
+        }
+    }
+
+    /// Two checks of one part by agent session s1, both planned and
+    /// computed before either commits, then committed in the order given:
+    /// the second was planned before the first was part of the record.
+    fn checked_together(
+        sandbox: &Sandbox,
+        first: &Value,
+        second: &Value,
+    ) -> [CoreResult<Value>; 2] {
+        let project_id = sandbox.project_id.as_str();
+        let plan = |input: &Value| {
+            locked(&sandbox.core, Some(project_id), |app| {
+                let (result, pipeline) = cad::planning(|| {
+                    app.dispatch("cad.check", input.clone(), agent_s1(), Some(project_id))
+                });
+                result?;
+                Ok(pipeline.expect("a check is staged"))
+            })
+            .0
+            .unwrap()
+        };
+        let commit = |pipeline: Box<dyn cad::Pipeline>, input: &Value| {
+            locked(&sandbox.core, Some(project_id), |app| {
+                cad::committing(pipeline, || {
+                    app.dispatch("cad.check", input.clone(), agent_s1(), Some(project_id))
+                })
+                .0
+            })
+            .0
+        };
+        let mut planned = [plan(first), plan(second)];
+        for pipeline in &mut planned {
+            compute(&sandbox.root, pipeline.as_mut()).unwrap();
+        }
+        let [one, two] = planned;
+        [commit(one, first), commit(two, second)]
+    }
+
+    /// An approved requirement a person wrote, by its id.
+    fn requirement(sandbox: &Sandbox, title: &str, payload: Value) -> Value {
+        let created = sandbox
+            .call(
+                "artifact.create_draft",
+                json!({"type": "requirement", "title": title, "payload": payload}),
+            )
+            .unwrap();
+        let id = created["artifact"]["id"].clone();
+        sandbox
+            .call(
+                "artifact.accept_draft",
+                json!({"artifactId": id, "draftRevisionId": created["revision"]["id"]}),
+            )
+            .unwrap();
+        id
+    }
+
+    /// A check that leaves out a requirement another check names keeps it
+    /// even when both ran at once: the commit reads again what the checks
+    /// recorded meanwhile named, as it reads the committed scope again.
+    #[cfg(unix)]
+    #[test]
+    fn a_check_that_ran_beside_one_naming_a_requirement_keeps_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = StandIn::new(dir.path());
+        engine.release();
+        let sandbox = Sandbox::with_engine(&engine.executable);
+        let part = sandbox
+            .call_as(
+                agent_s1(),
+                "cad.write_source",
+                json!({"title": "Race", "source": BOX}),
+            )
+            .unwrap();
+        let fits = requirement(
+            &sandbox,
+            "Fits the bay",
+            json!({"statement": "Fits the 20 mm bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "target": {"value": 20, "unit": "mm"}}),
+        );
+        // The stand-in mesh is 20 × 10 × 2 mm.
+        let expect =
+            json!({"bodies": 1, "spec": [{"item": "plate 20 x 10 x 2", "size": [20, 10, 2]}]});
+        let check = |requirements: Option<&Value>| {
+            let mut input = json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"],
+                "autoCommit": true, "expect": expect});
+            if let Some(ids) = requirements {
+                input["requirementIds"] = json!([ids]);
+            }
+            input
+        };
+        let [named, without] = checked_together(&sandbox, &check(Some(&fits)), &check(None));
+        let named = named.unwrap();
+        assert_eq!(
+            (&named["verificationStatus"], &named["committed"]),
+            (&json!("partial"), &json!(true)),
+            "{named}"
+        );
+        // Planned before the first check was recorded, the second adds the
+        // requirement as it commits: its row has no assertion.
+        let without = without.unwrap();
+        assert_eq!(
+            (
+                &without["verificationStatus"],
+                &without["committed"],
+                &without["ready"]
+            ),
+            (&json!("partial"), &json!(true), &json!(false)),
+            "{without}"
+        );
+        assert_eq!(without["spec"]["counts"]["blocking"], 1);
+        assert_eq!(without["spec"]["items"][1]["requirementId"], fits);
+        assert_eq!(without["spec"]["items"][1]["state"], "unasserted");
+        assert_eq!(without["spec"]["requirements"][0]["via"], json!(["check"]));
+        assert_eq!(
+            without["notes"],
+            json!(["requirement \"Fits the bay\" stays in this check: a committed check of this part named it in requirementIds"])
+        );
+        let revision = sandbox.revision(&part["revisionId"]);
+        let readiness = sandbox.with_handle(|handle| cad::readiness(handle, &revision).unwrap());
+        assert_eq!(
+            (&readiness["status"], &readiness["ready"]),
+            (&json!("partial"), &json!(false)),
+            "{readiness}"
+        );
+        let status = sandbox
+            .call_as(agent_s1(), "work.status", json!({}))
+            .unwrap();
+        assert_eq!(status["ready"], false, "{status}");
+        assert_eq!(status["outstanding"][0]["kind"], "cad_spec_unasserted");
+        assert_eq!(status["counts"]["verifiedParts"], 0);
+    }
+
+    /// A requirement with features adds items, which a check planned before
+    /// another named it did not measure: it is refused and asked again, and
+    /// the repeat checks them.
+    #[cfg(unix)]
+    #[test]
+    fn a_check_that_ran_beside_one_naming_a_requirement_with_features_is_asked_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = StandIn::new(dir.path());
+        engine.release();
+        let sandbox = Sandbox::with_engine(&engine.executable);
+        let part = sandbox
+            .call_as(
+                agent_s1(),
+                "cad.write_source",
+                json!({"title": "Race", "source": BOX}),
+            )
+            .unwrap();
+        let envelope = requirement(
+            &sandbox,
+            "Plate envelope",
+            json!({"statement": "The plate fills the bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "features": [{"label": "Plate envelope", "expect": {"size": [20, 10, 2]}}]}),
+        );
+        let named = json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"],
+            "autoCommit": true, "requirementIds": [envelope], "expect": {"bodies": 1}});
+        let without = json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"],
+            "autoCommit": true, "expect": {"bodies": 1}});
+        let [first, second] = checked_together(&sandbox, &named, &without);
+        let first = first.unwrap();
+        assert_eq!(first["verificationStatus"], "passed", "{first}");
+        let error = second.unwrap_err();
+        assert_eq!(error.code, "INPUT_CHANGED");
+        assert_eq!(
+            error.message,
+            "A check of this part committed while this one ran and named requirement \"Plate envelope\", whose features this check did not measure. Nothing was committed."
+        );
+        assert_eq!(error.details.unwrap()["requirementId"], envelope);
+        let jobs = sandbox.jobs("cad_check");
+        assert_eq!(
+            jobs.iter()
+                .filter(|job| job["error"]["code"] == "INPUT_CHANGED")
+                .count(),
+            1,
+            "{jobs:?}"
+        );
+        let revision = sandbox.revision(&part["revisionId"]);
+        let readiness = sandbox.with_handle(|handle| cad::readiness(handle, &revision).unwrap());
+        assert_eq!(readiness["evidenceHash"], first["evidenceHash"]);
+        // Repeated, it measures the requirement's feature.
+        let again = sandbox.call_as(agent_s1(), "cad.check", without).unwrap();
+        assert_eq!(again["verificationStatus"], "passed", "{again}");
+        assert_eq!(again["spec"]["items"][0]["item"], "Plate envelope");
+        assert_eq!(again["spec"]["items"][0]["assertedBy"], "requirement");
+    }
+
     /// A check that stopped before it measured (here at the work limit)
     /// recorded no evidence, so its expectation does not bind the next one.
     #[cfg(unix)]

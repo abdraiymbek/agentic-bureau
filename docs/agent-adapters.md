@@ -353,8 +353,10 @@ tool-result record; the host reads that record to its end without keeping it
 Code can look at a drawing in plan mode and run several region views at
 once; it still refuses a read-only project, because it writes the picture
 file. `cad_view` is mutating like `cad_inspect`: a parameter variant or a
-revision without a current render is rendered under a `cad_render` job, and
-that job puts the part into the session's `work_status` scope.
+revision without a current render is rendered under a `cad_render` job. That
+job names the call it renders for (`for`) and commits nothing to the part, so
+it does not bring the part into the session's `work_status` scope; writes,
+checks and proposals do.
 
 `proposal_wait` is bounded 30 seconds below the CLI's own tool timeout,
 reports `timedOut`, and marks the session as waiting for review while it

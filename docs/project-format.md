@@ -68,6 +68,8 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
   `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
   job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
   project-relative destination, or only the file name of one outside the project;
+- `for` in the inputs of a `cad_render` job that renders a revision for `cad.view`,
+  `cad.inspect` or `cad.check` and commits nothing to it (0.2.4); an earlier build ignores it;
 - the sidecar files under `.omenflow/work/` and `.omenflow/cache/`, including the pictures in
   `.omenflow/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
   drawn for an agent by `cad_view` and `image_view`. They are never read back as a cache, are

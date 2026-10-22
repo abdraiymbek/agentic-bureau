@@ -52,7 +52,8 @@ pub(crate) struct Linked {
     pub priority: String,
     /// Review state of `revision_id`: approved, in_review or draft.
     pub review: &'static str,
-    /// `input`, `edge`, `check` (requirementIds) or `item` (an item's
+    /// `input`, `edge`, `check` (requirementIds of this check or of a
+    /// committed one that binds the revision) or `item` (an item's
     /// requirementId), in the order they were found.
     pub via: Vec<&'static str>,
     /// A person made at least one of the links.
@@ -84,6 +85,21 @@ fn item_text(text: &str) -> String {
     }
 }
 
+/// The title of a requirement as an item's words. A blank title would give
+/// items no words, which no check takes back: its statement stands in, or
+/// failing that its id.
+fn title_text(artifact: &Value, payload: Option<&Value>) -> String {
+    [
+        artifact["title"].as_str(),
+        payload.and_then(|payload| payload["statement"].as_str()),
+    ]
+    .into_iter()
+    .flatten()
+    .map(item_text)
+    .find(|text| !text.is_empty())
+    .unwrap_or_else(|| format!("requirement {}", artifact["id"].as_str().unwrap_or("")))
+}
+
 fn kind_of(payload: &Value) -> Kind {
     if let Some(features) = payload["features"]
         .as_array()
@@ -92,8 +108,13 @@ fn kind_of(payload: &Value) -> Kind {
         return Kind::Features(
             features
                 .iter()
-                .map(|feature| Feature {
-                    label: item_text(feature["label"].as_str().unwrap_or("")),
+                .enumerate()
+                .map(|(index, feature)| Feature {
+                    // Blank labels are refused on write; one stored before
+                    // that is named by its place.
+                    label: Some(item_text(feature["label"].as_str().unwrap_or("")))
+                        .filter(|label| !label.is_empty())
+                        .unwrap_or_else(|| format!("feature {}", index + 1)),
                     fragment: feature
                         .get("expect")
                         .filter(|fragment| fragment.as_object().is_some_and(|f| !f.is_empty()))
@@ -206,7 +227,7 @@ fn add(
     out.push(Linked {
         artifact_id: id.to_owned(),
         revision_id: required_str(revision, "id")?.to_owned(),
-        title: item_text(artifact["title"].as_str().unwrap_or("")),
+        title: title_text(artifact, Some(payload)),
         priority: payload["priority"].as_str().unwrap_or("should").to_owned(),
         review: review_of(artifact, revision),
         via: vec![via],
@@ -303,10 +324,81 @@ pub(crate) fn linked(handle: &ProjectHandle, revision: &Value) -> CoreResult<Vec
     Ok(out)
 }
 
+fn archived_note(title: &str) -> String {
+    format!("requirement \"{title}\" is archived; items naming it are checked as listed items")
+}
+
+/// Add to `out` the requirements committed checks named in
+/// `requirementIds` (`carried`), linked by whoever named them: once a check
+/// took a requirement into account, a later one cannot leave it out. The
+/// notes say why one linked no other way is there, and which are archived
+/// (they are left out, as `linked` leaves archived ones out).
+fn carry(
+    handle: &ProjectHandle,
+    part_id: &str,
+    carried: &[verification::Named],
+    out: &mut Vec<Linked>,
+    notes: &mut Vec<String>,
+) -> CoreResult<()> {
+    for named in carried {
+        if let Some(known) = out.iter_mut().find(|known| known.artifact_id == named.id) {
+            if !known.via.contains(&"check") {
+                known.via.push("check");
+            }
+            known.by_person |= named.by_person;
+            continue;
+        }
+        let Ok(artifact) = require_artifact(handle, &named.id) else {
+            continue;
+        };
+        if artifact["type"] != "requirement" {
+            continue;
+        }
+        if artifact["archived"] == true {
+            let note = archived_note(&title_text(&artifact, None));
+            if !notes.contains(&note) {
+                notes.push(note);
+            }
+            continue;
+        }
+        if let Some(current) = current_revision(handle, &named.id)? {
+            add(
+                out,
+                handle,
+                part_id,
+                &artifact,
+                &current,
+                "check",
+                named.by_person,
+                None,
+            )?;
+            notes.push(format!(
+                "requirement \"{}\" stays in this check: a committed check of this part named it in requirementIds",
+                out.last().map_or("", |known| known.title.as_str())
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The requirements that stand behind a check of `revision`: `linked`, and
+/// those the committed checks that bind it named in `requirementIds`. A
+/// check adds the ones it names itself (`for_check`); the readers of its
+/// record (the gate's conflict, readiness, the next expect) read this set,
+/// so they report on every requirement a check has to keep.
+pub(crate) fn standing(handle: &ProjectHandle, revision: &Value) -> CoreResult<Vec<Linked>> {
+    let part_id = required_str(revision, "artifactId")?;
+    let mut out = linked(handle, revision)?;
+    let carried = verification::committed_requirement_ids(handle, revision)?;
+    carry(handle, part_id, &carried, &mut out, &mut Vec::new())?;
+    Ok(out)
+}
+
 /// `linked`, plus the requirements a check names in `requirementIds` and in
-/// its items' `requirementId`. A requirement archived since the committed
-/// check named it is accepted, and its items are then checked as listed
-/// items; the notes say so.
+/// its items' `requirementId`, and those a committed check that binds the
+/// revision named in `requirementIds` (`standing`). A requirement archived
+/// since the committed check named it is accepted, and its items are then
+/// checked as listed items; the notes say so.
 pub(crate) fn for_check(
     handle: &ProjectHandle,
     revision: &Value,
@@ -317,6 +409,7 @@ pub(crate) fn for_check(
     let part_id = required_str(revision, "artifactId")?;
     let mut out = linked(handle, revision)?;
     let mut notes = Vec::new();
+    let carried = verification::committed_requirement_ids(handle, revision)?;
     let named = input["requirementIds"]
         .as_array()
         .into_iter()
@@ -364,7 +457,7 @@ pub(crate) fn for_check(
                 "List requirements with artifact_list and type \"requirement\".",
             ));
         }
-        let title = artifact["title"].as_str().unwrap_or("");
+        let title = title_text(&artifact, None);
         if artifact["archived"] == true {
             if committed.is_none() {
                 committed = Some(
@@ -373,6 +466,7 @@ pub(crate) fn for_check(
                         .into_iter()
                         .flatten()
                         .filter_map(|item| item["requirementId"].as_str().map(str::to_owned))
+                        .chain(carried.iter().map(|named| named.id.clone()))
                         .collect(),
                 );
             }
@@ -383,9 +477,7 @@ pub(crate) fn for_check(
                     "Name a current requirement, or leave it out.",
                 ));
             }
-            let note = format!(
-                "requirement \"{title}\" is archived; items naming it are checked as listed items"
-            );
+            let note = archived_note(&title);
             if !notes.contains(&note) {
                 notes.push(note);
             }
@@ -396,6 +488,42 @@ pub(crate) fn for_check(
                 &mut out, handle, part_id, &artifact, &current, via, by_person, None,
             )?;
         }
+    }
+    carry(handle, part_id, &carried, &mut out, &mut notes)?;
+    Ok((out, notes))
+}
+
+/// What a check planned with `linked` adds as it commits: the requirements
+/// a check that committed while it ran named in `requirementIds`. Planning
+/// read the record before that check was part of it, and a requirement a
+/// committed check took into account stays in the checks that follow. A
+/// statement or advice requirement only adds a row, which the commit
+/// assesses; one with features adds items this check did not measure, so
+/// the check is refused (`INPUT_CHANGED`) and asked again. Returns the
+/// requirements and the notes to add.
+pub(crate) fn carried_since(
+    handle: &ProjectHandle,
+    revision: &Value,
+    linked: &[Linked],
+) -> CoreResult<(Vec<Linked>, Vec<String>)> {
+    let part_id = required_str(revision, "artifactId")?;
+    let carried = verification::committed_requirement_ids(handle, revision)?;
+    let mut out = linked.to_vec();
+    let mut notes = Vec::new();
+    carry(handle, part_id, &carried, &mut out, &mut notes)?;
+    if let Some(requirement) = out[linked.len()..]
+        .iter()
+        .find(|requirement| matches!(requirement.kind, Kind::Features(_)))
+    {
+        return Err(ContractError::new(
+            "INPUT_CHANGED",
+            format!(
+                "A check of this part committed while this one ran and named requirement \"{}\", whose features this check did not measure. Nothing was committed.",
+                requirement.title
+            ),
+        )
+        .with_repair("Repeat the same cad_check: it adds the requirement's items.")
+        .with_details(json!({"artifactId": part_id, "requirementId": requirement.artifact_id})));
     }
     Ok((out, notes))
 }
@@ -510,6 +638,13 @@ pub(crate) fn check_features(type_name: &str, payload: &mut Value) -> CoreResult
     for (index, feature) in features.iter_mut().enumerate() {
         let path = format!("payload.features[{index}]");
         let label = collapse(feature["label"].as_str().unwrap_or("")).to_lowercase();
+        if label.is_empty() {
+            return Err(spec_invalid(
+                &format!("{path}.label"),
+                "is blank",
+                "Name the feature in the requirement's words, e.g. \"Groove bottom Ø50 mm\".",
+            ));
+        }
         if let Some(first) = labels.iter().position(|seen| *seen == label) {
             return Err(spec_invalid(
                 &format!("{path}.label"),
@@ -839,13 +974,13 @@ pub(crate) fn restore(priors: &[verification::Prior], linked: &[Linked]) -> Valu
     verification::covering(&restated)
 }
 
-/// `linked`, with the requirements the items of `expects` name.
+/// `standing`, with the requirements the items of `expects` name.
 pub(crate) fn linked_naming<'a>(
     handle: &ProjectHandle,
     revision: &Value,
     expects: impl Iterator<Item = &'a Value>,
 ) -> CoreResult<Vec<Linked>> {
-    let mut out = linked(handle, revision)?;
+    let mut out = standing(handle, revision)?;
     for expect in expects {
         named_by_items(handle, revision, expect, &mut out)?;
     }
@@ -863,12 +998,14 @@ pub(crate) fn conflict(linked: &[Linked]) -> Option<String> {
     })
 }
 
-/// `conflict`, for the requirements linked to `revision`.
+/// `conflict`, for the requirements that stand behind a check of
+/// `revision` (`standing`): those a committed check named included, since
+/// every check takes them.
 pub(crate) fn requirement_conflict(
     handle: &ProjectHandle,
     revision: &Value,
 ) -> CoreResult<Option<String>> {
-    Ok(conflict(&linked(handle, revision)?))
+    Ok(conflict(&standing(handle, revision)?))
 }
 
 /// Who listed a check's own items, in the words the report uses.
@@ -1019,7 +1156,7 @@ pub(crate) fn next_expect(
     } else {
         json!({})
     };
-    let mut linked = linked(handle, revision)?;
+    let mut linked = standing(handle, revision)?;
     named_by_items(handle, revision, &base, &mut linked)?;
     let mut next = expect::rederive(&base, &derived(&linked))?.expect;
     let since = readiness["linkedSince"]
@@ -1475,9 +1612,46 @@ mod tests {
         let mut repeated = json!({"features": [{"label": "Groove"}, {"label": " groove "}]});
         let error = check_features("requirement", &mut repeated).err().unwrap();
         assert_eq!(error.issues()[0].path, "payload.features[1].label");
+        // A label of spaces alone would give its item no words.
+        let mut blank = json!({"features": [{"label": "Groove"}, {"label": " \t "}]});
+        let error = check_features("requirement", &mut blank).err().unwrap();
+        assert_eq!(error.issues()[0].path, "payload.features[1].label");
+        assert!(error.message.ends_with("is blank"), "{}", error.message);
         // Other types are not touched.
         let mut other = json!({"features": [{"label": "a", "expect": {"tol": 0.1}}]});
         check_features("note", &mut other).unwrap();
+    }
+
+    #[test]
+    fn blank_titles_and_labels_still_give_items_words() {
+        let artifact = |title: &str| json!({"id": "r1", "title": title});
+        let payload = json!({"statement": "  Fits the\n20 mm bay "});
+        assert_eq!(
+            title_text(&artifact("  Bay  fit "), Some(&payload)),
+            "Bay fit"
+        );
+        assert_eq!(
+            title_text(&artifact(" \t "), Some(&payload)),
+            "Fits the 20 mm bay"
+        );
+        assert_eq!(
+            title_text(&artifact(" "), Some(&json!({"statement": " "}))),
+            "requirement r1"
+        );
+        assert_eq!(title_text(&artifact(" "), None), "requirement r1");
+        // A blank label stored before labels were checked on write.
+        let Kind::Features(features) =
+            kind_of(&json!({"features": [{"label": "Envelope"}, {"label": "   "}]}))
+        else {
+            panic!("features");
+        };
+        assert_eq!(
+            features
+                .iter()
+                .map(|f| f.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Envelope", "feature 2"]
+        );
     }
 
     #[test]

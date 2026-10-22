@@ -139,7 +139,8 @@ pub(super) struct WorkReport {
     items: Vec<Item>,
     waiting: Vec<Value>,
     verified_parts: usize,
-    /// Artifacts in scope: what the sessions wrote, ran a job on or proposed.
+    /// Artifacts in scope: what the sessions wrote, checked, changed through a
+    /// job or proposed (`touched_by`).
     in_scope: usize,
 }
 
@@ -249,11 +250,11 @@ pub(super) fn project_work(handle: &ProjectHandle) -> CoreResult<WorkReport> {
     build(handle, None)
 }
 
-/// One report for several agent sessions as one scope: what any of them wrote, ran a job on or
-/// proposed. The agent host reads it when a conversation turn ends, for the turn's session and
-/// those of the turns it continues. Read-only, and not an operation: besides the `work.status`
-/// shape it says how many artifacts are in scope (`inScope`) and how many of the sessions' jobs
-/// are still queued or running (`jobsRunning`).
+/// One report for several agent sessions as one scope: what any of them wrote, checked, changed
+/// through a job or proposed. The agent host reads it when a conversation turn ends, for the
+/// turn's session and those of the turns it continues. Read-only, and not an operation: besides
+/// the `work.status` shape it says how many artifacts are in scope (`inScope`) and how many of
+/// the sessions' jobs are still queued or running (`jobsRunning`).
 pub(super) fn sessions_status(handle: &ProjectHandle, sessions: &[String]) -> CoreResult<Value> {
     let mut unique = Vec::<String>::new();
     for session in sessions {
@@ -298,7 +299,12 @@ fn latest_session(handle: &ProjectHandle) -> CoreResult<Option<String>> {
     .map_err(internal)
 }
 
-/// Artifacts a session wrote a revision of or ran a job on.
+/// Artifacts a session wrote a revision of, checked, or ran other work on
+/// that changes them. A job that only reads a part does not count: an
+/// export (`cad_export`), or a render for a view, an inspection or a check's
+/// measurement (its inputs name the operation, `for`), which commits
+/// nothing to the part. Asked only to export or look at someone else's
+/// draft, the session has not taken that draft on.
 fn touched_by(handle: &ProjectHandle, session_id: &str) -> CoreResult<HashSet<String>> {
     let mut touched = statement(
         handle,
@@ -308,13 +314,17 @@ fn touched_by(handle: &ProjectHandle, session_id: &str) -> CoreResult<HashSet<St
     .map_err(internal)?
     .collect::<rusqlite::Result<HashSet<_>>>()
     .map_err(internal)?;
-    let mut stmt = statement(handle, "SELECT inputs FROM job WHERE session_id=?1")?;
+    let mut stmt = statement(handle, "SELECT kind, inputs FROM job WHERE session_id=?1")?;
     let rows = stmt
-        .query_map([session_id], |row| row.get::<_, String>(0))
+        .query_map([session_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(internal)?;
     for row in rows {
-        let inputs: Value = serde_json::from_str(&row.map_err(internal)?).unwrap_or(Value::Null);
-        if let Some(id) = inputs["artifactId"].as_str() {
+        let (kind, inputs) = row.map_err(internal)?;
+        let inputs: Value = serde_json::from_str(&inputs).unwrap_or(Value::Null);
+        let reads_only = kind == "cad_export" || inputs["for"].is_string();
+        if let Some(id) = inputs["artifactId"].as_str().filter(|_| !reads_only) {
             touched.insert(id.to_owned());
         }
     }
@@ -1759,6 +1769,78 @@ mod tests {
         assert_eq!(about(&whole, &plan), [("stale_dependent", "advice")]);
     }
 
+    /// Exporting a person's draft, or looking at it, is not working on it:
+    /// those jobs only read the part. Checking it is.
+    #[test]
+    fn a_session_that_only_exports_or_views_a_part_has_not_taken_it_on() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let written = project.user(
+            "cad.write_source",
+            json!({"title": "Human plate", "source": "w = 20;\ncube([w, 10, 2]);", "timeoutMs": 60_000}),
+        );
+        let plate = written["artifactId"].as_str().unwrap().to_owned();
+        let nothing = |project: &mut TestProject| {
+            let status = project.agent("s1", "work.status", json!({}));
+            assert_eq!(
+                status["summary"], "Nothing is unfinished in this session.",
+                "{status}"
+            );
+            assert_eq!(
+                sessions_status(project.handle(), &["s1".into()]).unwrap()["inScope"],
+                0
+            );
+        };
+        let exported = project.agent(
+            "s1",
+            "cad.export",
+            json!({"artifactId": plate, "format": "step", "method": "faceted", "destPath": "exports/plate.step"}),
+        );
+        assert_eq!(exported["method"], "faceted", "{exported}");
+        project.agent(
+            "s1",
+            "cad.export",
+            json!({"artifactId": plate, "format": "stl", "destPath": "exports/plate.stl"}),
+        );
+        nothing(&mut project);
+        // A variant is rendered under a job, for the view or the inspection.
+        let viewed = project.agent(
+            "s1",
+            "cad.view",
+            json!({"artifactId": plate, "params": {"w": 22}, "views": ["top"], "sections": []}),
+        );
+        assert_eq!(viewed["mesh"]["source"], "rendered", "{viewed}");
+        project.agent(
+            "s1",
+            "cad.inspect",
+            json!({"artifactId": plate, "params": {"w": 22}}),
+        );
+        nothing(&mut project);
+        let jobs = project.agent("s1", "job.list", json!({"limit": 50}))["jobs"].clone();
+        let kinds = jobs
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|job| (job["kind"].as_str().unwrap(), job["inputs"]["for"].as_str()))
+            .collect::<HashSet<_>>();
+        assert!(kinds.contains(&("cad_export", None)), "{jobs}");
+        assert!(kinds.contains(&("cad_render", Some("cad.view"))), "{jobs}");
+        assert!(
+            kinds.contains(&("cad_render", Some("cad.inspect"))),
+            "{jobs}"
+        );
+        // A check of the part takes it on.
+        project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "exploratory": true, "expect": {"size": [20, 10, 2]}}),
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_unverified", "blocker")]);
+    }
+
     #[test]
     fn a_chain_of_sessions_is_one_scope() {
         let mut project = TestProject::new();
@@ -2478,6 +2560,12 @@ mod tests {
             changed["spec"]["replaced"],
             json!(["\"Plate envelope\" from requirement \"Plate envelope\""])
         );
+        // Nothing is left for the agent to restore: the next action, the
+        // next step and the gate all wait on a person.
+        assert_eq!(changed["nextAction"], "accept_scope");
+        assert_eq!(changed["work"]["nextAction"], "accept_scope");
+        assert_eq!(changed["nextStep"]["tool"], "work_status");
+        assert!(changed.get("committedExpect").is_none());
         let status = project.agent("s1", "work.status", json!({}));
         let waiting = item(&status, "cad_scope_changed");
         assert!(waiting["next"].is_null(), "{waiting}");
@@ -2485,6 +2573,283 @@ mod tests {
             .as_str()
             .unwrap()
             .ends_with("A person must accept the new scope."));
+        let latest = {
+            let handle = project.handle();
+            let revision = get_revision(handle, changed["revisionId"].as_str().unwrap())
+                .unwrap()
+                .unwrap();
+            cad::readiness(handle, &revision).unwrap()
+        };
+        assert_eq!(
+            (&latest["status"], &latest["nextAction"]),
+            (&json!("scope_changed"), &json!("accept_scope"))
+        );
+        // A trial of the same scope is committed first, so a person can
+        // accept it.
+        let mut trial = found["next"]["args"].clone();
+        trial["exploratory"] = json!(true);
+        let trial = project.agent("s1", "cad.check", trial);
+        assert_eq!(
+            (&trial["verificationStatus"], &trial["committed"]),
+            (&json!("scope_changed"), &json!(false))
+        );
+        assert_eq!(trial["nextAction"], "commit_assertions");
+        assert_eq!(trial["nextStep"]["tool"], "cad_check");
+        assert!(trial["nextStep"]["args"]["exploratory"].is_null());
+        assert!(trial["nextStep"]["args"]["autoCommit"].is_null());
+        assert_eq!(
+            trial["nextStep"]["args"]["expect"],
+            changed["normalizedExpect"]
+        );
+    }
+
+    /// A requirement titled with spaces alone gave its row and placeholder
+    /// no words, and the check's own next step was then refused. A feature
+    /// label of spaces alone is refused when it is written.
+    #[test]
+    fn a_blank_requirement_title_still_gives_a_next_step_that_runs() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (bay, _) = project.draft(
+            Origin::User,
+            "requirement",
+            "  ",
+            json!({"statement": "Fits the 20 mm bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "target": {"value": 20, "unit": "mm"}}),
+            json!([]),
+        );
+        link(&mut project, &bay, &plate);
+        let first = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1}}),
+        );
+        assert_eq!(first["verificationStatus"], "partial", "{first}");
+        assert_eq!(first["spec"]["items"][0]["item"], "Fits the 20 mm bay");
+        assert_eq!(
+            first["nextStep"]["args"]["expect"]["spec"],
+            json!([{"item": "Fits the 20 mm bay", "requirementId": bay}])
+        );
+        let next = project.agent("s1", "cad.check", first["nextStep"]["args"].clone());
+        assert_eq!(next["verificationStatus"], "partial", "{next}");
+        let status = project.agent("s1", "work.status", json!({}));
+        let found = item(&status, "cad_spec_unasserted");
+        assert!(
+            found["detail"]
+                .as_str()
+                .unwrap()
+                .ends_with("requirement \"Fits the 20 mm bay\"."),
+            "{found}"
+        );
+        project.agent("s1", "cad.check", found["next"]["args"].clone());
+
+        let error = project
+            .call(
+                Origin::User,
+                "artifact.create_draft",
+                json!({"type": "requirement", "title": "Envelope", "payload": {
+                    "statement": "s", "acceptanceCriterion": "a", "priority": "must",
+                    "features": [{"label": "   ", "expect": {"size": [20, 10, 2]}}]}}),
+            )
+            .unwrap_err();
+        assert_eq!(error.issues()[0].path, "payload.features[0].label");
+    }
+
+    /// A statement requirement leaves no item in the committed expect, so a
+    /// check that named it only in requirementIds used to bind nothing for
+    /// it: the next check could leave it out and pass.
+    #[test]
+    fn a_requirement_a_committed_check_named_stays_in_the_checks_that_follow() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (fits, _) = project.approved(
+            "requirement",
+            "Fits the bay",
+            json!({"statement": "Fits the 20 mm bay", "acceptanceCriterion": "Shown by test",
+                "priority": "must", "target": {"value": 20, "unit": "mm"}}),
+            json!([]),
+        );
+        let expect =
+            json!({"bodies": 1, "spec": [{"item": "plate 20 x 10 x 2", "size": [20, 10, 2]}]});
+        let first = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "requirementIds": [fits], "expect": expect}),
+        );
+        assert_eq!(
+            (&first["verificationStatus"], &first["committed"]),
+            (&json!("partial"), &json!(true)),
+            "{first}"
+        );
+        assert!(first.get("notes").is_none(), "{first}");
+        // The next check leaves it out: it stays partial and says why.
+        let second = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": expect}),
+        );
+        assert_eq!(
+            (
+                &second["verificationStatus"],
+                &second["committed"],
+                &second["ready"]
+            ),
+            (&json!("partial"), &json!(true), &json!(false)),
+            "{second}"
+        );
+        assert_eq!(second["spec"]["counts"]["blocking"], 1);
+        assert_eq!(
+            second["spec"]["items"][1],
+            json!({"item": "Fits the bay", "requirementId": fits, "from": "requirement",
+                "statement": true, "state": "unasserted", "checks": []})
+        );
+        assert_eq!(second["spec"]["requirements"][0]["via"], json!(["check"]));
+        assert_eq!(second["spec"]["requirements"][0]["linkedBy"], "agent");
+        assert_eq!(
+            second["notes"],
+            json!(["requirement \"Fits the bay\" stays in this check: a committed check of this part named it in requirementIds"])
+        );
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_spec_unasserted", "blocker")]);
+        assert_eq!(status["counts"]["verifiedParts"], 0);
+        let found = item(&status, "cad_spec_unasserted");
+        assert_eq!(
+            found["next"]["args"]["expect"]["spec"][1],
+            json!({"item": "Fits the bay", "requirementId": fits})
+        );
+        // A new revision inherits it too.
+        project.agent(
+            "s1",
+            "cad.write_source",
+            json!({"artifactId": plate, "source": "cube([20, 10, 2]);", "timeoutMs": 60_000}),
+        );
+        let inherited = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": expect}),
+        );
+        assert_eq!(inherited["verificationStatus"], "partial", "{inherited}");
+        assert_eq!(inherited["spec"]["counts"]["blocking"], 1);
+        // Shown by an item that names it with a dimension, the part passes.
+        let shown = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1, "spec": [
+                {"item": "plate 20 x 10 x 2", "size": [20, 10, 2]},
+                {"item": "Fits the bay", "requirementId": fits, "size": [20, 10, 2]}]}}),
+        );
+        assert_eq!(shown["verificationStatus"], "passed", "{shown}");
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("draft_unproposed", "advice")]);
+    }
+
+    /// The link of a requirement a committed check named is the person's
+    /// when a person ran that check, in every check that keeps it.
+    #[test]
+    fn a_requirement_a_person_named_stays_linked_by_the_person() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (fits, _) = project.approved("requirement", "Fits the bay", bay(20.0), json!([]));
+        let expect =
+            json!({"bodies": 1, "spec": [{"item": "plate 20 x 10 x 2", "size": [20, 10, 2]}]});
+        let first = project.user(
+            "cad.check",
+            json!({"artifactId": plate, "requirementIds": [fits], "expect": expect}),
+        );
+        assert_eq!(first["verificationStatus"], "partial", "{first}");
+        assert_eq!(first["spec"]["requirements"][0]["linkedBy"], "person");
+        let second = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "expect": expect}),
+        );
+        assert_eq!(second["verificationStatus"], "partial", "{second}");
+        assert_eq!(
+            (
+                &second["spec"]["requirements"][0]["via"],
+                &second["spec"]["requirements"][0]["linkedBy"]
+            ),
+            (&json!(["check"]), &json!("person")),
+            "{second}"
+        );
+    }
+
+    /// A requirement a committed check named is in every later check, so
+    /// one linked since that states its assertion differently leaves no
+    /// check to run, as two linked ones do: the gate says so and sends the
+    /// agent nowhere.
+    #[test]
+    fn a_requirement_a_committed_check_named_that_a_linked_one_contradicts_waits_on_a_person() {
+        if !engine_available() {
+            return;
+        }
+        let mut project = TestProject::new();
+        let plate = plate_part(&mut project);
+        let (thin, _) = project.approved(
+            "requirement",
+            "Thin plate",
+            envelope(json!({"size": [20, 10, 2]})),
+            json!([]),
+        );
+        let first = project.agent(
+            "s1",
+            "cad.check",
+            json!({"artifactId": plate, "autoCommit": true, "requirementIds": [thin], "expect": {"bodies": 1}}),
+        );
+        assert_eq!(first["verificationStatus"], "passed", "{first}");
+        let (thick, _) = project.approved(
+            "requirement",
+            "Thick plate",
+            envelope(json!({"size": [20, 10, 3]})),
+            json!([]),
+        );
+        link(&mut project, &thick, &plate);
+        let status = project.agent("s1", "work.status", json!({}));
+        assert_eq!(about(&status, &plate), [("cad_unverified", "blocker")]);
+        let blocked = item(&status, "cad_unverified");
+        assert!(blocked["next"].is_null(), "{blocked}");
+        assert_eq!(
+            blocked["detail"],
+            "No check of r1 can run: requirements \"Thick plate\" and \"Thin plate\" state different size for this part. A person must reconcile them."
+        );
+        let latest = {
+            let handle = project.handle();
+            let revision = get_revision(handle, first["revisionId"].as_str().unwrap())
+                .unwrap()
+                .unwrap();
+            cad::readiness(handle, &revision).unwrap()
+        };
+        assert_eq!(
+            latest["spec"]["conflict"],
+            "requirements \"Thick plate\" and \"Thin plate\" state different size for this part"
+        );
+        let refused = project
+            .call(
+                agent("s1"),
+                "cad.check",
+                json!({"artifactId": plate, "autoCommit": true, "expect": {"bodies": 1}}),
+            )
+            .unwrap_err();
+        assert!(
+            refused
+                .message
+                .contains("requirements \"Thick plate\" and \"Thin plate\""),
+            "{}",
+            refused.message
+        );
+        assert!(refused
+            .repair
+            .unwrap()
+            .starts_with("A person must reconcile the requirements"));
     }
 
     fn evidence(project: &TestProject, checked: &Value) -> Value {

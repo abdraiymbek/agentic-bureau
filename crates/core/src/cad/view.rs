@@ -699,7 +699,7 @@ pub(crate) fn view_part(
             .then(|| overrides.clone());
         // Validated before the job opens, so a refusal leaves nothing behind.
         let mut mesh = MeshSource::plan(&revision, &source, &overrides, render::timeout_ms(input))?;
-        mesh.open(handle, &revision, origin)?;
+        mesh.open(handle, &revision, origin, "cad.view")?;
         let size = input["size"]
             .as_u64()
             .map_or(SHEET_SIZE, |size| size as u32)

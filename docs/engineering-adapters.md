@@ -86,22 +86,30 @@ as the top level (`size`, `holes`, `bodies`, `shells`, `bbox`, `volume`, `solid`
   an item, or the words of one without assertions, is a scope change.
 - Replies and the gate echo the request form: the top level keeps only what no item asserts, so
   each assertion appears once.
-- **Linked requirements add items.** A requirement counts when it is a revision input or a
-  manual edge (`validates`, `derived_from`, `depends_on`) of the part, or when the check names it
-  in `requirementIds` or an item's `requirementId`. Each of its `features` (`{label, quantity?,
-expect?}`, validated on write) becomes an item; the feature's `expect` is taken only when the
-  requirement links to this one mechanical part, since it is written in that part's frame.
-  A requirement without features whose target is a length, area, volume or angle gives one row
-  that only an item naming it with a dimensional assertion (`size`, `bbox`, `volume`,
-  `sections` or `holes`) shows; a body count or points alone do not. An item in the words of
-  the requirement's title is that row, not a second one. A requirement with no target, an
-  unknown one, or another quantity (mass, time, a percentage) gives a row no check shows ("No
-  check shows this requirement"): it never blocks and never passes. A requirement archived
-  after a committed check named it is accepted, and its items are checked as listed items.
+- **Linked requirements add items.** A requirement counts when it is a revision input or a manual
+  edge (`validates`, `derived_from`, `depends_on`) of the part, or when the check names it in
+  `requirementIds` or an item's `requirementId`. One that a committed check named in
+  `requirementIds` stays in every later check that check binds (`via` `check`, linked by a
+  person when a person ran a check that named it, otherwise by the agent), and the reply's
+  `notes` say so: leaving it out does not drop it. A check reads that list again as it commits,
+  so one that ran beside the check naming it keeps it too; when the requirement has features,
+  which that check did not measure, it is refused with `INPUT_CHANGED` and repeated. The gate,
+  readiness and the next expect read the same list. Each of its `features`
+  (`{label, quantity?, expect?}`, validated on write; a blank label is refused) becomes an item;
+  the feature's `expect` is taken only when the requirement links to this one mechanical part,
+  since it is written in that part's frame. A requirement without features whose target is a
+  length, area, volume or angle gives one row that only an item naming it with a dimensional
+  assertion (`size`, `bbox`, `volume`, `sections` or `holes`) shows; a body count or points alone
+  do not. An item in the words of the requirement's title is that row, not a second one (a blank
+  title gives way to the statement). A requirement with no target, an unknown one, or another
+  quantity (mass, time, a percentage) gives a row no check shows ("No check shows this
+  requirement"): it never blocks and never passes. A requirement archived after a committed check
+  named it is accepted, and its items are checked as listed items.
 - A requirement's own assertions replace those sent for its feature; a listed value that
   disagrees with them is refused, naming both. Two linked requirements that state one assertion
-  differently leave no check of the part to run: every `cad_check` is refused, and `work_status`
-  names both requirements with no `next`, since a person has to reconcile them.
+  differently (one a committed check named among them) leave no check of the part to run: every
+  `cad_check` is refused, and `work_status` names both requirements with no `next`, since a
+  person has to reconcile them.
 - A requirement row says whose assertions show it (`assertedBy`): the requirement's own, or ones
   listed for it (a statement row, or a feature of a requirement linked to several parts).
 - The limit, plainly: without recorded requirements the item list is the agent's own reading of
@@ -123,11 +131,13 @@ revision and its expectation hash. The status of a revision is `passed`, `failed
 dropped or a tolerance loosened), `partial` (only generic checks ran, or listed items have no
 assertion) or `unverified`, with `ready`
 and a `nextAction` (`commit_assertions`, `repair_geometry`, `resolve_inputs`,
-`request_review`, …). The same state is what `cad_check` answers, what `work_status` reports
+`request_review`, …; `accept_scope` when only linked requirements changed the scope, which a
+person accepts). The same state is what `cad_check` answers, what `work_status` reports
 (`cad_unverified`, `cad_spec_unasserted`, `cad_check_failed`, `cad_scope_changed`,
 `cad_render_failed`) and what a proposal shows. A scope with listed items that lack an assertion
 cannot be accepted. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
-section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose);
+section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose, and
+closes a loop whose crossing falls on a rounding boundary, which v2 left as open chains);
 evidence from earlier checkers stays readable.
 
 - The committed check that decides is the one committed last (numbered at commit), whatever
@@ -228,7 +238,8 @@ Not rebuilt exactly (the export is then faceted, with the reason): `minkowski()`
 - **One deadline.** `timeoutMs` (default 120,000, at most 300,000) covers finding the Python,
   the CSG run and the converter; reaching it falls back to faceted. The work runs as a
   `cad_export` job (tool `omenflow-step`) with the core lock released and stops on
-  `job.cancel`; a cancelled export writes nothing.
+  `job.cancel`; a cancelled export writes nothing. The job does not bring the part into the
+  session's `work_status` scope: exporting someone else's draft is not working on it.
 - **Which revision.** `revisionId`, else a person's baseline, else an agent's newest revision.
   It needs a render of its own source and parameters (`details.reason: "NO_RENDER"`) that is one
   closed solid (`"NOT_A_SOLID"`). Notes say when the revision is a draft, proposed, rejected or
