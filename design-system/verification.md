@@ -4,6 +4,28 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## 0.2.4 merged tree · 22 October 2026
+
+The five 0.2.4 changes together (completion gate and model ids, STEP export, cad_view and
+image_view, listed items of a CAD check, the lean CAD path), in the design preview on the merged
+tree (started through a local copy of `scripts/design-preview.ts` that reused a helper built from
+this tree, since a nested worktree cannot build `native/omenflow-bridge`), Graphite at
+1440 × 900:
+
+- Settings → Agents lists the adapters and, after them, “Unfinished work after a response” with
+  Offer Continue (the default) and Continue once; choosing Continue once was saved without an
+  error.
+- Settings → Engineering tools keeps the OpenSCAD row (“Working”, 2026.09.18) and shows the STEP
+  converter row below it: “Not set up” until a Python with OCP was entered, then “Working” with
+  “OCP 7.9.3.1 on Python 3.12.14” after Save and check, the OpenSCAD row unchanged.
+- The catalogue shows the Work not finished, Continuation and model, Listed items of a CAD
+  check, Linked requirements that disagree and Review evidence with listed items specimens in
+  both themes, the `work` and `spec` dimensions, and the activity-rail entry naming “host also
+  ran”. No console errors.
+
+Not checked here: a real conversation turn's gate card, an export or a check from the mechanical
+stage, the native app, VoiceOver.
+
 ## STEP export · 22 October 2026
 
 **Export STEP** in the mechanical stage's bar (`object/mechanical/MechanicalStage.tsx`,
