@@ -38,8 +38,9 @@ interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-sys
 6. **The renderer** (`apps/desktop/src/renderer/`) follows the Lens model: add a stage or a lens
    (one entry in `project/lenses.ts`), never a page or a dashboard. Use the tokens in
    `design-system/tokens.css`, the primitives in `ui/kit.tsx`, and the stylesheet of the surface
-   you change in `styles/`. Import only types and `@omenflow/contracts/format` from the
-   contracts package. Renderer tests live in `tests/frontend/`. A new reusable pattern goes into
+   you change in `styles/`. Import only types and the dependency-free entry points
+   `@omenflow/contracts/format` and `@omenflow/contracts/chat` from the contracts package, never
+   its runtime barrel. Renderer tests live in `tests/frontend/`. A new reusable pattern goes into
    the Design system view and the specification; check both themes at 1024 × 700 and
    1440 × 900 in `pnpm design:preview`.
 

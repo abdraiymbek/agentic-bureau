@@ -699,8 +699,8 @@ A lens is one entry in `LENSES` (`renderer/project/lenses.ts`) plus its componen
 bar, `⌘n`, the omnibar, the preview's `screen=` parameter, and the catalogue read that list.
 The Object, Decision, Design system and Agent views, the omnibar and the sheet are code-split
 and fetched once the first screen is up; three.js, xterm and the markdown renderer have chunks
-of their own, and so do the conversation's markdown stream and chart. The renderer imports only types and `@omenflow/contracts/format` from the
-contracts package, never its runtime barrel.
+of their own, and so do the conversation's markdown stream and chart. The renderer imports only types and the dependency-free entry points `@omenflow/contracts/format`
+and `@omenflow/contracts/chat` from the contracts package, never its runtime barrel.
 
 Class names are global. Name a class for its surface (`object-view`, `lens-check`,
 `verify-row`), never with a bare state word such as `focus` or `check`: libraries such as xterm

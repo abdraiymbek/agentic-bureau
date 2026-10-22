@@ -104,9 +104,11 @@ It is a design and behaviour preview on the real host, not a native acceptance t
 
 - `pnpm eval:agent -- --out <dir>` ([`evals/agent/`](../evals/agent/README.md)) runs real agent
   CLIs against the release Rust headless host and judges the result from recorded project
-  state, never from the model's account of it. It **spends model credits**: Claude Code cells
-  are capped at 2 USD and 40 turns, every cell at 10 minutes; Codex has no spend flag. `--out`
-  must be outside the repository. `--reference good` / `--reference bad` run scripted sessions
+  state, never from the model's account of it. It **spends model credits**, and nothing caps
+  the spend: a Claude Code cell is bounded by 40 turns (`--max-turns`) and every cell by 10
+  minutes (`--timeout-min`); a Claude Code cell's list-price cost is estimated afterwards from
+  the dated table in `evals/agent/pricing.ts`, and Codex cells get no estimate. `--out` must be
+  outside the repository. `--reference good` / `--reference bad` run scripted sessions
   with no model to check the judges.
 - `pnpm eval:cad` and `pnpm eval:workflows` drive the legacy TypeScript stack with Codex CLI;
   their recorded results are in `evals/cad/results/`.

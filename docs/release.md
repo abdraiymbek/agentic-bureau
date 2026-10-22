@@ -39,6 +39,7 @@ pnpm typecheck
 pnpm lint
 pnpm format:check
 OMENFLOW_OPENSCAD_E2E=1 pnpm test
+OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=~/.omenflow-step/bin/python cargo test -p omenflow-core --lib --locked cad::step -- --nocapture
 pnpm test:conformance
 pnpm smoke:headless
 pnpm make
@@ -47,6 +48,15 @@ pnpm smoke:packaged
 
 `cargo test --workspace` needs OpenSCAD for its engine tests. `OMENFLOW_OPENSCAD_E2E=1` also runs
 the legacy TypeScript real-engine tests.
+
+`OMENFLOW_STEP_E2E=1` runs the exact STEP converter (`crates/core/src/cad/csg_to_step.py`) on
+OCP, which nothing else on this list does: the default tests use a stand-in Python, the
+conformance case is engine-free, and CI installs no OCP. It needs a Python with the pinned OCP,
+for example `uv venv --python 3.12 ~/.omenflow-step && uv pip install --python
+~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1` ([development](development.md)).
+Without the variable these tests print `SKIPPED: set OMENFLOW_STEP_E2E …` and still count as
+passed, so check that the output has no such line (the corpus run, `OMENFLOW_STEP_CORPUS`, is
+separate and still says `SKIPPED`), and record the Python and OCP versions with the results.
 
 `pnpm make` builds the Rust bridge helper, the static React renderer and the Rust Tauri app.
 On macOS it signs the app ad hoc and creates `target/release/bundle/macos/Omen Flow.app` and a
@@ -66,7 +76,18 @@ an unknown token, and that the grant reads the project, writes a draft attribute
 reads it back and is refused a human-only operation. It is not a substitute for the native
 flows: before calling a package releasable, run a real agent CLI session in the Agent tab, a
 CAD render, a review approval, export and reopen of an archive, close and quit with an agent
-running, and an upgrade of a populated earlier project.
+running, and an upgrade of a populated earlier project. The automated checks reach the live
+ends of what 0.2.4 added only through stand-ins (a fixture agent CLI, a stand-in Python), so
+also run, in the native app:
+
+- **Export STEP** from a part's view with a Python with OCP set in Settings → Engineering
+  tools → STEP converter (an exact file) and with none that can import OCP (a faceted file
+  that says why), and open both in a CAD tool;
+- a conversation turn that ends with work not finished: its **Work not finished** card, then
+  **Continue** with Claude Code (which resumes its own conversation), and once with
+  **Unfinished work after a response** set to **Continue once**;
+- a `cad_view` call in a Claude Code session whose picture reaches the model (ask about
+  something only the picture shows), and an `image_view` of a PNG drawing.
 
 ## Publishing a release
 

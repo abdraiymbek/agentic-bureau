@@ -229,10 +229,11 @@ The desktop commands open or build the native app:
 
 The live-model evaluation of the agent layer is `pnpm eval:agent -- --out <dir>`
 ([`evals/agent/`](evals/agent/README.md)). It runs real Claude Code and Codex CLI sessions on the
-Rust headless host and **spends your model account's credits**: Claude Code cells are capped at
-2 USD and 40 turns, every cell at 10 minutes, and Codex has no spend flag, so the wall-clock
-limit is its only bound. `--reference good` and `--reference bad` check the judges with
-scripted sessions and no model.
+Rust headless host and **spends your model account's credits**. Nothing caps the spend: a Claude
+Code cell is bounded by 40 turns (`--max-turns`) and every cell by 10 minutes (`--timeout-min`),
+and a Claude Code cell's list-price cost is estimated afterwards from a dated price table
+([`pricing.ts`](evals/agent/pricing.ts)); Codex cells get no cost estimate. `--reference good` and
+`--reference bad` check the judges with scripted sessions and no model.
 
 ## Limits
 
@@ -276,6 +277,10 @@ scripted sessions and no model.
   `cad_view` draws parts that have OpenSCAD source, as `cad_inspect` measures them.
 - Project archives carry the record, objects and working files, not readable per-artifact views;
   agent call history stays out of archives.
+- A 0.2.3 build ignores the CAD checks 0.2.4 records: it shows each part by its newest check
+  from 0.2.3 or earlier, so a part whose newest 0.2.4 check failed can read there as verified.
+  If you go back, check parts again before relying on them, and again when you return. See
+  [going back to 0.2.3](docs/project-format.md#going-back-to-023).
 
 Current status and verification numbers: [0.2.3 verification record](audit/v0.2.3/README.md).
 Releases 0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered on 21 October 2026,

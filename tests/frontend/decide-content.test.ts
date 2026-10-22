@@ -12,6 +12,7 @@ const { renderToStaticMarkup } = require('react-dom/server');
 vi.mock('dompurify', () => ({ default: { sanitize: (s: string) => s } }));
 import { ArtifactContent } from '../../apps/desktop/src/renderer/decide/ArtifactContent';
 import { PayloadDiff } from '../../apps/desktop/src/renderer/decide/PayloadDiff';
+import { UNIT_JOIN } from '../../apps/desktop/src/renderer/ui/format';
 
 const html = (type: ArtifactType) =>
   renderToStaticMarkup(
@@ -137,6 +138,10 @@ describe('a new object is reviewed as its complete content', () => {
               quantity: { value: 50, unit: 'mm' },
               expect: { sections: [{ axis: 'z', at: 8, outer: { d: 50 } }] },
             },
+            {
+              label: 'Overall envelope',
+              expect: { bbox: { min: [0, 0, 0], max: [60, 60, 16], tol: 2 } },
+            },
             { label: 'Both flanks straight' },
           ],
         },
@@ -145,7 +150,9 @@ describe('a new object is reviewed as its complete content', () => {
     expect(out).toContain('Features a linked part must show');
     expect(out).toContain('<strong>Groove bottom Ø50 at z = 8</strong>');
     expect(out).toContain('50 mm');
-    expect(out).toContain('section z = 8 mm: outer Ø50 mm');
+    expect(out).toContain(`section z = 8${UNIT_JOIN}mm: outer Ø50${UNIT_JOIN}mm`);
+    // A recorded tolerance is part of what approving the requirement approves.
+    expect(out).toContain(`envelope (0, 0, 0) to (60, 60, 16)${UNIT_JOIN}mm ± 2${UNIT_JOIN}mm`);
     expect(out).toContain('No assertions recorded; a check of a linked part has to give its own.');
   });
 

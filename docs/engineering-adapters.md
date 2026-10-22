@@ -138,7 +138,8 @@ person accepts). The same state is what `cad_check` answers, what `work_status` 
 cannot be accepted. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
 section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose, and
 closes a loop whose crossing falls on a rounding boundary, which v2 left as open chains);
-evidence from earlier checkers stays readable.
+evidence from earlier checkers stays readable. A 0.2.3 build ignores v3 checks and goes by its
+own newest check (see [going back to 0.2.3](project-format.md#going-back-to-023)).
 
 - The committed check that decides is the one committed last (numbered at commit), whatever
   order checks were asked in. Only a check that recorded evidence binds a scope; one that ended

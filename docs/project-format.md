@@ -52,18 +52,13 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
   `reverted: true` on `baseline.changed`; agent-origin events carry `data.sessionId`;
 - proposal `impact.supersedesProposalIds` / `impact.supersededByProposalId`, and
   `impact.answeredByRevisionId` on a proposal a newly accepted baseline already contained;
-- a `commitOrder` in the inputs of committed CAD check jobs (the check committed last decides);
+- a `commitOrder` in the inputs of committed CAD check jobs (the check committed last decides,
+  among the checks a build reads; see [going back to 0.2.3](#going-back-to-023));
 - CAD evidence from checker `omenflow-rust-mesh-checks-v3` (0.2.4), beside readable v2 and v1
-  and TypeScript v4 evidence. An earlier build does not vouch for v3 evidence: a part checked
-  only by 0.2.4 shows there as without a committed check. Since 0.2.4 evidence may carry `spec`
-  (listed items, linked requirements and, for a changed scope, `replaced` and `checkChanges`)
-  and the check job's inputs `requirementIds`, while the evidence stays version 1;
-- an optional `features` list in requirement payloads (0.2.4). A 0.2.3 build reads it, but its
-  interface drops it on the next edit and its agent tools refuse it, and its gate echoes
-  `expect.spec`, which its agent tools refuse. A 0.2.3 build also lets a person accept the scope
-  of a `scope_changed` check whose listed items lack an assertion, and then reads it as
-  verified; 0.2.4 refuses that acceptance and keeps such a check `scope_changed`, so review such
-  parts in 0.2.4;
+  and TypeScript v4 evidence. Since 0.2.4 evidence may carry `spec` (listed items, linked
+  requirements and, for a changed scope, `replaced` and `checkChanges`) and the check job's
+  inputs `expect.spec` and `requirementIds`, while the evidence stays version 1;
+- an optional `features` list in requirement payloads (0.2.4);
 - the event type `cad.exported` (a part written as STEP, STL or SCAD: `format`, `method`,
   `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
   job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
@@ -87,6 +82,35 @@ opened read-only refuses it with `READ_ONLY`, where earlier builds copied STL an
 from such a project.
 
 No table, column or constraint was renamed or changed.
+
+### Going back to 0.2.3
+
+A 0.2.3 build opens a project that 0.2.4 has worked on and keeps its data, but it reads CAD
+checks and conversations differently:
+
+- **It ignores every check recorded by 0.2.4** (checker v3). Each revision shows its newest
+  check from 0.2.3 or earlier, even when a later 0.2.4 check of that same revision failed,
+  changed scope or left items unasserted. A part whose newest 0.2.4 check failed can therefore
+  read there as verified, and 0.2.3 lets a person approve it and build with it. A revision
+  checked only by 0.2.4 shows as without a committed check.
+- It cannot accept the scope of a check recorded by 0.2.4: accepting or approving with that
+  evidence is refused with `REVISION_CONFLICT`, because 0.2.3 does not see the evidence.
+- It still compares its own checks with the scope a 0.2.4 check recorded. When that check
+  listed items (`expect.spec`), which 0.2.3 strips from its own checks, every 0.2.3 check of the
+  part reports `spec` as dropped: with `autoCommit` it stays an uncommitted trial, and
+  otherwise it commits as `scope_changed`, even when a person runs it with the arguments its
+  gate suggests. The part is verified there again only after a person accepts a scope.
+- It reads requirement `features`, but its interface drops them on the next edit and its agent
+  tools refuse them; its gate echoes `expect.spec`, which its agent tools also refuse.
+- Any change it makes to the conversations rewrites the file and drops the 0.2.4 turn fields
+  above from every turn: sending a turn, attaching a part to a conversation, or marking a
+  running turn interrupted when the project opens. A continuation then loses its
+  `continues` record, so both builds show Omen Flow's continuation text as the person's own
+  message, and 0.2.4 replays it as the person's to an agent CLI that starts a new conversation.
+
+So after going back, do not rely on a part's verified state there until it is checked again,
+and when returning to 0.2.4, check again the parts 0.2.3 checked or approved. The job history
+keeps every check with the checker that recorded it.
 
 ## Objects and working files
 

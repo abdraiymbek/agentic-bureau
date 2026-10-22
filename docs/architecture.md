@@ -84,7 +84,8 @@ delivery cursor.
 | `native/omenflow-bridge` | The `omenflow` helper; its own Cargo workspace                                                                                                                                                                                                                                                                                                                                  |
 | `apps/desktop`           | The renderer: `src/renderer/` (see [the design specification](../design-system/design.md) §10), Vite configs, `index.html` with the content security policy                                                                                                                                                                                                                     |
 
-The renderer imports only types and `@omenflow/contracts/format` from the contracts package. It
+The renderer imports only types and the dependency-free entry points `@omenflow/contracts/format`
+and `@omenflow/contracts/chat` from the contracts package, never its runtime barrel. It
 talks to a host through `window.omenflow` (`api.ts`): `tauri-api.ts` on the desktop,
 `preview.ts` against the design preview's proxy to `omenflow-host`.
 
