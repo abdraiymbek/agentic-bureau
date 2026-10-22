@@ -751,7 +751,7 @@ const imageView = z.object({
     .min(256)
     .max(2000)
     .optional()
-    .describe('Longest edge of the returned image in pixels (default 1280).'),
+    .describe('Longest edge of the returned image in pixels (default 1024).'),
 });
 const cadCheck = z.object({
   artifactId: idSchema.describe('Mechanical part to verify.'),

@@ -24,7 +24,7 @@ type P3 = mesh::Point;
 /// Smallest picture drawn, and the defaults, in pixels along the long edge.
 const MIN_SIZE: u32 = 256;
 const SHEET_SIZE: u32 = 1024;
-const IMAGE_SIZE: u32 = 1280;
+const IMAGE_SIZE: u32 = 1024;
 /// A to-scale panel whose content is smaller than this both ways is noted.
 const SMALL_PANEL_PX: f64 = 16.0;
 /// Section outlines listed per section; `cad_inspect` lists them all.
