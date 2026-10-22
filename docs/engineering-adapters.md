@@ -193,28 +193,52 @@ methods made it (`method`, `exact`) and how it compares with the render (`checks
   when, as read back, it is valid, every shell is closed, it has no free edges and every face
   tessellates; it has as many solids as the render has bodies; its volume is within 0.5 % of the
   render's and its bounding box within max(0.05 mm, 0.5 % of the largest extent); at most 3 of
-  512 points through the bounding box classify differently; and the probe pairs agree.
+  512 points through the bounding box classify differently (one the converter finds on the exact
+  surface is not compared, and is counted as `sampleOnSurface`); and the probe pairs agree.
 - **Probe pairs.** Each sits just inside and just outside a face. The core places them on every
-  smooth surface of the render (a planar face, a cylinder wall, a sphere: triangles meeting at
-  under 30°), four on each while 2,048 pairs allow, never fewer than two (the budget grows to
-  8,192); the converter places them on the exact solid's own faces the same way, away from the
-  edges of its mesh triangles, and the core classifies those against the render. At most 2 pairs
-  may disagree on each side, and no surface may lose most of its pairs: a hole or boss the
+  smooth surface of the render (a planar face, a cylinder wall, a sphere: triangles meeting at under
+  30°), four on each while 2,048 pairs allow, never fewer than two (the budget grows to 8,192); the
+  converter places them on the exact solid's own faces the same way, away from the edges of its mesh
+  triangles, and the core classifies those against the render. At most 2 pairs may disagree on each
+  side, and at the render's faces only where the facets or rounding could explain it: a face of the
+  render must lie within 1.5 times the facet bound plus the rounding of the point that disagrees, or
+  the pair is a lost feature however few there are (a pair that had to move in to 1.5 times the
+  bound has its own face that near, and is held to the count). The rounding is 1e-5 mm plus
+  the single-precision step at the part's largest coordinate (about 0.000022 mm for a 100 mm part at
+  the origin). On a tree of flat faces (no curved primitive; cylinders and circles of 3 to 8 facets
+  count as flat), whose facets are its exact faces, the facet bound is 0, so the rounding alone
+  explains a disagreement, and the same rule holds at the solid's own faces. On a curved tree the
+  count alone applies there: on the corpus below, a correct rebuild had one pair there 0.117 mm from
+  every face of the render, beyond its 0.108 mm reach, where the render's facets lie farther from
+  the exact surface than the bound says. No surface may lose most of its pairs: a hole or boss the
   rebuild lost, or material it added, takes its own surface's pairs with it. The first offset is
-  three times the facet bound: the largest r(1 − cos(π/f)) of any curved primitive in the CSG
-  tree (about twice that for a sphere's faces, a revolution's at its profile's farthest point,
-  0.01 mm for an approximated `hull()`), stretched by that primitive's own enclosing transforms
-  only. Guard points a margin further out (1.5 times the facet bound, at least the smallest
-  offset) must classify as the pair does, so neither point lies near another face. A pair that
-  crosses a wall or gap is tried elsewhere on the surface, then at half the offset, down to
-  0.001 mm or 1e-5 of the part's size. A pair nearer the face than 1.5 times the facet bound
-  counts only when it agrees, since the facets themselves may lie that far from the exact
-  surface; one that disagrees is set aside (`surfaceSetAside`, `solidSetAside`). A surface left
-  with fewer than two pairs that count is never vouched for: the export is faceted with that
-  reason. So a lost feature is found however small it is beside the part, or the export is
-  faceted. Not probed: slivers a boolean left between faces, narrower across than the smallest
-  offset (`surfaceSlivers`, `solidSlivers`), and faces of the exact solid on which no pair fits
-  (`solidUnprobedFaces`); added material that thin would go unseen.
+  three times the facet bound: the largest r(1 − cos(π/f)) of any curved primitive in the CSG tree
+  (about twice that for a sphere's faces, a revolution's at its profile's farthest point, 0.01 mm
+  for an approximated `hull()`), stretched by that primitive's own enclosing transforms only. Guard
+  points a margin further out (1.5 times the facet bound, at least the smallest offset) must
+  classify as the pair does, so neither point lies near another face. A pair that crosses a wall or
+  gap is tried elsewhere on the surface, then at half the offset, down to 0.001 mm or 1e-5 of the
+  part's size. A pair nearer the face than 1.5 times the facet bound counts only when it agrees,
+  since the facets themselves may lie that far from the exact surface; one that disagrees is set
+  aside (`surfaceSetAside`, `solidSetAside`). A surface left with fewer than two pairs that count is
+  never vouched for: the export is faceted with that reason. A lost hole, boss or pocket with faces
+  of its own is found however small it is beside the part. A feature of the render that blends into
+  a face at under 30° (a shallow dimple, groove or blend) shares that face's pairs, which are spread
+  by area (about one per 11 mm² on a 100 × 100 × 5 mm plate), and a lost one is found only where a
+  pair lands on it and it is deeper there than the probe offset (`checks.probeOffsetMm`); otherwise
+  it can be lost unseen and the file still called exact. Material the rebuild added brings faces of
+  its own to the exact solid, each with pairs of its own: it is found where it stands higher than
+  the offset under most of a face's pairs, or under one on a tree of flat faces. Added material that
+  merges into a face the solid already had shares that face's pairs and, on a curved tree, is found
+  only when three of them land on it. On that plate with OCP 7.9.3: with 64-facet sphere cutters
+  (offset 0.072 mm), a lost dimple 2.8 to 4.4 mm across and 0.1 to 0.25 mm deep was refused, and one
+  1.9 mm across or less, or 0.08 mm deep or less, was not seen (one 1.3 mm across that meets the
+  plate at 41°, and so has its own surface, was refused); with a hexagonal pyramid cutter, a tree of
+  flat faces (offset 0.0014 mm), a lost dimple 3 to 8 mm across and 0.05 to 0.3 mm deep was refused,
+  as was the pyramid added as a bump, and one 2.5 mm across or less, or 4 mm across and 0.01 mm
+  deep, was not seen. Not probed: slivers a boolean left between faces, narrower across than the
+  smallest offset (`surfaceSlivers`, `solidSlivers`), and faces of the exact solid on which no pair
+  fits (`solidUnprobedFaces`); added material that thin would go unseen.
 - **What else is checked.** Rust also checks the file's own bytes (its size, ISO 10303-21
   framing, the AP214 schema, a solid); `checks.basis` names the OCP version that read it back,
   and the job and `converter` name the OCP and Python versions the converter ran with. A
@@ -250,7 +274,9 @@ Not rebuilt exactly (the export is then faceted, with the reason): `minkowski()`
   wrote.
 - **Record.** Every export emits `cad.exported` (Timeline: “Exported STEP”, “Exported STEP
   (faceted)”, “Exported STL”). The job records the file's hash and the programs by file name;
-  its inputs hold no machine path. Nothing is cached, and exports are not revision files.
+  its inputs hold no machine path, and its error names a destination outside the project by its
+  file name (its log names the Pythons it tried in full; a project archive cuts them to their
+  file names). Nothing is cached, and exports are not revision files.
 - **STL and SCAD** copy the revision's stored file of any artifact type, as before. They are
   not staged, run no job, and honour `idempotencyKey`.
 
@@ -290,6 +316,13 @@ files the exports chose, the faceted ones included, in at most 62 s each. Export
 and 14 s at the 90th percentile (99 s at most). Faceted files of all 49: median 1,258 faces and
 1.3 MB, at most 9,817 faces and 7.5 MB, every volume within 0.000002 % of the render's; the three
 largest (5.1–7.5 MB) ran past that validity check's 180 s tessellation limit on the same machine.
+Run again with the rule that a pair at the render's faces must disagree within the facets' reach
+plus the rounding of a face, the 49 parts chose the same methods and the seeded copies were refused
+for the same reasons; that rule refused none of them. Every one of the 49 has a curved primitive,
+so none ran on the flat-face rule; 12 trees of flat faces written for it (rotated and scaled
+cubes, polygons, a polyhedron, 3- to 8-facet holes, 0.5 mm walls, a 2 m plate, a plate 2.2 m from
+the origin; `exact_rebuilds_of_flat_trees_agree_everywhere`) were all accepted with no pair or
+point disagreeing.
 
 ## Calculations
 

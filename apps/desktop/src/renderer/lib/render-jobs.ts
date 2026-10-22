@@ -216,6 +216,26 @@ export function exportJobsFor(jobs: Job[], artifactId: string): Job[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+/**
+ * The stopped export to show as its own row, or null. A failure the stage already reported in
+ * its own outcome is said once: not while that outcome shows (`reported`, by revision id), and
+ * not after the person dismissed it (`dismissedAt`, by revision id: when the core answered the
+ * dismissed export, in ms). A later failure, from an export that ended after that, still shows.
+ */
+export function stoppedExportJob(
+  newest: Job | undefined,
+  reported: Readonly<Record<string, unknown>>,
+  dismissedAt: Readonly<Record<string, number>>,
+): Job | null {
+  if (!newest || !['failed', 'interrupted'].includes(newest.status)) return null;
+  const revisionId = jobRevisionId(newest) ?? '';
+  if (reported[revisionId]) return null;
+  const seen = dismissedAt[revisionId];
+  const ended = Date.parse(newest.finishedAt ?? newest.createdAt);
+  if (seen !== undefined && Number.isFinite(ended) && ended <= seen) return null;
+  return newest;
+}
+
 /** The fields of a `cad.export` STEP result the stage reads. */
 export interface StepExportResult {
   path: string;
@@ -298,15 +318,25 @@ export function stepOutcomeView(r: StepExportResult): {
     const probes = num(c.surfaceProbes);
     const own = num(c.solidProbes);
     const samples = num(c.samples);
+    // Pairs that disagreed nearer the faces than the facets reach, and points on the solid's
+    // surface, are neither agreeing nor counted: they are named, not added to the agreement.
+    const surfaceAside = num(c.surfaceSetAside) ?? 0;
+    const solidAside = num(c.solidSetAside) ?? 0;
+    const onSurface = num(c.sampleOnSurface) ?? 0;
+    const faces = own !== null ? 'the render’s' : 'its';
     const agree: string[] = [];
     if (probes !== null)
       agree.push(
-        `${probes - (num(c.surfaceMismatches) ?? 0)} of ${probes} probes at ${own !== null ? 'the render’s' : 'its'} faces`,
+        `${probes - (num(c.surfaceMismatches) ?? 0) - surfaceAside} of ${probes} probes at ${faces} faces`,
       );
     if (own !== null)
-      agree.push(`${own - (num(c.solidMismatches) ?? 0)} of ${own} at the solid’s own faces`);
+      agree.push(
+        `${own - (num(c.solidMismatches) ?? 0) - solidAside} of ${own} at the solid’s own faces`,
+      );
     if (samples !== null)
-      agree.push(`${samples - (num(c.sampleMismatches) ?? 0)} of ${samples} points through it`);
+      agree.push(
+        `${samples - (num(c.sampleMismatches) ?? 0) - onSurface} of ${samples} points through it`,
+      );
     const within = [
       volume !== null ? `volume within ${formatQuantity({ value: volume, unit: '%' })}` : null,
       box !== null ? `bounding box within ${formatQuantity({ value: box, unit: 'mm' })}` : null,
@@ -317,6 +347,21 @@ export function stepOutcomeView(r: StepExportResult): {
     lines.push(
       `Rebuilt from the source and compared with r${r.revisionSeq}’s render${within.length ? `: ${within.join(', ')}` : ''}.`,
     );
+    const count = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
+    const aside = [
+      surfaceAside > 0 && probes !== null
+        ? `${count(surfaceAside, 'probe')} at ${faces} faces`
+        : null,
+      solidAside > 0 && own !== null
+        ? `${count(solidAside, 'probe')} at the solid’s own faces`
+        : null,
+    ].filter((x): x is string => !!x);
+    if (aside.length)
+      lines.push(
+        `Not counted: ${aside.join(' and ')}, which disagreed nearer the faces than the facets can lie from the exact surfaces.`,
+      );
+    if (onSurface > 0 && samples !== null)
+      lines.push(`Not compared: ${count(onSurface, 'point')} through it on the solid’s surface.`);
   } else {
     lines.push(r.reason ? `Why not exact: ${r.reason}` : 'Faceted, as asked.');
     lines.push(

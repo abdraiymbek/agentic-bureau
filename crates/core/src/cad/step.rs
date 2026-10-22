@@ -53,6 +53,8 @@ const SMOOTH_DEGREES: f64 = 30.0;
 /// A probe pair this many times as far from the face as a facet can lie from
 /// the exact surface counts whether it agrees or not.
 const TRUSTED_BOUNDS: f64 = 1.5;
+/// Rounding beside the single-precision corners, mm (`rounding`).
+const ROUNDING_MM: f64 = 1e-5;
 
 /// Agreement an exact solid needs with the render. On the 49-part
 /// CADGenBench corpus (OCP 7.9.3) the 46 accepted parts differed by at most
@@ -64,6 +66,9 @@ const MAX_VOLUME_ERROR: f64 = 0.005;
 const MIN_BBOX_TOLERANCE_MM: f64 = 0.05;
 const BBOX_TOLERANCE: f64 = 0.005;
 const MAX_SAMPLE_MISMATCHES: usize = 3;
+/// Counted probe pairs that may disagree on either side; at the render's
+/// faces, and at the solid's own on a tree of flat faces, only where a face of
+/// the render lies within `Sampling::explained` of the point that disagrees.
 const MAX_SURFACE_MISMATCHES: usize = 2;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -534,8 +539,12 @@ pub(super) struct Sampling {
     pub offsets: Vec<f64>,
     /// Pairs nearer the faces than this, mm, lie within reach of the facets'
     /// deviation from the exact surfaces: they count when the two agree, and
-    /// are set aside when not.
+    /// are set aside when not. Zero for a tree of flat faces, whose facets are
+    /// its exact faces.
     pub trusted: f64,
+    /// How far the render's faces can lie from the surfaces OpenSCAD rendered
+    /// by rounding alone, mm (`rounding`).
+    pub rounding: f64,
     /// How many smooth patches of the render are compared, and those with
     /// fewer than two probe pairs: nothing there is compared.
     pub patch_count: usize,
@@ -547,6 +556,20 @@ pub(super) struct Sampling {
 impl Sampling {
     pub fn pairs(&self) -> usize {
         (self.points.len() - self.volume) / 2
+    }
+
+    /// How far a pair's guards lie beyond its points, mm: the facets' reach
+    /// with its margin, at least the smallest offset.
+    pub fn reach(&self) -> f64 {
+        self.trusted.max(*self.offsets.last().unwrap_or(&0.0))
+    }
+
+    /// How far from the render's faces an exact solid that is the render can
+    /// classify a point differently, mm: the facets' reach with its margin,
+    /// plus the rounding. On a tree of flat faces it is the rounding alone,
+    /// far below the smallest offset.
+    pub fn explained(&self) -> f64 {
+        self.trusted + self.rounding
     }
 
     /// Why the comparison cannot vouch for the whole render, if it cannot: a
@@ -618,6 +641,20 @@ pub(super) fn bodies(mesh: &mesh::Mesh) -> usize {
         *volumes.entry(root_of(&mut parent, c[0])).or_default() += signed / 6.0;
     }
     volumes.values().filter(|volume| **volume > 0.0).count()
+}
+
+/// How far the render's faces can lie from the surfaces OpenSCAD rendered by
+/// rounding alone, mm, with room to spare: the render's corners are stored in
+/// single precision (a step of `f32::EPSILON` of the largest coordinate at
+/// most), and OpenSCAD's grid and the converter's classification (a point
+/// within 1e-6 mm of the exact surface is on it) are within `ROUNDING_MM`.
+fn rounding(mesh: &mesh::Mesh) -> f64 {
+    let largest = mesh
+        .bounds_min
+        .iter()
+        .chain(&mesh.bounds_max)
+        .fold(0.0, |largest: f64, v| largest.max(v.abs()));
+    ROUNDING_MM + f64::from(f32::EPSILON) * largest
 }
 
 /// The probe offsets to try, largest first: three times `bound`, how far a
@@ -906,6 +943,7 @@ pub(super) fn sampling(mesh: &mesh::Mesh, bound: f64) -> Sampling {
         pair_offsets,
         offsets,
         trusted,
+        rounding: rounding(mesh),
         patch_count: compared.len(),
         slivers: surfaces.len() - compared.len(),
         unprobed,
@@ -923,6 +961,17 @@ fn number(answer: &Value, key: &str) -> f64 {
 fn round(value: f64, digits: i32) -> f64 {
     let factor = 10f64.powi(digits);
     (value * factor).round() / factor
+}
+
+/// A positive distance to two significant figures, rounded down so that
+/// "farther than" it stays true: 0.030006 is 0.03, 0.0000219 is 0.000021.
+fn significant(value: f64) -> f64 {
+    if !value.is_finite() || value <= 0.0 {
+        return value;
+    }
+    let digits = 1 - value.log10().floor() as i32;
+    let factor = 10f64.powi(digits);
+    (value * factor * (1.0 + 1e-12)).floor() / factor
 }
 
 /// Is the exact solid the render? The first comparison it fails, or the
@@ -1015,6 +1064,29 @@ pub(super) fn accept(
             render.missed
         ));
     }
+    // A counted pair that disagrees where no face of the render lies within the facets' reach
+    // and the rounding cannot be the facets' doing, however few such pairs there are: a dimple
+    // or groove that blends into its face (and so shares its patch and its pairs) is lost this
+    // way. On a tree of flat faces that reach is the rounding alone.
+    let explained = sampling.explained();
+    let unexplained = (0..pairs)
+        .filter(|&pair| {
+            let at = sampling.volume + 2 * pair;
+            sampling.pair_offsets[pair] >= sampling.trusted
+                && [(at, b'1'), (at + 1, b'0')]
+                    .into_iter()
+                    .any(|(point, expected)| {
+                        classified[point] != expected
+                            && !face_within(mesh, sampling.points[point], explained)
+                    })
+        })
+        .count();
+    if unexplained > 0 {
+        return Err(format!(
+            "{unexplained} of {pairs} probe pairs at the render's faces classify differently farther than {} mm from every face of the render, more than its facets and rounding explain, so a feature of the render is missing or moved",
+            significant(explained)
+        ));
+    }
     if render.uncounted > 0 {
         return Err(format!(
             "on {} of the render's {} surfaces the only probe pairs that fit lie nearer the faces than the facets can lie from the exact surfaces ({} mm), and disagree, so a feature there may be missing",
@@ -1036,8 +1108,15 @@ pub(super) fn accept(
                 .ok_or("its probes of its own faces are not points")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let solid = tally(own.iter().map(|pair| {
-        let (inner, outer) = ([pair[0], pair[1], pair[2]], [pair[3], pair[4], pair[5]]);
+    // Each pair's points with the render's answers for them.
+    let seen = own
+        .iter()
+        .map(|pair| {
+            let (inner, outer) = ([pair[0], pair[1], pair[2]], [pair[3], pair[4], pair[5]]);
+            (inner, outer, mesh.contains(inner), mesh.contains(outer))
+        })
+        .collect::<Vec<_>>();
+    let solid = tally(own.iter().zip(&seen).map(|(pair, &(inner, outer, a, b))| {
         let offset = (0..3)
             .map(|k| (outer[k] - inner[k]).powi(2))
             .sum::<f64>()
@@ -1045,7 +1124,7 @@ pub(super) fn accept(
             / 2.0;
         (
             pair[6] as u64,
-            mesh.contains(inner) && !mesh.contains(outer),
+            a && !b,
             // A rounding margin: the converter's offsets are the core's.
             offset >= sampling.trusted * (1.0 - 1e-9),
         )
@@ -1057,6 +1136,31 @@ pub(super) fn accept(
             own.len()
         ));
     }
+    // On a tree of flat faces the render's facets are the exact faces, so a pair here that the
+    // render classifies differently farther than the rounding from every face of the render is
+    // material the rebuild added, however few such pairs there are. Not on a curved tree: on
+    // the corpus a correct rebuild had one pair at its own faces disagreeing 0.117 mm from
+    // every face of the render (0.108 mm reach), where the render's facets lie farther from the
+    // exact surface than the facet bound says.
+    if sampling.trusted == 0.0 {
+        let unexplained = seen
+            .iter()
+            .filter(|&&(inner, outer, a, b)| {
+                [(inner, a, true), (outer, b, false)].into_iter().any(
+                    |(point, inside, expected)| {
+                        inside != expected && !face_within(mesh, point, explained)
+                    },
+                )
+            })
+            .count();
+        if unexplained > 0 {
+            return Err(format!(
+                "{unexplained} of {} probe pairs at its own faces classify differently in the render farther than {} mm from every face of the render, whose flat facets are its exact faces, so it has material or a face the render does not",
+                own.len(),
+                significant(explained)
+            ));
+        }
+    }
     if solid.uncounted > 0 {
         return Err(format!(
             "on {} of its faces the only probe pairs that fit lie nearer the faces than the render's facets can lie from them ({} mm), and disagree, so it may have material the render does not",
@@ -1064,9 +1168,16 @@ pub(super) fn accept(
             round(sampling.trusted, 4)
         ));
     }
+    // A point on the exact solid's surface (2) is not compared: it says neither way.
+    let on_surface = classified[..sampling.volume]
+        .iter()
+        .filter(|&&state| state == b'2')
+        .count();
     let samples = (0..sampling.volume)
-        .filter(|&at| {
-            matches!(classified[at], b'0' | b'1') && (classified[at] == b'1') != sampling.render[at]
+        .filter(|&at| match classified[at] {
+            b'2' => false,
+            b'0' | b'1' => (classified[at] == b'1') != sampling.render[at],
+            _ => true,
         })
         .count();
     if samples > MAX_SAMPLE_MISMATCHES {
@@ -1079,7 +1190,7 @@ pub(super) fn accept(
         "basis": format!("opencascade read-back (OCP {})", answer["ocp"].as_str().unwrap_or("unknown")),
         "volume": round(volume, 3), "refVolume": round(reference, 3),
         "volumeErrorPct": round(100.0 * error, 4), "bboxErrorMm": round(box_error, 4),
-        "samples": sampling.volume, "sampleMismatches": samples,
+        "samples": sampling.volume, "sampleMismatches": samples, "sampleOnSurface": on_surface,
         "surfaceProbes": pairs, "surfaceMismatches": render.missed,
         "surfaceSetAside": render.set_aside, "surfacePatches": render.surfaces,
         "surfaceSlivers": sampling.slivers,
@@ -1099,8 +1210,10 @@ struct Tally {
     surfaces: usize,
     /// Counted pairs that disagree.
     missed: usize,
-    /// Surfaces that lost most of their counted pairs, as a lost feature takes
-    /// them with it however small it is.
+    /// Surfaces that lost most of their counted pairs, as a lost hole, boss or
+    /// other feature with faces of its own takes them with it however small it
+    /// is. A feature that blends into a face at under `SMOOTH_DEGREES` shares
+    /// that face's pairs instead, and gets them only by its area.
     lost: usize,
     /// Pairs set aside: nearer the faces than the facets' reach, and disagreeing.
     set_aside: usize,
@@ -1137,6 +1250,73 @@ fn tally(pairs: impl Iterator<Item = (u64, bool, bool)>) -> Tally {
             .filter(|(counted, _)| *counted < 2)
             .count(),
     }
+}
+
+/// The point of `triangle` nearest `p` (Ericson, Real-Time Collision
+/// Detection, 5.1.5), by the region of the triangle `p` projects into.
+fn nearest_on(p: mesh::Point, [a, b, c]: mesh::Triangle) -> mesh::Point {
+    let sub =
+        |u: mesh::Point, v: mesh::Point| -> mesh::Point { [u[0] - v[0], u[1] - v[1], u[2] - v[2]] };
+    let dot = |u: mesh::Point, v: mesh::Point| u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+    let along = |from: mesh::Point, to: mesh::Point, t: f64| -> mesh::Point {
+        std::array::from_fn(|k| from[k] + t * (to[k] - from[k]))
+    };
+    let (ab, ac, ap) = (sub(b, a), sub(c, a), sub(p, a));
+    let (d1, d2) = (dot(ab, ap), dot(ac, ap));
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return a;
+    }
+    let bp = sub(p, b);
+    let (d3, d4) = (dot(ab, bp), dot(ac, bp));
+    if d3 >= 0.0 && d4 <= d3 {
+        return b;
+    }
+    let vc = d1 * d4 - d3 * d2;
+    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
+        return along(a, b, d1 / (d1 - d3));
+    }
+    let cp = sub(p, c);
+    let (d5, d6) = (dot(ab, cp), dot(ac, cp));
+    if d6 >= 0.0 && d5 <= d6 {
+        return c;
+    }
+    let vb = d5 * d2 - d1 * d6;
+    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
+        return along(a, c, d2 / (d2 - d6));
+    }
+    let va = d3 * d6 - d5 * d4;
+    if va <= 0.0 && d4 - d3 >= 0.0 && d5 - d6 >= 0.0 {
+        return along(b, c, (d4 - d3) / ((d4 - d3) + (d5 - d6)));
+    }
+    let total = va + vb + vc;
+    if total.abs() < f64::MIN_POSITIVE {
+        // A degenerate triangle: its edges are other triangles' edges.
+        return a;
+    }
+    let (v, w) = (vb / total, vc / total);
+    std::array::from_fn(|k| a[k] + v * ab[k] + w * ac[k])
+}
+
+/// Does a face of the render lie within `reach` of `point`? Asked of the
+/// few pairs that disagree, so a plain pass over the triangles will do.
+fn face_within(mesh: &mesh::Mesh, point: mesh::Point, reach: f64) -> bool {
+    // A rounding margin: a pair's own face lies exactly its offset away.
+    let reach = reach * (1.0 + 1e-6);
+    mesh.triangles.iter().any(|triangle| {
+        let outside_box = (0..3).any(|k| {
+            let (low, high) = triangle
+                .iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), v| {
+                    (low.min(v[k]), high.max(v[k]))
+                });
+            point[k] < low - reach || point[k] > high + reach
+        });
+        if outside_box {
+            return false;
+        }
+        let nearest = nearest_on(point, *triangle);
+        (0..3).map(|k| (nearest[k] - point[k]).powi(2)).sum::<f64>() <= reach * reach
+    })
 }
 
 /// A converter failure in words, by the stage it stopped at.
@@ -1277,7 +1457,7 @@ fn rebuild(
     let request = json!({"protocol": 1, "csg": csg, "step": step, "answer": answer_path,
         "product": product, "samples": sampling.points,
         "probes": {"offsets": sampling.offsets, "trusted": sampling.trusted,
-            "margin": sampling.trusted.max(*sampling.offsets.last().unwrap_or(&0.0)),
+            "margin": sampling.reach(),
             "pairs": SURFACE_PAIRS, "maxPairs": MAX_SURFACE_PAIRS, "perFace": PAIRS_PER_PATCH,
             "tries": POSITION_TRIES}});
     fs::write(dir.join("csg_to_step.py"), CONVERTER)
@@ -1724,7 +1904,15 @@ impl Pipeline for ExportPipeline {
             None => Err(internal_stage()),
         };
         if let Err(error) = &result {
-            abandon(handle, &self.job_ids(), error, origin);
+            // The caller is told where; the job, which archives carry, names a person's
+            // destination outside the project by its file name, as its inputs do.
+            let mut recorded = error.clone();
+            if let Destination::Absolute(path) = &self.plan.destination {
+                recorded.message = recorded
+                    .message
+                    .replace(&path.display().to_string(), &file_name(path));
+            }
+            abandon(handle, &self.job_ids(), &recorded, origin);
         }
         result
     }

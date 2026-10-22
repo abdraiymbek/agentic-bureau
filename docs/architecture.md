@@ -94,9 +94,10 @@ talks to a host through `window.omenflow` (`api.ts`): `tauri-api.ts` on the desk
 implementation that shipped in the Electron build. They are not in the Tauri bundle. They stay
 as a behaviour oracle: `pnpm test` runs the domain suites against them, and
 `tests/conformance/` runs the same kind of corpus against the Rust host. Operations and inputs
-only Rust implements (`RUST_HOST_OPS`, `assertLegacyInputs` in `packages/core/src/dispatch.ts`)
-are refused there with a typed `VALIDATION` error naming the Rust host, so the oracle never
-reports work it did not do. `pnpm eval:cad` and `pnpm eval:workflows` still drive this stack;
+only Rust implements (`RUST_HOST_OPS`, `assertLegacyInputs` in `packages/core/src/dispatch.ts`,
+and `RUST_HOST_AGENT_OPS` for an agent's call) are refused there with a typed `VALIDATION` error
+naming the Rust host, so the oracle never reports work it did not do, and its MCP server does not
+list them. `pnpm eval:cad` and `pnpm eval:workflows` still drive this stack;
 `evals/agent` drives the Rust host.
 
 ## Invariants

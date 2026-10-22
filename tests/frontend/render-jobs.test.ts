@@ -15,6 +15,7 @@ import {
   stepExportBlock,
   stepFileName,
   stepOutcomeView,
+  stoppedExportJob,
   type StepExportResult,
 } from '../../apps/desktop/src/renderer/lib/render-jobs';
 
@@ -301,6 +302,53 @@ describe('STEP export', () => {
     expect(view.lines[0]).toBe(
       'Rebuilt from the source and compared with r3’s render: volume within 0.0386%, bounding box within 0.0158 mm, 2041 of 2041 probes at the render’s faces, 2043 of 2044 at the solid’s own faces and 511 of 512 points through it agree.',
     );
+  });
+
+  it('never counts probes set aside or points on the surface as agreeing', () => {
+    const view = stepOutcomeView({
+      ...brep,
+      checks: {
+        ...brep.checks,
+        surfaceSetAside: 3,
+        solidProbes: 2044,
+        solidMismatches: 1,
+        solidSetAside: 1,
+        sampleOnSurface: 2,
+      },
+    });
+    expect(view.lines).toEqual([
+      'Rebuilt from the source and compared with r3’s render: volume within 0.0386%, bounding box within 0.0158\u00a0mm, 2038 of 2041 probes at the render’s faces, 2042 of 2044 at the solid’s own faces and 509 of 512 points through it agree.',
+      'Not counted: 3 probes at the render’s faces and 1 probe at the solid’s own faces, which disagreed nearer the faces than the facets can lie from the exact surfaces.',
+      'Not compared: 2 points through it on the solid’s surface.',
+    ]);
+    const one = stepOutcomeView({ ...brep, checks: { ...brep.checks, surfaceSetAside: 1 } });
+    expect(one.lines[1]).toBe(
+      'Not counted: 1 probe at its faces, which disagreed nearer the faces than the facets can lie from the exact surfaces.',
+    );
+    // None set aside: nothing more is said.
+    expect(stepOutcomeView(brep).lines).toHaveLength(1);
+  });
+
+  it('says a stopped export once: not beside its outcome, nor after the outcome is dismissed', () => {
+    const failed = job('a', 'failed', {
+      kind: 'cad_export',
+      inputs: { artifactId: 'part', revisionId: 'r3' },
+      finishedAt: '2026-10-13T10:05:00.000Z',
+    });
+    const answered = Date.parse('2026-10-13T10:05:00.250Z');
+    expect(stoppedExportJob(failed, {}, {})).toBe(failed);
+    expect(stoppedExportJob(failed, { r3: { status: 'failed' } }, {})).toBeNull();
+    // Dismissed: the outcome is gone and its job's row does not come back in its place ...
+    expect(stoppedExportJob(failed, {}, { r3: answered })).toBeNull();
+    // ... but a later failure of the same revision, or one of another revision, shows.
+    const later = { ...failed, id: 'b', finishedAt: '2026-10-13T10:09:00.000Z' };
+    expect(stoppedExportJob(later, {}, { r3: answered })).toBe(later);
+    expect(stoppedExportJob(failed, {}, { r2: answered })).toBe(failed);
+    // Only a failed or interrupted export is a row of its own.
+    for (const status of ['succeeded', 'cancelled'] as const)
+      expect(stoppedExportJob({ ...failed, status }, {}, {})).toBeNull();
+    expect(stoppedExportJob({ ...failed, status: 'interrupted' }, {}, {})).not.toBeNull();
+    expect(stoppedExportJob(undefined, {}, {})).toBeNull();
   });
 
   it('says what an approximated hull is', () => {

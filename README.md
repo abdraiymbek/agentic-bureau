@@ -264,8 +264,14 @@ scripted sessions and no model.
   chamfered `offset()`, a twisted or scaled `linear_extrude`, `roof()` and `projection()` make a
   faceted file, and a `hull()` of anything but upright cylinders or circles is planar facets. A
   part with a surface too thin for the comparison's probes is faceted too, with that reason. A
-  faceted file is the render's triangles merged into planar faces (median 1.3 MB, at most 7.5 MB
-  on the 49-part CADGenBench corpus); large ones are slow to open in some CAD tools.
+  feature the rebuild lost that blends into a face at under 30° (a shallow dimple, groove or
+  blend) is found only where a probe lands on it and it is deeper there than the probe offset (on
+  a 100 mm plate, lost dimples up to 2.5 mm across went unseen); material it added, only where it
+  stands higher than the offset under most of a face's probes (one, on a part of flat faces), or,
+  merged into an existing face of a curved part, under three. Otherwise the file is called exact
+  all the same. A faceted file is the render's triangles merged into planar faces (median 1.3 MB,
+  at most 7.5 MB on the 49-part CADGenBench corpus); large ones are slow to open in some CAD
+  tools.
 - `image_view` reads PNG and JPEG files only: export a PDF or SVG drawing page as PNG first.
   `cad_view` draws parts that have OpenSCAD source, as `cad_inspect` measures them.
 - Project archives carry the record, objects and working files, not readable per-artifact views;

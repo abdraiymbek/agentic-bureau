@@ -1,8 +1,10 @@
 //! Bounded ZIP project interchange. Imports stage and validate their SQLite
 //! state and immutable objects before publishing the destination directory.
 use super::*;
+use regex::Regex;
 use std::collections::{BTreeMap, HashSet};
 use std::io::{Read, Write};
+use std::sync::OnceLock;
 use zip::write::SimpleFileOptions;
 
 const MAX_ZIP: u64 = 128 * 1024 * 1024;
@@ -443,6 +445,26 @@ impl Redactor {
             })
     }
 
+    /// What a tool printed or an error said: the prefixes `text` names, and
+    /// any other absolute path (a program on PATH, a destination on another
+    /// disk, a library a Python could not load) cut to its last component.
+    fn output(&self, text: &str) -> String {
+        static OTHER_PATHS: OnceLock<Regex> = OnceLock::new();
+        // A path starts a line or follows a space, quote, bracket, `=` or `,`: a POSIX path
+        // of two or more components, or one after a drive letter.
+        let pattern = OTHER_PATHS.get_or_init(|| {
+            Regex::new(
+                r#"(?m)(^|[\s"'(\[{=,])(/[^/\s"'()\[\]{}<>,;:|]+(?:/[^/\s"'()\[\]{}<>,;:|]*)+|[A-Za-z]:[\\/][^\s"'()\[\]{}<>,;:|]*)"#,
+            )
+            .expect("static pattern")
+        });
+        pattern
+            .replace_all(&self.text(text), |found: &regex::Captures<'_>| {
+                format!("{}{}", &found[1], file_name(&found[2]))
+            })
+            .into_owned()
+    }
+
     /// A path on this machine: relative to the project when it is inside it,
     /// otherwise only its last component.
     fn path(&self, path: &str) -> String {
@@ -469,17 +491,18 @@ impl Redactor {
         format!("{}{}", file_name(program), self.text(arguments))
     }
 
-    fn value(&self, value: &mut Value) {
+    /// Every string of `value` through `text`, and the path fields as paths.
+    fn value(&self, value: &mut Value, text: &dyn Fn(&str) -> String) {
         match value {
-            Value::String(text) => *text = self.text(text),
-            Value::Array(items) => items.iter_mut().for_each(|item| self.value(item)),
+            Value::String(string) => *string = text(string),
+            Value::Array(items) => items.iter_mut().for_each(|item| self.value(item, text)),
             Value::Object(map) => {
                 for (key, entry) in map.iter_mut() {
                     match entry {
                         Value::String(path) if PATH_FIELDS.contains(&key.as_str()) => {
                             *path = self.path(path)
                         }
-                        _ => self.value(entry),
+                        _ => self.value(entry, text),
                     }
                 }
             }
@@ -487,13 +510,13 @@ impl Redactor {
         }
     }
 
-    fn json(&self, raw: &str) -> String {
+    fn json(&self, raw: &str, text: &dyn Fn(&str) -> String) -> String {
         match serde_json::from_str::<Value>(raw) {
             Ok(mut value) => {
-                self.value(&mut value);
+                self.value(&mut value, text);
                 value.to_string()
             }
-            Err(_) => self.text(raw),
+            Err(_) => text(raw),
         }
     }
 
@@ -507,9 +530,14 @@ impl Redactor {
         })?;
         self.rewrite(db, "session", "id", "last_error", |text| self.text(text))?;
         self.rewrite(db, "job", "id", "command", |text| self.command(text))?;
-        self.rewrite(db, "job", "id", "log", |text| self.text(text))?;
-        self.rewrite(db, "job", "id", "error", |text| self.json(text))?;
-        self.rewrite(db, "event", "seq", "data", |text| self.json(text))?;
+        // Job logs and errors are what tools printed: no path of this machine stays in them.
+        self.rewrite(db, "job", "id", "log", |text| self.output(text))?;
+        self.rewrite(db, "job", "id", "error", |text| {
+            self.json(text, &|text| self.output(text))
+        })?;
+        self.rewrite(db, "event", "seq", "data", |text| {
+            self.json(text, &|text| self.text(text))
+        })?;
         db.execute_batch("VACUUM").map_err(internal)
     }
 
@@ -1025,6 +1053,19 @@ mod tests {
                 ],
             )
             .unwrap();
+        // What a STEP export prints: the Pythons it tried, a library one could not load, and a
+        // destination on another disk it could not write.
+        original
+            .db
+            .execute(
+                "INSERT INTO job(id,kind,tool,inputs,command,status,log,error,created_at) VALUES('j-2','cad_export','omenflow-step','{}','omenflow-faceted (in process)','failed',?1,?2,?3)",
+                params![
+                    "Python /opt/homebrew/bin/python3: ModuleNotFoundError: No module named 'OCP'\nNot exact: Python /usr/local/bin/python3 cannot import OCP: dlopen(/usr/local/lib/python3.12/site-packages/OCP/OCP.so, 0x0002): Library not loaded\n\"C:\\Python312\\python.exe\": not an executable file",
+                    json!({"code": "VALIDATION", "message": "Could not write /Volumes/usb-stick/p.step: Permission denied (os error 13)"}).to_string(),
+                    now()
+                ],
+            )
+            .unwrap();
         emit(
             &original,
             "session.state",
@@ -1057,12 +1098,24 @@ mod tests {
                 "/opt/agents",
                 "/opt/tools",
                 "/Volumes/usb-stick",
+                "/opt/homebrew",
+                "/usr/local",
+                "Python312",
             ] {
                 assert!(!contains(bytes, leaked), "{member} still contains {leaked}");
             }
         }
         let snapshot: Value = serde_json::from_slice(&names["snapshot.json"]).unwrap();
-        let job = &snapshot["jobs"][0];
+        let job_of = |id: &str| {
+            snapshot["jobs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|job| job["id"] == id)
+                .unwrap()
+                .clone()
+        };
+        let job = &job_of("j-1");
         assert_eq!(job["command"], "OpenSCAD -o output.stl input.scad");
         assert_eq!(
             job["log"],
@@ -1071,6 +1124,15 @@ mod tests {
         assert_eq!(
             job["error"]["message"],
             "Parser error in <project>/artifacts/mechanical/part.scad"
+        );
+        let export = &job_of("j-2");
+        assert_eq!(
+            export["log"],
+            "Python python3: ModuleNotFoundError: No module named 'OCP'\nNot exact: Python python3 cannot import OCP: dlopen(OCP.so, 0x0002): Library not loaded\n\"python.exe\": not an executable file"
+        );
+        assert_eq!(
+            export["error"]["message"],
+            "Could not write p.step: Permission denied (os error 13)"
         );
         let exported = snapshot["events"]
             .as_array()

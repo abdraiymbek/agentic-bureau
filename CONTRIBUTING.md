@@ -31,7 +31,8 @@ interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-sys
 4. **The legacy TypeScript packages** are a behaviour oracle, not a place for new features.
    When an operation or input exists only in Rust, list it in `RUST_HOST_OPS` or
    `assertLegacyInputs` (`packages/core/src/dispatch.ts`) so the oracle refuses it with a typed
-   error instead of ignoring it.
+   error instead of ignoring it; an operation the oracle serves only for a person goes in
+   `RUST_HOST_AGENT_OPS`, and its legacy MCP server does not list either kind.
 5. **Host-level behaviour** gets a case in `tests/conformance/` (run with
    `pnpm test:conformance`), written from what the host actually returns.
 6. **The renderer** (`apps/desktop/src/renderer/`) follows the Lens model: add a stage or a lens

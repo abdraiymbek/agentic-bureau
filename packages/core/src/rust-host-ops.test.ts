@@ -358,3 +358,22 @@ describe('cad.export inputs the legacy TypeScript core does not serve', () => {
     ).rejects.toMatchObject({ code: ErrorCodes.NOT_FOUND });
   });
 });
+
+describe('tool.doctor on the legacy TypeScript core', () => {
+  it('refuses to probe the STEP converter, which only the Rust host looks for', async () => {
+    await expect(
+      app.dispatch('tool.doctor', { toolId: 'python' }, user, projectId),
+    ).rejects.toMatchObject({
+      code: ErrorCodes.VALIDATION,
+      message: 'tool.doctor with toolId python is implemented by the Rust host',
+      details: { op: 'tool.doctor', unsupported: ['toolId python'], implementedBy: 'rust-host' },
+    });
+  });
+
+  it('still answers for OpenSCAD and for every tool it has', async () => {
+    for (const input of [{}, { toolId: 'openscad' }])
+      await expect(app.dispatch('tool.doctor', input, user, projectId)).resolves.toHaveProperty(
+        'results',
+      );
+  });
+});

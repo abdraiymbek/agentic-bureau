@@ -358,18 +358,35 @@ fn an_exact_answer_is_refused_with_the_first_check_it_fails() {
         refused(&|a| flipped(a, &[0, 1, 2, 3, 4, 5, 6])),
         "7 of 512 points through its bounding box classify differently from the render"
     );
-    // A point on the surface (2) is not a disagreement.
+    // A point on the surface (2) is not a disagreement, nor an agreement: it is counted apart.
     let mut on = agreeing.clone();
     let mut inside = on["inside"].as_str().unwrap().as_bytes().to_vec();
     inside[..10].fill(b'2');
     on["inside"] = json!(String::from_utf8(inside).unwrap());
-    assert!(accept(&on, &plate, &sampling).is_ok());
+    let checks = accept(&on, &plate, &sampling).unwrap();
+    assert_eq!(
+        (&checks["sampleOnSurface"], &checks["sampleMismatches"]),
+        (&json!(10), &json!(0))
+    );
+    // An answer that is none of the three says nothing true about the point.
+    let mut garbled = agreeing.clone();
+    let mut inside = garbled["inside"].as_str().unwrap().as_bytes().to_vec();
+    inside[..4].fill(b'?');
+    garbled["inside"] = json!(String::from_utf8(inside).unwrap());
+    assert_eq!(
+        accept(&garbled, &plate, &sampling).err().unwrap(),
+        "4 of 512 points through its bounding box classify differently from the render"
+    );
     assert!(refused(&|a| a["inside"] = json!("01")).starts_with("it classified 2 of the"));
-    // One stray probe pair is noise; three are not.
+    // A tree of flat faces: its facets are the exact faces, so one probe pair that disagrees
+    // away from every other face is a lost feature (a stray within the rounding of a face is
+    // noise: `a_stray_disagreement_at_the_renders_faces_is_noise_only_within_the_facets_reach`),
+    // and three anywhere are refused by their count.
     let pair = |k: usize| sampling.volume + 2 * k + 1;
-    let mut stray = agreeing.clone();
-    flipped(&mut stray, &[pair(0)]);
-    assert!(accept(&stray, &plate, &sampling).is_ok());
+    assert_eq!(
+        refused(&|a| flipped(a, &[pair(0)])),
+        format!("1 of {} probe pairs at the render's faces classify differently farther than 0.000014 mm from every face of the render, more than its facets and rounding explain, so a feature of the render is missing or moved", sampling.pairs())
+    );
     assert!(refused(&|a| flipped(a, &[pair(0), pair(1), pair(2)]))
         .ends_with("probe pairs at the render's faces classify differently, so a feature of the render is missing or moved"));
     // The same at the solid's own faces, whose pairs the render classifies.
@@ -381,9 +398,10 @@ fn an_exact_answer_is_refused_with_the_first_check_it_fails() {
             }
         }
     };
-    let mut stray = agreeing.clone();
-    moved(&mut stray, &[0]);
-    assert!(accept(&stray, &plate, &sampling).is_ok());
+    assert_eq!(
+        refused(&|a| moved(a, &[0])),
+        format!("1 of {} probe pairs at its own faces classify differently in the render farther than 0.000014 mm from every face of the render, whose flat facets are its exact faces, so it has material or a face the render does not", agreeing["solidProbes"].as_array().unwrap().len())
+    );
     assert!(refused(&|a| moved(a, &[0, 1, 2])).starts_with("3 of "));
     assert!(refused(&|a| moved(a, &[0, 1, 2])).ends_with(
         "probe pairs at its own faces classify differently in the render, so it has material or a face the render does not"
@@ -468,6 +486,199 @@ fn a_hole_the_exact_solid_lost_is_found_by_the_probes_at_its_wall() {
         failure.contains("a feature of the render is missing or moved"),
         "{failure}"
     );
+}
+
+/// A closed `size` × `size` × `height` plate whose top, a grid of `cells` ×
+/// `cells` squares, has a spherical dimple of `radius` and `depth` at
+/// `centre`: a feature whose faces meet the top at under 30°.
+fn dimpled_plate(
+    size: f64,
+    height: f64,
+    cells: usize,
+    centre: [f64; 2],
+    radius: f64,
+    depth: f64,
+) -> Vec<mesh::Triangle> {
+    let step = size / cells as f64;
+    let at = |i: usize| i as f64 * step;
+    let top = |i: usize, j: usize| -> mesh::Point {
+        let rho = (at(i) - centre[0]).powi(2) + (at(j) - centre[1]).powi(2);
+        let sphere = height + radius - depth - (radius * radius - rho).max(0.0).sqrt();
+        [at(i), at(j), sphere.min(height)]
+    };
+    let bottom = |i: usize, j: usize| -> mesh::Point { [at(i), at(j), 0.0] };
+    let mut triangles = Vec::new();
+    for i in 0..cells {
+        for j in 0..cells {
+            let (a, b, c, d) = (top(i, j), top(i + 1, j), top(i + 1, j + 1), top(i, j + 1));
+            triangles.extend([[a, b, c], [a, c, d]]);
+            let (a, b, c, d) = (
+                bottom(i, j),
+                bottom(i + 1, j),
+                bottom(i + 1, j + 1),
+                bottom(i, j + 1),
+            );
+            triangles.extend([[a, c, b], [a, d, c]]);
+        }
+    }
+    for k in 0..cells {
+        let (low, high) = (at(k), at(k + 1));
+        let quad = |p: [mesh::Point; 4], outward: bool| {
+            if outward {
+                [[p[0], p[1], p[2]], [p[0], p[2], p[3]]]
+            } else {
+                [[p[0], p[2], p[1]], [p[0], p[3], p[2]]]
+            }
+        };
+        for (y, outward) in [(0.0, true), (size, false)] {
+            triangles.extend(quad(
+                [
+                    [low, y, 0.0],
+                    [high, y, 0.0],
+                    [high, y, height],
+                    [low, y, height],
+                ],
+                outward,
+            ));
+        }
+        for (x, outward) in [(0.0, false), (size, true)] {
+            triangles.extend(quad(
+                [
+                    [x, low, 0.0],
+                    [x, high, 0.0],
+                    [x, high, height],
+                    [x, low, height],
+                ],
+                outward,
+            ));
+        }
+    }
+    triangles
+}
+
+#[test]
+fn a_lost_feature_that_blends_into_its_face_is_found_by_one_pair() {
+    // A dimple 0.25 mm deep and 4.4 mm across in a 100 mm plate meets the top at about 13°:
+    // it shares the top's patch, so only a pair or two land on it, and volume, box and the
+    // points through the box cannot see it. A solid that lost it is refused all the same.
+    let (centre, radius, depth) = ([50.3, 50.6], 10.0, 0.25);
+    let render = mesh(dimpled_plate(100.0, 5.0, 100, centre, radius, depth));
+    assert!(render.watertight && !render.inverted);
+    let solid = mesh(cuboid([0.0; 3], [100.0, 100.0, 5.0], false));
+    assert!((solid.volume - render.volume) / render.volume < 1e-4);
+    // With facets 0.02 mm off the exact surfaces (pairs 0.06 mm out), and as if the tree were
+    // of flat faces (pairs 0.0014 mm out, the smallest offset, which is also the guards'
+    // margin): a disagreement is explained only within the facets' reach plus the rounding.
+    for (bound, within) in [(0.02, "0.03"), (0.0, "0.000021")] {
+        let sampling = sampling(&render, bound);
+        let patches = sampling
+            .patches
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(patches.len(), 6, "the dimple is part of the top's patch");
+        assert!(accept(&agreeing_answer(&render, &sampling), &render, &sampling).is_ok());
+        // Fewer pairs disagree than the count the comparison allows anywhere.
+        let disagree = (0..sampling.pairs())
+            .filter(|&pair| {
+                let at = sampling.volume + 2 * pair;
+                !(solid.contains(sampling.points[at]) && !solid.contains(sampling.points[at + 1]))
+            })
+            .count();
+        assert!(
+            (1..=MAX_SURFACE_MISMATCHES).contains(&disagree),
+            "{bound}: {disagree} pairs on the dimple"
+        );
+        let failure = accept(&answer_from(&solid, &render, &sampling), &render, &sampling)
+            .err()
+            .unwrap();
+        assert!(
+            failure.ends_with(&format!(" probe pairs at the render's faces classify differently farther than {within} mm from every face of the render, more than its facets and rounding explain, so a feature of the render is missing or moved")),
+            "{bound}: {failure}"
+        );
+    }
+}
+
+#[test]
+fn a_stray_disagreement_at_the_renders_faces_is_noise_only_within_the_facets_reach() {
+    // Facets 0.02 mm off the exact surfaces: pairs first 0.06 mm out, reach 0.03 mm.
+    let plate = mesh(cuboid([0.0; 3], [40.0, 30.0, 4.0], false));
+    let mut sampling = sampling(&plate, 0.02);
+    assert!((sampling.offsets[0] - 0.06).abs() < 1e-12 && (sampling.reach() - 0.03).abs() < 1e-12);
+    let top = (0..sampling.pairs())
+        .find(|&pair| {
+            let inner = sampling.points[sampling.volume + 2 * pair];
+            (inner[2] - 3.94).abs() < 1e-9 && inner[0] < 30.0
+        })
+        .unwrap();
+    // Moved 0.01 mm from the top's edge, still on the top.
+    let near = (0..sampling.pairs())
+        .find(|&pair| pair != top && sampling.points[sampling.volume + 2 * pair][2] > 3.9)
+        .unwrap();
+    for k in 0..2 {
+        sampling.points[sampling.volume + 2 * near + k][0] = 40.0 - 0.01;
+    }
+    let agreeing = agreeing_answer(&plate, &sampling);
+    let flipped = |at: usize| {
+        let mut answer = agreeing.clone();
+        let mut inside = answer["inside"].as_str().unwrap().as_bytes().to_vec();
+        inside[at] = if inside[at] == b'1' { b'0' } else { b'1' };
+        answer["inside"] = json!(String::from_utf8(inside).unwrap());
+        accept(&answer, &plate, &sampling)
+    };
+    // The inner point beside the side face: the facets of that face could explain it.
+    assert!(flipped(sampling.volume + 2 * near).is_ok());
+    // The outer point of a pair in the middle of the top: nothing could.
+    assert!(flipped(sampling.volume + 2 * top + 1)
+        .err()
+        .unwrap()
+        .starts_with("1 of "));
+    // At the solid's own faces one such pair is still let through (a render's facets can lie
+    // farther from the exact surface than the bound says: one corpus part had one), and three
+    // are not.
+    let probe = |z: f64| json!([20.0, 15.0, z, 20.0, 15.0, z + 0.12, 0]);
+    let mut answer = agreeing.clone();
+    answer["solidProbes"][0] = probe(4.14);
+    assert!(accept(&answer, &plate, &sampling).is_ok());
+    for k in 1..3 {
+        answer["solidProbes"][k] = probe(4.14);
+    }
+    assert!(accept(&answer, &plate, &sampling)
+        .err()
+        .unwrap()
+        .starts_with("3 of "));
+    // A tree of flat faces: its facets are its exact faces, and only rounding (single-precision
+    // corners, the classifier's tolerance) can explain a disagreement, on either side.
+    let mut flat = super::sampling(&plate, 0.0);
+    assert_eq!(flat.trusted, 0.0);
+    assert!((flat.explained() - (1e-5 + 40.0 * f64::from(f32::EPSILON))).abs() < 1e-12);
+    let near = (0..flat.pairs())
+        .find(|&pair| flat.points[flat.volume + 2 * pair][2] > 3.99)
+        .unwrap();
+    let stray_beside = |flat: &mut Sampling, gap: f64| {
+        for k in 0..2 {
+            flat.points[flat.volume + 2 * near + k][0] = 40.0 - gap;
+        }
+        let mut answer = agreeing_answer(&plate, flat);
+        let at = flat.volume + 2 * near;
+        let mut inside = answer["inside"].as_str().unwrap().as_bytes().to_vec();
+        inside[at] = b'0';
+        answer["inside"] = json!(String::from_utf8(inside).unwrap());
+        accept(&answer, &plate, flat)
+    };
+    // 5e-6 mm from the side face: rounding could explain it. 0.01 mm: nothing could.
+    assert!(stray_beside(&mut flat, 5e-6).is_ok());
+    assert!(stray_beside(&mut flat, 0.01)
+        .err()
+        .unwrap()
+        .starts_with("1 of "));
+    let flat = super::sampling(&plate, 0.0);
+    let mut answer = agreeing_answer(&plate, &flat);
+    answer["solidProbes"][0] = probe(4.0 + 5e-6);
+    assert!(accept(&answer, &plate, &flat).is_ok());
+    answer["solidProbes"][0] = probe(4.14);
+    assert!(accept(&answer, &plate, &flat).err().unwrap().ends_with(
+        "whose flat facets are its exact faces, so it has material or a face the render does not"
+    ));
 }
 
 #[test]
@@ -978,6 +1189,89 @@ fn without_a_converter_the_export_is_faceted_and_says_why() {
     // The header says what the file is and nothing that can go stale, such as its review state.
     assert!(text.contains("FILE_DESCRIPTION(('Faceted solid of the OpenSCAD render of Stand-in plate r1; planar faces, not exact surfaces'),'2;1');"));
     assert!(text.contains("FILE_NAME('stand-in-plate-r1.step',"));
+}
+
+#[cfg(unix)]
+#[test]
+fn an_archive_carries_no_machine_path_from_a_step_export_job() {
+    // A Python and a destination outside the project, the home folder and the temporary
+    // folder: the job log names the one, the job error the other.
+    let dir = tempfile::tempdir().unwrap();
+    let engine = StandIn::new(dir.path());
+    engine.release();
+    let sandbox = Sandbox::with_engine(&engine.executable);
+    set_python(&sandbox, Path::new("/opt/omenflow-nowhere/bin/python3"));
+    let part = stand_in_part(&sandbox);
+    sandbox
+        .call(
+            "cad.export",
+            json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"], "format": "step", "destPath": dir.path().join("p.step")}),
+        )
+        .unwrap();
+    let error = sandbox
+        .call(
+            "cad.export",
+            json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"], "format": "step", "method": "faceted", "destPath": "/dev/null/omen flow/p.step"}),
+        )
+        .unwrap_err();
+    // The person is told where; the job names the file only, as its inputs do.
+    assert!(
+        error
+            .message
+            .starts_with("Could not write /dev/null/omen flow/p.step: "),
+        "{}",
+        error.message
+    );
+    let jobs = sandbox.jobs("cad_export");
+    let failed = jobs.iter().find(|job| job["status"] == "failed").unwrap();
+    assert_eq!(failed["inputs"]["destPath"], "p.step");
+    assert!(
+        failed["error"]["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("Could not write p.step: "),
+        "{}",
+        failed["error"]
+    );
+    // The Pythons tried are named in full on this machine.
+    assert!(jobs.iter().any(|job| job["log"]
+        .as_str()
+        .unwrap_or("")
+        .contains("Python /opt/omenflow-nowhere/bin/python3: not an executable file")));
+    let archive = dir.path().join("a.zip");
+    sandbox
+        .call("project.export_archive", json!({"destPath": archive}))
+        .unwrap();
+    let mut zip = zip::ZipArchive::new(fs::File::open(&archive).unwrap()).unwrap();
+    for name in ["snapshot.json", ".omenflow/state.sqlite"] {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut zip.by_name(name).unwrap(), &mut bytes).unwrap();
+        for leaked in ["/opt/omenflow-nowhere", "omen flow"] {
+            assert!(
+                !bytes
+                    .windows(leaked.len())
+                    .any(|window| window == leaked.as_bytes()),
+                "{name} still contains {leaked}"
+            );
+        }
+        if name == "snapshot.json" {
+            let snapshot: Value = serde_json::from_slice(&bytes).unwrap();
+            let archived = snapshot["jobs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|job| job["kind"] == "cad_export")
+                .collect::<Vec<_>>();
+            assert!(archived.iter().any(|job| job["log"]
+                .as_str()
+                .unwrap_or("")
+                .contains("Python python3: not an executable file")));
+            assert!(archived.iter().any(|job| job["error"]["message"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("Could not write p.step: ")));
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -1627,6 +1921,128 @@ fn exact_rebuilds_follow_openscad_and_a_lost_small_hole_is_refused() {
         let rebuilt = rebuild_csg(&python, &csg, &mesh).unwrap_or_else(|reason| panic!("{source}: {reason}"));
         assert_eq!(rebuilt.answer["solids"], 1, "{source}");
         assert_eq!(rebuilt.checks["surfaceMismatches"], 0, "{source}");
+    }
+}
+
+/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: a shallow dimple meets the plate
+/// at about 11°, so it shares the top's probe pairs and gets one or two. A tree that lost it
+/// beside a deep one it kept (both trees give the probes the same facet bound) is refused;
+/// volume, box and the points through the box cannot tell.
+#[test]
+fn a_lost_shallow_dimple_is_refused() {
+    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+        return;
+    };
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    for depth in [0.15, 0.2, 0.25] {
+        let source = format!(
+            "difference() {{\n  cube([100, 100, 5]);\n  translate([20, 20, 13]) sphere(r = 10, $fn = 64);\n  translate([70, 70, {}]) sphere(r = 10, $fn = 64);\n}}\n",
+            15.0 - depth
+        );
+        let mesh = rendered_mesh(&sandbox, &source);
+        let csg = csg_of(&source, &json!({}));
+        let whole =
+            rebuild_csg(&python, &csg, &mesh).unwrap_or_else(|reason| panic!("{depth}: {reason}"));
+        assert_eq!(whole.checks["surfaceMismatches"], 0, "{}", whole.checks);
+        let seeded = without_last_cutter(&csg).unwrap();
+        assert_eq!(seeded.matches("sphere(").count(), 1, "{seeded}");
+        let reason = rebuild_csg(&python, &seeded, &mesh)
+            .err()
+            .unwrap_or_else(|| panic!("a lost dimple {depth} mm deep was accepted"));
+        assert!(
+            reason.contains("probe pairs at the render's faces classify differently"),
+            "{reason}"
+        );
+    }
+}
+
+/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: a tree of flat faces (a hexagonal
+/// pyramid 1.5 to 3 mm in radius cut 0.2 to 0.3 mm into a plate, meeting it at 5° to 10°),
+/// whose facets are its exact faces, so the facet bound is 0 and every pair sits at the
+/// smallest offset. A tree that lost the pyramid, or one that adds it as a bump the render has
+/// not, is refused although only one or two pairs land on it; volume, box and the points
+/// through the box cannot tell.
+#[test]
+fn a_lost_or_added_flat_dimple_is_refused() {
+    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+        return;
+    };
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    let plate = "cube([100, 100, 5]);\n";
+    let plain = rendered_mesh(&sandbox, plate);
+    for (radius, depth) in [(2.0, 0.2), (2.5, 0.2), (3.0, 0.25), (2.0, 0.3), (1.5, 0.2)] {
+        // A cone of 6 facets, its apex `depth` under the top and `radius` wide there.
+        let pyramid = format!("cylinder(h = 1, r1 = 0, r2 = {}, $fn = 6)", radius / depth);
+        let source = format!(
+            "difference() {{\n  cube([100, 100, 5]);\n  translate([50.3, 50.6, {}]) {pyramid};\n}}\n",
+            5.0 - depth
+        );
+        let mesh = rendered_mesh(&sandbox, &source);
+        let csg = csg_of(&source, &json!({}));
+        assert_eq!(csg_sagitta(&csg, &mesh), 0.0, "{csg}");
+        let whole = rebuild_csg(&python, &csg, &mesh)
+            .unwrap_or_else(|reason| panic!("{radius}, {depth}: {reason}"));
+        assert_eq!(whole.checks["surfaceMismatches"], 0, "{}", whole.checks);
+        assert_eq!(whole.checks["solidMismatches"], 0, "{}", whole.checks);
+        let seeded = without_last_cutter(&csg).unwrap();
+        assert!(!seeded.contains("cylinder("), "{seeded}");
+        let reason = rebuild_csg(&python, &seeded, &mesh)
+            .err()
+            .unwrap_or_else(|| panic!("a lost dimple r{radius} × {depth} mm was accepted"));
+        assert!(reason.contains("classify differently"), "{reason}");
+        // The same pyramid upside down on the plate, against the plain plate's render.
+        let bump = format!(
+            "union() {{\n  cube([100, 100, 5]);\n  translate([50.3, 50.6, {}]) mirror([0, 0, 1]) {pyramid};\n}}\n",
+            5.0 + depth
+        );
+        let reason = rebuild_csg(&python, &csg_of(&bump, &json!({})), &plain)
+            .err()
+            .unwrap_or_else(|| panic!("an added bump r{radius} × {depth} mm was accepted"));
+        assert!(reason.contains("classify differently"), "{reason}");
+    }
+}
+
+/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: correct rebuilds of trees of flat
+/// faces, where only rounding may explain a disagreement, agree at every pair and point: rotated
+/// and scaled cubes, polygons, a polyhedron, 3- to 8-facet holes, 0.5 mm walls, a 0.001 mm
+/// step, a 2 m plate and a plate 2.2 m from the origin.
+#[test]
+fn exact_rebuilds_of_flat_trees_agree_everywhere() {
+    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+        return;
+    };
+    if !engine_available() {
+        return;
+    }
+    let sandbox = Sandbox::new();
+    for source in [
+        "difference() { rotate([12, 23, 34]) cube([40, 30, 10]); rotate([5, 0, 0]) translate([5, 5, -1]) cube([10, 10, 20]); }\n",
+        "difference() { linear_extrude(8) polygon([[0, 0], [40, 0], [40, 10], [30, 25], [10, 25], [0, 10]]); translate([20, 10, -1]) cylinder(r = 3, h = 20, $fn = 6); }\n",
+        "translate([1000, 2000, 0]) difference() { cube([50, 50, 5]); translate([10, 10, -1]) cube([5, 5, 7]); }\n",
+        "for (i = [0:9]) translate([i * 5, 0, 0]) cube([5, 20, i + 1]);\n",
+        "polyhedron(points = [[0, 0, 0], [30, 0, 0], [0, 30, 0], [0, 0, 30]], faces = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]);\n",
+        "union() { cube(10); translate([10, 0, 0]) cube([10, 10, 10.001]); }\n",
+        "intersection() { scale([1.3, 0.7, 1]) rotate([0, 0, 17]) cube([20, 20, 3]); translate([2, -5, -1]) cube([18, 18, 5]); }\n",
+        "rotate([30, 40, 50]) difference() { cube([30, 30, 30], center = true); cylinder(r = 8, h = 40, center = true, $fn = 8); rotate([90, 0, 0]) cylinder(r = 8, h = 40, center = true, $fn = 8); }\n",
+        "difference() { cube([20, 20, 20]); translate([0.5, 0.5, 0.5]) cube([19, 19, 20]); }\n",
+        "difference() { cube([2000, 1500, 20]); for (x = [100:300:1900]) translate([x, 750, -1]) cylinder(r = 20, h = 30, $fn = 6); }\n",
+        "difference() { cube([100, 60, 8]); for (x = [10:10:90]) translate([x, 30, 4]) rotate([0, 45, 0]) cube([3, 70, 3], center = true); }\n",
+        "linear_extrude(height = 12) difference() { square([60, 40]); translate([30, 20]) circle(r = 10, $fn = 5); translate([5, 5]) square([10, 0.6]); }\n",
+    ] {
+        let mesh = rendered_mesh(&sandbox, source);
+        let csg = csg_of(source, &json!({}));
+        assert_eq!(csg_sagitta(&csg, &mesh), 0.0, "{source}");
+        let rebuilt =
+            rebuild_csg(&python, &csg, &mesh).unwrap_or_else(|reason| panic!("{source}: {reason}"));
+        for key in ["surfaceMismatches", "solidMismatches", "sampleMismatches"] {
+            assert_eq!(rebuilt.checks[key], 0, "{source}: {}", rebuilt.checks);
+        }
     }
 }
 

@@ -333,9 +333,10 @@ fn find_in(
         let Some(candidate) = entry.or_else(|| login.then(login_shell_python).flatten()) else {
             continue;
         };
-        // One file reached by several names is asked once.
-        let key = omenflow_storage::canonicalize(&candidate).unwrap_or(candidate.clone());
-        if !seen.insert(key) {
+        // A path listed twice is asked once. Paths are not resolved first: a virtual
+        // environment's python links to its base interpreter but runs with the environment's
+        // own site-packages, where OCP may be.
+        if !seen.insert(candidate.clone()) {
             continue;
         }
         if index >= named && !engine::is_executable(&candidate) {
@@ -555,6 +556,39 @@ mod tests {
             .unwrap()
             .note
             .is_none());
+    }
+
+    #[test]
+    fn a_virtual_environment_is_asked_even_after_the_interpreter_it_links_to() {
+        // A venv's python is a link to its base interpreter, which runs with the venv's own
+        // site-packages when started by that name. The stand-in answers by the name it was
+        // started as, as Python finds its pyvenv.cfg.
+        let dir = tempfile::tempdir().unwrap();
+        let base = fake(
+            dir.path(),
+            "python3",
+            &format!("case \"$0\" in\n*/venv/bin/*) {WITH_OCP} ;;\n*) {WITHOUT_OCP} ;;\nesac"),
+        );
+        let venv = dir.path().join("venv/bin/python3");
+        fs::create_dir_all(venv.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&base, &venv).unwrap();
+        assert_eq!(
+            omenflow_storage::canonicalize(&venv).unwrap(),
+            omenflow_storage::canonicalize(&base).unwrap()
+        );
+        let search = find_in(
+            vec![base.clone(), base.clone(), venv.clone()],
+            0,
+            &|| false,
+            None,
+            true,
+        )
+        .unwrap();
+        assert_eq!(search.found.unwrap().exe, venv);
+        // The base was asked once, though listed twice.
+        assert_eq!(search.tried.len(), 1);
+        assert_eq!(search.tried[0].0, base);
+        assert_eq!(calls(&base), 2);
     }
 
     #[test]

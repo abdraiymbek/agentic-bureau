@@ -237,9 +237,11 @@ A mechanical part's bar also carries **Export STEP**. It asks where to save, run
 job row with **Cancel export** (from the job store, so an export an agent or another window
 started shows too, and Export STEP waits for it), and reports only what the core answered:
 “exact surfaces” with the comparison against the render (volume, bounding box, probes at the
-render's faces and at the solid's own), “exact surfaces except approximated hulls” with the list,
-or “faceted, not exact” with the reason and what it was built from. A missing converter links to
-Engineering tools. It is offered only for a revision with a render of its own source, outside
+render's faces and at the solid's own; probes set aside and points on the solid's surface are
+named, never counted as agreeing), “exact surfaces except approximated hulls” with the list, or
+“faceted, not exact” with the reason and what it was built from. A failure is said once: its job
+row stays hidden beside the outcome and after the outcome is dismissed. A missing converter
+links to Engineering tools. It is offered only for a revision with a render of its own source, outside
 edits and read-only projects; the reason otherwise sits under the bar.
 
 ### Level 2 — Decision

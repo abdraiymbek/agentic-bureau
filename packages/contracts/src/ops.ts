@@ -2612,6 +2612,13 @@ export const RUST_HOST_OPS: ReadonlySet<string> = new Set([
   'image.view',
 ]);
 
+/**
+ * Operations the legacy TypeScript core serves for a person but refuses for an agent: only the
+ * Rust host enforces what an agent may do with them (cad.export writes only under exports/).
+ * A server on that core does not offer them as tools.
+ */
+export const RUST_HOST_AGENT_OPS: ReadonlySet<string> = new Set(['cad.export']);
+
 /** JSON-schema view of an op's input (for CLI --help and tool_describe). Accepts either name form. */
 export function describeOp(
   name: string,

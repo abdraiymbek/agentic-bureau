@@ -67,7 +67,8 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
 - the event type `cad.exported` (a part written as STEP, STL or SCAD: `format`, `method`,
   `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
   job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
-  project-relative destination, or only the file name of one outside the project;
+  project-relative destination, or only the file name of one outside the project, which its
+  error also names by file name;
 - `for` in the inputs of a `cad_render` job that renders a revision for `cad.view`,
   `cad.inspect` or `cad.check` and commits nothing to it (0.2.4); an earlier build ignores it;
 - the sidecar files under `.omenflow/work/` and `.omenflow/cache/`, including the pictures in
@@ -144,7 +145,9 @@ would before writing anything:
 - `omenflow.project.json`, `README.md`, `artifacts/**`, `.omenflow/objects/**`;
 - `.omenflow/state.sqlite` from a private copy with machine paths removed (a session's
   executable becomes its program name; project, home and temporary prefixes in job logs, errors,
-  commands and event data become `<project>`, `~` and `<tmp>`), vacuumed with `secure_delete`;
+  commands and event data become `<project>`, `~` and `<tmp>`, and other absolute paths in job
+  logs and errors, such as a Python on `PATH`, are cut to their last component, up to any space
+  in them), vacuumed with `secure_delete`;
 - `snapshot.json`, a portable JSON rendering of the record, made from that copy;
 - `archive-manifest.json`, which lists what was excluded: credentials, machine settings, machine
   paths, cache, `work` (so the agent call ledger) and, without consent, terminal logs. This

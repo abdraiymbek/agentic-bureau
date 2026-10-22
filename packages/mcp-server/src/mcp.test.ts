@@ -154,7 +154,8 @@ describe('OmenflowMcpServer over bridge frames', () => {
     for (const t of ['cad_render', 'cad_probe', 'cad_validate_source', 'job_read', 'job_list']) {
       expect(names).not.toContain(t);
     }
-    // Served only by the Rust host: this server must not list a tool it cannot answer.
+    // Served only by the Rust host, or refused by this server's core for every agent: this
+    // server must not list a tool it cannot answer.
     for (const t of [
       'work_status',
       'project_coverage',
@@ -162,6 +163,7 @@ describe('OmenflowMcpServer over bridge frames', () => {
       'tool_call',
       'cad_view',
       'image_view',
+      'cad_export',
     ]) {
       expect(names).not.toContain(t);
     }

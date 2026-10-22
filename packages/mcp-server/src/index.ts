@@ -10,6 +10,7 @@ import {
   MAX_FRAME_BYTES,
   OPS_BY_NAME,
   OmenflowError,
+  RUST_HOST_AGENT_OPS,
   RUST_HOST_OPS,
   toErrorBody,
 } from '@omenflow/contracts';
@@ -125,8 +126,9 @@ export class OmenflowMcpServer {
       // Superseded ops stay callable (CLI/GUI) but are not offered as tools —
       // a small, unambiguous vocabulary is what the model can use reliably.
       if (!op.agentVisible) continue;
-      // The core behind this server cannot answer them; a listed tool must work.
-      if (RUST_HOST_OPS.has(name)) continue;
+      // The core behind this server cannot answer them, or refuses them for every agent; a
+      // listed tool must work.
+      if (RUST_HOST_OPS.has(name) || RUST_HOST_AGENT_OPS.has(name)) continue;
       const toolName = name.replace(/\./g, '_');
       // All op inputs are zod objects; expose their shape as the tool schema
       // (field `.describe()` text becomes JSON-schema descriptions).

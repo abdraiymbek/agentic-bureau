@@ -5,6 +5,7 @@ import {
   EXPECTATION_RUST_ONLY_KEYS,
   OPS_BY_NAME,
   Origin,
+  RUST_HOST_AGENT_OPS,
   RUST_HOST_OPS,
   describeOp,
   OmenflowError,
@@ -343,17 +344,9 @@ const H: Record<string, Handler> = {
   'cad.patch_source': (c, i: never, o) => cad.cadPatchSource(c, i as never, o),
   'cad.set_param': (c, i: never, o) => cad.cadSetParam(c, i as never, o),
   'cad.compose': (c, i: never, o) => cad.cadCompose(c, i as never, o),
-  'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }, o) => {
-    // This core writes wherever destPath points; the Rust host keeps agents under exports/.
-    if (o.kind === 'agent')
-      throw new OmenflowError(
-        ErrorCodes.VALIDATION,
-        'cad.export for an agent is implemented by the Rust host',
-        {
-          repair: 'Call it through the desktop app.',
-          details: { op: 'cad.export', unsupported: ['agent origin'], implementedBy: 'rust-host' },
-        },
-      );
+  // This core writes wherever destPath points; the Rust host keeps agents under exports/, so an
+  // agent's call is refused before it gets here (RUST_HOST_AGENT_OPS).
+  'cad.export': (c, i: { artifactId: string; destPath: string; format: 'stl' | 'scad' }) => {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files.find((x) => x.path.endsWith(`.${i.format}`));
@@ -492,6 +485,19 @@ export function assertServedByLegacyCore(op: string): void {
   });
 }
 
+/** Operations this core serves for a person only: an agent's call is the Rust host's. */
+function assertServedForOrigin(op: string, origin: Origin): void {
+  if (origin.kind !== 'agent' || !RUST_HOST_AGENT_OPS.has(op)) return;
+  throw new OmenflowError(
+    ErrorCodes.VALIDATION,
+    `${op} for an agent is implemented by the Rust host`,
+    {
+      repair: 'Call it through the desktop app.',
+      details: { op, unsupported: ['agent origin'], implementedBy: 'rust-host' },
+    },
+  );
+}
+
 /** A parsed input read loosely: any field may be absent. */
 type Fields = Record<string, unknown>;
 const fields = (value: unknown): Fields =>
@@ -544,6 +550,8 @@ const RUST_HOST_INPUTS: Record<string, (input: Fields) => string[]> = {
     ...(input.format === 'step' ? ['format step'] : []),
     ...['revisionId', 'method', 'timeoutMs'].filter((field) => input[field] !== undefined),
   ],
+  // This core probes OpenSCAD only; the STEP converter's Python is the Rust host's.
+  'tool.doctor': (input) => (input.toolId === 'python' ? ['toolId python'] : []),
   'test.create_draft': (input) =>
     list(input.requirementRefs).flatMap((ref, index) =>
       fields(ref).revisionId === undefined ? [`requirementRefs[${index}].revisionId omitted`] : [],
@@ -635,6 +643,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     throw e;
   }
   assertLegacyInputs(req.op, input);
+  assertServedForOrigin(req.op, req.origin);
   if (op.mutating) ctx.assertWritable();
 
   const handler = H[req.op];

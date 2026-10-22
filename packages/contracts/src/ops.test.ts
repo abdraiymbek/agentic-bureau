@@ -6,6 +6,7 @@ import {
   AGENT_TOOL_OPS,
   OPS,
   OPS_BY_NAME,
+  RUST_HOST_AGENT_OPS,
   RUST_HOST_OPS,
   describeOp,
   opPacks,
@@ -144,6 +145,11 @@ describe('new V1 operations', () => {
     expect(flags('agent.activity')).toEqual(['user', false, false]);
     expect(flags('cad.export')).toEqual(['both', true, true]);
     expect([...RUST_HOST_OPS].every((name) => OPS_BY_NAME.has(name))).toBe(true);
+    // Served by the legacy core for a person only: agents may call them on the Rust host.
+    for (const name of RUST_HOST_AGENT_OPS) {
+      expect(AGENT_OPS.has(name)).toBe(true);
+      expect(RUST_HOST_OPS.has(name)).toBe(false);
+    }
   });
 
   it('accepts the documented inputs', () => {

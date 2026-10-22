@@ -21,6 +21,7 @@ import {
   stepExportBlock,
   stepFileName,
   stepOutcomeView,
+  stoppedExportJob,
   type RenderOutcome,
   type StepExportResult,
 } from '../../lib/render-jobs';
@@ -43,11 +44,12 @@ const PROVENANCE_NOTE = {
   unlinked: 'Mesh not tied to this source',
 } as const;
 
-/** What one STEP export of a revision came to, as the core answered it. */
-type StepOutcome =
+/** What one STEP export of a revision came to, as the core answered it at `at` (ms). */
+type StepOutcome = { at: number } & (
   | { status: 'saved'; result: StepExportResult }
   | { status: 'failed'; message: string }
-  | { status: 'cancelled' };
+  | { status: 'cancelled' }
+);
 
 /** The current time while something is running, so elapsed seconds keep counting. */
 function useClock(running: boolean): number {
@@ -120,15 +122,11 @@ export function MechanicalStage({ view }: StageProps) {
   const lastExport = exportJobs[0];
   const [exporting, setExporting] = useState(false);
   const [stepOutcomes, setStepOutcomes] = useState<Record<string, StepOutcome>>({});
+  // When the core answered each dismissed outcome, by revision: its failed job stays hidden.
+  const [dismissedSteps, setDismissedSteps] = useState<Record<string, number>>({});
   const stepOutcome = rev ? stepOutcomes[rev.id] : undefined;
   const seqOf = (job: Job) => history.find((r) => r.id === jobRevisionId(job))?.seq;
-  const stoppedExport =
-    lastExport &&
-    ['failed', 'interrupted'].includes(lastExport.status) &&
-    !stepOutcomes[jobRevisionId(lastExport) ?? '']
-      ? lastExport
-      : null;
-  const shownExport = activeExport ?? stoppedExport;
+  const shownExport = activeExport ?? stoppedExportJob(lastExport, stepOutcomes, dismissedSteps);
 
   const render = async () => {
     if (!projectId || !rev) return;
@@ -174,24 +172,31 @@ export function MechanicalStage({ view }: StageProps) {
         { artifactId, revisionId, format: 'step', destPath: dest },
         { projectId },
       );
-      report({ status: 'saved', result });
+      report({ status: 'saved', result, at: Date.now() });
     } catch (e) {
+      const at = Date.now();
       report(
         e instanceof CommandError && e.code === 'CANCELLED'
-          ? { status: 'cancelled' }
-          : { status: 'failed', message: errMsg(e) },
+          ? { status: 'cancelled', at }
+          : { status: 'failed', message: errMsg(e), at },
       );
     } finally {
       setExporting(false);
       void useStore.getState().refreshJobs();
     }
   };
-  const dismissStep = () =>
+  // The failure is said once: dismissing the outcome does not bring back its job's row.
+  const dismissStep = () => {
+    if (!rev) return;
+    const revisionId = rev.id;
+    const answered = stepOutcomes[revisionId]?.at;
+    if (answered !== undefined) setDismissedSteps((all) => ({ ...all, [revisionId]: answered }));
     setStepOutcomes((all) => {
       const next = { ...all };
-      if (rev) delete next[rev.id];
+      delete next[revisionId];
       return next;
     });
+  };
   const acceptBlock = editing
     ? 'Save or discard your edits first.'
     : provenance === 'none'
