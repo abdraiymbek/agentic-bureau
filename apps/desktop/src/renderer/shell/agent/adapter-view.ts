@@ -15,7 +15,7 @@ export const PROFILE_CHOICES: { value: ProfileSetting; label: string; explain: s
   {
     value: 'compact',
     label: 'Compact',
-    explain: 'About a dozen core tools and playbooks on demand, for small and local models.',
+    explain: 'Fifteen core tools and the CAD playbook in its brief, for small and local models.',
   },
   {
     value: 'standard',
