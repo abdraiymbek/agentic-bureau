@@ -83,10 +83,17 @@ from such a project.
 
 No table, column or constraint was renamed or changed.
 
+### Projects made before the rename
+
+Omen Flow kept the record in `.omenflow/` beside `omenflow.project.json`. The first time Bureau
+opens such a project it renames both to `.bureau/` and `bureau.project.json`; nothing inside them
+changes, and the marker keeps `"format": "omenflow-project"`. Omen Flow builds (0.2.3 and
+earlier) look only for the old names, so rename both back before opening the project with one.
+
 ### Going back to 0.2.3
 
-A 0.2.3 build opens a project that 0.2.4 has worked on and keeps its data, but it reads CAD
-checks and conversations differently:
+A 0.2.3 build opens a project that 0.2.4 has worked on (with its folder and marker renamed back,
+above) and keeps its data, but it reads CAD checks and conversations differently:
 
 - **It ignores every check recorded by 0.2.4** (checker v3). Each revision shows its newest
   check from 0.2.3 or earlier, even when a later 0.2.4 check of that same revision failed,

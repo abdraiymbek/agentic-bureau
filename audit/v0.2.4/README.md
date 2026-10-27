@@ -1,6 +1,7 @@
-# Omen Flow 0.2.4 verification record
+# Agentic Bureau 0.2.4 verification record
 
-Date: 22 October 2026 (America/Chicago). Status: **release candidate; not published**.
+Date: 22 October 2026 (America/Chicago); the rename to Agentic Bureau joined the release on
+27 October 2026. Status: **release candidate; not published**.
 
 This record covers release 0.2.4. It answers six findings from the CAD benchmark runs of
 21 October 2026 (CADGenBench, BenchCAD and the internal CAD suite with Claude Haiku 5.5): the
@@ -31,15 +32,29 @@ committed check could drop out of a later one; export and view jobs pulled parts
 session's scope; the exact-STEP comparison could miss a lost flat feature; review content
 dropped recorded tolerances; the notices lacked the two crates JPEG decoding ships.
 
+## The rename
+
+Before publication, Omen Flow was renamed Agentic Bureau (Bureau in the app, the CLI and the
+docs) and its interface redesigned, and 0.2.4 ships as the first Bureau release. The names, the
+carry-over of projects and settings, and the redesign are described in the
+[design verification](../../design-system/verification.md#bureau-rename-and-redesign--27-october-2026)
+and [project format](../../docs/project-format.md#projects-made-before-the-rename). The draft
+packages built as Omen Flow on 22 October were replaced; the candidate checks were run again on
+the renamed tree ([below](#final-verification-after-the-rename)).
+
 ## Compatibility and limits
 
-- Application, workspace package and helper versions are 0.2.4. The bundle identifier remains
-  `app.omenflow.desktop`.
+- Application, workspace package and helper versions are 0.2.4. The bundle identifier is now
+  `app.agenticbureau.desktop` (it was `app.omenflow.desktop`) and the Linux packages are
+  `bureau`, with the `agentic-bureau` command (they were `omen-flow`), so neither replaces an Omen Flow install. Bureau
+  reads the Omen Flow settings folder on first launch; what the webview kept (theme, folded
+  rails, unsent drafts) starts fresh.
 - Project storage remains schema 1. New fields, event types (`cad.exported`), job kinds
-  (`cad_export`), sidecars (`.omenflow/cache/views-v1/`) and checker `omenflow-rust-mesh-checks-v3`
-  are additive. Contracts are additive (113 operations); `omenflow call` and `omenflow mcp` keep
-  working. The legacy TypeScript oracle refuses the new operations and inputs.
-- Going back to 0.2.3 is possible but lossy: 0.2.3 ignores v3 checks and goes by its own newest
+  (`cad_export`), sidecars (`.bureau/cache/views-v1/`) and checker `omenflow-rust-mesh-checks-v3`
+  are additive. Contracts are additive (113 operations). The helper is now `bureau`: `bureau call` and
+  `bureau mcp` replace `omenflow call` and `omenflow mcp`, and the MCP server agents get is
+  named `bureau`; an agent configured by hand with the old helper needs the new path. The legacy TypeScript oracle refuses the new operations and inputs.
+- Going back to 0.2.3 needs the project folder and marker renamed back, and is lossy: 0.2.3 ignores v3 checks and goes by its own newest
   check, treats spec scopes as changed, and drops 0.2.4's conversation fields whenever it saves
   a conversation (see [going back to 0.2.3](../../docs/project-format.md#going-back-to-023)).
 - Listing budgets were raised as a recorded decision, for the two new core tools, spec items in

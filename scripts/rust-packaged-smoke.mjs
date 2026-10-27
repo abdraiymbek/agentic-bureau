@@ -9,7 +9,7 @@
  *     would receive.
  *   node scripts/rust-packaged-smoke.mjs --linux <executable> [--screenshot <file.png>]
  *     The same on Linux, against an installed package's executable
- *     (`/usr/bin/agentic-bureau` after `apt install ./agentic-bureau_*.deb`) or an
+ *     (`/usr/bin/agentic-bureau` after `apt install ./bureau_*.deb`) or an
  *     AppImage, on an X display (run it under `xvfb-run`). The helper is the
  *     one the app itself resolved and would put on an agent's PATH, so this
  *     also proves where the package keeps it. It then requires a visible

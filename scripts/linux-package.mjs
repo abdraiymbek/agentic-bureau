@@ -184,7 +184,7 @@ declared=$(dpkg-deb --field "$deb" Depends)
 deb_glibc=$(minimum "$declared" libc6)
 rpm_glibc=$(rpm -qp --requires "$rpm" | sed -n 's/^libc\.so\.6(GLIBC_\([0-9.]*\))(64bit) *$/\1/p' | sort -V | tail -n 1)
 mkdir -p "$work/source/debian"
-printf 'Source: agentic-bureau\n\nPackage: agentic-bureau\nArchitecture: any\n' > "$work/source/debian/control"
+printf 'Source: bureau\n\nPackage: bureau\nArchitecture: any\n' > "$work/source/debian/control"
 derived=$(cd "$work/source" && dpkg-shlibdeps -O "$app" "$helper" 2> /dev/null | sed -n 's/^shlibs:Depends=//p')
 echo "newest glibc symbol used: app GLIBC_$app_glibc, helper GLIBC_$helper_glibc, anything in the AppImage GLIBC_$bundled; build base glibc $base"
 echo ".deb Depends: $declared"

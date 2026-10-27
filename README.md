@@ -50,14 +50,14 @@ a fresh copy from the official release, verify it against `SHA256SUMS`, and
 Download the file for your system and architecture (`amd64`/`x86_64` for most PCs, `arm64`/
 `aarch64` for ARM machines) from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest):
 
-| System                    | File                                | Install                                                |
-| ------------------------- | ----------------------------------- | ------------------------------------------------------ |
-| Ubuntu 22.04+, Debian 12+ | `agentic-bureau_0.2.4_amd64.deb`    | `sudo apt install ./agentic-bureau_0.2.4_amd64.deb`    |
-| Fedora 42+                | `agentic-bureau-0.2.4-1.x86_64.rpm` | `sudo dnf install ./agentic-bureau-0.2.4-1.x86_64.rpm` |
-| Other distributions       | `Bureau-0.2.4-x86_64.AppImage`      | `chmod +x Bureau-0.2.4-x86_64.AppImage`, then run it   |
+| System                    | File                           | Install                                              |
+| ------------------------- | ------------------------------ | ---------------------------------------------------- |
+| Ubuntu 22.04+, Debian 12+ | `bureau_0.2.4_amd64.deb`       | `sudo apt install ./bureau_0.2.4_amd64.deb`          |
+| Fedora 42+                | `bureau-0.2.4-1.x86_64.rpm`    | `sudo dnf install ./bureau-0.2.4-1.x86_64.rpm`       |
+| Other distributions       | `Bureau-0.2.4-x86_64.AppImage` | `chmod +x Bureau-0.2.4-x86_64.AppImage`, then run it |
 
-The `arm64` files are named the same way (`agentic-bureau_0.2.4_arm64.deb`,
-`agentic-bureau-0.2.4-1.aarch64.rpm`, `Bureau-0.2.4-aarch64.AppImage`). The packages install
+The `arm64` files are named the same way (`bureau_0.2.4_arm64.deb`,
+`bureau-0.2.4-1.aarch64.rpm`, `Bureau-0.2.4-aarch64.AppImage`). The `bureau` packages install
 **Bureau** in the applications menu and the `agentic-bureau` command, and apt or dnf pulls in
 WebKitGTK and the other libraries. The AppImage needs FUSE 3 (`sudo apt install fuse3`) or
 `APPIMAGE_EXTRACT_AND_RUN=1`. The Linux build has been installed and run in fresh Ubuntu, Debian
@@ -71,13 +71,15 @@ Each release lists the SHA-256 of every file in `SHA256SUMS`. In the folder you 
 
 ### Update and uninstall
 
-Install a newer release over the old one. Your projects live in the folders you chose and are
-never changed by installing or removing the app. Application settings (recent projects, agent and
-engine settings) are kept in `~/Library/Application Support/app.agenticbureau.desktop` on macOS and
-`~/.local/share/app.agenticbureau.desktop` on Linux. To uninstall, move the app to the Trash (macOS) or
-run `sudo apt remove agentic-bureau` / `sudo dnf remove agentic-bureau` (Linux); delete the settings folder
-too if you want a clean slate. To build the app yourself, see [Develop and verify](#develop-and-verify)
-and [release](docs/release.md).
+Install a newer release over the old one. Bureau does not replace Omen Flow, which keeps its own app
+and packages: move Omen Flow to the Trash or run `sudo apt remove omen-flow` / `sudo dnf remove
+omen-flow`; Bureau reads its settings on first launch either way. Your projects live in the folders
+you chose and are never changed by installing or removing the app. Application settings (recent
+projects, agent and engine settings) are kept in `~/Library/Application
+Support/app.agenticbureau.desktop` on macOS and `~/.local/share/app.agenticbureau.desktop` on Linux.
+To uninstall, move the app to the Trash (macOS) or run `sudo apt remove bureau` / `sudo dnf remove
+bureau` (Linux); delete the settings folder too if you want a clean slate. To build the app
+yourself, see [Develop and verify](#develop-and-verify) and [release](docs/release.md).
 
 ## First use
 

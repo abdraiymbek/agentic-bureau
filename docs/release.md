@@ -103,7 +103,7 @@ also run, in the native app:
    `Bureau-<version>-macos-arm64.dmg`.
 3. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
 --skip-tests`, then copy the packages from `target/release/bundle/linux-arm64/` as
-   `agentic-bureau_<version>_arm64.deb`, `agentic-bureau-<version>-1.aarch64.rpm` and
+   `bureau_<version>_arm64.deb`, `bureau-<version>-1.aarch64.rpm` and
    `Bureau-<version>-aarch64.AppImage`.
 4. In a folder containing only those four release assets, generate `SHA256SUMS` with
    `shasum -a 256 ./*.dmg ./*.deb ./*.rpm ./*.AppImage | sed 's#  \./#  #' > SHA256SUMS`.
@@ -290,12 +290,12 @@ What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 
 |               | `.deb` / `.rpm`                                                                                                                                                                                                                      | AppImage                                  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| Name, version | `agentic-bureau` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Bureau contributors"                                                                                                                        | `Bureau_0.2.4_<arch>.AppImage`            |
+| Name, version | `bureau` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Agentic Bureau contributors"                                                                                                                        | `Bureau_0.2.4_<arch>.AppImage`            |
 | App           | `/usr/bin/agentic-bureau`                                                                                                                                                                                                            | `usr/bin/agentic-bureau` inside the image |
 | Helper        | `/usr/lib/Bureau/bureau`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                                        | `$APPDIR/usr/lib/Bureau/bureau`           |
 | Menu entry    | `/usr/share/applications/Bureau.desktop`: `Name=Bureau`, `Exec=agentic-bureau`, `Icon=agentic-bureau`, `StartupWMClass=agentic-bureau` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image           |
 | Icons         | hicolor 32, 128 and 512 px                                                                                                                                                                                                           | the same                                  |
-| License       | `/usr/share/doc/agentic-bureau/{copyright,NOTICE}`, `/usr/share/licenses/agentic-bureau/{LICENSE,NOTICE}` (rpm)                                                                                                                      | `usr/share/doc/agentic-bureau/`           |
+| License       | `/usr/share/doc/bureau/{copyright,NOTICE}`, `/usr/share/licenses/bureau/{LICENSE,NOTICE}` (rpm)                                                                                                                                      | `usr/share/doc/bureau/`                   |
 | Depends       | glibc 2.35, WebKitGTK 4.1 (2.41.90 or later in the `.deb`), GTK 3 and D-Bus, as above                                                                                                                                                | bundled, except the host libraries above  |
 
 The app keeps its data in `~/.local/share/app.agenticbureau.desktop` (the bridge socket is

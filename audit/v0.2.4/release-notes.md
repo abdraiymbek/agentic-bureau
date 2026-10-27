@@ -25,9 +25,9 @@ Downloads include a macOS Apple Silicon DMG and Linux arm64/x86_64 Debian, RPM a
 
 The macOS app is ad hoc signed and is not notarized. Requires macOS 13.3 or later. OpenSCAD and agent CLIs are installed separately; exact STEP export needs Python 3.11–3.14 with `cadquery-ocp-novtk==7.9.3.1.1`.
 
-**macOS installation:** Drag Bureau to Applications, eject the DMG and launch the app from Applications. If macOS blocks it, dismiss the message, then choose **System Settings → Privacy & Security → Open Anyway → Open** and authenticate if asked. The DMG includes these steps in `INSTALL.txt`. Bureau is a new app, so Omen Flow stays installed beside it until you move Omen Flow to the Bin; your settings are read from it either way. See [Apple's instructions](https://support.apple.com/en-us/102445).
+**macOS installation:** Drag Bureau to Applications, eject the DMG and launch the app from Applications. If macOS blocks it, dismiss the message, then choose **System Settings → Privacy & Security → Open Anyway → Open** and authenticate if asked. The DMG includes these steps in `INSTALL.txt`. Bureau is a new app, so Omen Flow stays installed beside it until you move Omen Flow to the Trash; your settings are read from it either way. See [Apple's instructions](https://support.apple.com/en-us/102445).
 
-Linux packages require glibc 2.35 or later; Debian/RPM packages also require the declared WebKitGTK runtime. The packages are now named `agentic-bureau` and install `/usr/bin/agentic-bureau`; they do not replace `omen-flow`, so remove it first (`sudo apt remove omen-flow` or `sudo dnf remove omen-flow`), as well as any withdrawn 1.0.x package.
+Linux packages require glibc 2.35 or later; Debian/RPM packages also require the declared WebKitGTK runtime. The packages are now named `bureau` and install the `agentic-bureau` command; they do not replace `omen-flow`, so remove it first (`sudo apt remove omen-flow` or `sudo dnf remove omen-flow`), as well as any withdrawn 1.0.x package.
 
 Project storage stays schema 1 and existing APIs remain compatible. A 0.2.3 build can open a project 0.2.4 worked on, but it ignores 0.2.4's CAD checks; check parts again if you go back. See [the verification record](https://github.com/abdraiymbek/omen-flow/blob/main/audit/v0.2.4/README.md) for checks and limits.
 
