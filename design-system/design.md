@@ -512,9 +512,10 @@ current text colour. The files in `brand/`:
 - `bureau-mark.svg` (two-tone, for dark grounds), `bureau-mark-light.svg` (deep cyan and Carbon,
   for light grounds), `bureau-mark-black.svg` and `bureau-mark-white.svg` (one colour), with
   PNGs of the one-colour marks.
-- `app-icon.svg`: the mark on the Carbon tile (`#0A0E12`, radius 36 on 256). `app-icon.png` is
-  the 1024 px master with Apple's margins, from which `apps/rust-desktop/icons/` is generated
-  (`pnpm exec tauri icon`); `app-icon-light.svg` is the light tile for documents and the web.
+- `app-icon.svg`: the mark on the Carbon tile (`#0A0E12`, radius 36 on 256), as supplied.
+  `app-icon.png` is that tile rendered edge to edge at 1024 px, with no added margin, from which
+  `apps/rust-desktop/icons/` is generated (`pnpm exec tauri icon`); `app-icon-light.svg` is the
+  light tile for documents and the web.
 - `favicon.svg`: the same mark drawn on its own 16-unit grid, so no pixel lands between two
   screen pixels at 16 and 32 px.
 - Sizes: 16 px in the sidebar, 18–22 px lockups, 34 px launcher, 40 px introduction.

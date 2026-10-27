@@ -23,10 +23,16 @@ of the activity bar and title bar, and the Dark and Light themes. On the working
   catalogue. Light: the same shell, Flow, an object and the catalogue. At 1024 × 700 the sidebar
   folds to icons with every row named in a tooltip. No console errors.
 - The gallery page (`design-system/index.html`) loads the new fonts and mark.
+- The packaged apps draw the redesign natively: the macOS app (WKWebView) pictured its own window
+  on the introduction and the launcher, and every Linux arm64 package smoke (WebKitGTK) pictured
+  the introduction ([0.2.4 record](../audit/v0.2.4/README.md#final-verification-after-the-rename)).
+- The desktop icons, generated from the supplied dark tile at full size, were looked at as the
+  Windows `.ico` (256 px) and the Linux PNGs (32 and 128 px).
+- The social set in `brand/social/` was made from the design preview in headless Chrome at 2×.
 
-Not checked here: the native app (`pnpm dev`) and a packaged build, including the carried-over
-settings folder on a real machine and the Windows and Linux icons; VoiceOver; the films, which
-still use Geist, IBM Plex Mono and the old mark until they are re-cut. What the webview keeps
+Not checked here: the carried-over settings folder on a real machine; VoiceOver; the macOS Dock
+and Finder at every size; the films, which still use Geist, IBM Plex Mono and the old mark until
+they are re-cut. What the webview keeps
 (theme, folded rails, the chosen adapter, unsent drafts, the open conversation) starts fresh once:
 the app identifier changed and the keys moved from `omenflow.*` to `bureau.*`. Conversations are
 part of the project record and are kept.

@@ -119,7 +119,7 @@ by the opt-in `step_corpus_parity` test:
 
 ## Final verification
 
-Local candidate checks from [the release procedure](../../docs/release.md#local-candidate), on
+As recorded before the rename. Local candidate checks from [the release procedure](../../docs/release.md#local-candidate), on
 the tree of the release commit (`Prepare Omen Flow 0.2.4`, before this record's results were
 added) on macOS arm64 with OpenSCAD 2026.09.18, from a checkout outside the main repository
 folder:
@@ -141,6 +141,27 @@ folder:
 
 Package and publication checks (CI on the release commit, the x86_64 release workflow, and the
 re-downloaded assets) are recorded after publication.
+
+## Final verification after the rename
+
+The local candidate checks again, on 27 October 2026 on macOS 27 arm64 with OpenSCAD 2026.09.18,
+with the packages built from `9d9c93e` (`Use the app icon at the size of the supplied tile`):
+
+| Check                                                             | Result                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Generated contracts and third-party notices                       | passed                                                                                                                                                                                                                                                                                                                                                 |
+| TypeScript typecheck, lint and formatting                         | passed (lint: 0 errors)                                                                                                                                                                                                                                                                                                                                |
+| JavaScript and renderer suites, including engine cases            | 1129 passed across 110 files with real OpenSCAD, the two end-to-end cases with `BUREAU_OPENSCAD_E2E=1`                                                                                                                                                                                                                                                 |
+| Rust formatting, clippy and workspace suites with OpenSCAD        | passed; 823 passed, 1 ignored                                                                                                                                                                                                                                                                                                                          |
+| macOS arm64 build, bundle metadata, signatures and packaged smoke | passed; 0.2.4, `app.agenticbureau.desktop`, macOS 13.3 or later; DMG (10,931,679 bytes) verified with `hdiutil verify` and mounted read-only; ad hoc app and helper signatures valid; packaged smoke passed from the mounted path. Started from the bundle with an isolated data folder, the app pictured its own window: the launcher, drawn natively |
+| Linux arm64 build, declared floors and packaged smoke             | passed in 450 s with `--skip-tests`; packages `bureau` 0.2.4 (.deb 12,387,378 bytes, .rpm 12,387,675, AppImage 87,685,640), command `/usr/bin/agentic-bureau`, menu entry `Bureau`; .deb on Ubuntu 22.04/24.04 and Debian 12, AppImage on Ubuntu 22.04 without GTK/WebKitGTK, .rpm on Fedora 42, all fresh Xvfb containers                             |
+
+Two fixes joined the release with the rename. A section listed copies of one feature in the order
+the mesh listed its triangles, so the slotted-plate `cad_view` test failed on Linux CI, also on
+the 22 October release commit; copies are now listed by position. The macOS package check
+expected an identifier the rename had passed through. Not run again: the STEP end-to-end tests
+with OCP and the live checks above. CI on the merged commit and the x86_64 release workflow are
+recorded after publication.
 
 ## Release artifacts
 
