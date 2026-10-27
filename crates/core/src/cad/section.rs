@@ -435,10 +435,14 @@ impl Section {
             .iter()
             .map(|l| if l.is_hole { -l.area } else { l.area })
             .sum());
+        // Copies of one feature have the same rounded area; their position
+        // orders them, so the order never follows the mesh's triangle order.
         loops.sort_by(|a, b| {
             a.depth
                 .cmp(&b.depth)
-                .then_with(|| b.area.total_cmp(&a.area))
+                .then_with(|| r3(b.area).total_cmp(&r3(a.area)))
+                .then_with(|| a.centroid[0].total_cmp(&b.centroid[0]))
+                .then_with(|| a.centroid[1].total_cmp(&b.centroid[1]))
         });
         Self {
             axis,
@@ -654,6 +658,24 @@ mod tests {
         assert_eq!(depths, vec![0, 0, 1, 2]);
         assert_eq!(cut.loops.iter().filter(|item| item.is_hole).count(), 1);
         assert!((cut.material_area - (400.0 - 256.0 + 16.0 + 25.0)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn copies_of_one_feature_are_listed_by_position_whatever_the_triangle_order() {
+        let right = cuboid([50.0, 0.0, 0.0], [80.0, 10.0, 4.0], false);
+        let left = cuboid([0.0; 3], [30.0, 10.0, 4.0], false);
+        for body in [
+            merged(&[right.clone(), left.clone()]),
+            merged(&[left, right]),
+        ] {
+            assert_eq!(
+                Section::from_mesh(&body, 1, 5.0).report(None)["loops"],
+                json!([
+                    "material rectangle 30×4 centered (x=15, z=2)",
+                    "material rectangle 30×4 centered (x=65, z=2)"
+                ])
+            );
+        }
     }
 
     #[test]
