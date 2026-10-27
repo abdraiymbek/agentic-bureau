@@ -1,6 +1,6 @@
 # CAD agent evaluation
 
-Measures whether an agent CLI running inside Omen Flow turns engineering intent
+Measures whether an agent CLI running inside Bureau turns engineering intent
 into **dimensionally correct** OpenSCAD parts — judged by geometry, not by
 looks and not by "the render command exited 0".
 
@@ -21,7 +21,7 @@ every `result.json` present.
    seeds any pre-existing artifact the task needs, starts the bridge + MCP
    server exactly as the desktop app does (`CodexAdapter.launchSpec`).
 2. Runs `codex exec --json` with the model pinned, the task prompt behind a
-   constant framing sentence, and `--ignore-user-config` so only Omen Flow's
+   constant framing sentence, and `--ignore-user-config` so only Bureau's
    MCP server is present.
 3. Takes the **final active candidate or selected baseline**, excluding rejected
    and superseded revisions. A modification task must still refer to its seeded
@@ -55,7 +55,7 @@ OpenSCAD diagnostics are captured from stderr on successful and failed renders.
 Warnings fail the clean-render check for the final source and parametric
 variants. A failed preservation reference also fails the evaluation explicitly.
 Existing STL output is removed before each evaluator render. Set
-`OMENFLOW_EVAL_OPENSCAD` to select an explicit evaluator executable; record the
+`BUREAU_EVAL_OPENSCAD` to select an explicit evaluator executable; record the
 version alongside any published evaluation. Model runs still require an installed,
 authenticated Codex CLI and are not run by ordinary CI.
 
@@ -122,7 +122,7 @@ claim. It installs the published Ubuntu 24.04 package
 [`openscad=2021.01-6build4`](https://packages.ubuntu.com/noble/openscad), checks the
 installed package and engine versions, and requires a successful real adapter
 probe before running CAD, mesh, lifecycle and evaluator tests with
-`OMENFLOW_OPENSCAD_E2E=1`. Installation/probe failure fails the job instead of
+`BUREAU_OPENSCAD_E2E=1`. Installation/probe failure fails the job instead of
 silently producing a skipped-engine green build. The version output is uploaded
 as an artifact. If that exact distribution package becomes unavailable, update
 the pin deliberately and revalidate geometry; do not fall back silently.

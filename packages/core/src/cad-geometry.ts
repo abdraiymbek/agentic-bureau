@@ -1,5 +1,5 @@
 /** Pure geometry report work; executed in the packaged cancellable worker. */
-import { OmenflowError } from '@omenflow/contracts';
+import { BureauError } from '@bureau/contracts';
 import {
   analyzeMesh,
   assertCadInspectionBudget,
@@ -99,7 +99,7 @@ function geometryNotes(
     crossings = countIntersectingPairs(tris);
   } catch (error) {
     if (
-      error instanceof OmenflowError &&
+      error instanceof BureauError &&
       (error.details as { reason?: string } | undefined)?.reason === 'CAD_WORK_LIMIT'
     ) {
       notes.push(

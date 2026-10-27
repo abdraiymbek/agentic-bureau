@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import type { CoverageEvidence, CoverageReport, CoverageRequirement } from '@omenflow/contracts';
+import type { CoverageEvidence, CoverageReport, CoverageRequirement } from '@bureau/contracts';
 import {
   EvidenceView,
   type CoverageState,

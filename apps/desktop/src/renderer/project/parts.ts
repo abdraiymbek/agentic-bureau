@@ -2,8 +2,8 @@
  * The Parts lens's reading of `bom.read` and `component.compare`. The host computes totals; this
  * module only labels them. Unknown values are listed, never summed and never shown as zero.
  */
-import type { ComponentPayload, MaybeQuantity, Money, Offer, Quantity } from '@omenflow/contracts';
-import { isUnknown } from '@omenflow/contracts/format';
+import type { ComponentPayload, MaybeQuantity, Money, Offer, Quantity } from '@bureau/contracts';
+import { isUnknown } from '@bureau/contracts/format';
 import { quantityText } from '../lib/diff';
 import { compatible, convert, toBase } from '../ui/units';
 

@@ -9,10 +9,10 @@ import {
   Origin,
   ProjectEvent,
   Revision,
-  OmenflowError,
+  BureauError,
   ErrorCodes,
   newId,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import {
   ObjectStore,
   ProjectHandle,
@@ -24,7 +24,7 @@ import {
   writeMaterializedFile,
   validateObjectHash,
   resolveProjectSourcePath,
-} from '@omenflow/storage';
+} from '@bureau/storage';
 
 /** Services the host process (Electron main, or a test stub) provides to core. */
 export interface HostServices {
@@ -58,7 +58,7 @@ export const nullHost: HostServices = {
     return { ok: false, error: 'Research browser unavailable in this host' };
   },
   async researchScreenshot() {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Research browser unavailable');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Research browser unavailable');
   },
   async revealPath() {},
   async openExternal() {},
@@ -133,13 +133,13 @@ export class ProjectContext {
   }
 
   assertWritable(): void {
-    if (this.closed) throw new OmenflowError(ErrorCodes.CANCELLED, 'Project is closed');
+    if (this.closed) throw new BureauError(ErrorCodes.CANCELLED, 'Project is closed');
     if (this.readOnly) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.READ_ONLY,
         'Project opened read-only (newer schema version)',
         {
-          repair: 'Export the project and update Omen Flow to edit it.',
+          repair: 'Export the project and update Bureau to edit it.',
         },
       );
     }
@@ -147,19 +147,19 @@ export class ProjectContext {
 
   requireArtifact(id: string): Artifact {
     const a = this.repo.getArtifact(id);
-    if (!a) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Artifact not found: ${id}`);
+    if (!a) throw new BureauError(ErrorCodes.NOT_FOUND, `Artifact not found: ${id}`);
     return a;
   }
   requireRevision(id: string): Revision {
     const r = this.repo.getRevision(id);
-    if (!r) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Revision not found: ${id}`);
+    if (!r) throw new BureauError(ErrorCodes.NOT_FOUND, `Revision not found: ${id}`);
     return r;
   }
 
   /** Freshness for one artifact: current / stale / missing_input. */
   freshnessOf(artifactId: string): {
     freshness: Freshness;
-    reasons: import('@omenflow/contracts').StaleRecord[];
+    reasons: import('@bureau/contracts').StaleRecord[];
   } {
     const reasons = this.repo.staleFor(artifactId);
     if (reasons.length === 0) return { freshness: 'current', reasons };
@@ -235,7 +235,7 @@ export class ProjectContext {
           if (opts?.overwrite || cur === opts?.expectedSha256) {
             writeMaterializedFile(this.root, relPath, buf);
           } else {
-            writeMaterializedFile(this.root, `${relPath}.omenflow-conflict-${Date.now()}`, buf);
+            writeMaterializedFile(this.root, `${relPath}.bureau-conflict-${Date.now()}`, buf);
           }
         } else {
           writeMaterializedFile(this.root, relPath, buf);
@@ -320,7 +320,7 @@ export class ProjectContext {
     // That explicit exception never permits a cancelled/interrupted job to commit.
     const allowed = opts?.allowFailed ? ['queued', 'running', 'failed'] : ['queued', 'running'];
     if (this.closed || !allowed.includes(this.repo.getJob(jobId)?.status ?? '')) {
-      throw new OmenflowError(ErrorCodes.CANCELLED, 'Job is no longer active');
+      throw new BureauError(ErrorCodes.CANCELLED, 'Job is no longer active');
     }
   }
 

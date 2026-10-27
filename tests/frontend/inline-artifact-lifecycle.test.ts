@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 const React = require('react');

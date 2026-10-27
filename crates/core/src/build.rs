@@ -462,7 +462,7 @@ pub(super) fn export(handle: &ProjectHandle, input: &Value, origin: &Origin) -> 
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(internal)?;
     }
-    let temp = dest.with_extension(format!("omenflow-{}.tmp", uuid::Uuid::new_v4()));
+    let temp = dest.with_extension(format!("bureau-{}.tmp", uuid::Uuid::new_v4()));
     let result = (|| -> CoreResult<()> {
         let output = fs::File::create(&temp).map_err(internal)?;
         let mut zip = zip::ZipWriter::new(output);
@@ -713,7 +713,7 @@ mod tests {
         fs::remove_file(
             bench
                 .root()
-                .join(".omenflow/objects")
+                .join(".bureau/objects")
                 .join(&hash[..2])
                 .join(hash),
         )
@@ -826,7 +826,7 @@ mod tests {
         // The calculation engine that produced the recorded result is named with its version.
         assert_eq!(
             manifest["toolVersions"],
-            json!([{"tool": "calc", "version": "omenflow-calc/2"}])
+            json!([{"tool": "calc", "version": "bureau-calc/2"}])
         );
         // Drafts are included and marked as not selected.
         let payload = manifest["artifacts"]

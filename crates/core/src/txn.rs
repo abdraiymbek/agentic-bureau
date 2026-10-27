@@ -3,7 +3,7 @@
 //! up front so a render worker's connection cannot slip a commit in between.
 
 use crate::{internal, CoreResult};
-use omenflow_storage::ProjectHandle;
+use bureau_storage::ProjectHandle;
 use rusqlite::Connection;
 
 struct Scope<'a> {
@@ -16,7 +16,7 @@ impl<'a> Scope<'a> {
     fn begin(db: &'a Connection) -> CoreResult<Self> {
         let nested = !db.is_autocommit();
         db.execute_batch(if nested {
-            "SAVEPOINT omenflow_step"
+            "SAVEPOINT bureau_step"
         } else {
             "BEGIN IMMEDIATE"
         })
@@ -31,7 +31,7 @@ impl<'a> Scope<'a> {
     fn commit(mut self) -> CoreResult<()> {
         self.db
             .execute_batch(if self.nested {
-                "RELEASE omenflow_step"
+                "RELEASE bureau_step"
             } else {
                 "COMMIT"
             })
@@ -45,7 +45,7 @@ impl Drop for Scope<'_> {
     fn drop(&mut self) {
         if self.open {
             let _ = self.db.execute_batch(if self.nested {
-                "ROLLBACK TO omenflow_step; RELEASE omenflow_step"
+                "ROLLBACK TO bureau_step; RELEASE bureau_step"
             } else {
                 "ROLLBACK"
             });
@@ -70,7 +70,7 @@ pub(crate) fn atomically<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omenflow_contracts::ContractError;
+    use bureau_contracts::ContractError;
 
     fn project() -> (tempfile::TempDir, ProjectHandle) {
         let temp = tempfile::tempdir().unwrap();

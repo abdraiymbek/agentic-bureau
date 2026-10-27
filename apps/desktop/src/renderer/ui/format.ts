@@ -3,7 +3,7 @@
  * quantity always keeps its unit, an unknown always says so, and a time always means the same
  * thing. Pure functions: no React, no store.
  */
-import type { MaybeQuantity, Money, Quantity } from '@omenflow/contracts';
+import type { MaybeQuantity, Money, Quantity } from '@bureau/contracts';
 
 /* ------------------------------------------------------------------ */
 /* Quantities                                                           */

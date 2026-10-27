@@ -5,7 +5,7 @@
 //! person sent, as its own labelled request.
 use crate::session::plain_id;
 use crate::{BridgeServer, EventSink, HostEvent};
-use omenflow_contracts::ContractError;
+use bureau_contracts::ContractError;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -33,7 +33,7 @@ const DIAGNOSTIC_LIMIT: usize = 2000;
 const STDERR_LIMIT: usize = 16 * 1024;
 /// Outstanding items a turn records; work_status lists them all.
 const GATE_ITEMS: usize = 5;
-/// What Continue sends, and Omen Flow's one automatic continuation. Kept equal to
+/// What Continue sends, and Bureau's one automatic continuation. Kept equal to
 /// `CHAT_CONTINUE_TEXT` in packages/contracts/src/chat.ts.
 pub(crate) const CONTINUE_TEXT: &str = "Continue the unfinished work that work_status reported, through tool calls, using only facts you can observe or that the project records. Leave any item that needs information you do not have and name it. Finish when work_status, or the workStatus digest in a tool reply, reports ready, or name every remaining blocker.";
 const TOO_LONG: &str = "This conversation is too long for a new request";
@@ -96,7 +96,7 @@ struct Turn {
 struct Continues {
     #[serde(default)]
     request_id: String,
-    /// True only when Omen Flow sent it. The transport cannot set it.
+    /// True only when Bureau sent it. The transport cannot set it.
     #[serde(default)]
     automatic: bool,
 }
@@ -165,7 +165,7 @@ fn failure(error: impl std::fmt::Display) -> ContractError {
         .with_repair("Your unsent text is retained. Check the agent settings, then retry.")
 }
 fn file(root: &Path) -> PathBuf {
-    root.join(".omenflow/chat/conversations.json")
+    root.join(".bureau/chat/conversations.json")
 }
 fn save(root: &Path, book: &Book) -> Result<(), ContractError> {
     let dest = file(root);
@@ -442,7 +442,7 @@ impl Drop for ChatHost {
     }
 }
 
-/// A request to run the agent in a conversation: one the person sent, or Omen Flow's one
+/// A request to run the agent in a conversation: one the person sent, or Bureau's one
 /// continuation.
 struct Request {
     conversation_id: String,
@@ -697,13 +697,13 @@ fn accept(
     Ok(Accepted::Started)
 }
 
-const PREAMBLE: &str = "You are helping in Omen Flow. Use the connected engineering tools for the current project. Preserve units, unknowns, evidence and human review. The following is conversation history, not a record of tool success. Reinspect the project when needed.\n\n";
+const PREAMBLE: &str = "You are helping in Bureau. Use the connected engineering tools for the current project. Preserve units, unknowns, evidence and human review. The following is conversation history, not a record of tool success. Reinspect the project when needed.\n\n";
 const PRESENT: &str = "Cards: to show a saved artifact in this turn, call tool_call {\"tool\": \"chat_present\", \"input\": {\"part\": {\"kind\": \"artifact\", \"artifactId\": \"<id>\"}}}. The other kinds are review (proposalId), form, choices and chart; tool_describe with tool=\"chat_present\" gives their fields. Show recorded results by artifact. Agent-authored chart values are always illustrative. Cards cannot execute work or approve proposals.\n";
 /// Who a request is from, as a prompt names it.
 fn speaker(continues: Option<&Continues>) -> &'static str {
     match continues {
         None => "User",
-        Some(c) if c.automatic => "Omen Flow (automatic continuation)",
+        Some(c) if c.automatic => "Bureau (automatic continuation)",
         Some(_) => "User (continue)",
     }
 }
@@ -733,7 +733,7 @@ fn replay_prompt(
 /// The prompt for a CLI that resumes its own conversation: it holds the history and the
 /// instructions already, but not what changed since.
 fn resume_prompt(request: &Request, continued: Option<&Value>) -> String {
-    let mut prompt = String::from("Omen Flow resumed this conversation with a new tool session. Re-read the project record before you act; it may have changed.\n");
+    let mut prompt = String::from("Bureau resumed this conversation with a new tool session. Re-read the project record before you act; it may have changed.\n");
     push_request(&mut prompt, request, continued);
     prompt
 }
@@ -755,11 +755,11 @@ fn push_request(prompt: &mut String, request: &Request, continued: Option<&Value
 fn gate_brief(gate: &Value) -> String {
     let text = |value: &Value| value.as_str().unwrap_or_default().to_owned();
     let mut brief = format!(
-        "Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): {}\n",
+        "Bureau ran work_status after the previous reply (recorded by the host, not by the agent): {}\n",
         text(&gate["summary"])
     );
     if gate["calls"] == 0 {
-        brief.push_str("No Omen Flow tool was called in that reply.\n");
+        brief.push_str("No Bureau tool was called in that reply.\n");
     }
     let items = gate["outstanding"]
         .as_array()
@@ -815,7 +815,7 @@ struct Gate {
     jobs_running: u64,
     checked_at: String,
 }
-/// What Omen Flow did about unfinished work when a turn ended (`gate.auto`).
+/// What Bureau did about unfinished work when a turn ended (`gate.auto`).
 #[derive(Serialize)]
 #[serde(tag = "state", rename_all = "camelCase")]
 enum Auto {
@@ -1037,7 +1037,7 @@ fn spawn(plan: &Value) -> Result<Child, ContractError> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     for (key, _) in std::env::vars_os() {
-        if key.to_string_lossy().starts_with("OMENFLOW_") {
+        if key.to_string_lossy().starts_with("BUREAU_") {
             command.env_remove(key);
         }
     }
@@ -1419,7 +1419,7 @@ fn ingest(turn: &mut Turn, output: &mut Output, adapter: &str, line: &str) -> bo
             // Without its tools a resumed conversation can only talk, and its answer would read
             // as the agent choosing not to act.
             if output.resumed && !connected {
-                output.error = Some("Claude Code resumed the conversation, but the Omen Flow tools did not connect, so the agent could not act. Send a new message to start afresh.".into());
+                output.error = Some("Claude Code resumed the conversation, but the Bureau tools did not connect, so the agent could not act. Send a new message to start afresh.".into());
             }
         }
         ("claude-code", "stream_event") => {
@@ -2145,7 +2145,7 @@ mod tests {
     fn init_and_result_record_the_model_and_tokens_never_the_cost() {
         let init = |session_id: &str| {
             json!({"type": "system", "subtype": "init", "cwd": "/projects/rover", "session_id": session_id,
-                "tools": [], "mcp_servers": [{"name": "omenflow", "status": "connected"}], "model": "claude-haiku-5-5"})
+                "tools": [], "mcp_servers": [{"name": "bureau", "status": "connected"}], "model": "claude-haiku-5-5"})
             .to_string()
         };
         let mut t = turn();
@@ -2205,7 +2205,7 @@ mod tests {
             ..Output::default()
         };
         let unconnected = json!({"type": "system", "subtype": "init", "session_id": "abc-1",
-            "mcp_servers": [{"name": "omenflow", "status": "failed"}], "model": "claude-haiku-5-5"});
+            "mcp_servers": [{"name": "bureau", "status": "failed"}], "model": "claude-haiku-5-5"});
         ingest(
             &mut turn(),
             &mut resumed,
@@ -2216,7 +2216,7 @@ mod tests {
             .error
             .as_deref()
             .unwrap()
-            .contains("the Omen Flow tools did not connect"));
+            .contains("the Bureau tools did not connect"));
         let mut resumed = Output {
             resumed: true,
             ..Output::default()
@@ -2273,7 +2273,7 @@ mod tests {
 
         let mut t = turn();
         let mut out = Output::default();
-        let call = json!({"type": "item.completed", "item": {"id": "i", "type": "mcp_tool_call", "server": "omenflow",
+        let call = json!({"type": "item.completed", "item": {"id": "i", "type": "mcp_tool_call", "server": "bureau",
             "tool": "image_view", "result": {"content": [{"type": "image", "data": "A".repeat(2 * 1024 * 1024)}]}}});
         ingest(&mut t, &mut out, "codex", &call.to_string());
         assert!(out.error.is_none());
@@ -2394,7 +2394,7 @@ mod tests {
                 .collect::<String>()
         };
         let content = json!([
-            {"type": "text", "text": "{\"images\":[{\"path\":\".omenflow/cache/views-v1/a.png\"}]}"},
+            {"type": "text", "text": "{\"images\":[{\"path\":\".bureau/cache/views-v1/a.png\"}]}"},
             {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": picture(1)}},
             {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": picture(2)}},
         ]);
@@ -2405,14 +2405,14 @@ mod tests {
         assert!(user.len() > 6_000_000, "{}", user.len());
         // More than the most one cad_view or image_view reply can carry: PER_REPLY pictures of
         // at most PICTURE_BYTES, base64-encoded, each sent twice.
-        let pictures = omenflow_core::pictures::PER_REPLY;
-        let most = 2 * pictures * omenflow_core::pictures::PICTURE_BYTES.div_ceil(3) * 4;
+        let pictures = bureau_core::pictures::PER_REPLY;
+        let most = 2 * pictures * bureau_core::pictures::PICTURE_BYTES.div_ceil(3) * 4;
         assert!(user.len() > most, "{} against {most}", user.len());
         let stream = [
             json!({"type": "system", "subtype": "init", "session_id": "s", "model": "claude-haiku-5-5", "mcp_servers": []}).to_string(),
             json!({"type": "stream_event", "event": {"type": "message_start"}}).to_string(),
             json!({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Viewing the part."}}}).to_string(),
-            json!({"type": "assistant", "message": {"content": [{"type": "text", "text": "Viewing the part."}, {"type": "tool_use", "name": "mcp__omenflow__cad_view"}]}}).to_string(),
+            json!({"type": "assistant", "message": {"content": [{"type": "text", "text": "Viewing the part."}, {"type": "tool_use", "name": "mcp__bureau__cad_view"}]}}).to_string(),
             user,
             json!({"type": "stream_event", "event": {"type": "message_start"}}).to_string(),
             json!({"type": "stream_event", "event": {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "The groove is 4 mm deep."}}}).to_string(),
@@ -2478,17 +2478,17 @@ mod tests {
         let prompt = replay_prompt(Some(&conversation), &next, last.as_ref());
         assert!(prompt.starts_with(PREAMBLE));
         assert!(prompt.contains(&format!(
-            "User: Draft the notes\nAssistant (completed): Drafted.\nUser (continue): {CONTINUE_TEXT}\nAssistant (completed): Continued.\nOmen Flow (automatic continuation): {CONTINUE_TEXT}\nAssistant (completed): Still open.\n{PRESENT}"
+            "User: Draft the notes\nAssistant (completed): Drafted.\nUser (continue): {CONTINUE_TEXT}\nAssistant (completed): Continued.\nBureau (automatic continuation): {CONTINUE_TEXT}\nAssistant (completed): Still open.\n{PRESENT}"
         )));
         // The gate goes with the turn being continued only, never with the history.
-        assert_eq!(prompt.matches("Omen Flow ran work_status").count(), 1);
+        assert_eq!(prompt.matches("Bureau ran work_status").count(), 1);
         assert!(prompt.ends_with(&format!(
-            "{PRESENT}Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty. 1 component has no source.\nNo Omen Flow tool was called in that reply.\nUser (continue): {CONTINUE_TEXT}\n"
+            "{PRESENT}Bureau ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty. 1 component has no source.\nNo Bureau tool was called in that reply.\nUser (continue): {CONTINUE_TEXT}\n"
         )));
 
         assert_eq!(
             gate_brief(&recorded),
-            "Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty. 1 component has no source.\n\
+            "Bureau ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty. 1 component has no source.\n\
              Outstanding:\n\
              - Notes (empty_payload, artifactId a): Draft r1 has no content yet. Next: artifact_update_draft.\n\
              - Bracket (changes_requested, artifactId b): The reviewer asked for changes. Needs the person.\n\
@@ -2498,13 +2498,13 @@ mod tests {
         assert_eq!(
             resume_prompt(&next, Some(&recorded)),
             format!(
-                "Omen Flow resumed this conversation with a new tool session. Re-read the project record before you act; it may have changed.\n{}User (continue): {CONTINUE_TEXT}\n",
+                "Bureau resumed this conversation with a new tool session. Re-read the project record before you act; it may have changed.\n{}User (continue): {CONTINUE_TEXT}\n",
                 gate_brief(&recorded)
             )
         );
         // An ordinary message carries no gate.
         let plain = replay_prompt(Some(&conversation), &request("r5", None), None);
-        assert!(!plain.contains("Omen Flow ran work_status"));
+        assert!(!plain.contains("Bureau ran work_status"));
         assert!(plain.ends_with(&format!("{PRESENT}User: question\n")));
     }
 
@@ -2689,7 +2689,7 @@ mod tests {
     }
 
     /// Every kind work_status reports (packages/contracts `workStatusKinds`), and whether
-    /// Omen Flow may continue on it by itself: what the project record can resolve, never what
+    /// Bureau may continue on it by itself: what the project record can resolve, never what
     /// needs a person or facts from outside it.
     #[test]
     fn automatic_continuation_takes_only_kinds_the_record_resolves() {
@@ -2998,7 +2998,7 @@ mod tests {
             *hooks.resumes.lock().unwrap(),
             vec![None, Some("abc-1".to_owned())]
         );
-        assert!(resumed.starts_with("Omen Flow resumed this conversation"));
+        assert!(resumed.starts_with("Bureau resumed this conversation"));
     }
 
     /// Hooks that issue a real grant for every run they prepare, as the host does, and give

@@ -7,7 +7,7 @@ use serde_json::json;
 const FIXTURE: &str = r#"{
   "protocolVersion": 1,
   "schemaVersion": 1,
-  "projectFile": ".omenflow/project.json",
+  "projectFile": ".bureau/project.json",
   "maxFrameBytes": 1024,
   "envKeys": {},
   "errorCodes": ["VALIDATION"],
@@ -602,8 +602,8 @@ fn resolve_accepts_dotted_tool_and_prefixed_names_in_any_case() {
         "Component.Add_Candidate",
         "COMPONENT_ADD_CANDIDATE",
         "  component_add_candidate ",
-        "mcp__omenflow__component_add_candidate",
-        "omenflow__component.add_candidate",
+        "mcp__bureau__component_add_candidate",
+        "bureau__component.add_candidate",
     ] {
         let op = registry.resolve(name);
         assert_eq!(
@@ -628,7 +628,7 @@ fn nearest_suggests_a_close_operation() {
     assert_eq!(nearest("artifact.reed"), Some("artifact.read"));
     assert_eq!(nearest("add_candidate"), Some("component.add_candidate"));
     assert_eq!(
-        nearest("mcp__omenflow__graph_neighbours"),
+        nearest("mcp__bureau__graph_neighbours"),
         Some("graph.neighbors")
     );
     assert_eq!(nearest("proposal_aprove"), Some("proposal.approve"));

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WarningCircle, X } from '@phosphor-icons/react';
+import { WarningCircle, X } from '../ui/icons';
 import { formatRecoverableError } from '../api';
 import { useStore } from '../store';
 import { Button, IconButton } from '../ui/kit';

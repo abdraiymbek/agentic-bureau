@@ -2,7 +2,7 @@
 //! and shape of results, and the body of an error. Nothing here changes what
 //! is validated, allowed or verified.
 
-use omenflow_contracts::{registry, ContractError, Operation, Profile};
+use bureau_contracts::{registry, ContractError, Operation, Profile};
 use serde_json::{json, Map, Value};
 
 /// Typical ceiling for one result, in characters of compact JSON. Content
@@ -679,7 +679,7 @@ fn unknown_units(value: &Value, path: &str, found: &mut Vec<(String, String)>) {
             if let (Some(Value::Number(_)), Some(Value::String(unit))) =
                 (fields.get("value"), fields.get("unit"))
             {
-                if !omenflow_core::accepts_unit(unit) {
+                if !bureau_core::accepts_unit(unit) {
                     found.push((path.to_owned(), unit.clone()));
                 }
             }
@@ -716,13 +716,13 @@ fn with_unit_warnings(result: Value, input: &Value) -> Value {
         .take(LISTED_UNIT_WARNINGS)
         .map(|(path, unit)| {
             json!(format!(
-                "{path}: \"{unit}\" is not a unit Omen Flow converts, so this value cannot be compared or used in a calculation. Save it again with a unit symbol such as g, kg, mm, m, s, min, h, deg, rad, V, A, mAh, Wh, W, N, N*m, Pa or %, or a product of them such as N/mm^2."
+                "{path}: \"{unit}\" is not a unit Bureau converts, so this value cannot be compared or used in a calculation. Save it again with a unit symbol such as g, kg, mm, m, s, min, h, deg, rad, V, A, mAh, Wh, W, N, N*m, Pa or %, or a product of them such as N/mm^2."
             ))
         })
         .collect::<Vec<_>>();
     if found.len() > LISTED_UNIT_WARNINGS {
         warnings.push(json!(format!(
-            "{} more values have units Omen Flow does not convert.",
+            "{} more values have units Bureau does not convert.",
             found.len() - LISTED_UNIT_WARNINGS
         )));
     }
@@ -822,7 +822,7 @@ pub fn chars(value: &Value) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omenflow_contracts::{parse_agent_input, ContractRegistry};
+    use bureau_contracts::{parse_agent_input, ContractRegistry};
 
     fn op(name: &str) -> &'static Operation {
         registry().operation(name).expect("operation")
@@ -1241,7 +1241,7 @@ mod tests {
         let saved = json!({"artifactId": "11111111-1111-4111-8111-111111111111",
             "payload": shaped["drafts"][0]["payload"].clone()});
         let parsed = parse_agent_input(update, saved).unwrap();
-        assert!(omenflow_contracts::parse_agent_artifact_payload(
+        assert!(bureau_contracts::parse_agent_artifact_payload(
             "assembly",
             parsed.value["payload"].clone()
         )
@@ -1632,7 +1632,7 @@ mod tests {
         assert_eq!(warnings.len(), 1);
         let warning = warnings[0].as_str().unwrap();
         assert!(
-            warning.starts_with("payload.target: \"furlong\" is not a unit Omen Flow converts"),
+            warning.starts_with("payload.target: \"furlong\" is not a unit Bureau converts"),
             "{warning}"
         );
         assert!(warning.contains(" deg,"), "{warning}");
@@ -1661,7 +1661,7 @@ mod tests {
             );
         }
         for unit in ["^", "N*furlong", "pounds"] {
-            assert!(!omenflow_core::accepts_unit(unit), "{unit}");
+            assert!(!bureau_core::accepts_unit(unit), "{unit}");
         }
 
         // Every quantity is checked, with its path; reads are never checked;

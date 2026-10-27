@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
-import type { ArtifactType } from '@omenflow/contracts';
-import { validatePayload } from '@omenflow/contracts';
+import type { ArtifactType } from '@bureau/contracts';
+import { validatePayload } from '@bureau/contracts';
 import payloads from '../fixtures/artifact-payloads.json';
 import { diffPayload } from '../../apps/desktop/src/renderer/lib/diff';
 

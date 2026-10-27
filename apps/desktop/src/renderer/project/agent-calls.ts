@@ -4,7 +4,7 @@
  * ever shown; a host without the ledger leaves the feature hidden.
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { AgentActivity, AgentCallRecord } from '@omenflow/contracts';
+import type { AgentActivity, AgentCallRecord } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { asAlsoRan } from '../shell/agent/activity';
 import { optionalCommand } from './optional-op';
@@ -95,7 +95,7 @@ export function useAgentCalls(projectId: string | null) {
         early = [];
       },
     );
-    const unsubscribe = window.omenflow.onAgentCall?.((value) => {
+    const unsubscribe = window.bureau.onAgentCall?.((value) => {
       const call = asAgentCall(value, projectId);
       if (!call || !active) return;
       if (reading) early.push(call);

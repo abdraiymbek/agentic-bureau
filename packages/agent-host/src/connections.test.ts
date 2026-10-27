@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CoreApp } from '@omenflow/core';
-import { createProject } from '@omenflow/storage';
-import type { ProjectContext } from '@omenflow/core';
+import { CoreApp } from '@bureau/core';
+import { createProject } from '@bureau/storage';
+import type { ProjectContext } from '@bureau/core';
 import { BridgeServer } from './bridge/server.js';
 import { ConnectionManager } from './connections.js';
 
@@ -16,7 +16,7 @@ describe('ConnectionManager', () => {
   let conn: ConnectionManager;
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-conn-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-conn-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     ctx = app.register(createProject(path.join(dir, 'proj'), 'Conn Proj', 'intent'));
     bridge = new BridgeServer(app, { socketPath: path.join(dir, 'run', 'bridge.sock') });

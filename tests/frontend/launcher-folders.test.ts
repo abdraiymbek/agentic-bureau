@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionInfo } from '@omenflow/contracts';
+import type { SessionInfo } from '@bureau/contracts';
 import {
   baseName,
   createRefusal,
@@ -140,7 +140,7 @@ describe('the brief as the first prompt', () => {
       setTimeout,
       clearTimeout,
       dispatchEvent: vi.fn(),
-      omenflow: {
+      bureau: {
         command,
         onTerminalData: (cb: typeof data) => {
           data = cb;

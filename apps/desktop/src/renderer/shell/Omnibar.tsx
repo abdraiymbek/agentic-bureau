@@ -26,7 +26,7 @@ import {
   StopCircle,
   Sun,
   TerminalWindow,
-} from '@phosphor-icons/react';
+} from '../ui/icons';
 import { openProposals, useStore } from '../store';
 import { useChat } from '../chat/chat-store';
 import { needsYou } from '../lib/proposals';
@@ -81,7 +81,7 @@ interface Item extends Candidate {
   snippet?: string;
 }
 
-const RECENT_KEY = 'omen.omni.recent';
+const RECENT_KEY = 'bureau.omni.recent';
 const RECENT_LIMIT = 5;
 
 function readRecentCommands(): string[] {
@@ -171,7 +171,7 @@ function useItems(text: string) {
         const fresh = v.freshness === 'current' ? null : stateLabel(v.freshness);
         const state = fresh ?? review;
         const id = v.artifact.id;
-        const reference = `About the Omen Flow ${meta.label.toLowerCase()} "${v.artifact.title}" (artifact ${id}${v.revision ? `, revision ${v.revision.seq}` : ''}): `;
+        const reference = `About the Bureau ${meta.label.toLowerCase()} "${v.artifact.title}" (artifact ${id}${v.revision ? `, revision ${v.revision.seq}` : ''}): `;
         items.push({
           id: `o:${id}`,
           group: 'objects',
@@ -409,7 +409,7 @@ function useItems(text: string) {
           icon: <FolderSimple size={15} />,
           command: true,
           run: () => {
-            if (projectPath) report(window.omenflow.revealPath(projectPath));
+            if (projectPath) report(window.bureau.revealPath(projectPath));
           },
         },
         {
@@ -419,7 +419,7 @@ function useItems(text: string) {
           keywords: 'web sources browse',
           icon: <Globe size={15} />,
           command: true,
-          run: () => report(window.omenflow.toggleResearch()),
+          run: () => report(window.bureau.toggleResearch()),
         },
         {
           id: 'act:close',
@@ -446,7 +446,7 @@ function useItems(text: string) {
       {
         id: 'act:theme',
         group: 'actions',
-        label: theme === 'dark' ? 'Switch to Paper (light)' : 'Switch to Graphite (dark)',
+        label: theme === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme',
         keywords: 'appearance theme light dark mode',
         icon: theme === 'dark' ? <Sun size={15} /> : <MoonStars size={15} />,
         command: true,
@@ -582,7 +582,7 @@ function OmniBody() {
           revisionId: hit.revisionId,
         });
       const localMatch = existing && scoreCandidate(existing, query) > 0;
-      const reference = `About the Omen Flow ${typeMeta(hit.type).label.toLowerCase()} "${hit.title}" (artifact ${hit.artifactId}, revision ${hit.revisionId}): `;
+      const reference = `About the Bureau ${typeMeta(hit.type).label.toLowerCase()} "${hit.title}" (artifact ${hit.artifactId}, revision ${hit.revisionId}): `;
       const match: Item = {
         ...(localMatch ? existing : {}),
         id: localMatch ? existing.id : `c:${hit.artifactId}:${hit.revisionId}`,

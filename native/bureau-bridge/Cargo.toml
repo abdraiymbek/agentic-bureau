@@ -1,13 +1,13 @@
 [package]
-name = "omenflow-bridge"
+name = "bureau-bridge"
 version = "0.2.4"
 edition = "2021"
-description = "omenflow CLI helper — connects agent sessions to the Omen Flow app bridge"
+description = "bureau CLI helper — connects agent sessions to the Bureau app bridge"
 license = "Apache-2.0"
 repository = "https://github.com/abdraiymbek/omen-flow"
 
 [[bin]]
-name = "omenflow"
+name = "bureau"
 path = "src/main.rs"
 
 [dependencies]

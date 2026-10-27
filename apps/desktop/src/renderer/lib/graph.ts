@@ -1,4 +1,4 @@
-import type { ArtifactView, Edge, Relationship } from '@omenflow/contracts';
+import type { ArtifactView, Edge, Relationship } from '@bureau/contracts';
 
 /** Relationships that carry engineering consequence from upstream to downstream. */
 const CAUSAL: Relationship[] = ['depends_on', 'derived_from', 'validates'];

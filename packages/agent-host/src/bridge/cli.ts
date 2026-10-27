@@ -8,16 +8,16 @@ import {
   envKeys,
   type RequestEnvelope,
   type ResponseEnvelope,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
 /**
- * `omenflow` CLI — the agent-facing bridge client (TypeScript reference;
- * bin/omenflow.mjs is the self-contained dev shim, native/omenflow-bridge is the
+ * `bureau` CLI — the agent-facing bridge client (TypeScript reference;
+ * bin/bureau.mjs is the self-contained dev shim, native/bureau-bridge is the
  * production build).
  *
- *   omenflow call <op> --input <file|'-'> [--idempotency-key k]
- *   omenflow mcp
+ *   bureau call <op> --input <file|'-'> [--idempotency-key k]
+ *   bureau mcp
  *
  * Exit codes: 0 ok · 2 bridge/app error (JSON on stderr) · 3 usage.
  */
@@ -43,7 +43,7 @@ interface ParsedArgs {
   op?: string;
   input?: string;
   idempotencyKey?: string;
-  /** `omenflow call <op> --help`: describe this op instead of calling it. */
+  /** `bureau call <op> --help`: describe this op instead of calling it. */
   helpFor?: string;
 }
 
@@ -52,7 +52,7 @@ function parseArgs(argv: string[]): ParsedArgs | { error: string } {
   if (cmd === 'mcp') return { mode: 'mcp' };
   if (cmd !== 'call')
     return {
-      error: `usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp`,
+      error: `usage: bureau call <op> --input <file|-> [--idempotency-key k] | bureau call <op> --help | bureau mcp`,
     };
   const out: ParsedArgs = { mode: 'call' };
   let help = false;
@@ -117,7 +117,7 @@ function nextMessage(socket: net.Socket, decoder: FrameDecoder): Promise<unknown
   });
 }
 
-export async function runOmenflowCli(argv: string[], deps: CliDeps = {}): Promise<number> {
+export async function runBureauCli(argv: string[], deps: CliDeps = {}): Promise<number> {
   const env = deps.env ?? process.env;
   const parsed = parseArgs(argv);
   if ('error' in parsed) {
@@ -131,7 +131,7 @@ export async function runOmenflowCli(argv: string[], deps: CliDeps = {}): Promis
     return fail(
       deps,
       ErrorCodes.APP_NOT_RUNNING,
-      `${envKeys.socketPath}/${envKeys.token} not set — not inside an Omen Flow session?`,
+      `${envKeys.socketPath}/${envKeys.token} not set — not inside a Bureau session?`,
     );
   }
 
@@ -140,7 +140,7 @@ export async function runOmenflowCli(argv: string[], deps: CliDeps = {}): Promis
     return fail(
       deps,
       ErrorCodes.APP_NOT_RUNNING,
-      `Cannot connect to Omen Flow bridge at ${socketPath}`,
+      `Cannot connect to Bureau bridge at ${socketPath}`,
     );
   }
 

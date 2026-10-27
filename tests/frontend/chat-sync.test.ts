@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatRecord } from '@omenflow/contracts';
+import type { ChatRecord } from '@bureau/contracts';
 import type { ChatChange } from '../../apps/desktop/src/renderer/api';
 import { useChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 import {
@@ -62,7 +62,7 @@ beforeEach(() => {
     setItem: (key: string, value: string) => storage.set(key, value),
   });
   vi.stubGlobal('window', {
-    omenflow: {
+    bureau: {
       command,
       onChat: (listener: (change: ChatChange) => void) => {
         listeners.add(listener);

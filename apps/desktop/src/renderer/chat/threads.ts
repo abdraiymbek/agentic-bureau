@@ -1,4 +1,4 @@
-import type { ChatConversation } from '@omenflow/contracts';
+import type { ChatConversation } from '@bureau/contracts';
 import type { ProjectChat } from './chat-store';
 
 /**

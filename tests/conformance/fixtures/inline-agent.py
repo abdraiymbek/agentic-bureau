@@ -16,7 +16,7 @@ if '--version' in sys.argv:
     print('2.1.287 (Claude Code)' if Path(sys.argv[0]).name == 'claude' else 'codex-cli 0.156.1')
     sys.exit(0)
 prompt = sys.stdin.read()
-helper = os.environ.get('OMEN_INLINE_HELPER', str(Path(__file__).resolve().parents[3] / 'native/omenflow-bridge/target/release/omenflow'))
+helper = os.environ.get('BUREAU_INLINE_HELPER', str(Path(__file__).resolve().parents[3] / 'native/bureau-bridge/target/release/bureau'))
 
 def call(op, payload):
     result = subprocess.run([helper, 'call', op, '--input', '-'], input=json.dumps(payload), capture_output=True, text=True)
@@ -50,9 +50,9 @@ def partial(text, full=False):
 if claude:
     # What Claude Code's init event reports: the conversation it was given or resumed, and the model.
     emit({'type': 'system', 'subtype': 'init', 'session_id': after('--resume', after('--session-id', '')),
-          'model': after('--model', 'fixture-model'), 'mcp_servers': [{'name': 'omenflow', 'status': 'connected'}]})
+          'model': after('--model', 'fixture-model'), 'mcp_servers': [{'name': 'bureau', 'status': 'connected'}]})
 
-GATE_BRIEF = 'Omen Flow ran work_status after the previous reply'
+GATE_BRIEF = 'Bureau ran work_status after the previous reply'
 if 'UNFINISHED_FIXTURE' in prompt or GATE_BRIEF in prompt:
     try:
         if '--resume' in sys.argv and ('Prior exact input' in prompt or 'User: UNFINISHED_FIXTURE' in prompt):

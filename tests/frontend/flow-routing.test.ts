@@ -124,11 +124,13 @@ describe('flow link routing', () => {
     expect(back.points[0]!.x).toBe(node('Stress check').x);
     expect(tip(back).x).toBeCloseTo(node('Bracket').x + node('Bracket').w + 1.5);
 
-    // The arrowhead is an open chevron whose point is the tip of the line.
+    // The terminal is a small square whose front edge sits on the tip of the line.
     for (const e of [forward, same, back]) {
-      const [, , , px, py] = /M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)L/.exec(e.arrow)!.map(Number);
-      expect(px).toBeCloseTo(tip(e).x, 1);
-      expect(py).toBeCloseTo(tip(e).y, 1);
+      const [, x, y1, , , , y2] = /M([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)L([-\d.]+),([-\d.]+)L/
+        .exec(e.arrow)!
+        .map(Number);
+      expect(x).toBeCloseTo(tip(e).x, 1);
+      expect((y1! + y2!) / 2).toBeCloseTo(tip(e).y, 1);
     }
     expect(forward.length).toBeGreaterThan(0);
   });

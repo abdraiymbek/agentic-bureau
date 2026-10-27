@@ -1,7 +1,7 @@
 /**
- * Runs one CAD task through the real Omen Flow agent stack:
+ * Runs one CAD task through the real Bureau agent stack:
  *
- *   CoreApp (real OpenSCAD tools) ← BridgeServer ← MCP ← `omenflow mcp` shim
+ *   CoreApp (real OpenSCAD tools) ← BridgeServer ← MCP ← `bureau mcp` shim
  *   ← Codex CLI (`codex exec`, model pinned) ← task prompt
  *
  * then evaluates the project state deterministically (evals/cad/checks.ts).
@@ -14,24 +14,24 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_OPS, newId, type Origin, type MechanicalPayload } from '@omenflow/contracts';
-import { CoreApp, nullHost, latestCadVerification } from '@omenflow/core';
+import { AGENT_OPS, newId, type Origin, type MechanicalPayload } from '@bureau/contracts';
+import { CoreApp, nullHost, latestCadVerification } from '@bureau/core';
 import {
   canonicalScadRef,
   effectiveCadParams,
   renderMatchesInput,
 } from '../../packages/core/src/cad-input.js';
-import { createEngineTools } from '@omenflow/engineering';
-import { assertMeshByteLimit, parseStlTriangles, type TriangleBuffer } from '@omenflow/core';
-import { BridgeServer, CodexAdapter, writeBootstrapBrief } from '@omenflow/agent-host';
-import { connectMcpToBridge } from '@omenflow/mcp-server';
+import { createEngineTools } from '@bureau/engineering';
+import { assertMeshByteLimit, parseStlTriangles, type TriangleBuffer } from '@bureau/core';
+import { BridgeServer, CodexAdapter, writeBootstrapBrief } from '@bureau/agent-host';
+import { connectMcpToBridge } from '@bureau/mcp-server';
 import { preservationCheck, runChecks, type CheckResult } from './checks.js';
 import type { Task } from './tasks.js';
 
 const USER: Origin = { kind: 'user' };
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const SHIM = path.join(REPO, 'packages/agent-host/bin/omenflow.mjs');
+const SHIM = path.join(REPO, 'packages/agent-host/bin/bureau.mjs');
 
 export interface RunOptions {
   model: string;
@@ -44,7 +44,7 @@ export interface RunOptions {
   framing: string;
   /** Extra `codex exec` args (e.g. config overrides under test). */
   extraCodexArgs?: string[];
-  /** Ignore the developer's ~/.codex/config.toml so only Omen Flow's MCP is present. */
+  /** Ignore the developer's ~/.codex/config.toml so only Bureau's MCP is present. */
   ignoreUserConfig?: boolean;
   /** Continue from a closed, copied project in a multi-turn recovery evaluation. */
   projectSnapshot?: string;
@@ -123,7 +123,7 @@ async function seedProject(app: CoreApp, projectId: string, task: Task): Promise
 function makeShimDir(root: string): string {
   const bin = path.join(root, 'bin');
   fs.mkdirSync(bin, { recursive: true });
-  const wrapper = path.join(bin, 'omenflow');
+  const wrapper = path.join(bin, 'bureau');
   fs.writeFileSync(wrapper, `#!/bin/sh\nexec "${process.execPath}" "${SHIM}" "$@"\n`);
   fs.chmodSync(wrapper, 0o755);
   return bin;
@@ -241,7 +241,7 @@ export function metricsFrom(run: CodexRun): TraceMetrics {
       case 'command_execution': {
         m.shellCommands++;
         const cmd = String(item.command ?? '');
-        if (/omenflow call cad\.check/.test(cmd)) m.checkCalls++;
+        if (/bureau call cad\.check/.test(cmd)) m.checkCalls++;
         break;
       }
       case 'mcp_tool_call': {
@@ -269,7 +269,7 @@ export function metricsFrom(run: CodexRun): TraceMetrics {
 /* ------------------------------------------------------------------ */
 
 function openscadExe(): string {
-  if (process.env.OMENFLOW_EVAL_OPENSCAD) return process.env.OMENFLOW_EVAL_OPENSCAD;
+  if (process.env.BUREAU_EVAL_OPENSCAD) return process.env.BUREAU_EVAL_OPENSCAD;
   for (const p of [
     '/Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD',
     '/opt/homebrew/bin/openscad',
@@ -523,7 +523,7 @@ export async function evaluateProject(
 export async function runTask(task: Task, opts: RunOptions): Promise<TaskResult> {
   const outDir = path.join(opts.outDir, opts.runName);
   fs.mkdirSync(outDir, { recursive: true });
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), `omenflow-eval-${task.id}-`));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `bureau-eval-${task.id}-`));
   const appData = path.join(root, 'appdata');
   const projectDir = path.join(root, 'project');
 
@@ -560,10 +560,10 @@ export async function runTask(task: Task, opts: RunOptions): Promise<TaskResult>
   const token = bridge.issueToken({ projectId, sessionId, ops: [...AGENT_OPS] });
   const bootstrapPath = writeBootstrapBrief(ctx, sessionId);
   const bridgeEnv = {
-    OMENFLOW_BRIDGE_SOCK: bridge.socketPath,
-    OMENFLOW_BRIDGE_TOKEN: token,
-    OMENFLOW_PROJECT_ID: projectId,
-    OMENFLOW_SESSION_ID: sessionId,
+    BUREAU_BRIDGE_SOCK: bridge.socketPath,
+    BUREAU_BRIDGE_TOKEN: token,
+    BUREAU_PROJECT_ID: projectId,
+    BUREAU_SESSION_ID: sessionId,
   };
   const adapter = new CodexAdapter(() => ({}));
   const spec = await adapter.launchSpec({ ctx, sessionId, config: {}, bridgeEnv, bootstrapPath });
@@ -589,11 +589,11 @@ export async function runTask(task: Task, opts: RunOptions): Promise<TaskResult>
     `model_reasoning_effort="${opts.reasoningEffort}"`,
     '-c',
     'approval_policy="never"',
-    // Stand-in for the human clicking "approve" on each Omen Flow tool call in
+    // Stand-in for the human clicking "approve" on each Bureau tool call in
     // the interactive TUI. (Codex denies un-annotated MCP tools under
     // approval_policy=never; see Phase 1 findings.)
     '-c',
-    'mcp_servers.omenflow.default_tools_approval_mode="approve"',
+    'mcp_servers.bureau.default_tools_approval_mode="approve"',
     '-o',
     lastMsg,
     ...spec.args,

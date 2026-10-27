@@ -9,7 +9,36 @@ use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 
 const SCHEMA_VERSION: i64 = 1;
-const PROJECT_FILE: &str = "omenflow.project.json";
+const PROJECT_FILE: &str = "bureau.project.json";
+
+/// A project's record folder and marker as builds before the rename named
+/// them, with the names they have now.
+const PRE_RENAME_LAYOUT: [(&str, &str); 2] = [
+    (".omenflow", ".bureau"),
+    ("omenflow.project.json", PROJECT_FILE),
+];
+
+/// A project made before the app was called Bureau keeps its record in
+/// `.omenflow` beside `omenflow.project.json`. Opening it renames both, once;
+/// a name already taken is left alone, so nothing is ever overwritten.
+pub fn adopt_pre_rename_layout(root: &Path) -> std::io::Result<()> {
+    for (old, new) in PRE_RENAME_LAYOUT {
+        let (from, to) = (root.join(old), root.join(new));
+        if from.exists() && !to.exists() {
+            fs::rename(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
+/// The project marker of the folder at `root`, under its current name or the
+/// one it had before the rename. Reading never renames anything.
+pub fn read_project_marker(root: &Path) -> std::io::Result<Vec<u8>> {
+    fs::read(root.join(PROJECT_FILE)).or_else(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => fs::read(root.join(PRE_RENAME_LAYOUT[1].0)),
+        _ => Err(error),
+    })
+}
 const SCHEMA_V1: &str = include_str!("schema_v1.sql");
 const ARTIFACT_DIRS: &[&str] = &[
     "requirements",
@@ -23,7 +52,7 @@ const ARTIFACT_DIRS: &[&str] = &[
     "assembly",
     "tests",
 ];
-const OMENFLOW_DIRS: &[&str] = &["objects", "work", "recovery", "cache"];
+const BUREAU_DIRS: &[&str] = &["objects", "work", "recovery", "cache"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ProjectFile {
@@ -50,6 +79,7 @@ impl ProjectHandle {
     /// than copy its database and WAL files while the UI is writing them.
     pub fn open_worker(root: impl AsRef<Path>) -> Result<Self, StorageError> {
         let root = canonicalize(root)?;
+        adopt_pre_rename_layout(&root)?;
         let file: ProjectFile = serde_json::from_slice(&fs::read(root.join(PROJECT_FILE))?)?;
         if file.format != "omenflow-project" || file.id.is_empty() {
             return Err(StorageError::domain("VALIDATION", "Invalid project marker"));
@@ -61,7 +91,7 @@ impl ProjectHandle {
             ));
         }
         let db = Connection::open_with_flags(
-            root.join(".omenflow/state.sqlite"),
+            root.join(".bureau/state.sqlite"),
             OpenFlags::SQLITE_OPEN_READ_WRITE,
         )?;
         db.pragma_update(None, "foreign_keys", "ON")?;
@@ -84,11 +114,12 @@ impl ProjectHandle {
 
     pub fn open(root: impl AsRef<Path>) -> Result<Self, StorageError> {
         let root = canonicalize(root)?;
+        adopt_pre_rename_layout(&root)?;
         let file: ProjectFile = serde_json::from_slice(&fs::read(root.join(PROJECT_FILE))?)?;
         if file.format != "omenflow-project" || file.id.is_empty() {
             return Err(StorageError::domain("VALIDATION", "Invalid project marker"));
         }
-        let db_path = root.join(".omenflow/state.sqlite");
+        let db_path = root.join(".bureau/state.sqlite");
         if !db_path.is_file() {
             return Err(StorageError::domain(
                 "NOT_FOUND",
@@ -159,8 +190,8 @@ impl ProjectHandle {
             fs::create_dir_all(root.join("artifacts").join(dir))?;
         }
         fs::create_dir_all(root.join("exports"))?;
-        for dir in OMENFLOW_DIRS {
-            fs::create_dir_all(root.join(".omenflow").join(dir))?;
+        for dir in BUREAU_DIRS {
+            fs::create_dir_all(root.join(".bureau").join(dir))?;
         }
         let file = ProjectFile {
             format: "omenflow-project".into(),
@@ -170,10 +201,10 @@ impl ProjectHandle {
         };
         atomic_json_write(&root.join(PROJECT_FILE), &file)?;
         let readme = format!(
-            "# {name}\n\nOmen Flow engineering project. Its record (artifacts, revisions, reviews and history) lives in `.omenflow/state.sqlite`. Files attached to revisions are written into this folder as working copies, OpenSCAD parts under `artifacts/mechanical/`. Exports go to `exports/`.\n\n{intent}\n"
+            "# {name}\n\nBureau engineering project. Its record (artifacts, revisions, reviews and history) lives in `.bureau/state.sqlite`. Files attached to revisions are written into this folder as working copies, OpenSCAD parts under `artifacts/mechanical/`. Exports go to `exports/`.\n\n{intent}\n"
         );
         fs::write(root.join("README.md"), readme)?;
-        let db = Connection::open(root.join(".omenflow/state.sqlite"))?;
+        let db = Connection::open(root.join(".bureau/state.sqlite"))?;
         db.pragma_update(None, "journal_mode", "WAL")?;
         db.pragma_update(None, "foreign_keys", "ON")?;
         db.busy_timeout(Duration::from_millis(5_000))?;
@@ -216,7 +247,7 @@ impl ProjectHandle {
 
     pub fn rename(&mut self, name: &str) -> Result<(), StorageError> {
         self.assert_writable()?;
-        let journal = self.root.join(".omenflow/recovery/rename.json");
+        let journal = self.root.join(".bureau/recovery/rename.json");
         fs::create_dir_all(journal.parent().expect("rename journal has parent"))?;
         atomic_json_write(
             &journal,
@@ -235,7 +266,7 @@ impl ProjectHandle {
         if self.read_only {
             return Ok(());
         }
-        let journal = self.root.join(".omenflow/recovery/rename.json");
+        let journal = self.root.join(".bureau/recovery/rename.json");
         if !journal.is_file() {
             return Ok(());
         }
@@ -276,7 +307,7 @@ impl ProjectHandle {
     }
 
     pub fn object_store(&self) -> Result<ObjectStore, StorageError> {
-        ObjectStore::new(self.root.join(".omenflow/objects"), self.read_only)
+        ObjectStore::new(self.root.join(".bureau/objects"), self.read_only)
     }
 
     pub fn project(&self) -> Result<Option<Value>, StorageError> {
@@ -359,7 +390,7 @@ fn current_schema_version(db: &Connection) -> Result<i64, StorageError> {
 }
 
 fn atomic_json_write(path: &Path, value: &impl Serialize) -> Result<(), StorageError> {
-    let temp = path.with_file_name(format!(".omenflow-write-{}", uuid::Uuid::new_v4()));
+    let temp = path.with_file_name(format!(".bureau-write-{}", uuid::Uuid::new_v4()));
     let result = (|| {
         use std::io::Write;
         let mut file = fs::OpenOptions::new()
@@ -443,7 +474,7 @@ mod tests {
                     .unwrap();
             }
             drop(project);
-            let db_path = root.join(".omenflow/state.sqlite");
+            let db_path = root.join(".bureau/state.sqlite");
             let before = fs::read(&db_path).unwrap();
             let opened = ProjectHandle::open(&root).unwrap();
             assert!(opened.read_only);
@@ -471,7 +502,7 @@ mod tests {
         ProjectHandle::create(&root, "Rover", "Carry a camera").unwrap();
         let readme = fs::read_to_string(root.join("README.md")).unwrap();
         assert!(readme.starts_with("# Rover\n"));
-        assert!(readme.contains("`.omenflow/state.sqlite`"));
+        assert!(readme.contains("`.bureau/state.sqlite`"));
         assert!(!readme.contains("readable views"), "{readme}");
         for named in ["artifacts/mechanical", "exports"] {
             assert!(root.join(named).is_dir(), "{named}");
@@ -514,7 +545,7 @@ mod tests {
         let mut value: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
         value["version"] = json!(2);
         fs::write(&marker, serde_json::to_vec(&value).unwrap()).unwrap();
-        let db_path = root.join(".omenflow/state.sqlite");
+        let db_path = root.join(".bureau/state.sqlite");
         let before = fs::read(&db_path).unwrap();
         let project = ProjectHandle::open(&root).unwrap();
         assert!(project.read_only);
@@ -524,11 +555,11 @@ mod tests {
 
     #[test]
     fn opens_existing_typescript_fixture_with_additive_schema_one_indexes() {
-        let Ok(root) = std::env::var("OMENFLOW_COMPAT_FIXTURE") else {
+        let Ok(root) = std::env::var("BUREAU_COMPAT_FIXTURE") else {
             return;
         };
         let root = PathBuf::from(root);
-        let db_path = root.join(".omenflow/state.sqlite");
+        let db_path = root.join(".bureau/state.sqlite");
         let project = ProjectHandle::open(&root).unwrap();
         assert_eq!(project.artifact_count().unwrap(), 500);
         assert!(project.fts_available().unwrap());
@@ -556,7 +587,7 @@ mod tests {
         let mut project = ProjectHandle::create(&root, "Original", "").unwrap();
         project.rename("New name").unwrap();
         assert_eq!(project.project().unwrap().unwrap()["name"], "New name");
-        let journal = root.join(".omenflow/recovery/rename.json");
+        let journal = root.join(".bureau/recovery/rename.json");
         atomic_json_write(&journal, &json!({"version": 1, "name": "Recovered name"})).unwrap();
         drop(project);
         let reopened = ProjectHandle::open(&root).unwrap();

@@ -2,7 +2,7 @@
  * The Settings row and onboarding entry for one adapter, derived from `connection.list` alone.
  * V1 fields may be missing from older hosts; a missing field becomes a missing line, not a default.
  */
-import type { AdapterStatus, CapabilityProfile, ProfileSetting } from '@omenflow/contracts';
+import type { AdapterStatus, CapabilityProfile, ProfileSetting } from '@bureau/contracts';
 import type { Tone } from '../../ui/kit';
 import { PROFILE_WORDS } from './session-view';
 

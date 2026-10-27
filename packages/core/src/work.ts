@@ -1,4 +1,4 @@
-import { type Expectation, type Revision } from '@omenflow/contracts';
+import { type Expectation, type Revision } from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import {
   hasExplicitScope,

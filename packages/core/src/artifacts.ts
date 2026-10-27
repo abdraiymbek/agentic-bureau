@@ -10,11 +10,11 @@ import {
   RecordedInput,
   Revision,
   RevisionRef,
-  OmenflowError,
+  BureauError,
   formatQty,
   newId,
   validatePayload,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { approveCadVerificationScope } from './cad-verification.js';
 import { contentHash, diffPayloads, slugify } from './hash.js';
@@ -28,7 +28,7 @@ import {
   resolveMaterializationPath,
   resolveProjectSourcePath,
   validateObjectHash,
-} from '@omenflow/storage';
+} from '@bureau/storage';
 import { normalizeMechanicalRevision } from './cad-input.js';
 
 export interface DraftFileInput {
@@ -42,7 +42,7 @@ export const MAX_INGEST_FILE_BYTES = MAX_FRAME_BYTES;
 
 function assertIngestSize(bytes: number, label: string): void {
   if (bytes > MAX_INGEST_FILE_BYTES) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `${label} exceeds the ${MAX_INGEST_FILE_BYTES} byte ingest/transport limit`,
       {
@@ -78,7 +78,7 @@ export function ingestFiles(ctx: ProjectContext, files: DraftFileInput[]): FileR
       assertIngestSize(fs.statSync(abs).size, f.path);
       buf = fs.readFileSync(abs);
     } else {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `File entry has no content: ${f.path}`);
+      throw new BureauError(ErrorCodes.VALIDATION, `File entry has no content: ${f.path}`);
     }
     assertIngestSize(buf.byteLength, f.path);
     const sha256 = ctx.storeContent(buf);
@@ -129,7 +129,7 @@ function commitRevisionImpl(
   const a = ctx.requireArtifact(args.artifactId);
   const parent = args.parentId ? ctx.requireRevision(args.parentId) : null;
   if (parent && parent.artifactId !== a.id)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Parent revision does not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Parent revision does not belong to artifact');
   validateRevisionInputs(ctx, a.id, args.inputs);
   if (a.type === 'mechanical') {
     const normalized = normalizeMechanicalRevision(args.payload, args.files, parent, (hash) =>
@@ -152,7 +152,7 @@ function commitRevisionImpl(
     const list = issues?.map((i) => `${i.path.join('.') || 'payload'}: ${i.message}`) ?? [
       String(e),
     ];
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid ${a.type} payload — ${list[0]}`, {
+    throw new BureauError(ErrorCodes.VALIDATION, `Invalid ${a.type} payload — ${list[0]}`, {
       repair:
         a.type === 'mechanical'
           ? 'Use cad.write_source for parts; it builds the mechanical payload from the OpenSCAD source.'
@@ -287,14 +287,14 @@ function updateDraftImpl(
     artifact.selectedRevisionId &&
     input.baseRevisionId !== artifact.selectedRevisionId
   ) {
-    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
+    throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
       repair: 'Refresh the artifact and rebuild the draft on the current baseline.',
       details: { selected: artifact.selectedRevisionId, requested: input.baseRevisionId },
     });
   }
 
   if (parent && parent.artifactId !== artifact.id)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Parent revision does not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Parent revision does not belong to artifact');
 
   const payload = input.payload !== undefined ? input.payload : (parent?.payload ?? {});
   const files = input.files ? ingestFiles(ctx, input.files) : (parent?.files ?? []);
@@ -352,7 +352,7 @@ function applyUserEditImpl(
   ctx.assertWritable();
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.selectedRevisionId !== input.baseRevisionId) {
-    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
+    throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'Base revision is no longer selected', {
       repair: 'Refresh the artifact and retry the edit.',
     });
   }
@@ -429,9 +429,9 @@ function applyUserEditImpl(
 export function promoteRevision(ctx: ProjectContext, artifact: Artifact, revision: Revision): void {
   const priorId = artifact.selectedRevisionId;
   if (revision.artifactId !== artifact.id)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
   if (ctx.requireArtifact(artifact.id).selectedRevisionId !== priorId)
-    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Baseline changed');
+    throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'Baseline changed');
   ctx.repo.setRevisionState(revision.id, 'approved');
   ctx.repo.setSelectedRevision(artifact.id, revision.id);
   syncSelectedInputs(ctx, artifact.id);
@@ -472,10 +472,10 @@ function acceptDraftImpl(
   const artifact = ctx.requireArtifact(input.artifactId);
   const rev = ctx.requireRevision(input.draftRevisionId);
   if (rev.artifactId !== artifact.id) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
   }
   if (!['draft', 'proposed'].includes(rev.reviewState))
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Only an active draft can be accepted');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Only an active draft can be accepted');
   validateSelectedRevisions(ctx, [rev]);
   // Walk the candidate lineage: a direct edit after it forked requires review/rebase.
   let ancestor: Revision | null = rev;
@@ -486,7 +486,7 @@ function acceptDraftImpl(
   )
     ancestor = ancestor.parentId ? ctx.requireRevision(ancestor.parentId) : null;
   if ((ancestor?.id ?? null) !== artifact.selectedRevisionId)
-    throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Draft is based on an older baseline');
+    throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'Draft is based on an older baseline');
   const prior: RevisionRef[] = artifact.selectedRevisionId
     ? [{ artifactId: artifact.id, revisionId: artifact.selectedRevisionId }]
     : [];
@@ -531,7 +531,7 @@ function revertArtifactImpl(
   const artifact = ctx.requireArtifact(artifactId);
   const target = ctx.requireRevision(toRevisionId);
   if (target.artifactId !== artifactId) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
   }
   // Revert creates a NEW revision copying historical content (keeps trail).
   const prior: RevisionRef[] = artifact.selectedRevisionId
@@ -619,7 +619,7 @@ function renderView(
   revision: Revision,
 ): { ext: string; content: string } | null {
   const p = revision.payload as Record<string, unknown>;
-  const header = `# ${artifact.title}\n\n<!-- omenflow:artifact=${artifact.id} revision=${revision.id} -->\n\n`;
+  const header = `# ${artifact.title}\n\n<!-- bureau:artifact=${artifact.id} revision=${revision.id} -->\n\n`;
   switch (artifact.type) {
     case 'requirement': {
       const target = p.target ? `\n**Target:** ${formatQty(p.target as never)}\n` : '';
@@ -687,7 +687,7 @@ export function compareRevisions(
   const from = ctx.requireRevision(fromId);
   const to = ctx.requireRevision(toId);
   if (from.artifactId !== a.id || to.artifactId !== a.id) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revisions do not belong to artifact');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Revisions do not belong to artifact');
   }
   const fileDiff = {
     added: to.files.filter(

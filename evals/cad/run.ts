@@ -16,7 +16,7 @@ import { HOLDOUT_TASKS } from './holdout.js';
 
 /** Constant across before/after runs — describes the situation, not the method. */
 export const FRAMING =
-  'You are working inside an Omen Flow engineering project; the `omenflow` MCP server is connected ' +
+  'You are working inside a Bureau engineering project; the `bureau` MCP server is connected ' +
   'and OpenSCAD is available through it. Deliver the part below as a mechanical artifact in this ' +
   'project (OpenSCAD source, rendered). All dimensions are in millimetres.';
 

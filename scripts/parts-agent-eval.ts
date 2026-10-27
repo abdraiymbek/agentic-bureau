@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
-import { AGENT_OPS, newId, type SourcePayload, type Money } from '@omenflow/contracts';
-import { CoreApp, nullHost, type compareComponents, type readBom } from '@omenflow/core';
-import { BridgeServer, CodexAdapter, writeBootstrapBrief } from '@omenflow/agent-host';
-import { connectMcpToBridge } from '@omenflow/mcp-server';
+import { AGENT_OPS, newId, type SourcePayload, type Money } from '@bureau/contracts';
+import { CoreApp, nullHost, type compareComponents, type readBom } from '@bureau/core';
+import { BridgeServer, CodexAdapter, writeBootstrapBrief } from '@bureau/agent-host';
+import { connectMcpToBridge } from '@bureau/mcp-server';
 
 async function main() {
   const output = path.resolve(process.argv[2] ?? 'out/parts-luna');
@@ -127,17 +127,17 @@ async function main() {
       config: {},
       bootstrapPath,
       bridgeEnv: {
-        OMENFLOW_BRIDGE_SOCK: bridge.socketPath,
-        OMENFLOW_BRIDGE_TOKEN: token,
-        OMENFLOW_PROJECT_ID: projectId,
-        OMENFLOW_SESSION_ID: sessionId,
+        BUREAU_BRIDGE_SOCK: bridge.socketPath,
+        BUREAU_BRIDGE_TOKEN: token,
+        BUREAU_PROJECT_ID: projectId,
+        BUREAU_SESSION_ID: sessionId,
       },
     });
     const bin = path.join(output, 'bin');
     fs.mkdirSync(bin, { recursive: true });
     fs.writeFileSync(
-      path.join(bin, 'omenflow'),
-      `#!/bin/sh\nexec "${process.execPath}" "${path.resolve('packages/agent-host/bin/omenflow.mjs')}" "$@"\n`,
+      path.join(bin, 'bureau'),
+      `#!/bin/sh\nexec "${process.execPath}" "${path.resolve('packages/agent-host/bin/bureau.mjs')}" "$@"\n`,
       { mode: 0o755 },
     );
     const prompt = `Research exactly three purchasable parts for this desk sensor station: a USB microcontroller board, an I2C temperature/humidity breakout, and a matching cable connecting their I2C ports. Use Adafruit's exact product pages, starting with the QT Py and STEMMA QT options. You can use research_read_page to read live pages and their product photos and structured pricing, and browser_read after research_search. The test research host supports direct HTTPS pages at www.adafruit.com, www.pololu.com and www.sparkfun.com; search engines are unavailable. Read the project AGENTS.md instructions. Find suitable products using live evidence; do not guess prices or URLs. Save each as a component candidate with real product imageUrl, selectionReason, sourced offer price/currency/quantityBasis, availability and exact product URL. Read all candidates back. Propose BOM selections, quantity one of each, with the actual offerId and reason in notes. Leave proposals pending for human approval. In your final answer provide the three actual purchase links and prices and disclose any limitations. Do not buy anything.`;

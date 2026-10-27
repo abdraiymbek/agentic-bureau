@@ -6,7 +6,7 @@ use crate::{
     emit, internal, models, now, record_decision, required_str, CoreResult, Decision, Origin,
     ProjectHandle,
 };
-use omenflow_contracts::ContractError;
+use bureau_contracts::ContractError;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::HashSet;

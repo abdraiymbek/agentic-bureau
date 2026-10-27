@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { ChatRecord } from '@omenflow/contracts';
+import type { ChatRecord } from '@bureau/contracts';
 import { RustCore, type HostEvent } from './rust-core';
 const USER = { kind: 'user' as const };
 const roots: string[] = [];
@@ -13,7 +13,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function setup() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-chat-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-chat-'));
   roots.push(root);
   const app = await RustCore.start(path.join(root, 'app'), { cli: process.execPath });
   apps.push(app);

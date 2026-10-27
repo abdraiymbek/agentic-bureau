@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { requirementPayload, unitDef } from '@omenflow/contracts';
-import type { ArtifactView, RequirementPayload, StaleRecord } from '@omenflow/contracts';
+import { requirementPayload, unitDef } from '@bureau/contracts';
+import type { ArtifactView, RequirementPayload, StaleRecord } from '@bureau/contracts';
 import {
   TARGET_UNITS,
   assumptionForm,

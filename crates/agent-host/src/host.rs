@@ -9,8 +9,8 @@ mod research;
 pub use research::ResearchSurface;
 
 use crate::{guide_read, wait_proposal, BridgeServer, PtyHost, TerminalEvent};
-use omenflow_contracts::{parse_input, registry, ContractError, ResponseEnvelope};
-use omenflow_core::{dispatch_shared_with_events, stop_engines, CoreApp, Origin};
+use bureau_contracts::{parse_input, registry, ContractError, ResponseEnvelope};
+use bureau_core::{dispatch_shared_with_events, stop_engines, CoreApp, Origin};
 use research::Research;
 use serde_json::{json, Value};
 use std::any::Any;
@@ -18,7 +18,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-/// Where a host keeps its state and finds the `omenflow` helper that agent
+/// Where a host keeps its state and finds the `bureau` helper that agent
 /// CLIs call back through.
 #[derive(Clone, Debug)]
 pub struct HostPaths {
@@ -47,11 +47,11 @@ impl HostEvent {
     /// The desktop channel the renderer subscribes to.
     pub fn channel(&self) -> &'static str {
         match self {
-            Self::Project(_) => "omenflow:event",
-            Self::TerminalData(_) => "omenflow:terminal:data",
-            Self::TerminalState(_) => "omenflow:terminal:state",
-            Self::AgentCall(_) => "omenflow:agent:call",
-            Self::Chat(_) => "omenflow:chat",
+            Self::Project(_) => "bureau:event",
+            Self::TerminalData(_) => "bureau:terminal:data",
+            Self::TerminalState(_) => "bureau:terminal:state",
+            Self::AgentCall(_) => "bureau:agent:call",
+            Self::Chat(_) => "bureau:chat",
         }
     }
 
@@ -359,7 +359,7 @@ impl Host {
                 ),
             )
             .with_repair(
-                "Check that no other Omen Flow host is running with this data folder, that the folder can be written to, and that its path is short: the bridge listens on a socket inside it, and socket paths are limited to about 100 characters.",
+                "Check that no other Bureau host is running with this data folder, that the folder can be written to, and that its path is short: the bridge listens on a socket inside it, and socket paths are limited to about 100 characters.",
             )
         })?;
         let calls = Arc::clone(&events);
@@ -598,7 +598,7 @@ impl Host {
                 .any(|allowed| scheme.eq_ignore_ascii_case(allowed))
         }) {
             return Err(ContractError::validation(format!(
-                "Only http, https and mailto links can be opened outside Omen Flow: {url}"
+                "Only http, https and mailto links can be opened outside Bureau: {url}"
             )));
         }
         self.shell.open_external(url)
@@ -662,7 +662,7 @@ fn panic_error(op: &str, panic: &(dyn Any + Send)) -> ContractError {
         .or_else(|| panic.downcast_ref::<String>().cloned())
         .unwrap_or_else(|| "no message".to_owned());
     ContractError::new("INTERNAL", format!("{op} stopped unexpectedly: {cause}"))
-        .with_repair("Try again. If it fails the same way, restart Omen Flow and report the operation name and this message.")
+        .with_repair("Try again. If it fails the same way, restart Bureau and report the operation name and this message.")
         .with_details(json!({ "op": op, "panic": cause }))
 }
 

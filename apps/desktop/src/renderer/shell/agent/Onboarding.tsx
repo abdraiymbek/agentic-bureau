@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
-import {
-  ArrowClockwise,
-  ChatCircle,
-  FolderOpen,
-  GearSix,
-  Play,
-  Square,
-} from '@phosphor-icons/react';
-import type { AdapterStatus } from '@omenflow/contracts';
+import { ArrowClockwise, ChatCircle, FolderOpen, GearSix, Play, Square } from '../../ui/icons';
+import type { AdapterStatus } from '@bureau/contracts';
 import { useStore } from '../../store';
 import { useChat } from '../../chat/chat-store';
 import { flushAsks, startAgentFromSurface as startAdapter } from '../../lib/actions';
@@ -27,7 +20,7 @@ function openSettings() {
 
 /** Point an adapter at an executable the person picks, then detect again. */
 async function setPath(adapterId: string, label: string) {
-  const path = await window.omenflow.pickFile({ title: `Locate ${label}` });
+  const path = await window.bureau.pickFile({ title: `Locate ${label}` });
   if (!path) return;
   const r = await quiet('connection.configure', { adapterId, executablePath: path });
   if (r.ok) await detectAgents();
@@ -174,8 +167,8 @@ export function SurfacePanel({ phase }: { phase: Phase }) {
           <div className="onboard">
             <h2>Connect an agent CLI</h2>
             <p className="onboard-lede">
-              Omen Flow runs the agent CLI you already use, in this project’s folder. None of these
-              was found on this machine.
+              Bureau runs the agent CLI you already use, in this project’s folder. None of these was
+              found on this machine.
             </p>
             <ul className="onboard-list">
               {phase.adapters.map((a) => (

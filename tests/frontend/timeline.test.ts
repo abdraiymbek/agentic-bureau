@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentCallRecord, ProjectEvent, Proposal } from '@omenflow/contracts';
+import type { AgentCallRecord, ProjectEvent, Proposal } from '@bureau/contracts';
 import {
   dayLabel,
   eventArtifactIds,

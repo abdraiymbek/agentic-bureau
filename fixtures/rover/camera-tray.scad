@@ -1,4 +1,4 @@
-// Omen Flow fixture: removable camera tray for the inspection rover.
+// Bureau fixture: removable camera tray for the inspection rover.
 // Parametric: sized from payload width; changes when the payload
 // requirement changes. All dimensions in millimetres.
 

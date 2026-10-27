@@ -1,5 +1,5 @@
 /** Core calls made by the decision level. */
-import type { OmenflowErrorBody } from '@omenflow/contracts';
+import type { BureauErrorBody } from '@bureau/contracts';
 import { CommandError } from '../api';
 
 /**
@@ -11,10 +11,10 @@ export async function quietCmd<T>(
   payload: unknown,
   opts: { projectId?: string; idempotencyKey?: string },
 ): Promise<T> {
-  const res = await window.omenflow.command(op, payload, opts);
+  const res = await window.bureau.command(op, payload, opts);
   if (!res.ok)
     throw new CommandError(
-      (res.error as OmenflowErrorBody | undefined) ?? {
+      (res.error as BureauErrorBody | undefined) ?? {
         code: 'INTERNAL',
         message: 'unknown error',
       },

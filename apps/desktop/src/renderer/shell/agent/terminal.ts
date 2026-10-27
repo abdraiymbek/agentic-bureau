@@ -6,7 +6,7 @@
  * size at start and debounced resize, the token palette, web links, search and the transcript.
  */
 import { Terminal, type ILink } from '@xterm/xterm';
-import type { SessionInfo } from '@omenflow/contracts';
+import type { SessionInfo } from '@bureau/contracts';
 import { FitAddon } from '@xterm/addon-fit';
 import { useStore } from '../../store';
 import { createTerminalRestore } from '../../lib/terminal-restore';
@@ -43,7 +43,7 @@ export interface SearchResult {
 }
 
 function openWeb(url: string) {
-  void window.omenflow.openExternal(url).catch(() => {});
+  void window.bureau.openExternal(url).catch(() => {});
 }
 
 export class TerminalEngine implements TerminalPort {
@@ -68,7 +68,7 @@ export class TerminalEngine implements TerminalPort {
   constructor(readonly projectId: string) {
     const mono = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
     this.term = new Terminal({
-      fontFamily: mono || '"IBM Plex Mono", ui-monospace, monospace',
+      fontFamily: mono || '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 12.5,
       lineHeight: 1.25,
       cursorBlink: !calm(),
@@ -128,11 +128,11 @@ export class TerminalEngine implements TerminalPort {
       return true;
     });
 
-    const unData = window.omenflow.onTerminalData((data) => {
+    const unData = window.bureau.onTerminalData((data) => {
       if (data.projectId === this.projectId)
         this.history.acceptLive({ sessionId: data.sessionId, seq: data.seq, chunk: data.chunk });
     });
-    const unState = window.omenflow.onTerminalState((value) => {
+    const unState = window.bureau.onTerminalState((value) => {
       const v = value as { projectId?: string; session?: { id?: string } | null };
       if (v.projectId !== this.projectId) return;
       this.stateRevision++;

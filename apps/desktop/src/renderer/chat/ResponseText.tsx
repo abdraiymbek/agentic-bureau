@@ -50,7 +50,7 @@ export function ResponseText({
         e.preventDefault();
         const url = linkDestination(a.getAttribute('href'));
         if (url)
-          void window.omenflow
+          void window.bureau
             .openExternal(url)
             .catch((error) => useStore.getState().toast('error', errMsg(error)));
       }}

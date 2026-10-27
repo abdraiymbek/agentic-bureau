@@ -14,7 +14,7 @@ import type {
   Proposal,
   ProposedChange,
   Revision,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { needsYou, supersededBy } from '../lib/proposals';
 
 export { needsYou, supersededBy, waitingOnAgent } from '../lib/proposals';

@@ -7,9 +7,9 @@ use crate::{
     clear_result_journal, internal, now, read_result_journal, with_replay_marker,
     write_result_journal, CoreResult,
 };
+use bureau_contracts::ContractError;
+use bureau_storage::ProjectHandle;
 use chrono::{SecondsFormat, TimeDelta, Utc};
-use omenflow_contracts::ContractError;
-use omenflow_storage::ProjectHandle;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -163,7 +163,7 @@ pub(crate) fn settle(
 /// Run when a project opens: results journaled by a process that stopped
 /// before recording them become replayable, and expired rows are dropped.
 pub(crate) fn recover(handle: &ProjectHandle) -> CoreResult<()> {
-    let dir = handle.root.join(".omenflow/recovery/idempotency");
+    let dir = handle.root.join(".bureau/recovery/idempotency");
     if dir.is_dir() {
         for entry in fs::read_dir(&dir).map_err(internal)? {
             let path = entry.map_err(internal)?.path();
@@ -397,7 +397,7 @@ mod tests {
     fn opening_folds_journaled_results_in_and_sets_unreadable_ones_aside() {
         let (_temp, handle) = project();
         write_result_journal(&handle.root, "k", "h", &json!({"ok": true})).unwrap();
-        let dir = handle.root.join(".omenflow/recovery/idempotency");
+        let dir = handle.root.join(".bureau/recovery/idempotency");
         fs::write(dir.join("broken.json"), b"{not json").unwrap();
         recover(&handle).unwrap();
         assert_eq!(

@@ -30,7 +30,7 @@ const agent = <T>(op: string, payload: unknown = {}) =>
   app.dispatch(op, payload, AGENT, projectId) as Promise<T>;
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-spec-items-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-spec-items-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

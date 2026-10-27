@@ -1,17 +1,17 @@
-# omenflow-bridge
+# bureau-bridge
 
-Production `omenflow` helper binary — the agent-facing bridge client shipped
-inside the Omen Flow app bundle. Agent CLIs launched by the agent host inherit
-`OMENFLOW_BRIDGE_SOCK` / `OMENFLOW_BRIDGE_TOKEN` / `OMENFLOW_PROJECT_ID` /
-`OMENFLOW_SESSION_ID` and use this binary to reach the running app.
+Production `bureau` helper binary — the agent-facing bridge client shipped
+inside the Bureau app bundle. Agent CLIs launched by the agent host inherit
+`BUREAU_BRIDGE_SOCK` / `BUREAU_BRIDGE_TOKEN` / `BUREAU_PROJECT_ID` /
+`BUREAU_SESSION_ID` and use this binary to reach the running app.
 
 ```
-omenflow mcp
-omenflow call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
-omenflow call <tool> --help
-omenflow guide [topic]
-omenflow status [--scope session|project]
-omenflow help
+bureau mcp
+bureau call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
+bureau call <tool> --help
+bureau guide [topic]
+bureau status [--scope session|project]
+bureau help
 ```
 
 - `mcp` — after the handshake, pumps newline-delimited JSON-RPC between
@@ -26,7 +26,7 @@ omenflow help
   `details` (validation `issues`, an `example` of a valid call, `notes` of
   repairs already applied), exit code 2.
 - `call <tool> --help` — the tool's schema and an example (`tool_describe`).
-  `omenflow call tool_describe` with no input lists every tool.
+  `bureau call tool_describe` with no input lists every tool.
 - `guide [topic]` — prints a playbook as text (`guide_read`), then the list of
   topics. Without a topic it prints the start guide.
 - `status` — the completion gate (`work_status`): what is unfinished and the
@@ -35,7 +35,7 @@ omenflow help
 Exit codes: 0 ok · 2 bridge or app error (`APP_NOT_RUNNING` when no session
 credentials are set or the socket is unreachable) · 3 usage.
 
-Wire protocol (must stay identical to `packages/agent-host/bin/omenflow.mjs`
+Wire protocol (must stay identical to `packages/agent-host/bin/bureau.mjs`
 and `packages/contracts/src/protocol.ts`): 4-byte little-endian length +
 JSON frames, `protocolVersion: 1`, hello → welcome → envelopes (call) or
 JSON-RPC frames (mcp).
@@ -43,12 +43,12 @@ JSON-RPC frames (mcp).
 ## Build
 
 ```
-cargo build --release --locked   # produces target/release/omenflow
+cargo build --release --locked   # produces target/release/bureau
 # or from the repo root: pnpm build:bridge
 ```
 
-`apps/rust-desktop/tauri.conf.json` copies `target/release/omenflow` into the
-app bundle's resource root as `omenflow`; the agent host puts its folder first
+`apps/rust-desktop/tauri.conf.json` copies `target/release/bureau` into the
+app bundle's resource root as `bureau`; the agent host puts its folder first
 on the agent session's PATH and names it by absolute path in each CLI's MCP
 configuration.
 
@@ -59,5 +59,5 @@ cargo test --locked    # this crate is outside the workspace; no CARGO_TARGET_DI
 ```
 
 The agent host's test `the_built_helper_reaches_the_bridge_both_ways`
-(`cargo test -p omenflow-agent-host -- --ignored`) runs the built helper
+(`cargo test -p bureau-agent-host -- --ignored`) runs the built helper
 against a real bridge.

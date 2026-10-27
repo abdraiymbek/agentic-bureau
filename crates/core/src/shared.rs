@@ -803,7 +803,7 @@ mod tests {
             let source = fs::read_to_string(path).unwrap();
             let revision = sandbox.revision(&written["revisionId"]);
             assert_eq!(
-                omenflow_storage::sha256_hex(source.as_bytes()),
+                bureau_storage::sha256_hex(source.as_bytes()),
                 revision["payload"]["scad"]["sha256"].as_str().unwrap()
             );
         }
@@ -1226,7 +1226,7 @@ mod tests {
         fs::write(
             &python,
             format!(
-                "#!/bin/sh\nwhile [ ! -f '{}' ]; do sleep 0.02; done\necho 'OMENFLOW-OCP 7.9.3.1 3.12.14'\n",
+                "#!/bin/sh\nwhile [ ! -f '{}' ]; do sleep 0.02; done\necho 'BUREAU-OCP 7.9.3.1 3.12.14'\n",
                 gate.display()
             ),
         )

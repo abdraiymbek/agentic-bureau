@@ -4,7 +4,7 @@ import {
   Money,
   Offer,
   Origin,
-  OmenflowError,
+  BureauError,
   addMoney,
   convert,
   formatQty,
@@ -12,7 +12,7 @@ import {
   newId,
   scaleMoney,
   type MaybeQuantity,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft } from './artifacts.js';
 import { addEdge } from './graph.js';
@@ -49,12 +49,12 @@ export function addCandidate(
 ) {
   // Enforce "selectable real component" requirements up front.
   if (!input.manufacturer && !input.vendor) {
-    throw new OmenflowError(ErrorCodes.MISSING_SOURCE, 'Component needs a manufacturer or vendor', {
+    throw new BureauError(ErrorCodes.MISSING_SOURCE, 'Component needs a manufacturer or vendor', {
       repair: 'Provide manufacturer/vendor plus a source URL or datasheet.',
     });
   }
   if (!input.sourceId && !input.offer?.url && !input.offer?.sourceId) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.MISSING_SOURCE,
       'Component needs a source (URL/datasheet capture)',
       {
@@ -126,7 +126,7 @@ export function addOffer(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'component') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Offers attach to component artifacts');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Offers attach to component artifacts');
   }
   const offer: Offer = {
     id: newId(),
@@ -148,7 +148,7 @@ export function compareComponents(ctx: ProjectContext, artifactIds: string[]) {
   const rows = artifactIds.map((id) => {
     const a = ctx.requireArtifact(id);
     if (a.type !== 'component') {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `${a.title} is not a component`);
+      throw new BureauError(ErrorCodes.VALIDATION, `${a.title} is not a component`);
     }
     const rev = a.selectedRevisionId
       ? ctx.repo.getRevision(a.selectedRevisionId)
@@ -199,11 +199,11 @@ export function proposeSelection(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'component') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Selection target must be a component');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Selection target must be a component');
   }
   const rev = ctx.requireRevision(input.revisionId);
   if (rev.artifactId !== artifact.id) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to component');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to component');
   }
   const payload = { ...(rev.payload as ComponentPayload), status: 'selected' as const };
   // Draft carrying the new status.

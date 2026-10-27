@@ -7,7 +7,7 @@ figures, captured offline, never fetched at build time. Where a figure was
 not published, the fixture labels it an _assumption_ (`needsValidation`).
 
 Every builder takes a `FixtureCore` (`core.ts`): anything with the command
-surface's `dispatch`. The fixtures are built on the Rust host, `omenflow-host`,
+surface's `dispatch`. The fixtures are built on the Rust host, `bureau-host`,
 driven through the conformance client `tests/conformance/rust-core.ts` — the
 same path the desktop app ships. The legacy TypeScript `CoreApp` fits the same
 interface and `tests/golden-path.test.ts` still drives it.

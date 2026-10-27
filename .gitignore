@@ -15,4 +15,4 @@ apps/rust-desktop/gen/
 out/
 *.tsbuildinfo
 coverage/
-.omenflow-dev/
+.bureau-dev/

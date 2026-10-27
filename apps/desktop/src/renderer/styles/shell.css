@@ -1,8 +1,33 @@
-/* Shell: app frame, activity bar, titlebar, system strip, omnibar, settings sheet, toasts. */
+/* Shell: the window's frame (sidebar and sheet), the sheet's header, the system strip, the
+ * omnibar, the settings sheet and toasts. */
+
+/* ---------------- frame: Carbon window, sidebar, the sheet the work sits on ---------------- */
 .app {
   height: 100%;
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  background: var(--field);
+}
+.app.no-project {
+  grid-template-columns: minmax(0, 1fr);
+}
+.app-sheet {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--sheet-inset) var(--sheet-inset) var(--sheet-inset) 0;
   display: flex;
   flex-direction: column;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sheet);
+  overflow: hidden;
+}
+/* Without a project there is no sidebar: the launcher fills the window edge to edge. */
+.app.no-project .app-sheet {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: var(--field);
 }
 .stage-area {
@@ -33,15 +58,11 @@
 .stage-area[data-zoom='out'] > .project {
   animation-name: lens-fade-in;
 }
-.workbench {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-}
 .workbench-main {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -53,77 +74,235 @@
   min-width: 0;
 }
 
-/* ---------------- activity bar ---------------- */
-.activity-bar {
-  width: var(--activity-bar);
+/* ---------------- sidebar ---------------- */
+.sidebar {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--s-2) var(--s-3);
+  overflow: hidden auto;
+  scrollbar-width: none;
+}
+.sidebar-top {
+  flex: none;
+  height: 44px;
+  -webkit-app-region: drag;
+}
+.sidebar button {
+  -webkit-app-region: no-drag;
+}
+.project-switch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-weight: var(--weight-strong);
+  text-align: left;
+  transition: background var(--t-fast) var(--ease);
+}
+.project-switch .mark {
+  flex: none;
+}
+.project-switch-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.project-switch > svg:last-child {
+  flex: none;
+  color: var(--text-3);
+}
+.project-switch:hover,
+.project-switch[data-state='open'] {
+  background: var(--raised);
+}
+.sidebar-tag {
+  flex: none;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+}
+/* The record as pixels: one square per object, grouped by layer. */
+.census {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  margin: 2px 10px 0 36px;
+  padding: 2px 0;
+  border-radius: 2px;
+  width: fit-content;
+}
+.census-layer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+.census i {
+  width: var(--pixel);
+  height: var(--pixel);
+  background: var(--text-4);
+  opacity: 0.7;
+}
+.census i.census-review,
+.census i.census-stale {
+  background: var(--warn);
+  opacity: 1;
+}
+.census i.census-missing {
+  background: var(--err);
+  opacity: 1;
+}
+.census i.census-unbaselined {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text-3);
+  opacity: 1;
+}
+
+.nav-group {
   flex: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: var(--s-2) 0;
-  background: var(--field);
-  border-right: 1px solid var(--line);
+  gap: 1px;
 }
-.activity-btn {
-  position: relative;
-  width: 40px;
-  height: 40px;
+.nav-group + .nav-group {
+  margin-top: var(--s-2);
+}
+.nav-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  margin-top: var(--s-3);
+  padding: 0 4px 0 10px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+.nav-group-action {
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
+  border-radius: var(--r-xs);
+  color: var(--text-3);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+.nav-group-action:hover {
+  color: var(--text);
+  background: var(--raised);
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
   border-radius: var(--r-sm);
+  color: var(--text-2);
+  text-align: left;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.nav-item > svg {
+  flex: none;
   color: var(--text-3);
   transition: color var(--t-fast) var(--ease);
 }
-.activity-btn:hover {
-  color: var(--text-2);
-}
-.activity-btn[aria-current='page'],
-.activity-btn[aria-pressed='true'] {
+.nav-item:hover {
+  background: var(--raised);
   color: var(--text);
 }
-.activity-btn[aria-pressed='true'] {
-  background: var(--raised-2);
+.nav-item[aria-current='page'],
+.nav-item[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--text);
 }
-.activity-btn[aria-current='page']::before {
-  content: '';
-  position: absolute;
-  left: -4px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--text);
+.nav-item[aria-current='page'] > svg,
+.nav-item[aria-pressed='true'] > svg,
+.nav-item:hover > svg {
+  color: var(--text);
 }
-.activity-btn .pulse {
-  position: absolute;
-  top: 5px;
-  right: 5px;
+.nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
 }
-.activity-live {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--signal-stroke);
+.nav-item .kbd {
+  flex: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text-4);
 }
-.activity-attention {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  width: 15px;
-  height: 15px;
+.nav-search {
+  margin: var(--s-3) 0 var(--s-2);
+}
+.nav-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--warn);
+}
+.nav-item .pulse,
+.nav-thread .pulse {
+  flex: none;
+}
+.nav-attention {
+  flex: none;
+  width: 14px;
+  height: 14px;
   display: grid;
   place-items: center;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-xs);
   background: var(--err);
   color: var(--field);
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1;
+}
+.nav-thread {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  text-align: left;
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+.nav-thread:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.nav-thread[aria-current='true'] {
+  background: var(--selected);
+  color: var(--text);
+}
+.nav-empty {
+  margin: 0;
+  padding: 4px 10px;
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 .tip-label {
   display: inline-flex;
@@ -134,41 +313,71 @@
   flex-direction: column;
   gap: 2px;
 }
-.activity-badge {
-  position: absolute;
-  top: 1px;
-  right: 0;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 4px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-pill);
-  background: var(--warn);
-  color: var(--field);
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  line-height: 1;
-}
-.activity-bottom {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+
+/* Narrow windows: the sidebar folds to an icon rail so the stage keeps its width. Labels stay
+ * as accessible names and every row has a tooltip. */
+@media (max-width: 1180px) {
+  :root {
+    --sidebar: 56px;
+  }
+  .sidebar {
+    padding: 0 var(--s-2) var(--s-3);
+    align-items: stretch;
+  }
+  .sidebar .nav-label,
+  .project-switch-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .project-switch,
+  .nav-item {
+    justify-content: center;
+    padding: 0;
+    position: relative;
+  }
+  .project-switch > svg:last-child,
+  .sidebar-tag,
+  .census,
+  .nav-group-head,
+  .nav-item .kbd,
+  .sidebar section[aria-label='Conversations'] {
+    display: none;
+  }
+  .nav-group {
+    gap: 2px;
+  }
+  .nav-group-head + .nav-item,
+  .nav-item[aria-keyshortcuts='Meta+1'] {
+    margin-top: var(--s-3);
+  }
+  .nav-count,
+  .nav-item .pulse,
+  .nav-attention {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+  }
 }
 
-/* ---------------- titlebar ---------------- */
+/* ---------------- the sheet's header ---------------- */
 .titlebar {
   height: var(--titlebar);
   flex: none;
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 0 var(--s-3) 0 var(--s-3);
+  padding: 0 var(--s-3) 0 var(--s-5);
   position: relative;
   z-index: var(--z-titlebar);
+  border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;
+}
+.app.no-project .titlebar {
+  border-bottom: 0;
 }
 .titlebar button,
 .titlebar input,
@@ -180,64 +389,25 @@
   align-self: stretch;
 }
 [data-chrome='mac-overlay'] .traffic-space {
-  width: 70px;
-}
-.titlebar-mark {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  color: var(--text);
-  transition: background var(--t-fast) var(--ease);
-}
-.titlebar-mark:hover {
-  background: var(--raised-2);
-}
-.titlebar-word {
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
-}
-.titlebar-word span {
-  font-weight: 400;
-  color: var(--text-2);
+  width: 62px;
 }
 .titlebar-tag {
   font-size: var(--text-2xs);
   color: var(--text-3);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-pill);
-  padding: 1px 7px;
   white-space: nowrap;
-}
-.project-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 8px 0 6px;
-  border-radius: var(--r-sm);
-  font-weight: 500;
-  max-width: 280px;
-  color: var(--text);
-}
-.project-switch svg {
-  color: var(--text-3);
-  flex: none;
-}
-.project-switch:hover,
-.project-switch[data-state='open'] {
-  background: var(--raised-2);
 }
 .trail {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
   color: var(--text-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   align-self: stretch;
+}
+.trail .icon-btn {
+  margin-left: -6px;
 }
 .trail-sep {
   color: var(--text-4);
@@ -248,7 +418,7 @@
 }
 .trail-current {
   color: var(--text);
-  font-weight: 500;
+  font-weight: var(--weight-strong);
 }
 .titlebar-actions {
   display: flex;
@@ -270,43 +440,16 @@
   gap: 7px;
   height: 26px;
   padding: 0 10px;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-sm);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: var(--text-xs);
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   transition: filter var(--t-fast) var(--ease);
 }
-.decisions-pill .state-dot {
-  background: var(--warn);
-}
 .decisions-pill:hover {
   filter: brightness(1.15);
-}
-.omni-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding: 0 6px 0 10px;
-  border-radius: var(--r-sm);
-  color: var(--text-3);
-  font-size: var(--text-sm);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  min-width: 190px;
-  transition:
-    border-color var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease);
-}
-.omni-trigger span {
-  flex: 1;
-  text-align: left;
-}
-.omni-trigger:hover {
-  border-color: var(--line-strong);
-  color: var(--text-2);
 }
 
 .system-strip {

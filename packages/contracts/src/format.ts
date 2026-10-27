@@ -1,6 +1,6 @@
 /**
  * Pure display helpers with no runtime dependencies, published as the
- * `@omenflow/contracts/format` entry point so a caller can format a value
+ * `@bureau/contracts/format` entry point so a caller can format a value
  * without loading zod and the operation registry. Only type imports are
  * allowed here: they are erased at build time. `format.test.ts` fails if a
  * value import is added.

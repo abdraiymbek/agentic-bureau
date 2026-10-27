@@ -225,8 +225,7 @@ fn table() -> &'static HashMap<String, Unit> {
 
 fn unknown_unit(text: &str) -> ContractError {
     let names = table().keys().map(String::as_str);
-    let nearest =
-        omenflow_contracts::nearest_match(text, names).map(|key| table()[key].name.clone());
+    let nearest = bureau_contracts::nearest_match(text, names).map(|key| table()[key].name.clone());
     let mut repair = String::from(
         "Use a unit from the table (kg, g, mm, m, s, V, A, W, Wh, N, N*m, rad, deg, rpm, Pa, ohm, Hz, 1, %) or a product of them such as N/mm^2 or g/cm^3.",
     );

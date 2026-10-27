@@ -1,6 +1,6 @@
 //! Small domain operations shared by the desktop UI and agent bridge.
 use super::*;
-use omenflow_contracts::Profile;
+use bureau_contracts::Profile;
 use reads::{clip, current_revision_sql, format_quantity, statement, HEAD_REVISION};
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
@@ -722,7 +722,7 @@ mod tests {
             "cad_write_source",
             "cad.write_source",
             "CAD_Write_Source",
-            "mcp__omenflow__cad_write_source",
+            "mcp__bureau__cad_write_source",
         ] {
             let described = describe(json!({"tool": name})).unwrap();
             assert_eq!(described["op"], "cad.write_source", "{name}");

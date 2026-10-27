@@ -7,7 +7,7 @@ import type {
   CapabilityProfile,
   ProfileSource,
   SessionInfo,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { Tone } from '../../ui/kit';
 
 export const PROFILE_WORDS: Record<CapabilityProfile, string> = {

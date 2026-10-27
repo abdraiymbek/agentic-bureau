@@ -6,7 +6,7 @@
    * scroll position must not shift the canvas under it. */
   overflow: clip;
   isolation: isolate;
-  background: var(--field);
+  background: var(--surface);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -31,7 +31,7 @@
   position: absolute;
   inset: 0 0 auto;
   z-index: 2;
-  background: linear-gradient(var(--field) calc(100% - var(--s-4)), transparent);
+  background: linear-gradient(var(--surface) calc(100% - var(--s-4)), transparent);
 }
 
 /* Everything that pans and zooms. One transform, written by the controller. */
@@ -57,9 +57,9 @@
   align-items: center;
   gap: var(--s-2);
   padding: 0 var(--s-3);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   background: var(--raised);
-  border: 1px solid var(--line-strong);
+  border: 1px solid transparent;
   color: var(--text);
   font-size: var(--text-sm);
   line-height: 16px;
@@ -94,7 +94,7 @@
 }
 .map-world .map-node:hover {
   background: var(--raised-2);
-  border-color: var(--line-control);
+  border-color: var(--line-strong);
   transition:
     border-color var(--t-fast) var(--ease),
     background var(--t-fast) var(--ease),
@@ -109,18 +109,23 @@
 .map-node.impact {
   background: color-mix(in srgb, var(--warn) 6%, var(--raised));
 }
-.map-node.touched {
-  box-shadow:
-    0 0 0 1px var(--signal-line),
-    0 0 18px -4px color-mix(in srgb, var(--signal-stroke) 45%, transparent);
+/* Changed by the agent in the last 15 minutes: one cyan pixel in the corner. */
+.map-node.touched::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: var(--pixel);
+  height: var(--pixel);
+  background: var(--signal);
 }
 /* A collapsed type group: one node standing for a stack of them. */
 .map-node.group {
   box-shadow:
-    3px 3px 0 -1px var(--raised),
-    3px 3px 0 0 var(--line-strong),
-    6px 6px 0 -1px var(--raised),
-    6px 6px 0 0 var(--line-strong);
+    3px 3px 0 -1px var(--surface),
+    3px 3px 0 0 var(--raised-2),
+    6px 6px 0 -1px var(--surface),
+    6px 6px 0 0 var(--raised-2);
 }
 .map-node.group .map-node-title {
   color: var(--text-2);
@@ -130,7 +135,7 @@
 /* The lit thread. `.lit` and `.dim` are the static forms the catalogue shows. */
 .map-node.lit,
 .map-node[data-thread] {
-  border-color: var(--signal-line);
+  border-color: var(--signal-stroke);
 }
 .map-node.lit .type-glyph,
 .map-node[data-thread] .type-glyph {
@@ -163,7 +168,7 @@
   width: 1px;
   height: 1px;
   transform-origin: 0 0;
-  background: var(--field);
+  background: var(--surface);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -178,10 +183,10 @@
 }
 
 /* ---------------- marks ---------------- */
+/* Marks are square pixels: out of date, no baseline (hollow), missing input (turned). */
 .map-mark {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: 6px;
+  height: 6px;
   flex: none;
   background: var(--text-3);
 }
@@ -193,7 +198,6 @@
   border: 1.5px solid var(--text-3);
 }
 .map-mark.missing {
-  border-radius: 1px;
   background: var(--err);
   transform: rotate(45deg);
 }
@@ -261,13 +265,33 @@
   transform-origin: left bottom;
 }
 .map-label.column {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   height: 22px;
-  line-height: 22px;
   font-size: var(--text-md);
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: var(--tracking-tight);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
   pointer-events: none;
+}
+/* Each layer's pattern, at swatch size: bars, checker, dots, blocks. */
+.layer-swatch {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  --swatch: var(--text-3);
+}
+[data-layer='intent'] > .layer-swatch {
+  background: repeating-linear-gradient(90deg, var(--swatch) 0 1px, transparent 1px 2px);
+}
+[data-layer='parts'] > .layer-swatch {
+  background: repeating-conic-gradient(var(--swatch) 0 25%, transparent 0 50%) 0 0 / 4px 4px;
+}
+[data-layer='design'] > .layer-swatch {
+  background: radial-gradient(circle, var(--swatch) 0 0.8px, transparent 1px) 0 0 / 3px 3px;
+}
+[data-layer='evidence'] > .layer-swatch {
+  background: var(--swatch);
 }
 /* A group header grows only into the gap above its group, so it never covers the node above. */
 .map-label.type {
@@ -281,7 +305,7 @@
   margin-left: calc(var(--s-1) * -1);
   border-radius: var(--r-xs);
   font-size: var(--text-xs);
-  color: var(--text-2);
+  color: var(--text-3);
   cursor: pointer;
   transition:
     color var(--t-fast) var(--ease),
@@ -316,8 +340,8 @@
   stroke: var(--map-edge);
   stroke-width: 1.2px;
   stroke-width: calc(1.2px * var(--map-inverse, 1));
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
   transition: stroke var(--t) var(--ease);
 }
 .map-edge.weak .map-edge-line {
@@ -382,23 +406,47 @@
 .map-foot > * {
   pointer-events: auto;
 }
-.map-legend {
-  display: flex;
-  flex-wrap: wrap;
+.map-key {
+  position: relative;
+  flex: none;
+}
+.map-key-toggle {
+  display: inline-flex;
   align-items: center;
-  gap: 0 var(--s-4);
-  flex: 0 1 auto;
-  min-height: 32px;
-  padding: 0 var(--s-3);
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+.map-key-toggle:hover,
+.map-key-toggle[aria-expanded='true'] {
+  color: var(--text);
+  background: var(--raised);
+}
+.map-legend {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--s-2));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  padding: var(--s-2) var(--s-3);
   list-style: none;
   color: var(--text-2);
   font-size: var(--text-xs);
+  animation: lens-rise-in var(--t) var(--ease) backwards;
 }
 .map-legend li {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 7px;
-  height: 32px;
+  gap: 10px;
+  height: 26px;
   white-space: nowrap;
 }
 .lg-line {
@@ -410,13 +458,11 @@
 .lg-line::after {
   content: '';
   position: absolute;
-  right: 0;
-  top: -4px;
-  width: 5px;
-  height: 5px;
-  border-top: 1.5px solid var(--text-3);
-  border-right: 1.5px solid var(--text-3);
-  transform: rotate(45deg);
+  right: -1px;
+  top: -3px;
+  width: 4px;
+  height: 4px;
+  background: var(--text-3);
 }
 .lg-line.weak {
   border-top-style: dashed;
@@ -424,15 +470,16 @@
 .lg-line.back {
   border-top-style: dotted;
 }
-.lg-line.impact,
-.lg-line.impact::after {
+.lg-line.impact {
   border-color: var(--warn);
 }
+.lg-line.impact::after {
+  background: var(--warn);
+}
 .lg-ring {
-  width: 12px;
-  height: 9px;
-  border-radius: 3px;
-  box-shadow: 0 0 0 1px var(--signal-line);
+  width: var(--pixel);
+  height: var(--pixel);
+  background: var(--signal);
 }
 .map-foot .map-peek-slot {
   flex: 1 1 0;

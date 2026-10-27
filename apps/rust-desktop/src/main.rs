@@ -1,5 +1,5 @@
 //! The desktop shell: a window, native dialogs and a research webview around
-//! the shared [`Host`]. Command routing lives in `omenflow-agent-host`; this
+//! the shared [`Host`]. Command routing lives in `bureau-agent-host`; this
 //! binary only says where events go and what the desktop can do.
 
 mod capture;
@@ -12,8 +12,8 @@ mod signals;
 mod smoke;
 mod window;
 
-use omenflow_agent_host::{EventSink, Host, HostEvent, HostPaths, Shell};
-use omenflow_contracts::{ContractError, ResponseEnvelope};
+use bureau_agent_host::{EventSink, Host, HostEvent, HostPaths, Shell};
+use bureau_contracts::{ContractError, ResponseEnvelope};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,7 +43,7 @@ impl Shell for DesktopShell {
 
     fn open_external(&self, url: &str) -> Result<(), ContractError> {
         #[cfg(target_os = "linux")]
-        if omenflow_agent_host::child_env::appimage_dir().is_some() && open_outside_appimage(url) {
+        if bureau_agent_host::child_env::appimage_dir().is_some() && open_outside_appimage(url) {
             return Ok(());
         }
         self.0
@@ -61,7 +61,7 @@ impl Shell for DesktopShell {
 fn open_outside_appimage(url: &str) -> bool {
     use std::process::{Command, Stdio};
     let mut command = Command::new("xdg-open");
-    omenflow_agent_host::child_env::apply(&mut command);
+    bureau_agent_host::child_env::apply(&mut command);
     match command
         .arg(url)
         .stdin(Stdio::null())
@@ -82,7 +82,7 @@ fn open_outside_appimage(url: &str) -> bool {
 struct Asking(AtomicBool);
 
 #[tauri::command(async)]
-fn omenflow_command(
+fn bureau_command(
     host: State<'_, Arc<Host>>,
     op: String,
     payload: Value,
@@ -157,11 +157,11 @@ fn request_shutdown(app: &AppHandle, action: shutdown::Action) {
     }
     if let Err(error) = app.emit_to(
         window::MAIN,
-        "omenflow:shutdown-request",
+        "bureau:shutdown-request",
         serde_json::json!({ "requestId": request.id, "action": action.name() }),
     ) {
         app.state::<shutdown::Coordinator>().cancel(&request.id);
-        eprintln!("omenflow: could not ask about unsaved work: {error}");
+        eprintln!("bureau: could not ask about unsaved work: {error}");
         return;
     }
     let app = app.clone();
@@ -173,7 +173,7 @@ fn request_shutdown(app: &AppHandle, action: shutdown::Action) {
         {
             app.dialog()
                 .message("The workspace did not answer the close request. The window has been kept open to protect unsaved changes. Try closing it again once the workspace responds.")
-                .title("Omen Flow kept the window open")
+                .title("Bureau kept the window open")
                 .kind(MessageDialogKind::Warning)
                 .show(|_| {});
         }
@@ -197,7 +197,7 @@ fn after_edit_consent(app: &AppHandle, request: shutdown::Request) {
                 if let Some(window) = app.get_webview_window(window::MAIN) {
                     if let Err(error) = window.destroy() {
                         app.state::<shutdown::Coordinator>().take_exit_permission();
-                        eprintln!("omenflow: could not close the workspace: {error}");
+                        eprintln!("bureau: could not close the workspace: {error}");
                     }
                     return;
                 }
@@ -211,22 +211,27 @@ fn after_edit_consent(app: &AppHandle, request: shutdown::Request) {
 fn cli_path(app: &AppHandle) -> PathBuf {
     if let Ok(resource_dir) = app.path().resource_dir() {
         let bundled = resource_dir.join(if cfg!(windows) {
-            "omenflow.exe"
+            "bureau.exe"
         } else {
-            "omenflow"
+            "bureau"
         });
         if bundled.is_file() {
             return bundled;
         }
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../native/omenflow-bridge/target/release/omenflow")
+        .join("../../native/bureau-bridge/target/release/bureau")
 }
 
 /// Earlier homes of the app's own files under the platform data folder, newest
-/// first: builds before 1.0 used the identifier `com.electron.omen-flow`, and
-/// the Electron app kept its settings in `@omenflow/desktop`.
-const LEGACY_HOMES: [(&str, &[&str]); 2] = [
+/// first: as Omen Flow the app used the identifier `app.omenflow.desktop`,
+/// builds before 1.0 used `com.electron.omen-flow`, and the Electron app kept
+/// its settings in `@omenflow/desktop`.
+const LEGACY_HOMES: [(&str, &[&str]); 3] = [
+    (
+        "app.omenflow.desktop",
+        &["settings.json", "reservations.json", "window-state.json"],
+    ),
     (
         "com.electron.omen-flow",
         &["settings.json", "reservations.json", "window-state.json"],
@@ -250,10 +255,7 @@ fn migrate_legacy_settings(data_dir: &Path, target: &Path) -> std::io::Result<()
             let destination = target.join(name);
             if source.is_file() && !destination.exists() {
                 if let Err(error) = fs::copy(&source, &destination) {
-                    eprintln!(
-                        "omenflow: could not carry over {}: {error}",
-                        source.display()
-                    );
+                    eprintln!("bureau: could not carry over {}: {error}", source.display());
                 }
             }
         }
@@ -317,21 +319,21 @@ fn start(app: &AppHandle, data_override: Option<PathBuf>) -> Result<(), String> 
 fn quit_on_termination_signals(app: &AppHandle) {
     let app = app.clone();
     if let Err(error) = signals::on_termination(move |signal| {
-        eprintln!("omenflow: {} received, quitting", signals::name(signal));
+        eprintln!("bureau: {} received, quitting", signals::name(signal));
         exit_directly(&app, 0);
     }) {
-        eprintln!("omenflow: termination signals will end the app without its exit path: {error}");
+        eprintln!("bureau: termination signals will end the app without its exit path: {error}");
     }
 }
 
 /// Tell the person why the app cannot run, then exit. Without this a failed
 /// start is an invisible crash.
 fn report_startup_failure(app: &AppHandle, message: String) {
-    eprintln!("omenflow: {message}");
+    eprintln!("bureau: {message}");
     let handle = app.clone();
     app.dialog()
         .message(message)
-        .title("Omen Flow could not start")
+        .title("Bureau could not start")
         .kind(MessageDialogKind::Error)
         .buttons(MessageDialogButtons::OkCustom("Quit".into()))
         .show(move |_| exit_directly(&handle, 1));
@@ -396,7 +398,7 @@ fn after_agent_consent(
 }
 
 #[cfg(target_os = "macos")]
-const QUIT_MENU_ID: &str = "omenflow-quit";
+const QUIT_MENU_ID: &str = "bureau-quit";
 
 /// The standard macOS menu, with a Quit item the app can answer itself so a
 /// running agent session is not killed without a word.
@@ -501,7 +503,7 @@ fn main() {
             instance::Claim::Unavailable => {}
             instance::Claim::Taken => {
                 eprintln!(
-                    "omenflow: another Omen Flow is already running on {}",
+                    "bureau: another Bureau is already running on {}",
                     dir.display()
                 );
                 return;
@@ -528,13 +530,13 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            omenflow_command,
+            bureau_command,
             toggle_research,
             native_shutdown_ready,
             native_shutdown_reply
         ])
         .build(tauri::generate_context!())
-        .expect("Omen Flow Rust desktop shell failed")
+        .expect("Bureau Rust desktop shell failed")
         .run(|app, event| match event {
             RunEvent::WindowEvent {
                 label,
@@ -586,7 +588,7 @@ mod tests {
         let data_dir = temp.path();
         let (legacy, target) = (
             data_dir.join("@omenflow/desktop"),
-            data_dir.join("app.omenflow.desktop"),
+            data_dir.join("app.agenticbureau.desktop"),
         );
         fs::create_dir_all(&legacy).unwrap();
         fs::write(
@@ -619,6 +621,27 @@ mod tests {
     }
 
     #[test]
+    fn the_omen_flow_folder_is_carried_over_first() {
+        let temp = tempfile::tempdir().unwrap();
+        let data_dir = temp.path();
+        let (omen, older) = (
+            data_dir.join("app.omenflow.desktop"),
+            data_dir.join("com.electron.omen-flow"),
+        );
+        let target = data_dir.join("app.agenticbureau.desktop");
+        fs::create_dir_all(&omen).unwrap();
+        fs::create_dir_all(&older).unwrap();
+        fs::write(omen.join("settings.json"), r#"{"from":"omen"}"#).unwrap();
+        fs::write(older.join("settings.json"), r#"{"from":"older"}"#).unwrap();
+
+        migrate_legacy_settings(data_dir, &target).unwrap();
+        assert_eq!(
+            fs::read_to_string(target.join("settings.json")).unwrap(),
+            r#"{"from":"omen"}"#
+        );
+    }
+
+    #[test]
     fn a_missing_legacy_folder_still_creates_the_data_folder() {
         let temp = tempfile::tempdir().unwrap();
         let target = temp.path().join("app");
@@ -634,7 +657,7 @@ mod tests {
             data_dir.join("com.electron.omen-flow"),
             data_dir.join("@omenflow/desktop"),
         );
-        let target = data_dir.join("app.omenflow.desktop");
+        let target = data_dir.join("app.agenticbureau.desktop");
         fs::create_dir_all(&tauri).unwrap();
         fs::create_dir_all(&electron).unwrap();
         fs::write(tauri.join("settings.json"), r#"{"from":"tauri"}"#).unwrap();

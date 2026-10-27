@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { ArrowClockwise, CheckCircle, WarningCircle, X } from '@phosphor-icons/react';
-import type { AgentCallRecord } from '@omenflow/contracts';
+import { ArrowClockwise, CheckCircle, WarningCircle, X } from '../../ui/icons';
+import type { AgentCallRecord } from '@bureau/contracts';
 import { useStore } from '../../store';
 import { askAgent } from '../../lib/actions';
 import { useChat } from '../../chat/chat-store';
@@ -42,7 +42,7 @@ function CallRow({ call }: { call: AgentCallRecord }) {
       <div className="call-meta">
         <span className="mono">{call.tool}</span>
         <span>{clock(call.at)}</span>
-        {call.via === 'call' && <span>omenflow call</span>}
+        {call.via === 'call' && <span>bureau call</span>}
       </div>
       {!call.ok && (
         <p className="call-error">

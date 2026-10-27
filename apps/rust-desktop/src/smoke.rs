@@ -1,29 +1,29 @@
 //! A bridge grant for the packaged smoke test.
 //!
-//! Only an isolated run can ask for it: `OMENFLOW_SMOKE_PROJECT` is honoured
-//! when `OMENFLOW_APP_DATA_DIR` also names a data directory, never on a
+//! Only an isolated run can ask for it: `BUREAU_SMOKE_PROJECT` is honoured
+//! when `BUREAU_APP_DATA_DIR` also names a data directory, never on a
 //! normal launch. The app then creates that project and writes the agent
 //! credentials a terminal session would receive to
 //! `<data>/run/smoke-grant.json` (owner-only), so the smoke can drive the
-//! bundled `omenflow` helper through the real agent path. The grant names
+//! bundled `bureau` helper through the real agent path. The grant names
 //! the helper the app resolved (`cliPath`), the one an agent session would
 //! get on its PATH, so the smoke also proves where the package keeps it.
 //!
 //! Two more requests are honoured on the same terms:
 //!
-//! - `OMENFLOW_SMOKE_AGENT` names an executable that is started in the smoke
+//! - `BUREAU_SMOKE_AGENT` names an executable that is started in the smoke
 //!   project's Agent tab as a Custom CLI: a stand-in agent with a real PTY,
 //!   its own process group and the session's bridge credentials. Its pid
 //!   (the group's id) is in the grant as `agentPid`, so the smoke can check
 //!   that quitting the app ends the group.
-//! - `OMENFLOW_SMOKE_SNAPSHOT` asks for a picture of the main window, taken
+//! - `BUREAU_SMOKE_SNAPSHOT` asks for a picture of the main window, taken
 //!   the way the research screenshot is (`capture`), when the smoke creates
 //!   `<data>/run/smoke-snapshot.request` (so it shows the same moment as the
 //!   smoke's own screen capture): `<data>/run/smoke-snapshot.png`, or the
 //!   reason in `<data>/run/smoke-snapshot.txt`.
 
 use crate::capture;
-use omenflow_agent_host::Host;
+use bureau_agent_host::Host;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,15 +36,15 @@ fn path_from(name: &str) -> Option<PathBuf> {
 }
 
 pub fn requested_project() -> Option<PathBuf> {
-    path_from("OMENFLOW_SMOKE_PROJECT")
+    path_from("BUREAU_SMOKE_PROJECT")
 }
 
 pub fn requested_agent() -> Option<PathBuf> {
-    path_from("OMENFLOW_SMOKE_AGENT")
+    path_from("BUREAU_SMOKE_AGENT")
 }
 
 pub fn snapshot_requested() -> bool {
-    std::env::var_os("OMENFLOW_SMOKE_SNAPSHOT").is_some_and(|value| !value.is_empty())
+    std::env::var_os("BUREAU_SMOKE_SNAPSHOT").is_some_and(|value| !value.is_empty())
 }
 
 /// Write `contents` to `file` so a reader never sees half of it.
@@ -127,7 +127,7 @@ pub fn write_grant(
     Ok(file)
 }
 
-fn failed(op: &str, response: omenflow_contracts::ResponseEnvelope) -> String {
+fn failed(op: &str, response: bureau_contracts::ResponseEnvelope) -> String {
     match response.error {
         Some(error) => format!("{op}: {}: {}", error.code, error.message),
         None => format!("{op} failed without an error"),
@@ -183,8 +183,8 @@ fn grant(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omenflow_agent_host::{EventSink, HostEvent, HostPaths, ResearchSurface, Shell};
-    use omenflow_contracts::ContractError;
+    use bureau_agent_host::{EventSink, HostEvent, HostPaths, ResearchSurface, Shell};
+    use bureau_contracts::ContractError;
     use std::sync::Arc;
 
     struct Nothing;
@@ -233,7 +233,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn the_grant_is_a_live_agent_session_on_a_new_project() {
-        use omenflow_contracts::{read_frame, write_frame};
+        use bureau_contracts::{read_frame, write_frame};
         use std::os::unix::fs::PermissionsExt;
         use std::os::unix::net::UnixStream;
 
@@ -244,7 +244,7 @@ mod tests {
             &host,
             &app_data,
             &temp.path().join("project"),
-            Path::new("/usr/lib/Omen Flow/omenflow"),
+            Path::new("/usr/lib/Bureau/bureau"),
             None,
         )
         .unwrap();
@@ -253,7 +253,7 @@ mod tests {
             0o600
         );
         let grant: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
-        assert_eq!(grant["cliPath"], "/usr/lib/Omen Flow/omenflow");
+        assert_eq!(grant["cliPath"], "/usr/lib/Bureau/bureau");
         let mut bridge = UnixStream::connect(grant["socketPath"].as_str().unwrap()).unwrap();
         write_frame(
             &mut bridge,

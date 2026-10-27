@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Project } from '@omenflow/contracts';
+import type { Project } from '@bureau/contracts';
 import { useStore } from '../../apps/desktop/src/renderer/store';
 import {
   closeProject,
@@ -27,7 +27,7 @@ const api = {
 };
 const initial = useStore.getState();
 beforeEach(() => {
-  vi.stubGlobal('window', { omenflow: api, dispatchEvent: vi.fn() });
+  vi.stubGlobal('window', { bureau: api, dispatchEvent: vi.fn() });
   vi.stubGlobal(
     'CustomEvent',
     class {
@@ -76,9 +76,9 @@ describe('leaving unsaved edits for another project', () => {
   it('does not ask, and keeps the edits, when the folder does not open', async () => {
     command.mockResolvedValueOnce({
       ok: false,
-      error: { code: 'NOT_FOUND', message: 'Not an Omen Flow project' },
+      error: { code: 'NOT_FOUND', message: 'Not a Bureau project' },
     });
-    await expect(openProjectAt('/two')).rejects.toThrow('Not an Omen Flow project');
+    await expect(openProjectAt('/two')).rejects.toThrow('Not a Bureau project');
     expect(useStore.getState().leavePrompt).toBeNull();
     expect(useStore.getState().projectId).toBe('one');
     expect(listUnsaved()).toHaveLength(1);

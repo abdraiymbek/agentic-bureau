@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import type { View } from '../../apps/desktop/src/renderer/store';
-import type { ProjectEvent, Revision } from '@omenflow/contracts';
+import type { ProjectEvent, Revision } from '@bureau/contracts';
 import {
   pushHistory,
   sameView,

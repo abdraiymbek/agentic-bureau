@@ -1,10 +1,10 @@
 //! Pictures an agent asked to see (cad_view, image_view). The core writes
-//! them under `.omenflow/cache/views-v1/` and names them in the result; they
+//! them under `.bureau/cache/views-v1/` and names them in the result; they
 //! are read back here, checked against their recorded hash and sent as MCP
 //! image blocks after the text block. Picture bytes never enter the JSON
-//! body, the ledger or an `omenflow call` reply.
+//! body, the ledger or an `bureau call` reply.
 
-use omenflow_core::pictures;
+use bureau_core::pictures;
 use serde_json::{json, Value};
 use std::path::Path;
 
@@ -105,7 +105,7 @@ pub(crate) fn attach(root: Option<&Path>, result: &mut Value) -> Vec<Image> {
 }
 
 /// Tell a session that may not see the picture where to find it: an
-/// `omenflow call` caller always, an MCP client unless it is known to show
+/// `bureau call` caller always, an MCP client unless it is known to show
 /// pictures.
 pub(crate) fn route(result: &mut Value, over_mcp: bool, adapter_id: &str) {
     if !(over_mcp && shows_images(adapter_id)) {

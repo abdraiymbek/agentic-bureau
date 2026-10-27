@@ -1,5 +1,5 @@
 /**
- * Omen Flow primitives. Every surface is built from these and the tokens.
+ * Bureau primitives. Every surface is built from these and the tokens.
  * The live catalogue is the Design system view (`system/DesignSystemView.tsx`).
  */
 import React, { useContext, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
@@ -23,8 +23,8 @@ import {
   Wrench,
   Question,
   type Icon,
-} from '@phosphor-icons/react';
-import type { ArtifactType } from '@omenflow/contracts';
+} from './icons';
+import type { ArtifactType } from '@bureau/contracts';
 import { absoluteDate, describeQuantity, formatDate, parseDate } from './format';
 import type { DateStyle, QuantityInput } from './format';
 import { ariaShortcut, displayShortcut } from './shortcuts';
@@ -35,23 +35,53 @@ import type { StateDimension, Tone } from './vocabulary';
 /* Brand                                                                */
 /* ------------------------------------------------------------------ */
 
-/** The Omen Flow mark: three facets meeting at one point. Always monochrome. */
-export function Mark({ size = 18, className }: { size?: number; className?: string }) {
+/** The mark's pixels on its 5-unit grid (column, row, which of the two colours). */
+const MARK_PIXELS: [number, number, 0 | 1][] = [
+  [0, 0, 0],
+  [2, 0, 1],
+  [4, 0, 0],
+  [1, 1, 0],
+  [3, 1, 1],
+  [0, 3, 1],
+  [2, 3, 0],
+  [4, 3, 1],
+  [1, 4, 1],
+  [3, 4, 0],
+];
+
+/**
+ * The Agentic Bureau mark: two rows of the checker, cyan and ice. The colours come from the
+ * theme (`--signal`, `--ice`), so on light grounds the ice pixels turn Carbon. `mono` draws it
+ * in the current text colour. Square pixels, never rounded, rotated or animated.
+ */
+export function Mark({
+  size = 18,
+  className,
+  mono = false,
+}: {
+  size?: number;
+  className?: string;
+  mono?: boolean;
+}) {
   return (
     <svg
-      className={className}
+      className={className ? `mark ${className}` : 'mark'}
       width={size}
       height={size}
-      viewBox="60 48 380 380"
+      viewBox="0 0 98 98"
+      shapeRendering="crispEdges"
       aria-hidden="true"
-      fill="currentColor"
-      stroke="currentColor"
-      strokeWidth={5}
-      strokeLinejoin="round"
     >
-      <path d="M241.5 84 L227.2 253 Q225.8 267.5 213.5 276 L70.5 375 Z" />
-      <path d="M258.5 84 L272.8 253 Q274.2 267.5 286.5 276 L429.5 375 Z" />
-      <path d="M80 393 L238 325 Q250 318.5 262 325 L420 393 Z" />
+      {MARK_PIXELS.map(([x, y, tone]) => (
+        <rect
+          key={`${x}-${y}`}
+          x={x * 20}
+          y={y * 20}
+          width={18}
+          height={18}
+          fill={mono ? 'currentColor' : tone ? 'var(--ice)' : 'var(--signal)'}
+        />
+      ))}
     </svg>
   );
 }
@@ -60,9 +90,7 @@ export function Brand({ size = 18 }: { size?: number }) {
   return (
     <span className="brand">
       <Mark size={size} />
-      <span className="brand-word">
-        Omen <span>Flow</span>
-      </span>
+      <span className="brand-word">Bureau</span>
     </span>
   );
 }
@@ -161,9 +189,18 @@ export function State({
   );
 }
 
-/** Live pulse for things that are actually running now. Pair it with a word. */
+/**
+ * The live pixel: a 3×3 field that steps while something actually runs now. Under reduced
+ * motion it holds one frame. Pair it with a word.
+ */
 export function Pulse({ tone = 'signal' }: { tone?: Tone }) {
-  return <span className={`pulse tone-${tone}`} aria-hidden="true" />;
+  return (
+    <span className={`pulse tone-${tone}`} aria-hidden="true">
+      {Array.from({ length: 9 }, (_, i) => (
+        <i key={i} />
+      ))}
+    </span>
+  );
 }
 
 /* ------------------------------------------------------------------ */

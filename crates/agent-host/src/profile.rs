@@ -3,7 +3,7 @@
 //! (tool list, schemas, guidance, result size), never what it may do or how
 //! its work is verified.
 
-use omenflow_contracts::{ContractError, Profile};
+use bureau_contracts::{ContractError, Profile};
 use std::str::FromStr;
 
 /// What a person can set for an adapter: a fixed profile, or `auto` to derive

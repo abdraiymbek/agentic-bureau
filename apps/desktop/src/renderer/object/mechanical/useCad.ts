@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FileRef, Revision } from '@omenflow/contracts';
+import type { FileRef, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../../api';
 import { useStore } from '../../store';
 import type { ParsedMesh } from '../../lib/stl-parse';

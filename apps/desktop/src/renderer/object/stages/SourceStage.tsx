@@ -1,6 +1,6 @@
 import React from 'react';
-import { Quotes } from '@phosphor-icons/react';
-import type { SourcePayload } from '@omenflow/contracts';
+import { Quotes } from '../../ui/icons';
+import type { SourcePayload } from '@bureau/contracts';
 import { Facts } from '../../ui/kit';
 import { ExternalLink } from '../../ui/ExternalLink';
 import { ArtifactFiles } from '../ArtifactFiles';

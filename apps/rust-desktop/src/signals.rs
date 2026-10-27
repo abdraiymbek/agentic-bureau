@@ -20,7 +20,7 @@ pub const HANDLED: [i32; 3] = [SIGTERM, SIGINT, SIGHUP];
 pub fn on_termination(quit: impl FnOnce(i32) + Send + 'static) -> io::Result<()> {
     let mut signals = Signals::new(HANDLED)?;
     std::thread::Builder::new()
-        .name("omenflow-signals".into())
+        .name("bureau-signals".into())
         .spawn(move || {
             let mut received = signals.forever();
             if let Some(signal) = received.next() {
@@ -48,7 +48,7 @@ mod tests {
     use std::time::Duration;
 
     /// Set when the test binary runs itself as the process that is signalled.
-    const CHILD: &str = "OMENFLOW_SIGNAL_TEST_CHILD";
+    const CHILD: &str = "BUREAU_SIGNAL_TEST_CHILD";
 
     /// The signalled process: registers the handler, says READY, and once
     /// asked to quit says so and exits 0 ("quit"), or never finishes

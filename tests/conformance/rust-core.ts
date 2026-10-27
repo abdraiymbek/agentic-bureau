@@ -1,7 +1,7 @@
 /**
  * A `CoreApp`-shaped client for the Rust host.
  *
- * `RustCore.start(appDataDir)` spawns `omenflow-host` on a free loopback port
+ * `RustCore.start(appDataDir)` spawns `bureau-host` on a free loopback port
  * and drives it the way the desktop app does. User-origin calls go to the
  * command route. Agent-origin calls take the real agent path: the host issues
  * bridge credentials for the session and the call is framed onto the bridge
@@ -14,7 +14,7 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Origin } from '@omenflow/contracts';
+import type { Origin } from '@bureau/contracts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PROTOCOL_VERSION = 1;
@@ -55,17 +55,17 @@ export interface HostEvent {
 }
 
 export interface RustCoreOptions {
-  /** Path to `omenflow-host`. Defaults to `OMENFLOW_HOST_BIN`, then the cargo debug build. */
+  /** Path to `bureau-host`. Defaults to `BUREAU_HOST_BIN`, then the cargo debug build. */
   binary?: string;
-  /** Path to the `omenflow` helper agent sessions call back through. */
+  /** Path to the `bureau` helper agent sessions call back through. */
   cli?: string;
   /** Loopback port; a free one is picked when omitted. */
   port?: number;
 }
 
-/** Where cargo puts the debug build of `omenflow-host` for this repository. */
+/** Where cargo puts the debug build of `bureau-host` for this repository. */
 export function hostBinary(): string {
-  if (process.env.OMENFLOW_HOST_BIN) return process.env.OMENFLOW_HOST_BIN;
+  if (process.env.BUREAU_HOST_BIN) return process.env.BUREAU_HOST_BIN;
   const metadata = spawnSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
@@ -77,17 +77,17 @@ export function hostBinary(): string {
   return path.join(
     target,
     'debug',
-    process.platform === 'win32' ? 'omenflow-host.exe' : 'omenflow-host',
+    process.platform === 'win32' ? 'bureau-host.exe' : 'bureau-host',
   );
 }
 
-/** Build `omenflow-host` and return its path. */
+/** Build `bureau-host` and return its path. */
 export function buildHost(): string {
-  const build = spawnSync('cargo', ['build', '--locked', '-p', 'omenflow-headless'], {
+  const build = spawnSync('cargo', ['build', '--locked', '-p', 'bureau-headless'], {
     cwd: REPO_ROOT,
     stdio: 'inherit',
   });
-  if (build.status !== 0) throw new Error('cargo build -p omenflow-headless failed');
+  if (build.status !== 0) throw new Error('cargo build -p bureau-headless failed');
   return hostBinary();
 }
 
@@ -178,7 +178,7 @@ export class RustCore {
     readonly appDataDir: string,
     readonly port: number,
     readonly token: string,
-    /** The agent bridge socket, for running the `omenflow` helper against this host. */
+    /** The agent bridge socket, for running the `bureau` helper against this host. */
     readonly socketPath: string,
     private readonly child: ChildProcess,
   ) {}
@@ -197,7 +197,7 @@ export class RustCore {
         let text = '';
         child.once('error', reject);
         child.once('exit', (code) =>
-          reject(new Error(`omenflow-host exited with code ${code} before it was listening`)),
+          reject(new Error(`bureau-host exited with code ${code} before it was listening`)),
         );
         child.stdout!.setEncoding('utf8');
         child.stdout!.on('data', (chunk: string) => {

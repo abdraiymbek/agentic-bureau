@@ -12,7 +12,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function setup(intent = '') {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-context-budget-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-context-budget-'));
   roots.push(root);
   const app = new CoreApp(path.join(root, 'app'), nullHost);
   apps.push(app);

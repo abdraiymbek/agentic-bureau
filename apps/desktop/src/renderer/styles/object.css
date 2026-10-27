@@ -4,7 +4,7 @@
   display: grid;
   grid-template-columns: var(--rail-in, var(--rail)) minmax(0, 1fr) var(--rail-out, var(--rail));
   gap: 0;
-  padding: 0 0 var(--s-2);
+  padding: 0;
 }
 /* A folded rail keeps a strip at its edge with the button that unfolds it. */
 .object-view:has(> .rail-up.folded) {
@@ -58,7 +58,7 @@
   display: flex;
   align-items: center;
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: var(--weight-regular);
   color: var(--text-3);
   margin-bottom: var(--s-2);
   padding: 0 var(--s-2);
@@ -114,7 +114,6 @@
 }
 .link-node:hover:not(:disabled) {
   background: var(--raised);
-  border-color: var(--line);
 }
 .link-node:hover:not(:disabled) .type-glyph {
   color: var(--signal-text);
@@ -236,13 +235,14 @@
   -webkit-line-clamp: unset;
 }
 
+/* The stage is the sheet itself: no frame of its own, only the rails' quiet edges beside it. */
 .focus-stage,
 .decide-stage {
   min-height: 0;
   min-width: 0;
   background: var(--surface);
-  border-radius: var(--r-xl);
-  border: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -279,7 +279,7 @@
 .decide-head h1 {
   flex: 1;
   font-size: var(--text-2xl);
-  font-weight: 500;
+  font-weight: var(--weight-strong);
   letter-spacing: var(--tracking-display);
   line-height: 1.18;
   overflow-wrap: anywhere;
@@ -665,7 +665,7 @@ fieldset.stage-fields:disabled .doc-statement textarea:hover {
   height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: var(--r-xs);
   border: 1px solid var(--line-strong);
   color: var(--text-2);
   font-size: var(--text-xs);
@@ -728,7 +728,7 @@ fieldset.stage-fields:disabled .doc-statement textarea:hover {
   width: 6px;
   height: 6px;
   margin-left: 6px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   background: var(--warn);
   vertical-align: middle;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AssumptionPayload, Revision } from '@omenflow/contracts';
+import type { AssumptionPayload, Revision } from '@bureau/contracts';
 import { cmd } from '../../api';
 import { useStore } from '../../store';
 import { Facts, Field, Notice, Segmented } from '../../ui/kit';

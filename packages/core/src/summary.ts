@@ -1,10 +1,10 @@
 import {
   ErrorCodes,
-  OmenflowError,
+  BureauError,
   formatQty,
   isUnknown,
   type MaybeQuantity,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { activeWorkSummary, readActiveWork } from './work.js';
 
@@ -73,7 +73,7 @@ export function projectSummary(ctx: ProjectContext, budgetChars: number) {
     staleArtifacts: stale,
     recentDecisions: decisions,
     recentEvents: events,
-    tools: 'omenflow call <op> or omenflow mcp — see tool.list',
+    tools: 'bureau call <op> or bureau mcp — see tool.list',
     rules: 'Accepted engineering changes go through proposals; drafts are free.',
     activeWork: activeWorkSummary(readActiveWork(ctx)),
     truncated: false,
@@ -136,7 +136,7 @@ export function search(ctx: ProjectContext, query: string, limit: number) {
       }),
     };
   } catch (e) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Search failed: ${(e as Error).message}`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Search failed: ${(e as Error).message}`);
   }
 }
 

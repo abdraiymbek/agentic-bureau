@@ -6,8 +6,8 @@
  * verified.
  */
 import React from 'react';
-import { ArrowRight } from '@phosphor-icons/react';
-import type { AgentCallRecord } from '@omenflow/contracts';
+import { ArrowRight } from '../ui/icons';
+import type { AgentCallRecord } from '@bureau/contracts';
 import { State } from '../ui/kit';
 import { alsoRanLine, asAlsoRan } from '../shell/agent/activity';
 

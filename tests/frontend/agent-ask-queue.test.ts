@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdapterStatus, Project, SessionInfo } from '@omenflow/contracts';
+import type { AdapterStatus, Project, SessionInfo } from '@bureau/contracts';
 import { useStore } from '../../apps/desktop/src/renderer/store';
 import {
   askAgent,
@@ -59,7 +59,7 @@ function fakePort(ready: boolean) {
 }
 
 beforeEach(() => {
-  vi.stubGlobal('window', { omenflow: { command }, dispatchEvent: vi.fn() });
+  vi.stubGlobal('window', { bureau: { command }, dispatchEvent: vi.fn() });
   vi.stubGlobal(
     'CustomEvent',
     class {

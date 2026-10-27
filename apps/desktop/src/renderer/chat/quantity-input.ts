@@ -1,4 +1,4 @@
-import type { ChatInput, ChatPart } from '@omenflow/contracts';
+import type { ChatInput, ChatPart } from '@bureau/contracts';
 import { unitDef } from '../ui/units';
 
 export type QuantityFields = Extract<ChatPart, { kind: 'form' }>['fields'];

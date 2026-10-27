@@ -7,8 +7,8 @@ import {
   MagnifyingGlass,
   Sparkle,
   X,
-} from '@phosphor-icons/react';
-import type { ArtifactView, ComponentPayload, MaybeQuantity, Offer } from '@omenflow/contracts';
+} from '../ui/icons';
+import type { ArtifactView, ComponentPayload, MaybeQuantity, Offer } from '@bureau/contracts';
 import { recordedQuantityText } from '../lib/diff';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
@@ -176,7 +176,7 @@ function ExportMenu({ disabled }: { disabled: boolean }) {
   const save = (format: 'csv' | 'markdown') =>
     run(async () => {
       const ext = format === 'csv' ? 'csv' : 'md';
-      const dest = await window.omenflow.saveFile({
+      const dest = await window.bureau.saveFile({
         defaultPath: `bill-of-materials.${ext}`,
         filters: [{ name: format === 'csv' ? 'CSV' : 'Markdown', extensions: [ext] }],
       });
@@ -523,7 +523,7 @@ function PartActions({
       label: 'Open purchase page',
       icon: <ArrowSquareOut size={13} />,
       onSelect: () =>
-        void window.omenflow
+        void window.bureau
           .openExternal(purchase)
           .catch((e) => useStore.getState().toast('error', errMsg(e))),
     });

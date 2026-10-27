@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight } from '@phosphor-icons/react';
+import { ArrowRight } from '../ui/icons';
 import { useStore } from '../store';
 import { Disclosure, Notice, State, TypeGlyph, shortId, typeMeta } from '../ui/kit';
 import { diffPayload } from '../lib/diff';

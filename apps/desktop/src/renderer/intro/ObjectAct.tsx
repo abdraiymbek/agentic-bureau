@@ -3,7 +3,7 @@
  * affects. The camera tray renders live; its dimensions and parameters arrive as they would.
  */
 import React from 'react';
-import { ArrowsOut, BoundingBox, CaretDown, Cube, GridFour } from '@phosphor-icons/react';
+import { ArrowsOut, BoundingBox, CaretDown, Cube, GridFour } from '../ui/icons';
 import { lazyView } from '../lib/lazy-view';
 import { Facts, State, TypeGlyph } from '../ui/kit';
 import { typed, useProgress } from './motion';

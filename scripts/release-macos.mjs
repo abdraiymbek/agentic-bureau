@@ -7,25 +7,25 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const identity = process.env.OMENFLOW_SIGNING_IDENTITY?.trim();
-const profile = process.env.OMENFLOW_NOTARIZE_PROFILE?.trim();
+const identity = process.env.BUREAU_SIGNING_IDENTITY?.trim();
+const profile = process.env.BUREAU_NOTARIZE_PROFILE?.trim();
 if (process.platform !== 'darwin' || !identity || !profile) {
   throw new Error(
-    'Run on macOS with OMENFLOW_SIGNING_IDENTITY and OMENFLOW_NOTARIZE_PROFILE. See docs/release.md.',
+    'Run on macOS with BUREAU_SIGNING_IDENTITY and BUREAU_NOTARIZE_PROFILE. See docs/release.md.',
   );
 }
 const run = (exe, args, cwd = root) =>
   execFileSync(exe, args, { cwd, env: process.env, stdio: 'inherit' });
 run('pnpm', ['build:bridge']);
-run('pnpm', ['--filter', '@omenflow/desktop', 'build:rust-ui']);
+run('pnpm', ['--filter', '@bureau/desktop', 'build:rust-ui']);
 const rust = path.join(root, 'apps/rust-desktop');
 run(path.join(root, 'node_modules/.bin/tauri'), ['build', '--bundles', 'app', '--no-sign'], rust);
-const app = path.join(root, 'target/release/bundle/macos/Omen Flow.app');
-const helper = path.join(app, 'Contents/Resources/omenflow');
+const app = path.join(root, 'target/release/bundle/macos/Bureau.app');
+const helper = path.join(app, 'Contents/Resources/bureau');
 const { version } = JSON.parse(readFileSync(path.join(rust, 'tauri.conf.json'), 'utf8'));
 const arch = process.arch === 'arm64' ? 'aarch64' : process.arch;
-const dmg = path.join(root, `target/release/bundle/dmg/Omen Flow_${version}_${arch}.dmg`);
-const scratch = mkdtempSync(path.join(tmpdir(), 'omenflow-notary-'));
+const dmg = path.join(root, `target/release/bundle/dmg/Bureau_${version}_${arch}.dmg`);
+const scratch = mkdtempSync(path.join(tmpdir(), 'bureau-notary-'));
 try {
   // Inside out: notarization rejects any Mach-O without a Developer ID signature, and
   // `--deep` does not sign executables shipped as resources, such as the helper.
@@ -33,7 +33,7 @@ try {
     run('codesign', ['--force', '--options', 'runtime', '--timestamp', '--sign', identity, code]);
   }
   run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app]);
-  const archive = path.join(scratch, 'Omen Flow.zip');
+  const archive = path.join(scratch, 'Bureau.zip');
   run('ditto', ['-c', '-k', '--keepParent', app, archive]);
   run('xcrun', ['notarytool', 'submit', archive, '--keychain-profile', profile, '--wait']);
   run('xcrun', ['stapler', 'staple', app]);
@@ -44,12 +44,12 @@ try {
   // The volume holds the stapled app and a link to /Applications to drag it onto.
   const volume = path.join(scratch, 'volume');
   mkdirSync(volume);
-  run('ditto', [app, path.join(volume, 'Omen Flow.app')]);
+  run('ditto', [app, path.join(volume, 'Bureau.app')]);
   symlinkSync('/Applications', path.join(volume, 'Applications'));
   run('hdiutil', [
     'create',
     '-volname',
-    'Omen Flow',
+    'Bureau',
     '-srcfolder',
     volume,
     '-ov',

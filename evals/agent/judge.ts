@@ -1,5 +1,5 @@
 /**
- * Reading Omen Flow state back as the person and turning it into criteria.
+ * Reading Bureau state back as the person and turning it into criteria.
  * Every judgement comes from recorded state through person-side commands;
  * nothing here reads what the model said about its own work, except the
  * final-message check, which compares the message against that state.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ErrorCodes, MAX_FRAME_BYTES } from '@omenflow/contracts';
+import { ErrorCodes, MAX_FRAME_BYTES } from '@bureau/contracts';
 import {
   assertCadInspectionBudget,
   MAX_CAD_MESH_BYTES,

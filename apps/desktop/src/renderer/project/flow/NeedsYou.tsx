@@ -11,8 +11,8 @@ import {
   Lightbulb,
   WarningCircle,
   X,
-} from '@phosphor-icons/react';
-import type { Proposal } from '@omenflow/contracts';
+} from '../../ui/icons';
+import type { Proposal } from '@bureau/contracts';
 import { useStore } from '../../store';
 import { Button, IconButton, relativeTime, Tooltip, typeMeta } from '../../ui/kit';
 import {
@@ -26,8 +26,8 @@ import {
 
 /** Rows shown before the rest are folded behind "n more". */
 const ROW_LIMIT = 4;
-/** Below this window width the island rests as a pill and opens over the map. */
-const NARROW = '(max-width: 1120px)';
+/** The island rests as a pill at every width and opens over the map, so the map stays calm. */
+const NARROW = 'all';
 
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches);
@@ -103,7 +103,7 @@ function OutdatedRow({ item, canAsk }: { item: OutdatedItem; canAsk: boolean }) 
           label="Ask the agent to re-evaluate"
           onClick={() =>
             ask(
-              `Re-evaluate the Omen Flow ${reference(item)}. It is ${
+              `Re-evaluate the Bureau ${reference(item)}. It is ${
                 missing ? 'missing an input' : 'out of date'
               }: ${item.why}. `,
             )
@@ -224,7 +224,7 @@ export function NeedsYou({ onRest }: { onRest: (island: HTMLElement | null) => v
               icon={<At size={12} />}
               onClick={() =>
                 ask(
-                  `Re-evaluate these out-of-date Omen Flow objects, starting with the ones closest to the change: ${queue.outdated
+                  `Re-evaluate these out-of-date Bureau objects, starting with the ones closest to the change: ${queue.outdated
                     .map(reference)
                     .join('; ')}. `,
                 )

@@ -2,7 +2,7 @@
  * Which state the agent surface is in. Each state is explicit, so detection is never reported as
  * "not found", and a failed start is shown even when an earlier transcript is on screen.
  */
-import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
+import type { AdapterStatus, SessionInfo } from '@bureau/contracts';
 import type { Detection, StartState } from './agent-store';
 
 export type Phase =

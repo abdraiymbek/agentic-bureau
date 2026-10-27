@@ -59,7 +59,7 @@ export function offerFirstPrompt(projectId: string, text: string): () => void {
     } else if (started && !running) finish();
   };
 
-  const unData = window.omenflow.onTerminalData((d) => {
+  const unData = window.bureau.onTerminalData((d) => {
     if (started && !done && d.projectId === projectId) settle();
   });
   const unsubscribe = useStore.subscribe(check);

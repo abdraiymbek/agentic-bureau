@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ArtifactView, CalculationPayload } from '@omenflow/contracts';
+import type { ArtifactView, CalculationPayload } from '@bureau/contracts';
 import {
   inputSource,
   rerunOutcome,

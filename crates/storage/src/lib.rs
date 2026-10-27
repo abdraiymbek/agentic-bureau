@@ -1,11 +1,11 @@
-//! Schema-1 Omen Flow project storage. The Rust port opens existing project
+//! Schema-1 Bureau project storage. The Rust port opens existing project
 //! folders and databases; it does not translate them into a new format.
 
 mod db;
 mod objects;
 mod paths;
 
-pub use db::{ProjectFile, ProjectHandle};
+pub use db::{adopt_pre_rename_layout, read_project_marker, ProjectFile, ProjectHandle};
 pub use objects::{sha256_hex, ObjectStore};
 pub use paths::{
     canonicalize, resolve_materialization_path, resolve_project_path, write_materialized_file,

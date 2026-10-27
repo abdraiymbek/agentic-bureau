@@ -1,5 +1,5 @@
 /**
- * The production Rust host (`omenflow-host`) for evaluation runs.
+ * The production Rust host (`bureau-host`) for evaluation runs.
  *
  * The host is spawned with a minimal environment, so nothing from the
  * process running the evaluation (an agent CLI's own session variables,
@@ -74,8 +74,8 @@ export function buildBinaries(): { host: string; cli: string } {
     const result = spawnSync('cargo', args, { cwd: REPO, stdio: 'inherit' });
     if (result.status !== 0) throw new Error(`cargo ${args.join(' ')} failed`);
   };
-  run(['build', '--release', '--locked', '-p', 'omenflow-headless']);
-  run(['build', '--release', '--locked', '--manifest-path', 'native/omenflow-bridge/Cargo.toml']);
+  run(['build', '--release', '--locked', '-p', 'bureau-headless']);
+  run(['build', '--release', '--locked', '--manifest-path', 'native/bureau-bridge/Cargo.toml']);
   const metadata = spawnSync('cargo', ['metadata', '--no-deps', '--format-version', '1'], {
     cwd: REPO,
     encoding: 'utf8',
@@ -84,8 +84,8 @@ export function buildBinaries(): { host: string; cli: string } {
   if (metadata.status !== 0) throw new Error(`cargo metadata failed: ${metadata.stderr}`);
   const target = (JSON.parse(metadata.stdout) as { target_directory: string }).target_directory;
   return {
-    host: path.join(target, 'release', 'omenflow-host'),
-    cli: path.join(REPO, 'native/omenflow-bridge/target/release/omenflow'),
+    host: path.join(target, 'release', 'bureau-host'),
+    cli: path.join(REPO, 'native/bureau-bridge/target/release/bureau'),
   };
 }
 
@@ -123,7 +123,7 @@ export class EvalHost {
         let text = '';
         child.once('error', reject);
         child.once('exit', (code) =>
-          reject(new Error(`omenflow-host exited with code ${code} before it was listening`)),
+          reject(new Error(`bureau-host exited with code ${code} before it was listening`)),
         );
         child.stdout!.setEncoding('utf8');
         child.stdout!.on('data', (chunk: string) => {

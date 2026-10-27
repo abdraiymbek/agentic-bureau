@@ -7,7 +7,7 @@ describe('handoff to the agent', () => {
     const text = handoffText([recordOf(detail(), 'approved', '  Sensor package confirmed.  ', [])]);
     expect(text).toBe(
       [
-        'Omen Flow: the person recorded a review decision.',
+        'Bureau: the person recorded a review decision.',
         '',
         `1. Approved proposal ${ids.p1} ("Increase payload capacity to 500 g").`,
         '   Rationale: "Sensor package confirmed."',

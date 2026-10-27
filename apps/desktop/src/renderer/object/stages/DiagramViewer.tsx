@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ArrowsOutLineHorizontal,
-  MagnifyingGlassMinus,
-  MagnifyingGlassPlus,
-} from '@phosphor-icons/react';
+import { ArrowsOutLineHorizontal, MagnifyingGlassMinus, MagnifyingGlassPlus } from '../../ui/icons';
 import { IconButton } from '../../ui/kit';
 import { ZOOM_STEPS, fitScale, stepZoom, svgNaturalSize } from '../../lib/diagram';
 import { SvgDiagram } from './shared';

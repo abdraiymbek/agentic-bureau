@@ -2,7 +2,7 @@
  * Loading what the host knows about agents: installed CLIs (`connection.list`) and the call
  * ledger (`agent.activity` for history, `onAgentCall` for live records).
  */
-import type { AdapterStatus, AgentActivity } from '@omenflow/contracts';
+import type { AdapterStatus, AgentActivity } from '@bureau/contracts';
 import { useStore } from '../../store';
 import { asCallRecord, CALL_LIMIT } from './activity';
 import { useAgentUi } from './agent-store';
@@ -97,7 +97,7 @@ async function readActivity(
 
 /** Live records for this project. Returns the unsubscribe, or null when the host has no channel. */
 export function subscribeCalls(projectId: string): (() => void) | null {
-  const subscribe = window.omenflow.onAgentCall;
+  const subscribe = window.bureau.onAgentCall;
   if (!subscribe) return null;
   return subscribe((value) => {
     const call = asCallRecord(value);

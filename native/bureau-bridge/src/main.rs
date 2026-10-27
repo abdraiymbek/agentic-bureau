@@ -1,20 +1,20 @@
-//! `omenflow` — production bridge helper shipped inside the Omen Flow app bundle.
+//! `bureau` — production bridge helper shipped inside the Bureau app bundle.
 //!
 //! Agent CLIs (Codex, Claude Code, custom) inherit per-session credentials in
-//! their environment and call this binary to reach the running Omen Flow app:
+//! their environment and call this binary to reach the running Bureau app:
 //!
-//!   omenflow mcp
-//!   omenflow call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
-//!   omenflow call <tool> --help
-//!   omenflow guide [topic]
-//!   omenflow status [--scope session|project]
+//!   bureau mcp
+//!   bureau call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
+//!   bureau call <tool> --help
+//!   bureau guide [topic]
+//!   bureau status [--scope session|project]
 //!
 //! `<tool>` is a tool name (`cad_check`) or an operation name (`cad.check`);
 //! the app resolves either.
 //!
 //! Wire protocol (see packages/contracts/src/protocol.ts):
 //! ```text
-//!   transport: unix socket / windows named pipe (env OMENFLOW_BRIDGE_SOCK)
+//!   transport: unix socket / windows named pipe (env BUREAU_BRIDGE_SOCK)
 //!   frames:    4-byte little-endian length + JSON body, max 8 MiB
 //!   1. client → {type:"hello", token, protocolVersion:1, mode:"call"|"mcp"}
 //!   2. server → {type:"welcome", ...} | {type:"error", error:{code,message}}
@@ -106,13 +106,13 @@ fn read_frame(r: &mut impl Read) -> io::Result<Option<Value>> {
 /* ------------------------------ args/env ------------------------------- */
 
 const USAGE: &str = "usage:
-  omenflow mcp                         serve the Omen Flow tools over MCP (stdio)
-  omenflow call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
+  bureau mcp                         serve the Bureau tools over MCP (stdio)
+  bureau call <tool> [--input <file|-|json>] [--idempotency-key k] [--pretty]
                                        call a tool; the result is JSON on stdout
-  omenflow call <tool> --help          print a tool's arguments and an example
-  omenflow call tool_describe          list every tool
-  omenflow guide [topic]               print a short playbook (start, cad, components, finish, …)
-  omenflow status [--scope session|project]
+  bureau call <tool> --help          print a tool's arguments and an example
+  bureau call tool_describe          list every tool
+  bureau guide [topic]               print a short playbook (start, cad, components, finish, …)
+  bureau status [--scope session|project]
                                        what is unfinished, and the next call for each item
 <tool> is a tool name (cad_check) or an operation name (cad.check).";
 
@@ -214,7 +214,7 @@ fn parse_call<'a>(mut rest: impl Iterator<Item = &'a str>) -> Result<Command, St
     let op = op.ok_or("missing <tool>")?;
     let output = Output::Json { pretty };
     if help {
-        // `omenflow call <tool> --help` → tool.describe: purpose, input
+        // `bureau call <tool> --help` → tool.describe: purpose, input
         // schema and an example call.
         return Ok(Command::Call {
             op: "tool.describe".into(),
@@ -265,12 +265,12 @@ fn run() -> ExitCode {
         }
     };
 
-    let socket_path = env::var("OMENFLOW_BRIDGE_SOCK").unwrap_or_default();
-    let token = env::var("OMENFLOW_BRIDGE_TOKEN").unwrap_or_default();
+    let socket_path = env::var("BUREAU_BRIDGE_SOCK").unwrap_or_default();
+    let token = env::var("BUREAU_BRIDGE_TOKEN").unwrap_or_default();
     if socket_path.is_empty() || token.is_empty() {
         return fail(
             "APP_NOT_RUNNING",
-            "OMENFLOW_BRIDGE_SOCK/OMENFLOW_BRIDGE_TOKEN not set — not inside an Omen Flow session?",
+            "BUREAU_BRIDGE_SOCK/BUREAU_BRIDGE_TOKEN not set — not inside a Bureau session?",
         );
     }
 
@@ -279,7 +279,7 @@ fn run() -> ExitCode {
         Err(e) => {
             return fail(
                 "APP_NOT_RUNNING",
-                &format!("Cannot connect to Omen Flow bridge at {socket_path}: {e}"),
+                &format!("Cannot connect to Bureau bridge at {socket_path}: {e}"),
             )
         }
     };
@@ -394,7 +394,7 @@ fn render(result: &Value, output: &Output) -> String {
                 .map(Vec::as_slice)
                 .unwrap_or_default();
             if !topics.is_empty() {
-                text.push_str("\n\nTopics (omenflow guide <topic>):");
+                text.push_str("\n\nTopics (bureau guide <topic>):");
                 for topic in topics {
                     text.push_str(&format!(
                         "\n  {} — {}",

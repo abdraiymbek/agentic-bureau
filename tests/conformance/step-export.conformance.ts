@@ -39,7 +39,7 @@ const refusal = (call: Promise<unknown>) =>
   );
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-step-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-step-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

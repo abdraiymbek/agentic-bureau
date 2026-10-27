@@ -1,4 +1,4 @@
-import type { MaybeQuantity, WiringConnection, WiringPayload } from '@omenflow/contracts';
+import type { MaybeQuantity, WiringConnection, WiringPayload } from '@bureau/contracts';
 
 /**
  * Engineering tool contracts. Implementations live in packages/engineering

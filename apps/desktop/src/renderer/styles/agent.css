@@ -202,7 +202,7 @@
 .agent-light {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   flex: none;
   background: var(--text-4);
 }

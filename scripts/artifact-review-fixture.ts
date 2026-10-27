@@ -2,18 +2,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CoreApp, nullHost } from '@omenflow/core';
-import {
-  artifactTypes,
-  type Artifact,
-  type Revision,
-  type ArtifactType,
-} from '@omenflow/contracts';
+import { CoreApp, nullHost } from '@bureau/core';
+import { artifactTypes, type Artifact, type Revision, type ArtifactType } from '@bureau/contracts';
 import payloads from '../tests/fixtures/artifact-payloads.json';
 import { makePreviewMesh } from '../design-system/fixtures/preview-mesh';
 
 async function main() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-artifact-review-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-artifact-review-'));
   const app = new CoreApp(path.join(root, 'app'), nullHost);
   const user = { kind: 'user' as const };
   try {

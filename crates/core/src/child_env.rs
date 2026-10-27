@@ -136,13 +136,13 @@ mod tests {
             .map(|(_, value)| value)
     }
 
-    /// Recorded from the packaged Omen Flow AppImage (linuxdeploy GTK hook
+    /// Recorded from the packaged Bureau AppImage (linuxdeploy GTK hook
     /// and the AppImageKit launcher) on Ubuntu 24.04, unpacked to /tmp.
     fn appimage_session() -> Vec<(String, String)> {
         vars(&[
             ("APPDIR", DIR),
-            ("APPIMAGE", "/home/ana/Apps/Omen Flow_1.0.0_aarch64.AppImage"),
-            ("ARGV0", "/home/ana/Apps/Omen Flow_1.0.0_aarch64.AppImage"),
+            ("APPIMAGE", "/home/ana/Apps/Bureau_1.0.0_aarch64.AppImage"),
+            ("ARGV0", "/home/ana/Apps/Bureau_1.0.0_aarch64.AppImage"),
             ("GDK_BACKEND", "x11"),
             ("GTK_THEME", "Adwaita:light"),
             ("GDK_PIXBUF_MODULE_FILE", &format!("{DIR}//usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache")),
@@ -247,10 +247,10 @@ mod tests {
 
     #[test]
     fn insideness_is_by_path_component() {
-        let dir = Path::new("/tmp/.mount_OmenFlx");
-        assert!(is_inside(Path::new("/tmp/.mount_OmenFlx//usr/lib"), dir));
-        assert!(is_inside(Path::new("/tmp/.mount_OmenFlx/"), dir));
-        assert!(!is_inside(Path::new("/tmp/.mount_OmenFlxy/usr"), dir));
+        let dir = Path::new("/tmp/.mount_BureauX");
+        assert!(is_inside(Path::new("/tmp/.mount_BureauX//usr/lib"), dir));
+        assert!(is_inside(Path::new("/tmp/.mount_BureauX/"), dir));
+        assert!(!is_inside(Path::new("/tmp/.mount_BureauXy/usr"), dir));
         assert!(!is_inside(Path::new("usr/lib"), dir));
     }
 }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CoreApp } from './app.js';
-import { newId, type Origin } from '@omenflow/contracts';
+import { newId, type Origin } from '@bureau/contracts';
 import { MAX_INGEST_FILE_BYTES } from './artifacts.js';
 
 const user: Origin = { kind: 'user' };
@@ -15,7 +15,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function setup() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-command-safety-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-command-safety-'));
   roots.push(root);
   const app = new CoreApp(path.join(root, 'settings'));
   apps.push(app);
@@ -59,7 +59,7 @@ describe('command safety', () => {
     await expect(
       call(
         'artifact.create_draft',
-        { ...payload, files: [{ path: '.omenflow/state.sqlite', contentBase64: 'eA==' }] },
+        { ...payload, files: [{ path: '.bureau/state.sqlite', contentBase64: 'eA==' }] },
         agent,
       ),
     ).rejects.toThrow();

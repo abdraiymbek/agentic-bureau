@@ -8,12 +8,12 @@ import {
   RUST_HOST_AGENT_OPS,
   RUST_HOST_OPS,
   describeOp,
-  OmenflowError,
+  BureauError,
   okResponse,
   errResponse,
   type ResponseEnvelope,
-  type OmenflowErrorBody,
-} from '@omenflow/contracts';
+  type BureauErrorBody,
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import * as artifacts from './artifacts.js';
 import * as proposals from './proposals.js';
@@ -27,7 +27,7 @@ import * as wiring from './wiring.js';
 import * as tests from './tests.js';
 import * as build from './build.js';
 import * as summary from './summary.js';
-import { newId } from '@omenflow/contracts';
+import { newId } from '@bureau/contracts';
 import {
   clearResultJournal,
   hashRequest,
@@ -85,7 +85,7 @@ const H: Record<string, Handler> = {
         ? c.repo.getRevision(a.selectedRevisionId)
         : (c.repo.listRevisions(a.id).at(-1) ?? null);
     if (rev && rev.artifactId !== a.id)
-      throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+      throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
     return { view: c.artifactView(a), revision: rev, drafts: c.repo.listDrafts(a.id) };
   },
   'artifact.history': (c, i: { artifactId: string }) => ({
@@ -115,7 +115,7 @@ const H: Record<string, Handler> = {
       );
     }
     if (!i.type || !i.title)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         'import_file needs type+title for new artifacts',
       );
@@ -149,7 +149,7 @@ const H: Record<string, Handler> = {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files[0];
-    if (!f) throw new OmenflowError(ErrorCodes.NOT_FOUND, 'Artifact has no file to reveal');
+    if (!f) throw new BureauError(ErrorCodes.NOT_FOUND, 'Artifact has no file to reveal');
     await c.host.revealPath(c.resolvePath(f.path));
     return { ok: true };
   },
@@ -170,11 +170,11 @@ const H: Record<string, Handler> = {
             .reverse()
             .find((r) => !['rejected', 'superseded'].includes(r.reviewState));
     if (rev && rev.artifactId !== a.id)
-      throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
+      throw new BureauError(ErrorCodes.VALIDATION, 'Revision does not belong to artifact');
     const f = rev?.files.find((x) => x.path === i.path);
-    if (!f) throw new OmenflowError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
+    if (!f) throw new BureauError(ErrorCodes.NOT_FOUND, `File not on revision: ${i.path}`);
     if (!f.sha256)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.NOT_FOUND,
         `Revision has no immutable bytes for ${i.path}; import the source to repair it`,
       );
@@ -278,7 +278,7 @@ const H: Record<string, Handler> = {
     // Anchor the proposal on a real artifact (first line's component) so the
     // change-set binds properly.
     const anchor = lines[0];
-    if (!anchor) throw new OmenflowError(ErrorCodes.VALIDATION, 'No BOM lines');
+    if (!anchor) throw new BureauError(ErrorCodes.VALIDATION, 'No BOM lines');
     const comp = c.requireArtifact(anchor.componentArtifactId);
     const rev = c.requireRevision(anchor.componentRevisionId);
     const draft = artifacts.commitRevision(c, {
@@ -350,7 +350,7 @@ const H: Record<string, Handler> = {
     const a = c.requireArtifact(i.artifactId);
     const rev = a.selectedRevisionId ? c.repo.getRevision(a.selectedRevisionId) : null;
     const f = rev?.files.find((x) => x.path.endsWith(`.${i.format}`));
-    if (!f?.sha256) throw new OmenflowError(ErrorCodes.NOT_FOUND, `No .${i.format} on baseline`);
+    if (!f?.sha256) throw new BureauError(ErrorCodes.NOT_FOUND, `No .${i.format} on baseline`);
     fs.mkdirSync(path.dirname(i.destPath), { recursive: true });
     fs.writeFileSync(i.destPath, c.objects.read(f.sha256));
     return { path: i.destPath };
@@ -388,17 +388,14 @@ const H: Record<string, Handler> = {
   /* jobs + tools */
   'job.read': (c, i: { jobId: string }) => {
     const j = c.repo.getJob(i.jobId);
-    if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
+    if (!j) throw new BureauError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
     return { job: j };
   },
   'job.cancel': (c, i: { jobId: string }, origin) => {
     const j = c.repo.getJob(i.jobId);
-    if (!j) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
+    if (!j) throw new BureauError(ErrorCodes.NOT_FOUND, `Job not found: ${i.jobId}`);
     if (origin.kind === 'agent' && j.sessionId !== origin.sessionId)
-      throw new OmenflowError(
-        ErrorCodes.CAPABILITY_DENIED,
-        'An agent can only cancel its own jobs',
-      );
+      throw new BureauError(ErrorCodes.CAPABILITY_DENIED, 'An agent can only cancel its own jobs');
     c.cancelJob(i.jobId);
     return { job: c.repo.getJob(i.jobId) };
   },
@@ -418,11 +415,11 @@ const H: Record<string, Handler> = {
   },
   'tool.describe': (
     _c,
-    i: { tool?: string; op?: string; artifactType?: import('@omenflow/contracts').ArtifactType },
+    i: { tool?: string; op?: string; artifactType?: import('@bureau/contracts').ArtifactType },
   ) => {
     const name = i.tool ?? i.op;
     if (!name)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         'tool.describe without a tool name (the tool catalogue) is implemented by the Rust host',
         {
@@ -431,7 +428,7 @@ const H: Record<string, Handler> = {
         },
       );
     const d = describeOp(name, i.artifactType);
-    if (!d) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown operation: ${name}`);
+    if (!d) throw new BureauError(ErrorCodes.NOT_FOUND, `Unknown operation: ${name}`);
     return d;
   },
   'tool.doctor': async (c, i: { toolId?: string }) => {
@@ -479,7 +476,7 @@ function requestHash(op: string, payload: unknown): string {
  */
 export function assertServedByLegacyCore(op: string): void {
   if (!RUST_HOST_OPS.has(op)) return;
-  throw new OmenflowError(ErrorCodes.VALIDATION, `${op} is implemented by the Rust host`, {
+  throw new BureauError(ErrorCodes.VALIDATION, `${op} is implemented by the Rust host`, {
     repair: 'Call it through the desktop app; the TypeScript core does not serve it.',
     details: { op, implementedBy: 'rust-host' },
   });
@@ -488,7 +485,7 @@ export function assertServedByLegacyCore(op: string): void {
 /** Operations this core serves for a person only: an agent's call is the Rust host's. */
 function assertServedForOrigin(op: string, origin: Origin): void {
   if (origin.kind !== 'agent' || !RUST_HOST_AGENT_OPS.has(op)) return;
-  throw new OmenflowError(
+  throw new BureauError(
     ErrorCodes.VALIDATION,
     `${op} for an agent is implemented by the Rust host`,
     {
@@ -591,7 +588,7 @@ function wiringIdsOmitted(connections: unknown): string[] {
 function assertLegacyInputs(op: string, input: unknown): void {
   const unsupported = RUST_HOST_INPUTS[op]?.(fields(input)) ?? [];
   if (!unsupported.length) return;
-  throw new OmenflowError(
+  throw new BureauError(
     ErrorCodes.VALIDATION,
     `${op} with ${unsupported.join(', ')} is implemented by the Rust host`,
     {
@@ -612,7 +609,7 @@ function assertLegacyInputs(op: string, input: unknown): void {
  */
 export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise<unknown> {
   const op = OPS_BY_NAME.get(req.op);
-  if (!op) throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
+  if (!op) throw new BureauError(ErrorCodes.VALIDATION, `Unknown operation: ${req.op}`);
   if (
     req.origin.kind === 'agent' &&
     (op.capability === 'user' ||
@@ -622,7 +619,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
       req.op === 'artifact.apply_edit'
         ? ErrorCodes.APPROVAL_REQUIRED
         : ErrorCodes.CAPABILITY_DENIED;
-    throw new OmenflowError(code, `Agents cannot call ${req.op}`, {
+    throw new BureauError(code, `Agents cannot call ${req.op}`, {
       repair: req.op === 'artifact.apply_edit' ? 'Submit a proposal instead.' : undefined,
     });
   }
@@ -636,7 +633,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     if (issues?.length) {
       const first = issues[0]!;
       const where = first.path.length ? `${first.path.join('.')}: ` : '';
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid input — ${where}${first.message}`, {
+      throw new BureauError(ErrorCodes.VALIDATION, `Invalid input — ${where}${first.message}`, {
         details: { issues: issues.map((i) => `${i.path.join('.')}: ${i.message}`) },
       });
     }
@@ -648,7 +645,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
 
   const handler = H[req.op];
   if (!handler)
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Operation not implemented: ${req.op}`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Operation not implemented: ${req.op}`);
   const key =
     op.mutating && req.idempotencyKey
       ? `${req.origin.kind === 'agent' ? req.origin.sessionId : 'user'}:${req.op}:${req.idempotencyKey}`
@@ -658,7 +655,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     const pending = ctx.inFlightRequests.get(key);
     if (pending) {
       if (pending.hash !== hash)
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.VALIDATION,
           'Idempotency key reused with different payload',
         );
@@ -667,7 +664,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
     const prior = ctx.repo.getIdempotent(key);
     if (prior) {
       if (prior.requestHash !== hash)
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.VALIDATION,
           'Idempotency key reused with different payload',
         );
@@ -678,14 +675,13 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
           clearResultJournal(ctx.root, key);
           return { ...(journal.response as object), idempotent: true, recovered: true };
         }
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.REVISION_CONFLICT,
           'Previous attempt was interrupted; inspect its jobs/revisions before retrying with a new key',
         );
       }
-      const failure = (prior.response as { operationFailure?: OmenflowErrorBody })
-        ?.operationFailure;
-      if (failure) throw OmenflowError.fromBody(failure);
+      const failure = (prior.response as { operationFailure?: BureauErrorBody })?.operationFailure;
+      if (failure) throw BureauError.fromBody(failure);
       return { ...(prior.response as object), idempotent: true };
     }
   }
@@ -729,7 +725,7 @@ export async function dispatch(ctx: ProjectContext, req: DispatchInput): Promise
       if (key && !ctx.closed && ctx.handle.pdb.db.open && !readResultJournal(ctx.root, key, hash)) {
         try {
           ctx.repo.putIdempotent(key, hash, {
-            operationFailure: OmenflowError.from(error).toBody(),
+            operationFailure: BureauError.from(error).toBody(),
           });
         } catch {
           /* preserve the pending marker if durable completion itself failed */
@@ -751,7 +747,7 @@ export function envelopeResult(requestId: string, result: unknown): ResponseEnve
   return okResponse(requestId, result);
 }
 export function envelopeError(requestId: string, err: unknown): ResponseEnvelope {
-  const e = err instanceof OmenflowError ? err : OmenflowError.from(err);
+  const e = err instanceof BureauError ? err : BureauError.from(err);
   return errResponse(requestId, e.code, e.message, e.repair, e.details);
 }
 export { newId };

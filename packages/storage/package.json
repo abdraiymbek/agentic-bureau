@@ -1,5 +1,5 @@
 {
-  "name": "@omenflow/storage",
+  "name": "@bureau/storage",
   "version": "0.2.4",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@omenflow/contracts": "workspace:*",
+    "@bureau/contracts": "workspace:*",
     "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {

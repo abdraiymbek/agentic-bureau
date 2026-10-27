@@ -6,8 +6,8 @@ import { CoreApp } from './app.js';
 import { createDraft } from './artifacts.js';
 import { createCadVerificationEvidence } from './cad-verification.js';
 import { renderFingerprint } from './cad-input.js';
-import type { MechanicalPayload } from '@omenflow/contracts';
-import { newId, OmenflowError, ErrorCodes, type Origin } from '@omenflow/contracts';
+import type { MechanicalPayload } from '@bureau/contracts';
+import { newId, BureauError, ErrorCodes, type Origin } from '@bureau/contracts';
 
 const user: Origin = { kind: 'user' };
 const agent: Origin = { kind: 'agent', sessionId: newId() };
@@ -18,7 +18,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-retry-lifecycle-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-retry-lifecycle-'));
   roots.push(root);
   const app = new CoreApp(path.join(root, 'settings'));
   apps.push(app);
@@ -43,7 +43,7 @@ describe('durable retry completion', () => {
         templates: () => [],
         evaluate: async () => {
           executions++;
-          throw new OmenflowError(code, 'recorded failure', { repair: 'inspect the request' });
+          throw new BureauError(code, 'recorded failure', { repair: 'inspect the request' });
         },
       };
       const payload = {
@@ -54,7 +54,7 @@ describe('durable retry completion', () => {
         Array.from({ length: 10 }, () => call('calculation.run', payload, 'failure')),
       );
       expect(
-        results.every((r) => r.status === 'rejected' && (r.reason as OmenflowError).code === code),
+        results.every((r) => r.status === 'rejected' && (r.reason as BureauError).code === code),
       ).toBe(true);
       expect(executions).toBe(1);
       await expect(call('calculation.run', payload, 'failure')).rejects.toMatchObject({

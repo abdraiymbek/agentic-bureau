@@ -4,7 +4,7 @@
  * (session, adapters) stays in the main store; conversations stay in the chat store.
  */
 import { create } from 'zustand';
-import type { AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
+import type { AgentCallRecord, AgentSessionSummary } from '@bureau/contracts';
 import { CALL_LIMIT, mergeCalls } from './activity';
 import { parsePrefs, serializePrefs, type WindowPrefs } from './window-geometry';
 
@@ -111,10 +111,10 @@ interface AgentUi {
   noteCopied: (what: 'selection' | 'transcript') => void;
 }
 
-const WINDOW_KEY = 'omen.agentWindow';
-const SECTION_KEY = 'omen.settings.section';
-const railKey = (projectId: string) => `omen.agentRail.${projectId}`;
-const paneKey = (projectId: string) => `omen.agentPane.${projectId}`;
+const WINDOW_KEY = 'bureau.agentWindow';
+const SECTION_KEY = 'bureau.settings.section';
+const railKey = (projectId: string) => `bureau.agentRail.${projectId}`;
+const paneKey = (projectId: string) => `bureau.agentPane.${projectId}`;
 
 function read(key: string): string | null {
   try {

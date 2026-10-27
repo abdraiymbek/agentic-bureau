@@ -1,6 +1,6 @@
 import React from 'react';
-import { ArrowRight } from '@phosphor-icons/react';
-import type { AssemblyPayload } from '@omenflow/contracts';
+import { ArrowRight } from '../../ui/icons';
+import type { AssemblyPayload } from '@bureau/contracts';
 import { Empty, Notice } from '../../ui/kit';
 import { ObjectLink, Steps, type StageProps } from './shared';
 

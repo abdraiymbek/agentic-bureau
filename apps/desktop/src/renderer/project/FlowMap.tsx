@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import type { ArtifactView, Edge, ProjectEvent } from '@omenflow/contracts';
+import type { ArtifactView, Edge, ProjectEvent } from '@bureau/contracts';
 import { useStore } from '../store';
 import { causalAdjacency, impactIds, stalePathSteps } from '../lib/graph';
 import { typeMeta } from '../ui/kit';

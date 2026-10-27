@@ -1,4 +1,4 @@
-import { ErrorCodes, Origin, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, Origin, BureauError } from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { captureSource } from './sources.js';
 
@@ -14,16 +14,16 @@ function assertPublicHttpUrl(url: string): void {
   try {
     u = new URL(url);
   } catch {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Bad URL: ${url}`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Bad URL: ${url}`);
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `Only http(s) research URLs allowed: ${u.protocol}`,
     );
   }
   if (u.username || u.password)
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.CONNECTION_DENIED,
       'Credential-bearing research URLs are not allowed',
     );
@@ -43,7 +43,7 @@ function assertPublicHttpUrl(url: string): void {
     /^169\.254\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host)
   ) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.CONNECTION_DENIED,
       `Private network destination blocked: ${host}`,
     );
@@ -54,14 +54,14 @@ export async function researchSearch(ctx: ProjectContext, query: string, engine?
   const build = SEARCH_ENGINES[engine ?? 'duckduckgo'] ?? SEARCH_ENGINES.duckduckgo!;
   const url = build(query);
   const res = await ctx.host.researchOpen(url);
-  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
+  if (!res.ok) throw new BureauError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
   return { url };
 }
 
 export async function browserOpen(ctx: ProjectContext, url: string) {
   assertPublicHttpUrl(url);
   const res = await ctx.host.researchOpen(url);
-  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
+  if (!res.ok) throw new BureauError(ErrorCodes.INTERNAL, res.error ?? 'Research browser failed');
   return { url };
 }
 
@@ -75,7 +75,7 @@ export async function browserFollowLink(
 ) {
   if (sel.url) assertPublicHttpUrl(sel.url);
   const res = await ctx.host.researchFollowLink(sel);
-  if (!res.ok) throw new OmenflowError(ErrorCodes.INTERNAL, res.error ?? 'follow_link failed');
+  if (!res.ok) throw new BureauError(ErrorCodes.INTERNAL, res.error ?? 'follow_link failed');
   return res;
 }
 
@@ -89,7 +89,7 @@ export async function browserCapture(
   origin: Origin,
 ) {
   const page = await ctx.host.researchReadPage();
-  if (!page.url) throw new OmenflowError(ErrorCodes.VALIDATION, 'No research page loaded');
+  if (!page.url) throw new BureauError(ErrorCodes.VALIDATION, 'No research page loaded');
   return captureSource(
     ctx,
     {
@@ -106,6 +106,6 @@ export async function researchReadPage(ctx: ProjectContext, url: string) {
   assertPublicHttpUrl(url);
   const opened = await ctx.host.researchOpen(url);
   if (!opened.ok)
-    throw new OmenflowError(ErrorCodes.INTERNAL, opened.error ?? 'Research browser failed');
+    throw new BureauError(ErrorCodes.INTERNAL, opened.error ?? 'Research browser failed');
   return ctx.host.researchReadPage();
 }

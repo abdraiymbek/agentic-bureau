@@ -7,7 +7,7 @@
  * The same engine backs the agent-facing `cad.check` tool and the evaluation
  * suite, so "the model declares intent, software verifies" is one code path.
  */
-import type { Expectation } from '@omenflow/contracts';
+import type { Expectation } from '@bureau/contracts';
 import {
   analyzeMesh,
   assertFiniteMesh,

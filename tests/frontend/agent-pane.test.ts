@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatTurn } from '@omenflow/contracts';
+import type { ChatTurn } from '@bureau/contracts';
 import { paneFor, useAgentUi } from '../../apps/desktop/src/renderer/shell/agent/agent-store';
 import type { ProjectChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 import {
@@ -36,7 +36,7 @@ describe('the agent pane', () => {
     useAgentUi.getState().setRecordOpen(true);
     useAgentUi.getState().setPane('terminal');
     expect(useAgentUi.getState().recordOpen).toBe(false);
-    expect(saved.get('omen.agentPane.p1')).toBe('terminal');
+    expect(saved.get('bureau.agentPane.p1')).toBe('terminal');
     useAgentUi.getState().enterProject('p2');
     expect(useAgentUi.getState().pane).toBe('conversation');
     expect(paneFor('p1')).toBe('terminal');

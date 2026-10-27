@@ -222,7 +222,7 @@
   content: '';
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   background: currentColor;
 }
 .evidence-chip-state.tone-neutral {
@@ -740,7 +740,7 @@
   margin-top: 6px;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   background: var(--field);
   border: 1.5px solid var(--text-3);
   position: relative;

@@ -4,11 +4,11 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import {
   ErrorCodes,
   Origin,
-  OmenflowError,
+  BureauError,
   PROJECT_FILE,
   SCHEMA_VERSION,
   type MechanicalPayload,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { bomCsv, bomMarkdown } from './components.js';
 import { renderMatchesInput } from './cad-input.js';
@@ -23,7 +23,7 @@ import {
   validateObjectHash,
   LATEST_SCHEMA_VERSION,
   sha256Hex,
-} from '@omenflow/storage';
+} from '@bureau/storage';
 
 /**
  * Build preview: enumerate the selected baseline (or labeled drafts) and every
@@ -124,7 +124,7 @@ export async function exportBuildPackage(
   const issueCount = preview.items.reduce((n, i) => n + i.issues.length, 0);
   const status = issueCount === 0 ? 'baseline' : 'draft';
   if (status === 'draft' && !input.includeDrafts) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Build has ${issueCount} unresolved issue(s)`, {
+    throw new BureauError(ErrorCodes.VALIDATION, `Build has ${issueCount} unresolved issue(s)`, {
       repair: 'Resolve issues, or export with includeDrafts for a labeled Draft package.',
       details: preview.items.filter((i) => i.issues.length > 0),
     });
@@ -246,13 +246,13 @@ export function exportArchive(
   // Redact only a private snapshot. VACUUM removes deleted terminal bytes from
   // free pages as well; the user's live terminal history is preserved.
   files.set(
-    '.omenflow/state.sqlite',
+    '.bureau/state.sqlite',
     ctx.handle.pdb.archiveSnapshot({ includeSessionData: includeTerminal }),
   );
 
   files.set(
-    'omenflow.project.json',
-    strToU8(fs.readFileSync(resolveProjectPath(ctx.root, 'omenflow.project.json'), 'utf8')),
+    'bureau.project.json',
+    strToU8(fs.readFileSync(resolveProjectPath(ctx.root, 'bureau.project.json'), 'utf8')),
   );
   const readme = resolveMaterializationPath(ctx.root, 'README.md');
   if (fs.existsSync(readme)) files.set('README.md', fs.readFileSync(readme));
@@ -263,7 +263,7 @@ export function exportArchive(
     if (!fs.existsSync(abs)) return;
     for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
       if (e.isSymbolicLink())
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.VALIDATION,
           `Cannot archive symbolic link: ${rel}/${e.name}`,
         );
@@ -275,11 +275,11 @@ export function exportArchive(
   walk('artifacts');
 
   // Every object (archive must be self-contained history).
-  const objRoot = resolveProjectPath(ctx.root, '.omenflow/objects');
+  const objRoot = resolveProjectPath(ctx.root, '.bureau/objects');
   const walkObj = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       if (e.isSymbolicLink())
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.VALIDATION,
           'Cannot archive symbolic links in object store',
         );
@@ -287,7 +287,7 @@ export function exportArchive(
       if (e.isDirectory()) walkObj(p);
       else
         files.set(
-          `.omenflow/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`,
+          `.bureau/objects/${path.relative(objRoot, p).split(path.sep).join('/')}`,
           fs.readFileSync(p),
         );
     }
@@ -350,7 +350,7 @@ type ArchiveManifest = { format: string; version: number; projectId: string; nam
 type ArchiveMember = { name: string; size: number; crc: number; directory: boolean };
 
 function invalidArchive(message: string): never {
-  throw new OmenflowError(ErrorCodes.ARCHIVE_INVALID, message);
+  throw new BureauError(ErrorCodes.ARCHIVE_INVALID, message);
 }
 
 function crc32(data: Uint8Array): number {
@@ -474,21 +474,21 @@ function readArchive(archivePath: string): {
       typeof manifest.name !== 'string'
     )
       invalidArchive('Unsupported archive manifest');
-    if (!entries[PROJECT_FILE] || !entries['.omenflow/state.sqlite'])
+    if (!entries[PROJECT_FILE] || !entries['.bureau/state.sqlite'])
       invalidArchive('Missing project marker or database');
     for (const member of members) {
       if (
-        member.name.startsWith('.omenflow/') &&
+        member.name.startsWith('.bureau/') &&
         !member.directory &&
-        member.name !== '.omenflow/state.sqlite' &&
-        !/^\.omenflow\/objects\/[0-9a-f]{2}\/[0-9a-f]{64}$/.test(member.name)
+        member.name !== '.bureau/state.sqlite' &&
+        !/^\.bureau\/objects\/[0-9a-f]{2}\/[0-9a-f]{64}$/.test(member.name)
       ) {
         invalidArchive(`Reserved archive member: ${member.name}`);
       }
     }
     return { manifest, entries };
   } catch (error) {
-    if (error instanceof OmenflowError) throw error;
+    if (error instanceof BureauError) throw error;
     invalidArchive(`Invalid ZIP archive: ${(error as Error).message}`);
   }
 }
@@ -507,7 +507,7 @@ function validateStagedProject(root: string, manifest: ArchiveManifest): void {
   ) {
     invalidArchive('Unsupported or inconsistent project marker');
   }
-  const pdb = new ProjectDb(path.join(root, '.omenflow/state.sqlite'), { readOnly: true });
+  const pdb = new ProjectDb(path.join(root, '.bureau/state.sqlite'), { readOnly: true });
   try {
     const version = pdb.db.prepare(`SELECT value FROM meta WHERE key='schema_version'`).get() as
       { value: string } | undefined;
@@ -518,7 +518,7 @@ function validateStagedProject(root: string, manifest: ArchiveManifest): void {
       invalidArchive('Invalid project database');
     const repo = new Repo(pdb.db);
     if (repo.getProject()?.id !== pf.id) invalidArchive('Project identity mismatch');
-    const objects = new ObjectStore(path.join(root, '.omenflow/objects'), true);
+    const objects = new ObjectStore(path.join(root, '.bureau/objects'), true);
     const verifyHashes = (value: unknown): void => {
       if (!value || typeof value !== 'object') return;
       if (Array.isArray(value)) {
@@ -611,7 +611,7 @@ export function expandArchive(
   if (occupied()) invalidArchive('Archive destination must be a new or empty directory');
   const { manifest, entries } = readArchive(archivePath);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
-  const staging = fs.mkdtempSync(path.join(path.dirname(absolute), '.omenflow-import-'));
+  const staging = fs.mkdtempSync(path.join(path.dirname(absolute), '.bureau-import-'));
   try {
     for (const [name, data] of Object.entries(entries)) {
       const dest = resolveProjectPath(staging, name);
@@ -619,7 +619,7 @@ export function expandArchive(
         fs.mkdirSync(dest, { recursive: true });
         continue;
       }
-      if (name.startsWith('.omenflow/objects/')) {
+      if (name.startsWith('.bureau/objects/')) {
         const hash = path.basename(name);
         validateObjectHash(hash);
         if (name.split('/')[2] !== hash.slice(0, 2) || sha256Hex(Buffer.from(data)) !== hash)
@@ -635,7 +635,7 @@ export function expandArchive(
     // desktop filesystems; a nonempty destination is never removed.
     fs.renameSync(staging, absolute);
   } catch (error) {
-    if (error instanceof OmenflowError) throw error;
+    if (error instanceof BureauError) throw error;
     invalidArchive(`Could not import project: ${(error as Error).message}`);
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });

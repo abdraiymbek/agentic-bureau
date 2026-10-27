@@ -1,4 +1,4 @@
-import type { ArtifactView } from '@omenflow/contracts';
+import type { ArtifactView } from '@bureau/contracts';
 
 /** Engineering state of one object as the map marks it. Each flag is a separate dimension. */
 export const FLAG = {

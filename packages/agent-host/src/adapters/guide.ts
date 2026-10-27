@@ -1,5 +1,5 @@
 /**
- * The Omen Flow agent guide: how an agent CLI should work inside a project.
+ * The Bureau agent guide: how an agent CLI should work inside a project.
  * Written to `<project>/AGENTS.md` at session start (Codex and most agent CLIs
  * read that file from the working directory automatically) and included in
  * the per-session bootstrap brief.
@@ -10,17 +10,17 @@
  * geometry.
  */
 
-export const GUIDE_MARKER = '<!-- omenflow:agent-guide -->';
+export const GUIDE_MARKER = '<!-- bureau:agent-guide -->';
 
 export function agentGuide(): string {
   return `${GUIDE_MARKER}
-# Working in this Omen Flow project
+# Working in this Bureau project
 
-Omen Flow is a local engineering workspace. Project state lives in \`.omenflow/state.sqlite\`
-and is reached through the **omenflow MCP tools** (\`cad_write_source\`, \`cad_check\`,
+Bureau is a local engineering workspace. Project state lives in \`.bureau/state.sqlite\`
+and is reached through the **bureau MCP tools** (\`cad_write_source\`, \`cad_check\`,
 \`artifact_list\`, …). Call them directly as tools — their schemas are self-describing. Only if
-no MCP tools are available fall back to the shell: \`omenflow call <op> --help\` prints an op's
-schema and \`omenflow call <op> --input file.json\` calls it. Files under \`artifacts/\` are
+no MCP tools are available fall back to the shell: \`bureau call <op> --help\` prints an op's
+schema and \`bureau call <op> --input file.json\` calls it. Files under \`artifacts/\` are
 readable mirrors — do not edit them by hand or shell out to CAD tools; every change must go
 through the tools so it is recorded as a revision.
 

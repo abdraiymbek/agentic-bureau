@@ -1,13 +1,14 @@
-import React, { forwardRef, memo } from 'react';
+import React, { forwardRef, memo, useState } from 'react';
 import {
   CaretDown,
   CaretRight,
   FrameCorners,
   GitBranch,
   Keyboard,
+  ListChecks,
   Minus,
   Plus,
-} from '@phosphor-icons/react';
+} from '../../ui/icons';
 import { Button, IconButton, Kbd, State, Tooltip, TypeGlyph, typeMeta } from '../../ui/kit';
 import { useSignal, type Signal } from './chrome';
 import type { MapController, MapStatus } from './controller';
@@ -153,8 +154,10 @@ export const MapLabels = memo(
             <div
               key={label.id}
               className="map-label column"
+              data-layer={label.id.slice('column:'.length)}
               style={{ left: label.x, top: label.y }}
             >
+              <i className="layer-swatch" aria-hidden="true" />
               {label.text} <span>{label.count}</span>
             </div>
           ) : (
@@ -204,16 +207,32 @@ export const MapLegend = memo(function MapLegend({
     entries.push(['hollow', <i className="map-mark hollow" />, 'no baseline']);
   if (flags & FLAG.touched)
     entries.push(['touched', <i className="lg-ring" />, 'changed by agent']);
+  // The key rests behind one quiet button, so the map carries only the map.
+  const [open, setOpen] = useState(false);
   if (!entries.length) return null;
   return (
-    <ul className="map-legend island" aria-label="Map legend">
-      {entries.map(([key, mark, text]) => (
-        <li key={key}>
-          {mark}
-          {text}
-        </li>
-      ))}
-    </ul>
+    <div className="map-key">
+      {open && (
+        <ul className="map-legend island" id="map-legend" aria-label="Map legend">
+          {entries.map(([key, mark, text]) => (
+            <li key={key}>
+              {mark}
+              {text}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button
+        type="button"
+        className="map-key-toggle"
+        aria-expanded={open}
+        aria-controls="map-legend"
+        onClick={() => setOpen((was) => !was)}
+      >
+        <ListChecks size={14} />
+        Key
+      </button>
+    </div>
   );
 });
 

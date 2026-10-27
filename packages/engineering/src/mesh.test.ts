@@ -11,7 +11,7 @@ import {
   crossSection,
   parseStlTriangles,
   type TriangleBuffer,
-} from '@omenflow/core';
+} from '@bureau/core';
 
 /**
  * Mesh analysis is validated against real OpenSCAD renders of shapes with
@@ -32,7 +32,7 @@ function render(scad: string): TriangleBuffer {
 beforeAll(async () => {
   const probe = await adapter.probe();
   exe = probe.available ? probe.executablePath : null;
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-mesh-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-mesh-'));
 });
 
 describe.skipIf(

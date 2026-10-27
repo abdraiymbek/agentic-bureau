@@ -3,7 +3,7 @@
  * `name = value;` statements. Arguments of calls, assignments inside modules and text inside
  * comments or strings are not parameters and are never reported.
  */
-import type { MechanicalPayload } from '@omenflow/contracts';
+import type { MechanicalPayload } from '@bureau/contracts';
 import { convert, unitDef } from '../ui/units';
 
 export type ScadValue = number | boolean | string;

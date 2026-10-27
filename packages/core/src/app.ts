@@ -6,10 +6,10 @@ import {
   Origin,
   PROJECT_FILE,
   SessionInfo,
-  OmenflowError,
+  BureauError,
   newId,
   OPS_BY_NAME,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import {
   ProjectHandle,
   createProject,
@@ -19,7 +19,7 @@ import {
   writeRenameJournal,
   clearRenameJournal,
   readProjectFile,
-} from '@omenflow/storage';
+} from '@bureau/storage';
 import { ProjectContext, HostServices, EngineTools, nullHost } from './context.js';
 import { ProjectWatcher } from './watcher.js';
 import { assertServedByLegacyCore, dispatch } from './dispatch.js';
@@ -159,7 +159,7 @@ export class CoreApp {
 
   contextFor(projectId: string): ProjectContext {
     const ctx = this.contexts.get(projectId);
-    if (!ctx) throw new OmenflowError(ErrorCodes.NOT_FOUND, `No open project: ${projectId}`);
+    if (!ctx) throw new BureauError(ErrorCodes.NOT_FOUND, `No open project: ${projectId}`);
     return ctx;
   }
 
@@ -191,7 +191,7 @@ export class CoreApp {
       id?: string;
     };
     if (marker.id && this.contexts.has(marker.id) && this.contexts.get(marker.id)!.root !== root)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.REVISION_CONFLICT,
         'Another folder with this project identity is already open; import a copy with a new identity',
       );
@@ -232,7 +232,7 @@ export class CoreApp {
       }),
       requestHash,
       state: 'failed',
-      error: OmenflowError.from(error).toBody(),
+      error: BureauError.from(error).toBody(),
     });
   }
 
@@ -241,7 +241,7 @@ export class CoreApp {
     if (existing) {
       if (existing.root !== handle.root) {
         handle.close();
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.REVISION_CONFLICT,
           'Another folder with this project identity is already open',
         );
@@ -304,9 +304,9 @@ export class CoreApp {
     idempotencyKey?: string,
   ): Promise<unknown> {
     const definition = OPS_BY_NAME.get(op);
-    if (!definition) throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown operation: ${op}`);
+    if (!definition) throw new BureauError(ErrorCodes.VALIDATION, `Unknown operation: ${op}`);
     if (origin.kind === 'agent' && definition.capability === 'user') {
-      throw new OmenflowError(
+      throw new BureauError(
         op === 'artifact.apply_edit' ? ErrorCodes.APPROVAL_REQUIRED : ErrorCodes.CAPABILITY_DENIED,
         `Agents cannot call ${op}`,
       );
@@ -314,7 +314,7 @@ export class CoreApp {
     assertServedByLegacyCore(op);
     const parsed = definition.input.safeParse(payload ?? {});
     if (!parsed.success)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         `Invalid input: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
       );
@@ -379,11 +379,9 @@ export class CoreApp {
             readOnly: live.readOnly,
           };
         const root = canonicalize(p.path);
-        const marker = JSON.parse(
-          fs.readFileSync(path.join(root, 'omenflow.project.json'), 'utf8'),
-        );
+        const marker = JSON.parse(fs.readFileSync(path.join(root, 'bureau.project.json'), 'utf8'));
         if (this.contexts.has(marker.id))
-          throw new OmenflowError(
+          throw new BureauError(
             ErrorCodes.REVISION_CONFLICT,
             'Another folder with this project identity is already open; import a copy with a new identity',
           );
@@ -482,7 +480,7 @@ export class CoreApp {
         }
         const { manifest } = verifyArchive(p.archivePath);
         if (this.contexts.has(manifest.projectId) && !p.newIdentity) {
-          throw new OmenflowError(ErrorCodes.VALIDATION, 'Project already open', {
+          throw new BureauError(ErrorCodes.VALIDATION, 'Project already open', {
             repair: 'Close it first, or import with newIdentity to make a copy.',
           });
         }
@@ -492,11 +490,11 @@ export class CoreApp {
             const stagingHandle = openProject(staging);
             try {
               if (stagingHandle.readOnly)
-                throw new OmenflowError(
+                throw new BureauError(
                   ErrorCodes.READ_ONLY,
                   'Cannot re-identify a newer project format',
                 );
-              const pfPath = path.join(staging, 'omenflow.project.json');
+              const pfPath = path.join(staging, 'bureau.project.json');
               const pf = JSON.parse(fs.readFileSync(pfPath, 'utf8'));
               pf.id = newId();
               pf.name = `${pf.name} (copy)`;
@@ -567,7 +565,7 @@ export class CoreApp {
           ['__proto__', 'constructor', 'prototype'].includes(a) ||
           ['__proto__', 'constructor', 'prototype'].includes(b)
         )
-          throw new OmenflowError(ErrorCodes.VALIDATION, `Bad settings key: ${key}`);
+          throw new BureauError(ErrorCodes.VALIDATION, `Bad settings key: ${key}`);
         (this.settings as unknown as Record<string, Record<string, unknown>>)[a] ??= {};
         (this.settings as unknown as Record<string, Record<string, unknown>>)[a]![b!] = value;
         this.saveSettings();
@@ -613,7 +611,7 @@ export class CoreApp {
       case 'connection.test': {
         const p = payload as { adapterId: string };
         if (!this.connectionHost)
-          throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No connection host');
+          throw new BureauError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.test(this.contextFor(projectId!), p.adapterId);
       }
       case 'connection.configure': {
@@ -624,7 +622,7 @@ export class CoreApp {
           env?: Record<string, string>;
         };
         if (!this.connectionHost)
-          throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No connection host');
+          throw new BureauError(ErrorCodes.TOOL_MISSING, 'No connection host');
         return this.connectionHost.configure(p.adapterId, p);
       }
       default: {

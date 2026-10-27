@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ArtifactView } from '@omenflow/contracts';
+import type { ArtifactView } from '@bureau/contracts';
 import { cmd, errMsg } from '../api';
 import { openProposals, useStore } from '../store';
 import { Button, Notice, stateLabel } from '../ui/kit';

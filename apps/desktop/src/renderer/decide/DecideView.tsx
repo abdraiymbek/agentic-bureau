@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { CaretLeft, CaretRight, CheckCircle, GitBranch } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, CheckCircle, GitBranch } from '../ui/icons';
 import { errMsg } from '../api';
 import { useStore } from '../store';
 import { ErrorBoundary } from '../ui/ErrorBoundary';

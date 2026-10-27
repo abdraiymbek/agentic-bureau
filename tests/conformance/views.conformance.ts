@@ -40,7 +40,7 @@ let app: RustCore;
 let projectId: string;
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-views-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-views-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

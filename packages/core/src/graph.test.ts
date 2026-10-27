@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Artifact, ErrorCodes, RecordedInput, Revision, newId } from '@omenflow/contracts';
+import { Artifact, ErrorCodes, RecordedInput, Revision, newId } from '@bureau/contracts';
 import { CoreApp, nullHost } from './index.js';
 import { dispatch } from './dispatch.js';
 import { ProjectContext } from './context.js';
@@ -21,7 +21,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function setup() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-graph-regression-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-graph-regression-'));
   roots.push(root);
   const app = new CoreApp(path.join(root, 'app'), nullHost);
   apps.push(app);

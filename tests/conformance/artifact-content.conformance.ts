@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { artifactTypes, describeOp, validatePayload, type ArtifactType } from '@omenflow/contracts';
+import { artifactTypes, describeOp, validatePayload, type ArtifactType } from '@bureau/contracts';
 import { CoreError, RustCore } from './rust-core';
 import payloads from '../fixtures/artifact-payloads.json';
 
@@ -21,7 +21,7 @@ const agent = { kind: 'agent' as const, sessionId: '00000000-0000-4000-8000-0000
 const call = (op: string, payload: unknown) =>
   app.dispatch(op, payload, agent, projectId) as Promise<any>;
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-content-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-content-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

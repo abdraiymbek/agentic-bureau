@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { OPS, buildRegistry, serializeRegistry } from '@omenflow/contracts';
+import { OPS, buildRegistry, serializeRegistry } from '@bureau/contracts';
 
 const registryFile = fileURLToPath(new URL('../crates/contracts/registry.json', import.meta.url));
 

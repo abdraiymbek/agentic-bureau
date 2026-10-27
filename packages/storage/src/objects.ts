@@ -1,16 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, MAX_FILE_BYTES, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, MAX_FILE_BYTES, BureauError } from '@bureau/contracts';
 import { resolveProjectPath, sha256Hex } from './paths.js';
 
 export function validateObjectHash(hash: string): void {
   if (!/^[0-9a-f]{64}$/.test(hash)) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Invalid SHA-256 object identifier');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Invalid SHA-256 object identifier');
   }
 }
 
 /**
- * Content-addressed immutable object store under `.omenflow/objects/`.
+ * Content-addressed immutable object store under `.bureau/objects/`.
  * Objects are written once and never mutated; revisions reference hashes.
  */
 export class ObjectStore {
@@ -28,9 +28,9 @@ export class ObjectStore {
 
   /** Write bytes into the store; returns the sha256. Idempotent. */
   put(buf: Buffer): string {
-    if (this.readOnly) throw new OmenflowError(ErrorCodes.READ_ONLY, 'Object store is read-only');
+    if (this.readOnly) throw new BureauError(ErrorCodes.READ_ONLY, 'Object store is read-only');
     if (buf.byteLength > MAX_FILE_BYTES) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
+      throw new BureauError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
     }
     const hash = sha256Hex(buf);
     const dest = this.objectPath(hash);
@@ -75,7 +75,7 @@ export class ObjectStore {
 
   putFile(absPath: string): string {
     if (fs.statSync(absPath).size > MAX_FILE_BYTES) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
+      throw new BureauError(ErrorCodes.VALIDATION, `File exceeds ${MAX_FILE_BYTES} byte limit`);
     }
     return this.put(fs.readFileSync(absPath));
   }
@@ -91,11 +91,11 @@ export class ObjectStore {
   read(hash: string): Buffer {
     const objectPath = this.objectPath(hash);
     if (fs.statSync(objectPath).size > MAX_FILE_BYTES) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Object exceeds ${MAX_FILE_BYTES} byte limit`);
+      throw new BureauError(ErrorCodes.VALIDATION, `Object exceeds ${MAX_FILE_BYTES} byte limit`);
     }
     const bytes = fs.readFileSync(objectPath);
     if (sha256Hex(bytes) !== hash) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Corrupt object: ${hash}`);
+      throw new BureauError(ErrorCodes.VALIDATION, `Corrupt object: ${hash}`);
     }
     return bytes;
   }
@@ -110,7 +110,7 @@ export class ObjectStore {
 
   /** Restore object to writable-then-protected state for tests. */
   deleteUnreferenced(keep: Set<string>): string[] {
-    if (this.readOnly) throw new OmenflowError(ErrorCodes.READ_ONLY, 'Object store is read-only');
+    if (this.readOnly) throw new BureauError(ErrorCodes.READ_ONLY, 'Object store is read-only');
     const removed: string[] = [];
     for (const shard of fs.readdirSync(this.objectsDir)) {
       const shardDir = path.join(this.objectsDir, shard);

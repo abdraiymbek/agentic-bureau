@@ -13,7 +13,7 @@ import {
   capabilityProfiles,
   serializeRegistry,
   toolListing,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'crates', 'contracts', 'registry.json');

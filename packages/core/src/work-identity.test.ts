@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Origin, MechanicalPayload } from '@omenflow/contracts';
+import type { Origin, MechanicalPayload } from '@bureau/contracts';
 import { CoreApp, nullHost, writeBinaryStl, parseStlTriangles, analyzeMesh } from './index.js';
 import { latestCadVerification, createCadVerificationEvidence } from './cad-verification.js';
 import { readActiveWork } from './work.js';
@@ -73,7 +73,7 @@ function fakeCad(onRender?: () => void): CadAdapter {
 }
 
 async function project(onRender?: () => void) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-work-identity-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-work-identity-'));
   const app = new CoreApp(path.join(dir, 'appdata'), nullHost);
   apps.push(app);
   app.engineTools = { cad: fakeCad(onRender) };
@@ -152,7 +152,7 @@ describe('request-bound work identity', () => {
       .prepare('UPDATE revision SET payload=? WHERE id=?')
       .run(JSON.stringify(legacy), rev.id);
     const manifest = ctx.resolvePath(
-      `.omenflow/cache/render-v1/${legacy.renderIdentity.inputFingerprint}/complete.json`,
+      `.bureau/cache/render-v1/${legacy.renderIdentity.inputFingerprint}/complete.json`,
     );
     const cache = JSON.parse(fs.readFileSync(manifest, 'utf8'));
     delete cache.sourceOrientationCorrected;
@@ -286,7 +286,7 @@ describe('identical render sharing', () => {
 
 describe('two live projects with delayed calculations', () => {
   it('keeps delayed results on the originating project', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-two-projects-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-two-projects-'));
     const app = new CoreApp(path.join(dir, 'appdata'), nullHost);
     apps.push(app);
     const slow = (value: number, ms: number) => ({

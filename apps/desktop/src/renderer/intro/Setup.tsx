@@ -4,15 +4,7 @@
  * as they are pressed, and says where everything lives.
  */
 import React, { useEffect, useState } from 'react';
-import {
-  ArrowClockwise,
-  Check,
-  Cube,
-  FolderOpen,
-  GearSix,
-  HardDrive,
-  Scales,
-} from '@phosphor-icons/react';
+import { ArrowClockwise, Check, Cube, FolderOpen, GearSix, HardDrive, Scales } from '../ui/icons';
 import { preferredAdapter, useStore } from '../store';
 import { Button, Kbd, Notice, Segmented, Spinner, State } from '../ui/kit';
 import { ExternalLink } from '../ui/ExternalLink';
@@ -45,7 +37,7 @@ export function AgentStep() {
   const anyFound = rows.some((r) => r.available);
 
   const setPath = async (adapterId: string, label: string) => {
-    const path = await window.omenflow.pickFile({ title: `Locate ${label}` });
+    const path = await window.bureau.pickFile({ title: `Locate ${label}` });
     if (!path) return;
     const r = await quiet('connection.configure', { adapterId, executablePath: path });
     if (r.ok) {
@@ -57,7 +49,7 @@ export function AgentStep() {
   return (
     <>
       <p className="intro-lede">
-        Omen Flow runs the agent CLI you already use, in the project’s folder. The{' '}
+        Bureau runs the agent CLI you already use, in the project’s folder. The{' '}
         <strong>Conversation</strong> pane runs Codex CLI or Claude Code once per message; the{' '}
         <strong>Terminal</strong> pane runs any of them interactively. One agent works in a project
         at a time.
@@ -175,7 +167,7 @@ export function EngineStep({ platform }: { platform: Platform }) {
   }, []);
 
   const locate = async () => {
-    const path = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
+    const path = await window.bureau.pickFile({ title: 'Locate OpenSCAD' });
     if (!path) return;
     const r = await quiet('settings.set', { key: 'toolPaths.openscad', value: path });
     if (!r.ok) {
@@ -271,8 +263,8 @@ export function LookStep() {
   return (
     <>
       <p className="intro-lede">
-        Graphite for long sessions, Paper for bright rooms. The whole workspace changes with it,
-        this introduction included.
+        Dark for long sessions, Light for bright rooms. The whole workspace changes with it, this
+        introduction included.
       </p>
       <div className="intro-look">
         <Segmented
@@ -280,8 +272,8 @@ export function LookStep() {
           value={theme}
           onChange={(v) => set({ theme: v })}
           options={[
-            { value: 'dark', label: 'Graphite' },
-            { value: 'light', label: 'Paper' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
           ]}
         />
       </div>

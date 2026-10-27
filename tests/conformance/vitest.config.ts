@@ -1,6 +1,6 @@
 /**
  * The dispatch-level corpus run against the Rust host (`pnpm test:conformance`).
- * Kept apart from `pnpm test`: it needs cargo, and builds `omenflow-host` first.
+ * Kept apart from `pnpm test`: it needs cargo, and builds `bureau-host` first.
  */
 import { defineConfig } from 'vitest/config';
 import path from 'node:path';

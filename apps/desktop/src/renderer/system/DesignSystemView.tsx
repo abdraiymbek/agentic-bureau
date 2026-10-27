@@ -13,17 +13,17 @@ import {
   Robot,
   Trash,
   X,
-} from '@phosphor-icons/react';
-import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
+} from '../ui/icons';
+import { CHAT_CONTINUE_TEXT } from '@bureau/contracts/chat';
 import appIcon from '../../../../../design-system/brand/app-icon.png';
 import { PayloadDiff } from '../decide/PayloadDiff';
 import { diffPayload } from '../lib/diff';
 import { ContinuationMessage, WorkNotFinished } from '../chat/InlineGate';
 import { InlineVerification } from '../chat/InlineVerification';
 import { SpecItems } from '../decide/SpecItems';
-import type { CadSpecReadiness, CadSpecReport } from '@omenflow/contracts';
+import type { CadSpecReadiness, CadSpecReport } from '@bureau/contracts';
 import { useAgentUi } from '../shell/agent/agent-store';
-import { ActivityBar } from '../shell/ActivityBar';
+import { Sidebar } from '../shell/Sidebar';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { ExternalLink } from '../ui/ExternalLink';
 import { PartCard } from '../ui/PartCard';
@@ -72,10 +72,11 @@ const COLOR_GROUPS: { title: string; tokens: [token: string, role: string][] }[]
   {
     title: 'Planes',
     tokens: [
-      ['--field', 'Window, map canvas'],
-      ['--surface', 'The stage in focus'],
-      ['--raised', 'Islands, menus, cards'],
-      ['--raised-2', 'Hover, inputs'],
+      ['--field', 'Carbon: window and sidebar'],
+      ['--surface', 'The sheet the work sits on'],
+      ['--raised', 'Nodes, cards, menus, inputs'],
+      ['--raised-2', 'Hover, controls'],
+      ['--selected', 'Graphite Navy: the selected row or lens'],
       ['--pressed', 'A control held down'],
       ['--inset', 'Code, terminal, viewport'],
       ['--overlay', 'Scrim behind dialogs'],
@@ -96,7 +97,8 @@ const COLOR_GROUPS: { title: string; tokens: [token: string, role: string][] }[]
   {
     title: 'Signal and state',
     tokens: [
-      ['--signal', 'Signal fill'],
+      ['--signal', 'Signal fill, the live pixel'],
+      ['--ice', "The mark's light pixels"],
       ['--signal-stroke', 'Signal as a line, ring or dot'],
       ['--signal-text', 'Signal as text'],
       ['--focus', 'Focus ring'],
@@ -360,11 +362,12 @@ export function DesignSystemView() {
       <div className="system-col">
         <header className="system-hero">
           <Mark size={30} />
-          <h1>Lens</h1>
+          <h1>Bureau</h1>
           <p>
-            The Omen Flow design language. One graphite field, one signal colour, three zoom levels,
-            and a causal grammar that makes complex engineering feel simple. Every specimen below is
-            the real component, shown in Graphite and Paper side by side.
+            The design language of Agentic Bureau. A Carbon window, one sheet for the work, one cyan
+            signal, square pixels from the mark, and the Lens model: three zoom levels in a causal
+            grammar. Every specimen below is the real component, shown in the dark and light themes
+            side by side.
           </p>
           <div className="row">
             <Segmented
@@ -372,8 +375,8 @@ export function DesignSystemView() {
               value={theme}
               onChange={(v) => set({ theme: v })}
               options={[
-                { value: 'dark', label: 'Graphite' },
-                { value: 'light', label: 'Paper' },
+                { value: 'dark', label: 'Dark' },
+                { value: 'light', label: 'Light' },
               ]}
             />
           </div>
@@ -438,25 +441,25 @@ export function DesignSystemView() {
             ))}
           </div>
           <div className="brand-row">
-            <div className="brand-tile dark">
+            <div className="brand-tile dark" data-theme="dark">
               <Mark size={56} />
             </div>
-            <div className="brand-tile light">
+            <div className="brand-tile light" data-theme="light">
               <Mark size={56} />
             </div>
             <div className="brand-tile icon">
-              <img src={appIcon} alt="Omen Flow app icon" width={88} height={88} />
+              <img src={appIcon} alt="Bureau app icon" width={88} height={88} />
             </div>
             <div className="brand-tile lockup">
               <Brand size={22} />
-              <small>Titlebar 17 px · lockup 18–22 px · launcher 34 px</small>
+              <small>Sidebar 16 px · lockup 18–22 px · launcher 34 px · introduction 40 px</small>
             </div>
           </div>
         </Section>
 
         <Section
           title="Colour"
-          note="Graphite and Paper share roles. Signal is the only chromatic accent outside state; drawn as a line it uses the stroke role, which stays readable on Paper."
+          note="The dark and light themes share roles. Signal is the only chromatic accent outside state; drawn as a line it uses the stroke role, which stays readable on light."
         >
           <Themes>
             {() => (
@@ -484,7 +487,7 @@ export function DesignSystemView() {
               <div className="ansi">
                 <pre className="ansi-sample">
                   <span style={{ color: 'var(--ansi-bright-black)' }}>$ </span>
-                  <span style={{ color: 'var(--terminal-fg)' }}>omenflow call cad.check</span>
+                  <span style={{ color: 'var(--terminal-fg)' }}>bureau call cad.check</span>
                   {'\n'}
                   <span style={{ color: 'var(--ansi-green)' }}>passed</span>
                   <span style={{ color: 'var(--ansi-bright-black)' }}> · 6 of 6 checks</span>
@@ -506,7 +509,7 @@ export function DesignSystemView() {
 
         <Section
           title="Type"
-          note="Geist for the interface, IBM Plex Mono for values, identifiers and source. Display sizes tighten their tracking; numbers use tabular figures."
+          note="Mona Sans for the interface and display, JetBrains Mono for values, identifiers, source and the terminal. Display sizes tighten their tracking; numbers use tabular figures."
         >
           <Themes single>
             {() => (
@@ -885,7 +888,7 @@ export function DesignSystemView() {
                 <ContinuationMessage text={CHAT_CONTINUE_TEXT} automatic />
                 <div className="chat-assistant-message">
                   <header>
-                    <strong>Omen Flow</strong>
+                    <strong>Bureau</strong>
                     <span>Claude Code</span>
                     <span className="chat-turn-model mono">claude-haiku-5-5</span>
                   </header>
@@ -996,7 +999,7 @@ function Themes({
       {(['dark', 'light'] as const).map((t) => (
         <div key={t} className="theme-pane" data-theme={t}>
           <span className="theme-name">
-            {t === 'dark' ? 'Graphite' : 'Paper'}
+            {t === 'dark' ? 'Dark' : 'Light'}
             {label ? ` · ${label}` : ''}
           </span>
           {children()}
@@ -1646,10 +1649,10 @@ function InProduct() {
   ];
   return (
     <div className="stack">
-      <Themes label="Activity bar, the real component (inert here)">
+      <Themes label="Sidebar, the real component (inert here)">
         {() => (
-          <div className="specimen-activity" ref={(el) => el?.setAttribute('inert', '')}>
-            <ActivityBar />
+          <div className="specimen-sidebar" ref={(el) => el?.setAttribute('inert', '')}>
+            <Sidebar />
           </div>
         )}
       </Themes>

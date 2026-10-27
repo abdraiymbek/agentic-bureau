@@ -1,6 +1,6 @@
-# Contributing to Omen Flow
+# Contributing to Bureau
 
-Omen Flow is a local desktop engineering workspace: an agent CLI drafts, a person decides.
+Bureau is a local desktop engineering workspace: an agent CLI drafts, a person decides.
 Contributions are welcome. Start with [development](docs/development.md) for the toolchain and
 commands, and [architecture](docs/architecture.md) for where things live. Before touching the
 interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-system/design.md).
@@ -10,7 +10,7 @@ interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-sys
 1. **Contracts first.** An operation, a field or an error shape starts in
    `packages/contracts/src/ops.ts` (zod), with its description, and for agent tools its `tier`,
    `pack`, `summary` and `example`. Changes are additive: existing operation names, the
-   `omenflow call <op>` / `omenflow mcp` surface and existing fields keep working; new fields are
+   `bureau call <op>` / `bureau mcp` surface and existing fields keep working; new fields are
    optional. Then run `pnpm contracts:export` and commit `crates/contracts/registry.json` with
    it; `pnpm contracts:check` fails when they drift. Tool-listing sizes have budgets
    (`packages/contracts/src/ops.test.ts` and the listing test in
@@ -26,7 +26,7 @@ interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-sys
    names tools by their underscore names. Tests sit beside the code; tests that need OpenSCAD
    use `cad::testing::engine_available`, which fails rather than silently skipping.
 3. **Storage stays schema 1.** Only additive, lazily created tables, indexes and nullable or
-   defaulted columns, new `meta` keys, new event types and sidecar files under `.omenflow/`. No
+   defaulted columns, new `meta` keys, new event types and sidecar files under `.bureau/`. No
    version bump, rename or constraint change. A project must stay openable by earlier builds.
 4. **The legacy TypeScript packages** are a behaviour oracle, not a place for new features.
    When an operation or input exists only in Rust, list it in `RUST_HOST_OPS` or
@@ -39,7 +39,7 @@ interface, read [AGENTS.md](AGENTS.md) and [the design specification](design-sys
    (one entry in `project/lenses.ts`), never a page or a dashboard. Use the tokens in
    `design-system/tokens.css`, the primitives in `ui/kit.tsx`, and the stylesheet of the surface
    you change in `styles/`. Import only types and the dependency-free entry points
-   `@omenflow/contracts/format` and `@omenflow/contracts/chat` from the contracts package, never
+   `@bureau/contracts/format` and `@bureau/contracts/chat` from the contracts package, never
    its runtime barrel. Renderer tests live in `tests/frontend/`. A new reusable pattern goes into
    the Design system view and the specification; check both themes at 1024 × 700 and
    1440 × 900 in `pnpm design:preview`.

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { ArtifactView, Revision } from '@omenflow/contracts';
+import type { ArtifactView, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import {

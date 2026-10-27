@@ -1,21 +1,21 @@
 {
-  "name": "@omenflow/agent-host",
+  "name": "@bureau/agent-host",
   "version": "0.2.4",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "bin": {
-    "omenflow": "bin/omenflow.mjs"
+    "bureau": "bin/bureau.mjs"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
-    "@omenflow/contracts": "workspace:*",
-    "@omenflow/core": "workspace:*",
-    "@omenflow/storage": "workspace:*",
+    "@bureau/contracts": "workspace:*",
+    "@bureau/core": "workspace:*",
+    "@bureau/storage": "workspace:*",
     "node-pty": "^1.1.0"
   }
 }

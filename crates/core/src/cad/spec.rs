@@ -7,8 +7,8 @@
 //! person records or approves are what make the list independent of the
 //! agent that checks the part.
 use super::*;
+use bureau_contracts::parse_agent_input;
 use expect::{Derived, Feature, ITEM_ASSERTIONS, ITEM_CHARS};
-use omenflow_contracts::parse_agent_input;
 use serde_json::Map;
 use std::collections::{BTreeSet, HashMap, HashSet};
 

@@ -12,7 +12,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--s-6);
-  padding: var(--s-5) var(--s-8) var(--s-4);
+  padding: var(--s-5) var(--s-6) var(--s-3);
   pointer-events: none;
 }
 .project-head > * {
@@ -25,15 +25,10 @@
   max-width: 620px;
   min-width: 0;
 }
-.identity h1 {
-  font-size: var(--text-2xl);
-  font-weight: 500;
-  letter-spacing: var(--tracking-display);
-  line-height: 1.15;
-}
+/* The project's name is in the sidebar; over the map only its intent shows, quietly. */
 .identity-intent {
   text-align: left;
-  color: var(--text-2);
+  color: var(--text-3);
   font-size: var(--text-md);
   line-height: 1.5;
   border-radius: var(--r-xs);
@@ -58,16 +53,14 @@ textarea.identity-intent.editing {
   font-size: var(--text-md);
 }
 .identity-meta {
-  color: var(--text-3);
-  font-size: var(--text-xs);
-  margin-top: 2px;
+  display: none;
 }
 
 /* ---------------- needs you ---------------- */
 .needs {
   position: absolute;
   top: var(--s-4);
-  right: var(--s-4);
+  right: var(--s-5);
   width: 312px;
   z-index: var(--z-island);
   padding: var(--s-1);
@@ -82,10 +75,11 @@ textarea.identity-intent.editing {
   flex-direction: row;
   align-items: center;
   gap: var(--s-2);
-  padding: var(--s-2) var(--s-3);
-  font-size: var(--text-xs);
+  padding: 0 var(--s-3);
+  height: 30px;
+  font-size: var(--text-sm);
   color: var(--text-2);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-sm);
 }
 .needs.quiet > svg {
   flex: none;
@@ -97,9 +91,8 @@ button.needs-pill:hover {
   color: var(--text);
 }
 .needs-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  width: 6px;
+  height: 6px;
   background: var(--warn);
 }
 .needs-head {
@@ -249,9 +242,9 @@ button.needs-pill:hover {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 32px;
+  height: 30px;
   padding: 0 12px;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   border: 1px dashed var(--line-control);
   color: var(--text-3);
   font-size: var(--text-sm);
@@ -268,7 +261,7 @@ button.needs-pill:hover {
 }
 .beginning h2 {
   font-size: var(--text-2xl);
-  font-weight: 500;
+  font-weight: var(--weight-strong);
   letter-spacing: var(--tracking-display);
 }
 .beginning p {
@@ -294,10 +287,6 @@ button.needs-pill:hover {
   .identity {
     gap: 0;
   }
-  .identity h1 {
-    font-size: var(--text-xl);
-    letter-spacing: var(--tracking-tight);
-  }
   .identity-intent {
     font-size: var(--text-sm);
   }
@@ -310,4 +299,15 @@ button.needs-pill:hover {
   .needs {
     top: var(--s-3);
   }
+}
+
+/* With something waiting, the resting pill carries the warning tint and its count. */
+.needs-pill:has(.needs-dot) {
+  background: var(--warn-soft);
+  color: var(--warn);
+  box-shadow: none;
+}
+.needs-pill .count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }

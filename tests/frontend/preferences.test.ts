@@ -17,7 +17,7 @@ const isLens = (id: string) => ['flow', 'parts', 'timeline', 'files'].includes(i
 afterEach(() => vi.unstubAllGlobals());
 
 describe('preference parsing', () => {
-  it('reads the theme, defaulting to Graphite', () => {
+  it('reads the theme, defaulting to dark', () => {
     expect(parseTheme('light')).toBe('light');
     expect(parseTheme('dark')).toBe('dark');
     expect(parseTheme(null)).toBe('dark');
@@ -72,8 +72,8 @@ describe('preference parsing', () => {
   });
 
   it('works without storage, or with storage that throws', () => {
-    expect(readRaw('omen.theme')).toBeNull();
-    expect(() => writeRaw('omen.theme', 'light')).not.toThrow();
+    expect(readRaw('bureau.theme')).toBeNull();
+    expect(() => writeRaw('bureau.theme', 'light')).not.toThrow();
     vi.stubGlobal('localStorage', {
       getItem: () => {
         throw new Error('denied');
@@ -82,7 +82,7 @@ describe('preference parsing', () => {
         throw new Error('quota');
       },
     });
-    expect(readRaw('omen.theme')).toBeNull();
-    expect(() => writeRaw('omen.theme', 'light')).not.toThrow();
+    expect(readRaw('bureau.theme')).toBeNull();
+    expect(() => writeRaw('bureau.theme', 'light')).not.toThrow();
   });
 });

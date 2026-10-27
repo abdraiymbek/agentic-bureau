@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
-import type { ArtifactView, ArtifactType, Revision } from '@omenflow/contracts';
-import { validatePayload } from '@omenflow/contracts';
+import type { ArtifactView, ArtifactType, Revision } from '@bureau/contracts';
+import { validatePayload } from '@bureau/contracts';
 import payloads from '../fixtures/artifact-payloads.json';
 import { displayedMechanicalRevision } from '../../apps/desktop/src/renderer/lib/mechanical-revisions';
 

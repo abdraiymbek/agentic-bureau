@@ -1,13 +1,13 @@
 [package]
-name = "omenflow-agent-host"
+name = "bureau-agent-host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 base64 = "0.22"
-omenflow-contracts = { path = "../contracts" }
-omenflow-core = { path = "../core" }
+bureau-contracts = { path = "../contracts" }
+bureau-core = { path = "../core" }
 interprocess = "2.4.4"
 serde.workspace = true
 serde_json.workspace = true

@@ -16,7 +16,7 @@ OpenSCAD is installed separately; it is not bundled.
   300,000 for agent calls) and cancellation through `job.cancel`. OpenSCAD messages are mapped
   to causes with the offending source line (`render.hints`).
 - **Cache** (`cad/render.rs`): results are keyed by a fingerprint of the source, parameters,
-  model unit, engine version and executable, under `.omenflow/cache/render-rust-v1/`, with the
+  model unit, engine version and executable, under `.bureau/cache/render-rust-v1/`, with the
   STL bytes in the object store. Deterministic failures are cached; timeouts and crashes for
   ten minutes. Identical renders running at the same time run the engine once. An inside-out
   closed mesh is stored outward and says so.
@@ -38,8 +38,8 @@ OpenSCAD is installed separately; it is not bundled.
 | `cad_read_source`                                  | no          | The source and parameters of the newest (or a given) revision, and whether it has a render                                                                                                                                           |
 | `cad_inspect`                                      | no revision | The report for any revision, with chosen cutting planes, probe points and `-D` overrides; a re-render is recorded as a job, nothing is committed                                                                                     |
 | `cad_check`                                        | yes         | Verifies explicit expectations and returns pass or fail per assertion, with measured against expected values, and per listed item                                                                                                    |
-| `cad_view`                                         | no revision | Draws a revision or a `-D` variant as one picture: views at one scale, an isometric view and sections. A variant or a missing render runs as a render job. Writes the picture under `.omenflow/cache/views-v1/`                      |
-| `image_view`                                       | no          | A PNG or JPEG file in the project with a grid labelled in fractions of its size, or a region of it enlarged up to 4x. Writes the picture under `.omenflow/cache/views-v1/`                                                           |
+| `cad_view`                                         | no revision | Draws a revision or a `-D` variant as one picture: views at one scale, an isometric view and sections. A variant or a missing render runs as a render job. Writes the picture under `.bureau/cache/views-v1/`                        |
+| `image_view`                                       | no          | A PNG or JPEG file in the project with a grid labelled in fractions of its size, or a region of it enlarged up to 4x. Writes the picture under `.bureau/cache/views-v1/`                                                             |
 | `cad_export`                                       | yes         | Writes a part as STEP (exact `brep` or `faceted`, below), STL or SCAD; full profile, and only when the person asked for a file                                                                                                       |
 
 `cad_write_source`, `cad_read_source`, `cad_check`, `cad_view` and `image_view` are in the
@@ -177,7 +177,7 @@ own newest check (see [going back to 0.2.3](project-format.md#going-back-to-023)
   `cad_render` job of this project with the same source hash, parameters and output hash;
   otherwise every derived output is removed, so a draft cannot claim a render it did not have.
 
-**Not listed for agents but still callable** (through `tool_call` or `omenflow call`):
+**Not listed for agents but still callable** (through `tool_call` or `bureau call`):
 `cad.render` (the background job the interface uses), `cad.validate_source`, `cad.probe`,
 `job.read`, `job.list`, `job.cancel`.
 
@@ -283,7 +283,7 @@ Not rebuilt exactly (the export is then faceted, with the reason): `minkowski()`
 
 **The converter is optional and installed separately.** OpenCASCADE (LGPL) is never bundled or
 downloaded. The core looks, in order, at Settings → Engineering tools → STEP converter
-(`toolPaths.python`), `OMENFLOW_PYTHON`, `~/.omenflow-step/bin/python3`, `python3` and `python`
+(`toolPaths.python`), `BUREAU_PYTHON`, `~/.bureau-step/bin/python3`, `python3` and `python`
 on `PATH`, `/opt/homebrew/bin/python3` and `/usr/local/bin/python3` (Linux: `/usr/bin/python3`),
 and on macOS the login shell's `python3`. macOS's `/usr/bin/python3` is used only when it is
 configured. A Python counts when `python -E -c "import OCP"` works (30 s limit). An export's
@@ -293,11 +293,11 @@ reports it as `results.python`) always check again, since installing or removing
 leaves the interpreter untouched. To set one up (Python 3.11 to 3.14):
 
 ```sh
-python3.12 -m venv ~/.omenflow-step
-~/.omenflow-step/bin/python -m pip install cadquery-ocp-novtk==7.9.3.1.1
+python3.12 -m venv ~/.bureau-step
+~/.bureau-step/bin/python -m pip install cadquery-ocp-novtk==7.9.3.1.1
 # or, with uv:
-uv venv --python 3.12 ~/.omenflow-step
-uv pip install --python ~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1
+uv venv --python 3.12 ~/.bureau-step
+uv pip install --python ~/.bureau-step/bin/python cadquery-ocp-novtk==7.9.3.1.1
 ```
 
 OCP 7.9.3 is the release CADGenBench's own STEP validity check uses.
@@ -344,7 +344,7 @@ logarithms, …). Expressions are at most 2,000 characters, 512 tokens and 64 le
   comparisons as results, rounding across mixed units, undefined names (the nearest input is
   named).
 - A re-run that reproduces the recorded formula, inputs and result creates nothing
-  (`unchanged: true`). Jobs and results record the engine `omenflow-calc/2`.
+  (`unchanged: true`). Jobs and results record the engine `bureau-calc/2` (`omenflow-calc/2` in runs made before the rename).
 - A calculation counts as computed only when this engine reproduces the result the revision
   records from the formula (or template) and inputs it records. A result typed into a payload,
   or one with an input that has no value, is not computed however it is labelled:

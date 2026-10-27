@@ -1,4 +1,4 @@
-import type { ArtifactView, Proposal, StaleRecord } from '@omenflow/contracts';
+import type { ArtifactView, Proposal, StaleRecord } from '@bureau/contracts';
 import { needsYou, waitingOnAgent } from '../../lib/proposals';
 
 export interface Suggestion {

@@ -8,7 +8,7 @@
 //! rows, build the response). `dispatch_shared` holds the application lock
 //! for the first and last step only; a direct dispatch runs all three in place.
 use super::*;
-use omenflow_storage::ObjectStore;
+use bureau_storage::ObjectStore;
 use std::collections::HashSet;
 
 mod checks;
@@ -102,7 +102,7 @@ impl<'a> Workspace<'a> {
     ) -> CoreResult<Self> {
         Ok(Self {
             root,
-            objects: ObjectStore::new(root.join(".omenflow/objects"), false)
+            objects: ObjectStore::new(root.join(".bureau/objects"), false)
                 .map_err(storage_error)?,
             executable,
             cancelled,
@@ -284,7 +284,7 @@ fn file_hash(handle: &ProjectHandle, relative: &str) -> CoreResult<Option<String
     let path = resolve_materialization_path(&handle.root, relative).map_err(storage_error)?;
     Ok(fs::read(path)
         .ok()
-        .map(|bytes| omenflow_storage::sha256_hex(&bytes)))
+        .map(|bytes| bureau_storage::sha256_hex(&bytes)))
 }
 
 /// Parameters as the part is actually rendered: the source values with the

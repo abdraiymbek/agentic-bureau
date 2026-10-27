@@ -3,15 +3,15 @@
 Version **0.2.4** is the current release; its checks and remaining limits are recorded in
 the [0.2.4 verification record](../audit/v0.2.4/README.md).
 
-Omen Flow is a preview, so its version line starts below 1.0. The four releases first published
+Bureau is a preview, so its version line starts below 1.0. The four releases first published
 as 1.0.0 (15 October 2026 UTC) to 1.0.3 (21 October 2026) were withdrawn on 21 October 2026 and
 renumbered 0.2.0 to 0.2.3: 0.2.3 is the 1.0.3 code rebuilt with the new number, and the earlier
 three builds were not republished. Their records keep their original numbers: the
 [1.0.3](../audit/v1.0.3/README.md), [1.0.2](../audit/v1.0.2/README.md) and
 [1.0.1](../audit/v1.0.1/README.md) verification records, and for 1.0.0 the
-[V1 readiness record](../audit/v1/README.md). Since 0.2.0 the macOS bundle carries identifier
-`app.omenflow.desktop`; the earlier 0.1.0 bundle described in the V1 readiness record was
-replaced. The next release is 0.2.5 or later.
+[V1 readiness record](../audit/v1/README.md). From 0.2.0 to 0.2.4 the macOS bundle carried identifier
+`app.omenflow.desktop`; from the rename to Agentic Bureau it is `app.agenticbureau.desktop`.
+The earlier 0.1.0 bundle described in the V1 readiness record was replaced. The next release is 0.2.5 or later.
 
 Publication and automated checks do not establish native manual acceptance. The last recorded
 native walkthrough by hand is the [26 September first-use audit](../audit/v1-readiness/README.md),
@@ -33,33 +33,33 @@ pnpm build:bridge
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
-cargo test --manifest-path native/omenflow-bridge/Cargo.toml --locked
-cargo test -p omenflow-agent-host --locked -- --ignored
+cargo test --manifest-path native/bureau-bridge/Cargo.toml --locked
+cargo test -p bureau-agent-host --locked -- --ignored
 pnpm typecheck
 pnpm lint
 pnpm format:check
-OMENFLOW_OPENSCAD_E2E=1 pnpm test
-OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=~/.omenflow-step/bin/python cargo test -p omenflow-core --lib --locked cad::step -- --nocapture
+BUREAU_OPENSCAD_E2E=1 pnpm test
+BUREAU_STEP_E2E=1 BUREAU_PYTHON=~/.bureau-step/bin/python cargo test -p bureau-core --lib --locked cad::step -- --nocapture
 pnpm test:conformance
 pnpm smoke:headless
 pnpm make
 pnpm smoke:packaged
 ```
 
-`cargo test --workspace` needs OpenSCAD for its engine tests. `OMENFLOW_OPENSCAD_E2E=1` also runs
+`cargo test --workspace` needs OpenSCAD for its engine tests. `BUREAU_OPENSCAD_E2E=1` also runs
 the legacy TypeScript real-engine tests.
 
-`OMENFLOW_STEP_E2E=1` runs the exact STEP converter (`crates/core/src/cad/csg_to_step.py`) on
+`BUREAU_STEP_E2E=1` runs the exact STEP converter (`crates/core/src/cad/csg_to_step.py`) on
 OCP, which nothing else on this list does: the default tests use a stand-in Python, the
 conformance case is engine-free, and CI installs no OCP. It needs a Python with the pinned OCP,
-for example `uv venv --python 3.12 ~/.omenflow-step && uv pip install --python
-~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1` ([development](development.md)).
-Without the variable these tests print `SKIPPED: set OMENFLOW_STEP_E2E …` and still count as
-passed, so check that the output has no such line (the corpus run, `OMENFLOW_STEP_CORPUS`, is
+for example `uv venv --python 3.12 ~/.bureau-step && uv pip install --python
+~/.bureau-step/bin/python cadquery-ocp-novtk==7.9.3.1.1` ([development](development.md)).
+Without the variable these tests print `SKIPPED: set BUREAU_STEP_E2E …` and still count as
+passed, so check that the output has no such line (the corpus run, `BUREAU_STEP_CORPUS`, is
 separate and still says `SKIPPED`), and record the Python and OCP versions with the results.
 
 `pnpm make` builds the Rust bridge helper, the static React renderer and the Rust Tauri app.
-On macOS it signs the app ad hoc and creates `target/release/bundle/macos/Omen Flow.app` and a
+On macOS it signs the app ad hoc and creates `target/release/bundle/macos/Bureau.app` and a
 DMG under `target/release/bundle/dmg/`; neither has Apple notarization. Other platforms build
 with `--no-sign`. The DMG step lays out its window through
 Finder with AppleScript, which needs the Finder automation permission of an interactive
@@ -67,7 +67,7 @@ session; where that is unavailable (background shells, CI), `CI=true pnpm make` 
 layout and still produces the DMG with the app and an Applications link. The bundle declares
 macOS 13.3 as its minimum, because the renderer targets the WebKit of Safari 16.4; it is
 built for Apple Silicon only. The package contains no Electron or Node
-runtime; the `omenflow` helper is bundled as a resource. OpenSCAD is a separately installed
+runtime; the `bureau` helper is bundled as a resource. OpenSCAD is a separately installed
 engine.
 
 `pnpm smoke:packaged` launches the bundle with disposable app data, has it create a project and
@@ -99,12 +99,12 @@ also run, in the native app:
 2. On the Mac, from that release commit: `CI=true pnpm make`, then `pnpm release:macos:adhoc`.
    This verifies the signed app, packages it with `INSTALL.txt`, mounts the resulting DMG,
    verifies the app and helper again, compares every file and runs the packaged smoke. Copy
-   `target/release/bundle/dmg/Omen Flow_<version>_aarch64.dmg` as
-   `Omen-Flow-<version>-macos-arm64.dmg`.
+   `target/release/bundle/dmg/Bureau_<version>_aarch64.dmg` as
+   `Bureau-<version>-macos-arm64.dmg`.
 3. In an arm64 Linux VM (colima on the Mac): `DOCKER_CONTEXT=… node scripts/linux-package.mjs
 --skip-tests`, then copy the packages from `target/release/bundle/linux-arm64/` as
-   `omen-flow_<version>_arm64.deb`, `omen-flow-<version>-1.aarch64.rpm` and
-   `Omen-Flow-<version>-aarch64.AppImage`.
+   `agentic-bureau_<version>_arm64.deb`, `agentic-bureau-<version>-1.aarch64.rpm` and
+   `Bureau-<version>-aarch64.AppImage`.
 4. In a folder containing only those four release assets, generate `SHA256SUMS` with
    `shasum -a 256 ./*.dmg ./*.deb ./*.rpm ./*.AppImage | sed 's#  \./#  #' > SHA256SUMS`.
    Name the files before hashing. Tag the exact release commit
@@ -132,7 +132,7 @@ See [Tauri's signing guide](https://v2.tauri.app/distribute/sign/macos/) and
 text can vary with macOS and its assessment state; a valid signature is not a promise of no
 security warnings.
 
-After building, run `pnpm release:macos:adhoc`. It accepts an optional `--app /path/to/Omen Flow.app`
+After building, run `pnpm release:macos:adhoc`. It accepts an optional `--app /path/to/Bureau.app`
 to repackage an existing release without recompiling or changing its signed contents. It refuses
 a version mismatch, an invalid signature or a non-ad-hoc app; Developer ID releases use the
 separate notarization workflow below. The packager includes `docs/macos-install.txt` as
@@ -146,7 +146,7 @@ authenticate if asked. Removing quarantine is not the same as Apple's per-app ap
 not the installation procedure. No global Gatekeeper changes are needed.
 
 macOS can also block a quarantined command-line helper launched by an agent. When its bundled
-helper is quarantined, Omen Flow writes a byte-for-byte copy into its own `bin/omenflow` data
+helper is quarantined, Bureau writes a byte-for-byte copy into its own `bin/bureau` data
 folder for the agent (`apps/rust-desktop/src/helper.rs`). This leaves the signed app untouched.
 The packaged smoke checks that helper path and the bridge capability boundaries.
 
@@ -163,25 +163,26 @@ Install a Developer ID Application certificate in the keychain and store notariz
 credentials with `xcrun notarytool store-credentials`. Set:
 
 ```sh
-export OMENFLOW_SIGNING_IDENTITY='Developer ID Application: YOUR NAME (TEAMID)'
-export OMENFLOW_NOTARIZE_PROFILE='omenflow-notary'
+export BUREAU_SIGNING_IDENTITY='Developer ID Application: YOUR NAME (TEAMID)'
+export BUREAU_NOTARIZE_PROFILE='bureau-notary'
 pnpm release:macos
 ```
 
-The release script builds the helper, the renderer and the app, signs the bundled `omenflow`
+The release script builds the helper, the renderer and the app, signs the bundled `bureau`
 helper and then the app with the hardened runtime (inside out: `--deep` does not sign
 executables shipped as resources, and notarization rejects any unsigned Mach-O), notarizes and
 staples it, verifies its signature and Gatekeeper assessment, runs the
 packaged smoke, then creates a DMG holding the stapled app and an Applications link, and signs,
 notarizes, staples and assesses it. The DMG name follows the version in `tauri.conf.json`. Without either
-variable (or off macOS) it stops before building: "Run on macOS with OMENFLOW_SIGNING_IDENTITY
-and OMENFLOW_NOTARIZE_PROFILE." This path has not been run with real Apple credentials. Do not
+variable (or off macOS) it stops before building: "Run on macOS with BUREAU_SIGNING_IDENTITY
+and BUREAU_NOTARIZE_PROFILE." This path has not been run with real Apple credentials. Do not
 publish solely because a DMG exists.
 
-From 0.2.0 (first published as 1.0.0) the bundle identifier is `app.omenflow.desktop` (earlier
-builds used `com.electron.omen-flow`). On its first start, the app copies `settings.json`, `reservations.json`
-and `window-state.json` from the earlier identifier's data folder, and settings from the
-Electron app's `@omenflow/desktop`, without overwriting anything it has already written and
+From the rename to Agentic Bureau the bundle identifier is `app.agenticbureau.desktop`; as Omen
+Flow, 0.2.0 to 0.2.4 used `app.omenflow.desktop`, and earlier builds `com.electron.omen-flow`. On
+its first start, the app copies `settings.json`, `reservations.json` and `window-state.json` from
+the newest earlier identifier's data folder that has each, and settings from the Electron app's
+`@omenflow/desktop`, without overwriting anything it has already written and
 leaving the old files in place; recent projects, agent and engine settings carry over that way.
 Interface preferences kept in the webview's own storage (for example rail and window layout in
 the renderer) start fresh, because that storage is keyed by the identifier. Projects live outside the app bundle
@@ -202,7 +203,7 @@ node scripts/linux-package.mjs --skip-build  # run the packages already in the o
 
 Run the first command. It exits 0 only when every step passed, and it passes end to end (below).
 `--keep-going` runs the remaining test and smoke steps after one fails and still exits 1; `--keep`
-leaves the containers (`omenflow-linux-*`) for inspection, which are otherwise removed at the end,
+leaves the containers (`bureau-linux-*`) for inspection, which are otherwise removed at the end,
 also after a failure.
 
 The script needs Docker, Node and a git checkout (it copies what `git ls-files` lists). On macOS,
@@ -210,7 +211,7 @@ run it against a Linux VM such as colima and select that daemon with `DOCKER_CON
 example `DOCKER_CONTEXT=colima-omenflow`) if it is not the current context; the packages are built
 for the VM's architecture.
 
-**Build base and compatibility floor.** The `omenflow-linux-build` image
+**Build base and compatibility floor.** The `bureau-linux-build` image
 (`scripts/linux/Dockerfile`) is Ubuntu 22.04 with the packages in `scripts/linux/build-deps.sh`
 (Tauri 2's list, D-Bus, `xdg-utils`, which the AppImage step copies in, Xvfb and xdotool, and
 Ubuntu's OpenSCAD 2021.01, which the Rust engine tests require), Node 24.19.0 checked against its
@@ -266,17 +267,17 @@ Each is launched by an ordinary user under `xvfb-run` with disposable app data a
 because Ubuntu 22.04's own is version 12):
 
 - the app creates a project and hands over an agent grant; the helper it resolved must be the
-  packaged one (`<prefix>/lib/Omen Flow/omenflow`); the helper prints its usage, the bridge
+  packaged one (`<prefix>/lib/Bureau/bureau`); the helper prints its usage, the bridge
   refuses an unknown token, and the grant reads the project, writes an agent draft, reads it back
   and is refused `proposal.approve`;
 - the login shell the app asks for its PATH must not inherit an AppImage's environment;
-- one visible top-level window titled Omen Flow of at least 1024 × 700 must exist, and the app
+- one visible top-level window titled Bureau of at least 1024 × 700 must exist, and the app
   must still be running five seconds later;
 - the screen is captured (xwd, converted to PNG by the script itself, because Ubuntu 22.04's
   `xwdtopnm` misreads Xvfb's 32-bit dumps), and at the same moment the app pictures its page the
   way the research screenshot does (WebKitGTK); the picture must be the window's size;
 - a stand-in agent CLI is started in the smoke project's Agent tab as a Custom CLI (a real PTY):
-  it must lead its own session and process group and reach the bridge through the `omenflow` on
+  it must lead its own session and process group and reach the bridge through the `bureau` on
   its PATH, which must be the packaged helper;
 - the app is sent SIGTERM: it must quit with status 0, and the agent's process group must be gone.
 
@@ -287,17 +288,17 @@ containers after `sudo sh scripts/linux/build-deps.sh --openscad`, Node 24, pnpm
 What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 `tauri.linux.conf.json` only when building on Linux, so the macOS bundle is unchanged):
 
-|               | `.deb` / `.rpm`                                                                                                                                                                                                             | AppImage                                 |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Name, version | `omen-flow` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Omen Flow contributors"                                                                                                                 | `Omen Flow_0.2.4_<arch>.AppImage`        |
-| App           | `/usr/bin/omen-flow`                                                                                                                                                                                                        | `usr/bin/omen-flow` inside the image     |
-| Helper        | `/usr/lib/Omen Flow/omenflow`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                          | `$APPDIR/usr/lib/Omen Flow/omenflow`     |
-| Menu entry    | `/usr/share/applications/Omen Flow.desktop`: `Name=Omen Flow`, `Exec=omen-flow`, `Icon=omen-flow`, `StartupWMClass=omen-flow` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image          |
-| Icons         | hicolor 32, 128 and 512 px                                                                                                                                                                                                  | the same                                 |
-| License       | `/usr/share/doc/omen-flow/{copyright,NOTICE}`, `/usr/share/licenses/omen-flow/{LICENSE,NOTICE}` (rpm)                                                                                                                       | `usr/share/doc/omen-flow/`               |
-| Depends       | glibc 2.35, WebKitGTK 4.1 (2.41.90 or later in the `.deb`), GTK 3 and D-Bus, as above                                                                                                                                       | bundled, except the host libraries above |
+|               | `.deb` / `.rpm`                                                                                                                                                                                                                      | AppImage                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| Name, version | `agentic-bureau` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Bureau contributors"                                                                                                                        | `Bureau_0.2.4_<arch>.AppImage`            |
+| App           | `/usr/bin/agentic-bureau`                                                                                                                                                                                                            | `usr/bin/agentic-bureau` inside the image |
+| Helper        | `/usr/lib/Bureau/bureau`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                                        | `$APPDIR/usr/lib/Bureau/bureau`           |
+| Menu entry    | `/usr/share/applications/Bureau.desktop`: `Name=Bureau`, `Exec=agentic-bureau`, `Icon=agentic-bureau`, `StartupWMClass=agentic-bureau` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image           |
+| Icons         | hicolor 32, 128 and 512 px                                                                                                                                                                                                           | the same                                  |
+| License       | `/usr/share/doc/agentic-bureau/{copyright,NOTICE}`, `/usr/share/licenses/agentic-bureau/{LICENSE,NOTICE}` (rpm)                                                                                                                      | `usr/share/doc/agentic-bureau/`           |
+| Depends       | glibc 2.35, WebKitGTK 4.1 (2.41.90 or later in the `.deb`), GTK 3 and D-Bus, as above                                                                                                                                                | bundled, except the host libraries above  |
 
-The app keeps its data in `~/.local/share/app.omenflow.desktop` (the bridge socket is
+The app keeps its data in `~/.local/share/app.agenticbureau.desktop` (the bridge socket is
 `run/bridge.sock` inside it; Linux allows 108 bytes for a socket path). A second start hands over
 to the running window through the D-Bus session bus.
 
@@ -331,7 +332,7 @@ that "Stop agent and close" ended with its process group.
 
 **x86_64**: the `package-linux` job in `.github/workflows/ci.yml` runs
 `node scripts/linux-package.mjs --skip-tests` on `ubuntu-22.04` and uploads the `.deb`, `.rpm` and
-AppImage (`omenflow-linux-x86_64`) and the screenshots. The **Release Linux x86_64** workflow
+AppImage (`bureau-linux-x86_64`) and the screenshots. The **Release Linux x86_64** workflow
 uses the same script, attaches packages to an existing release and updates `SHA256SUMS`. Its
 [1.0.0 run](https://github.com/abdraiymbek/omen-flow/actions/runs/38671472644) completed
 successfully on 15 October 2026 UTC; those three assets were attached to the 1.0.0 release, since
@@ -363,7 +364,7 @@ Known limits:
   signals above). It also needs the host's EGL, OpenGL ES/GL, HarfBuzz and FriBidi. Its launcher
   sets `LD_LIBRARY_PATH`, `PYTHONHOME`, `PATH`, GTK, GIO, GStreamer and Qt paths for the app;
   agent terminals, the login-shell and version probes, OpenSCAD and links opened in the browser
-  get the session's environment back and start outside the image (`omenflow_core::child_env`).
+  get the session's environment back and start outside the image (`bureau_core::child_env`).
 - **OpenSCAD.** Ubuntu 22.04 and 24.04 and Debian 12 ship OpenSCAD 2021.01, and every Rust engine
   test passes with it. Its CGAL kernel is slow on large 3D booleans: a sphere with
   `$fn = 560` minus a cylinder took 134 s with 22.04's build and 142 s with 24.04's (1 min 54 s of

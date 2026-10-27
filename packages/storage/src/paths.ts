@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, OmenflowError, PROJECT_FILE } from '@omenflow/contracts';
+import { ErrorCodes, BureauError, PROJECT_FILE } from '@bureau/contracts';
 
 /** Normalize to a canonical absolute path (no trailing sep, real casing where possible). */
 export function canonicalize(p: string): string {
@@ -48,13 +48,13 @@ export function resolveProjectPath(root: string, rel: string): string {
     path.isAbsolute(rel) ||
     /^[a-zA-Z]:/.test(rel)
   ) {
-    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Absolute path not allowed: ${rel}`);
+    throw new BureauError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Absolute path not allowed: ${rel}`);
   }
   const rootCanon = canonicalize(root);
   const abs = path.resolve(rootCanon, rel);
   const relFromRoot = path.relative(rootCanon, abs);
   if (relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) {
-    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Path escapes project: ${rel}`);
+    throw new BureauError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Path escapes project: ${rel}`);
   }
   // Walk existing ancestors to catch symlinks that would redirect outside.
   let cur = abs;
@@ -68,7 +68,7 @@ export function resolveProjectPath(root: string, rel: string): string {
   const resolved = missing.reduceRight((p, seg) => path.join(p, seg), real);
   const rel2 = path.relative(rootCanon, resolved);
   if (rel2.startsWith('..') || path.isAbsolute(rel2)) {
-    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Symlink escapes project: ${rel}`);
+    throw new BureauError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Symlink escapes project: ${rel}`);
   }
   return abs;
 }
@@ -78,14 +78,14 @@ export function resolveMaterializationPath(root: string, rel: string): string {
   const abs = resolveProjectPath(root, rel);
   const normalized = path.relative(canonicalize(root), abs).split(path.sep).join('/');
   const first = normalized.split('/')[0]?.toLowerCase();
-  if (!normalized || first === '.omenflow' || first === PROJECT_FILE.toLowerCase()) {
-    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
+  if (!normalized || first === '.bureau' || first === PROJECT_FILE.toLowerCase()) {
+    throw new BureauError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
   }
   // A safe-looking alias may resolve back into canonical state.
   const actual = path.relative(canonicalize(root), canonicalize(abs)).split(path.sep).join('/');
   const actualFirst = actual.split('/')[0]?.toLowerCase();
-  if (actualFirst === '.omenflow' || actualFirst === PROJECT_FILE.toLowerCase()) {
-    throw new OmenflowError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
+  if (actualFirst === '.bureau' || actualFirst === PROJECT_FILE.toLowerCase()) {
+    throw new BureauError(ErrorCodes.PATH_OUTSIDE_PROJECT, `Reserved project path: ${rel}`);
   }
   return abs;
 }
@@ -97,7 +97,7 @@ export function writeMaterializedFile(root: string, rel: string, bytes: Buffer):
   const dest = resolveMaterializationPath(root, rel);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   resolveMaterializationPath(root, rel);
-  const tmp = path.join(path.dirname(dest), `.omenflow-write-${randomUUID()}`);
+  const tmp = path.join(path.dirname(dest), `.bureau-write-${randomUUID()}`);
   try {
     fs.writeFileSync(tmp, bytes, { flag: 'wx' });
     resolveMaterializationPath(root, rel);
@@ -125,6 +125,6 @@ export function assertWritable(dir: string): void {
   try {
     fs.accessSync(dir, fs.constants.W_OK);
   } catch {
-    throw new OmenflowError(ErrorCodes.READ_ONLY, `Folder is read-only: ${dir}`);
+    throw new BureauError(ErrorCodes.READ_ONLY, `Folder is read-only: ${dir}`);
   }
 }

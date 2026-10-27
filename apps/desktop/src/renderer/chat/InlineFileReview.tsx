@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 import { readRevisionFile } from '../decide/io';
 import { textContent } from '../lib/diff';
 import { Notice, Spinner } from '../ui/kit';

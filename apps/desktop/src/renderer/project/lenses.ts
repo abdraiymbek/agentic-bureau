@@ -1,12 +1,5 @@
 import type React from 'react';
-import {
-  ClockCounterClockwise,
-  Files,
-  Graph,
-  Package,
-  Target,
-  type Icon,
-} from '@phosphor-icons/react';
+import { ClockCounterClockwise, Files, Graph, Package, Target, type Icon } from '../ui/icons';
 
 /** Projections of the whole project. */
 export type Lens = 'flow' | 'parts' | 'timeline' | 'files' | 'evidence';

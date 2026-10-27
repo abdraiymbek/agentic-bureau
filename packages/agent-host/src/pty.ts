@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { AGENT_OPS, ErrorCodes, OmenflowError, newId, type SessionInfo } from '@omenflow/contracts';
-import type { CoreApp, ProjectContext, TerminalHost } from '@omenflow/core';
+import { AGENT_OPS, ErrorCodes, BureauError, newId, type SessionInfo } from '@bureau/contracts';
+import type { CoreApp, ProjectContext, TerminalHost } from '@bureau/core';
 import type { IPty } from 'node-pty';
 import {
   adapterById,
@@ -68,7 +68,7 @@ export class PtySessionManager implements TerminalHost {
   constructor(
     private app: CoreApp,
     private bridge: BridgeServer,
-    /** Directory holding the `omenflow` bridge CLI; prepended to session PATH. */
+    /** Directory holding the `bureau` bridge CLI; prepended to session PATH. */
     private cliDir?: string,
   ) {
     this.adapters = createAdapterRegistry((id) => app.adapterConfigs[id] ?? {});
@@ -84,7 +84,7 @@ export class PtySessionManager implements TerminalHost {
   ): Promise<SessionInfo> {
     const adapter = adapterById(this.adapters, opts.adapterId);
     if (!adapter) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Unknown adapter: ${opts.adapterId}`);
+      throw new BureauError(ErrorCodes.VALIDATION, `Unknown adapter: ${opts.adapterId}`);
     }
     const existing = this.sessions.get(ctx.projectId);
     if (existing && (existing.info.state === 'running' || existing.info.state === 'starting')) {
@@ -152,7 +152,7 @@ export class PtySessionManager implements TerminalHost {
       this.assertStarting(session);
       const [file, args] = spawnTarget(spec.path, spec.args);
       const env = mergedEnv(spec.env);
-      // Session PATH: omenflow shim dir, then adapter-specified, then the user's
+      // Session PATH: bureau shim dir, then adapter-specified, then the user's
       // login-shell PATH (GUI-spawned processes get a stub), then ours.
       env.PATH = [
         this.cliDir,
@@ -199,8 +199,8 @@ export class PtySessionManager implements TerminalHost {
       session.restoreConfig = null;
       ctx.repo.upsertSession(session.info);
       ctx.emit('session.state', 'system', session.info);
-      if (e instanceof OmenflowError) throw e;
-      throw new OmenflowError(
+      if (e instanceof BureauError) throw e;
+      throw new BureauError(
         ErrorCodes.TOOL_MISSING,
         `Failed to launch agent: ${session.info.lastError}`,
         {
@@ -255,7 +255,7 @@ export class PtySessionManager implements TerminalHost {
     const s = this.sessions.get(ctx.projectId);
     const last = s?.lastStart;
     if (!last) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, 'No session to restart');
+      throw new BureauError(ErrorCodes.VALIDATION, 'No session to restart');
     }
     await this.stop(ctx);
     return this.start(ctx, last);
@@ -304,7 +304,7 @@ export class PtySessionManager implements TerminalHost {
 
   private assertStarting(session: ManagedSession): void {
     if (session.stopping || !this.bridge.grantForToken(session.token)?.isActive()) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.CANCELLED,
         'Agent session was stopped before startup completed',
       );
@@ -329,10 +329,10 @@ function bridgeEnvFor(
   sessionId: string,
 ): Record<string, string> {
   return {
-    OMENFLOW_BRIDGE_SOCK: socketPath,
-    OMENFLOW_BRIDGE_TOKEN: token,
-    OMENFLOW_PROJECT_ID: projectId,
-    OMENFLOW_SESSION_ID: sessionId,
+    BUREAU_BRIDGE_SOCK: socketPath,
+    BUREAU_BRIDGE_TOKEN: token,
+    BUREAU_PROJECT_ID: projectId,
+    BUREAU_SESSION_ID: sessionId,
   };
 }
 
@@ -359,7 +359,7 @@ function mergedEnv(overlay: NodeJS.ProcessEnv): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined) continue;
-    if (k.startsWith('OMENFLOW_')) continue; // never leak host-side OMENFLOW_* vars
+    if (k.startsWith('BUREAU_')) continue; // never leak host-side BUREAU_* vars
     env[k] = v;
   }
   for (const [k, v] of Object.entries(overlay)) {

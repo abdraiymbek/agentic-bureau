@@ -33,18 +33,18 @@ fn connect(mode: &str) -> (Child, UnixStream, std::path::PathBuf) {
 
 fn connect_args(mode: &str, args: &[&str]) -> (Child, UnixStream, std::path::PathBuf) {
     let dir = std::env::temp_dir().join(format!(
-        "omen-rust-{}-{:?}",
+        "bureau-rust-{}-{:?}",
         std::process::id(),
         std::thread::current().id(),
     ));
     std::fs::create_dir_all(&dir).unwrap();
     let socket_path = dir.join("bridge.sock");
     let listener = UnixListener::bind(&socket_path).unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omenflow"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_bureau"));
     command.args(args);
     let child = command
-        .env("OMENFLOW_BRIDGE_SOCK", &socket_path)
-        .env("OMENFLOW_BRIDGE_TOKEN", "test-token")
+        .env("BUREAU_BRIDGE_SOCK", &socket_path)
+        .env("BUREAU_BRIDGE_TOKEN", "test-token")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -121,10 +121,10 @@ fn exchange(args: &[&str], response: Value) -> (Value, ExitStatus, String, Strin
 
 /// Run the helper with no bridge at all.
 fn run_alone(args: &[&str]) -> (ExitStatus, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omenflow"))
+    let output = Command::new(env!("CARGO_BIN_EXE_bureau"))
         .args(args)
-        .env_remove("OMENFLOW_BRIDGE_SOCK")
-        .env_remove("OMENFLOW_BRIDGE_TOKEN")
+        .env_remove("BUREAU_BRIDGE_SOCK")
+        .env_remove("BUREAU_BRIDGE_TOKEN")
         .stdin(Stdio::null())
         .output()
         .unwrap();
@@ -251,7 +251,7 @@ fn call_accepts_inline_json_an_idempotency_key_and_pretty_output() {
 
 #[test]
 fn call_reads_input_from_a_file() {
-    let file = std::env::temp_dir().join(format!("omen-input-{}.json", std::process::id()));
+    let file = std::env::temp_dir().join(format!("bureau-input-{}.json", std::process::id()));
     std::fs::write(&file, "{\"type\": \"note\"}").unwrap();
     let (request, status, _, _) = exchange(
         &["call", "artifact.list", "--input", file.to_str().unwrap()],
@@ -304,7 +304,7 @@ fn guide_prints_the_playbook_and_its_topics() {
     assert!(status.success());
     assert_eq!(
         output,
-        "# Model a part in OpenSCAD\n\n1. Write the source.\n2. Verify it, then call work_status.\n\nTopics (omenflow guide <topic>):\n  start — First, in every session.\n  cad — Before changing a part.\n"
+        "# Model a part in OpenSCAD\n\n1. Write the source.\n2. Verify it, then call work_status.\n\nTopics (bureau guide <topic>):\n  start — First, in every session.\n  cad — Before changing a part.\n"
     );
 
     let (request, _, _, _) = exchange(&["guide"], json!({"ok": true, "result": {"text": "x"}}));
@@ -337,9 +337,9 @@ fn help_needs_no_session_and_usage_errors_exit_3() {
     for flag in ["help", "--help", "-h"] {
         let (status, output, errors) = run_alone(&[flag]);
         assert!(status.success(), "{flag}");
-        assert!(output.starts_with("usage:\n  omenflow mcp"), "{output}");
-        assert!(output.contains("omenflow guide [topic]"));
-        assert!(output.contains("omenflow status"));
+        assert!(output.starts_with("usage:\n  bureau mcp"), "{output}");
+        assert!(output.contains("bureau guide [topic]"));
+        assert!(output.contains("bureau status"));
         assert_eq!(errors, "");
     }
     for args in [
@@ -359,7 +359,7 @@ fn help_needs_no_session_and_usage_errors_exit_3() {
         assert_eq!(error["error"]["code"], "VALIDATION", "{args:?}");
     }
     let (_, _, errors) = run_alone(&[]);
-    assert!(errors.contains("omenflow call <tool>"), "{errors}");
+    assert!(errors.contains("bureau call <tool>"), "{errors}");
 }
 
 #[test]

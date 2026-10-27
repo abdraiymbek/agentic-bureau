@@ -4,9 +4,9 @@ import {
   Proposal,
   ProposedChange,
   RevisionRef,
-  OmenflowError,
+  BureauError,
   newId,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { promoteRevision } from './artifacts.js';
 import { impactReport, propagateFrom, validateSelectedRevisions } from './graph.js';
@@ -28,13 +28,13 @@ function submitProposalImpl(
     const artifact = ctx.requireArtifact(c.artifactId);
     const rev = ctx.requireRevision(c.newRevisionId);
     if (rev.artifactId !== artifact.id) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         `Revision ${c.newRevisionId} not on artifact ${c.artifactId}`,
       );
     }
     if (rev.reviewState !== 'draft' && rev.reviewState !== 'proposed') {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         `Proposed revision must be a draft (state: ${rev.reviewState})`,
       );
@@ -45,7 +45,7 @@ function submitProposalImpl(
       (c.kind === 'new_artifact' && cur !== null) ||
       (c.kind === 'baseline_update' && cur === null)
     ) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.REVISION_CONFLICT,
         `Proposal base does not match selected revision`,
         {
@@ -56,7 +56,7 @@ function submitProposalImpl(
     }
   }
   if (new Set(input.changes.map((c) => c.artifactId)).size !== input.changes.length)
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       'A proposal cannot change the same artifact twice',
     );
@@ -151,7 +151,7 @@ function retireReplacedChangeRequests(
 
 export function readProposal(ctx: ProjectContext, proposalId: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new BureauError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   // Attach resolved revisions so reviewers see concrete content.
   const changes = p.changes.map((c) => {
     const artifact = ctx.repo.getArtifact(c.artifactId);
@@ -175,7 +175,7 @@ export async function waitProposal(
   _cursor?: number,
 ): Promise<{ state: Proposal['state']; cursor: number }> {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new BureauError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending') return { state: p.state, cursor: ctx.repo.latestEventSeq() };
   const resolved = await new Promise<boolean>((resolve) => {
     const timer = setTimeout(() => {
@@ -206,7 +206,7 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
       revision.artifactId !== artifact.id ||
       (c.kind !== 'archive' && !['draft', 'proposed'].includes(revision.reviewState))
     ) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.REVISION_CONFLICT,
         'Proposed revision is no longer an active candidate',
         {
@@ -217,14 +217,14 @@ function resolveConflicts(ctx: ProjectContext, p: Proposal): void {
     }
     const selected = artifact.selectedRevisionId ?? null;
     if (c.kind === 'new_artifact' && selected !== null)
-      throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'New artifact now has a baseline');
+      throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'New artifact now has a baseline');
     if (c.baseRevisionId !== selected) {
       ctx.repo.updateProposalState(
         p.id,
         'conflicted',
         'Base revision changed after proposal was prepared',
       );
-      throw new OmenflowError(ErrorCodes.REVISION_CONFLICT, 'Proposal base is stale', {
+      throw new BureauError(ErrorCodes.REVISION_CONFLICT, 'Proposal base is stale', {
         repair: 'Refresh the comparison and resubmit.',
         details: { proposalId: p.id, artifactId: c.artifactId, selected, base: c.baseRevisionId },
       });
@@ -241,15 +241,15 @@ function approveProposalImpl(
 ) {
   ctx.assertWritable();
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new BureauError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending' && p.state !== 'changes_requested') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   resolveConflicts(ctx, p);
   for (const [artifactId, hash] of Object.entries(verificationEvidence ?? {})) {
     const change = p.changes.find((c) => c.artifactId === artifactId && c.kind !== 'archive');
     if (!change)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         'Verification scope is not part of this proposal',
       );
@@ -342,9 +342,9 @@ function approveProposalImpl(
 
 function rejectProposalImpl(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new BureauError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending' && p.state !== 'changes_requested') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   ctx.repo.tx(() => {
     for (const c of p.changes) {
@@ -370,9 +370,9 @@ function rejectProposalImpl(ctx: ProjectContext, proposalId: string, rationale: 
 
 function requestChangesProposalImpl(ctx: ProjectContext, proposalId: string, rationale: string) {
   const p = ctx.repo.getProposal(proposalId);
-  if (!p) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
+  if (!p) throw new BureauError(ErrorCodes.NOT_FOUND, `Proposal not found: ${proposalId}`);
   if (p.state !== 'pending') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
+    throw new BureauError(ErrorCodes.VALIDATION, `Proposal already resolved (${p.state})`);
   }
   ctx.repo.updateProposalState(proposalId, 'changes_requested', rationale);
   ctx.emit('proposal.resolved', 'user', { proposalId, state: 'changes_requested' });

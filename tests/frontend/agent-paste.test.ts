@@ -34,7 +34,7 @@ beforeAll(() => {
   Object.assign(globalThis, {
     addEventListener() {},
     removeEventListener() {},
-    omenflow: {
+    bureau: {
       command,
       onTerminalData: () => () => {},
       onTerminalState: () => () => {},
@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 const handoff =
-  'Omen Flow: the person recorded a review decision.\n\n1. Approved proposal p1.\n   Rationale: none given.\n\nNext:\n- Build on the baseline.';
+  'Bureau: the person recorded a review decision.\n\n1. Approved proposal p1.\n   Rationale: none given.\n\nNext:\n- Build on the baseline.';
 
 async function engineFor(bracketed: boolean) {
   command.mockImplementation(async (op: string) =>
@@ -88,7 +88,7 @@ describe('pasting into the agent terminal', () => {
     const data = await written();
     expect(data).not.toMatch(/[\r\n]/);
     expect(data).toBe(
-      'Omen Flow: the person recorded a review decision. 1. Approved proposal p1. Rationale: none given. Next: - Build on the baseline.',
+      'Bureau: the person recorded a review decision. 1. Approved proposal p1. Rationale: none given. Next: - Build on the baseline.',
     );
     engine.dispose();
   });

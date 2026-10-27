@@ -1,7 +1,7 @@
 /** Which model ran a conversation turn, as the host recorded it. */
-import type { ChatTurn } from '@omenflow/contracts';
+import type { ChatTurn } from '@bureau/contracts';
 
-/** The model to show for a turn: what the CLI reported, else what Omen Flow passed. */
+/** The model to show for a turn: what the CLI reported, else what Bureau passed. */
 export function turnModel(turn: ChatTurn): string | null {
   return turn.resolvedModel ?? turn.model ?? null;
 }
@@ -23,7 +23,7 @@ export function modelKey(id: string): string {
 }
 
 /**
- * True when Omen Flow passed a full model id and the CLI reported running another model. An
+ * True when Bureau passed a full model id and the CLI reported running another model. An
  * alias the CLI resolves itself, a dated id of the same model and a provider's id for it are
  * not mismatches; `claude-opus-5` is not `claude-opus-5-5`.
  */

@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { CheckCircle, Info, WarningCircle, X } from '@phosphor-icons/react';
+import { CheckCircle, Info, WarningCircle, X } from '../ui/icons';
 import { useStore, type Toast } from '../store';
 import { IconButton } from '../ui/kit';
 import { TOAST_EDGE, toastClearance } from './toast-clearance';

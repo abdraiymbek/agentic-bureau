@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ImageSquare, Package } from '@phosphor-icons/react';
-import type { ComponentPayload, Offer } from '@omenflow/contracts';
+import { ImageSquare, Package } from './icons';
+import type { ComponentPayload, Offer } from '@bureau/contracts';
 import { ExternalLink, webUrl } from './ExternalLink';
 import { State } from './kit';
 

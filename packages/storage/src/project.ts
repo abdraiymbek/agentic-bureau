@@ -5,9 +5,9 @@ import {
   PROJECT_FILE,
   Project,
   SCHEMA_VERSION,
-  OmenflowError,
+  BureauError,
   newId,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { ProjectDb } from './db.js';
 import { LATEST_SCHEMA_VERSION } from './schema.js';
 import { ObjectStore } from './objects.js';
@@ -36,7 +36,7 @@ export const ARTIFACT_DIRS = [
   'tests',
 ] as const;
 
-const OMENFLOW_SUBDIRS = ['objects', 'work', 'recovery', 'cache'] as const;
+const BUREAU_SUBDIRS = ['objects', 'work', 'recovery', 'cache'] as const;
 
 interface ProjectFile {
   format: 'omenflow-project';
@@ -56,18 +56,18 @@ export class ProjectHandle {
     public readonly readOnly: boolean,
   ) {
     this.repo = new Repo(pdb.db);
-    this.objects = new ObjectStore(resolveProjectPath(root, '.omenflow/objects'), readOnly);
+    this.objects = new ObjectStore(resolveProjectPath(root, '.bureau/objects'), readOnly);
   }
 
   get project(): Project {
     const p = this.repo.getProject();
-    if (!p) throw new OmenflowError(ErrorCodes.INTERNAL, 'Project row missing');
+    if (!p) throw new BureauError(ErrorCodes.INTERNAL, 'Project row missing');
     return p;
   }
 
   workDir(sessionId: string): string {
-    if (this.readOnly) throw new OmenflowError(ErrorCodes.READ_ONLY, 'Project is read-only');
-    const dir = path.join(this.root, '.omenflow', 'work', sessionId);
+    if (this.readOnly) throw new BureauError(ErrorCodes.READ_ONLY, 'Project is read-only');
+    const dir = path.join(this.root, '.bureau', 'work', sessionId);
     fs.mkdirSync(dir, { recursive: true });
     return dir;
   }
@@ -94,7 +94,7 @@ export function updateProjectFile(
 ): void {
   const previous = readProjectFile(root);
   if (previous.version > SCHEMA_VERSION)
-    throw new OmenflowError(ErrorCodes.READ_ONLY, 'Project is read-only');
+    throw new BureauError(ErrorCodes.READ_ONLY, 'Project is read-only');
   writeProjectFile(root, { ...previous, ...changes });
 }
 
@@ -106,7 +106,7 @@ export interface RenameJournal {
 }
 
 export function renameJournalPath(root: string): string {
-  return path.join(canonicalize(root), '.omenflow', 'recovery', 'rename.json');
+  return path.join(canonicalize(root), '.bureau', 'recovery', 'rename.json');
 }
 
 export function writeRenameJournal(root: string, name: string): void {
@@ -159,20 +159,16 @@ export function applyRenameJournal(handle: ProjectHandle): boolean {
 export function readProjectFile(root: string): ProjectFile {
   const p = resolveProjectPath(root, PROJECT_FILE);
   if (!fs.existsSync(p)) {
-    throw new OmenflowError(
-      ErrorCodes.NOT_FOUND,
-      `Not an Omen Flow project (missing ${PROJECT_FILE})`,
-      {
-        repair: 'Choose a folder containing an Omen Flow project, or create a new one.',
-      },
-    );
+    throw new BureauError(ErrorCodes.NOT_FOUND, `Not a Bureau project (missing ${PROJECT_FILE})`, {
+      repair: 'Choose a folder containing a Bureau project, or create a new one.',
+    });
   }
   try {
     const parsed = JSON.parse(fs.readFileSync(p, 'utf8')) as ProjectFile;
     if (parsed.format !== 'omenflow-project') throw new Error('bad format');
     return parsed;
   } catch (e) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `Invalid ${PROJECT_FILE}: ${(e as Error).message}`,
     );
@@ -185,7 +181,7 @@ export function createProject(dir: string, name: string, intent: string): Projec
   // Creation must never rewrite an existing marker (in particular, downgrade
   // a newer project format before its read-only guard can inspect it).
   if (fs.existsSync(path.join(root, PROJECT_FILE))) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Project already exists', {
+    throw new BureauError(ErrorCodes.VALIDATION, 'Project already exists', {
       repair: 'Open the existing project instead of creating over it.',
     });
   }
@@ -194,15 +190,14 @@ export function createProject(dir: string, name: string, intent: string): Projec
 
   const existing = fs.readdirSync(root).filter((f) => !f.startsWith('.DS_Store'));
   if (existing.length > 0 && !fs.existsSync(path.join(root, PROJECT_FILE))) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, `Folder is not empty: ${root}`, {
+    throw new BureauError(ErrorCodes.VALIDATION, `Folder is not empty: ${root}`, {
       repair: 'Pick an empty folder or open an existing project.',
     });
   }
 
   for (const d of ARTIFACT_DIRS) fs.mkdirSync(path.join(root, 'artifacts', d), { recursive: true });
   fs.mkdirSync(path.join(root, 'exports'), { recursive: true });
-  for (const d of OMENFLOW_SUBDIRS)
-    fs.mkdirSync(path.join(root, '.omenflow', d), { recursive: true });
+  for (const d of BUREAU_SUBDIRS) fs.mkdirSync(path.join(root, '.bureau', d), { recursive: true });
 
   const projectId = fs.existsSync(path.join(root, PROJECT_FILE))
     ? readProjectFile(root).id
@@ -218,12 +213,12 @@ export function createProject(dir: string, name: string, intent: string): Projec
   if (!fs.existsSync(readme)) {
     fs.writeFileSync(
       readme,
-      `# ${name}\n\nOmen Flow engineering project. State lives in \`.omenflow/state.sqlite\`;\nreadable views live under \`artifacts/\`.\n\n${intent}\n`,
+      `# ${name}\n\nBureau engineering project. State lives in \`.bureau/state.sqlite\`;\nreadable views live under \`artifacts/\`.\n\n${intent}\n`,
       'utf8',
     );
   }
 
-  const pdb = new ProjectDb(path.join(root, '.omenflow', 'state.sqlite'), { create: true });
+  const pdb = new ProjectDb(path.join(root, '.bureau', 'state.sqlite'), { create: true });
   const handle = new ProjectHandle(root, pdb, false);
   if (!handle.repo.getProject()) {
     handle.repo.tx(() => {
@@ -248,12 +243,12 @@ export function openProject(dir: string): ProjectHandle {
   const pf = readProjectFile(root);
   if (pf.version > SCHEMA_VERSION) {
     // Open read-only: allow export but not mutation.
-    const pdb = new ProjectDb(resolveProjectPath(root, '.omenflow/state.sqlite'), {
+    const pdb = new ProjectDb(resolveProjectPath(root, '.bureau/state.sqlite'), {
       readOnly: true,
     });
     return new ProjectHandle(root, pdb, true);
   }
-  const pdb = new ProjectDb(resolveProjectPath(root, '.omenflow/state.sqlite'));
+  const pdb = new ProjectDb(resolveProjectPath(root, '.bureau/state.sqlite'));
   const handle = new ProjectHandle(root, pdb, pdb.readOnly);
   if (handle.readOnly) return handle;
 
@@ -284,7 +279,7 @@ export function openProject(dir: string): ProjectHandle {
       const buf = handle.objects.read(m.sha256!);
       const dest = resolveMaterializationPath(root, m.path);
       if (fs.existsSync(dest) && sha256Hex(fs.readFileSync(dest)) !== m.sha256) {
-        const conflictPath = `${m.path}.omenflow-recovery-${m.id}`;
+        const conflictPath = `${m.path}.bureau-recovery-${m.id}`;
         const conflict = resolveMaterializationPath(root, conflictPath);
         if (!fs.existsSync(conflict)) writeMaterializedFile(root, conflictPath, buf);
         throw new Error(
@@ -320,6 +315,5 @@ export function openProject(dir: string): ProjectHandle {
 export function ensureLayout(root: string): void {
   for (const d of ARTIFACT_DIRS) fs.mkdirSync(path.join(root, 'artifacts', d), { recursive: true });
   fs.mkdirSync(path.join(root, 'exports'), { recursive: true });
-  for (const d of OMENFLOW_SUBDIRS)
-    fs.mkdirSync(path.join(root, '.omenflow', d), { recursive: true });
+  for (const d of BUREAU_SUBDIRS) fs.mkdirSync(path.join(root, '.bureau', d), { recursive: true });
 }

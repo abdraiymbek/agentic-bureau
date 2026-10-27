@@ -1,4 +1,4 @@
-import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, BureauError } from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 
 /** Newest historical terminal rows kept in the live project. Older rows are pruned. */
@@ -33,7 +33,7 @@ export function assertTerminalExportAllowed(
   if (!includeTerminalHistory) return false;
   if (grantConsent) setTerminalExportConsent(ctx, true);
   if (!terminalExportConsent(ctx)) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       'Terminal history is excluded from ordinary archives until export consent is granted',
       {

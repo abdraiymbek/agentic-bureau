@@ -2,7 +2,7 @@
  * Starter prompts for a live session, built from the record: the project intent and what waits
  * on the agent. They are typed into the terminal for the person to edit and send; never sent.
  */
-import type { ArtifactView, Project, Proposal } from '@omenflow/contracts';
+import type { ArtifactView, Project, Proposal } from '@bureau/contracts';
 
 export interface Starter {
   id: string;

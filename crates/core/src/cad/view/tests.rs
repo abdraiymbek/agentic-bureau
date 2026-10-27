@@ -953,7 +953,7 @@ fn picture_of(root: &Path, result: &Value) -> Vec<u8> {
     assert!(entry["path"]
         .as_str()
         .unwrap()
-        .starts_with(".omenflow/cache/views-v1/"));
+        .starts_with(".bureau/cache/views-v1/"));
     assert_eq!(entry["bytes"], picture.bytes.len());
     if picture.mime_type == "image/png" {
         let reader = png::Decoder::new(std::io::Cursor::new(picture.bytes.as_slice()))
@@ -1039,7 +1039,7 @@ fn a_part_is_drawn_from_its_stored_mesh_without_running_the_engine() {
     let bytes = picture_of(&sandbox.root, &view);
     assert_eq!(
         view["images"][0]["sha256"],
-        omenflow_storage::sha256_hex(&bytes)
+        bureau_storage::sha256_hex(&bytes)
     );
     assert!(view.to_string().len() < 4_000, "{}", view.to_string().len());
     // Drawn again, the same picture.
@@ -1212,7 +1212,7 @@ fn image_view_shows_a_project_file_and_refuses_paths_outside_it() {
         .unwrap();
     assert_eq!(shown["path"], "inputs/drawing.png");
     assert_eq!(shown["format"], "png");
-    assert_eq!(shown["sha256"], omenflow_storage::sha256_hex(&drawing));
+    assert_eq!(shown["sha256"], bureau_storage::sha256_hex(&drawing));
     assert_eq!(
         (&shown["widthPx"], &shown["heightPx"]),
         (&json!(400), &json!(300))
@@ -1250,8 +1250,8 @@ fn image_view_shows_a_project_file_and_refuses_paths_outside_it() {
     let mut refused = vec![
         json!("../secret.png"),
         json!(elsewhere.path().join("secret.png")),
-        json!(".omenflow/state.sqlite"),
-        json!("omenflow.project.json"),
+        json!(".bureau/state.sqlite"),
+        json!("bureau.project.json"),
         json!(picture),
     ];
     if cfg!(unix) {
@@ -1289,13 +1289,13 @@ fn image_view_shows_a_project_file_and_refuses_paths_outside_it() {
 fn pictures_are_refused_on_a_read_only_project() {
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("project");
-    omenflow_storage::ProjectHandle::create(&root, "Future", "test").unwrap();
+    bureau_storage::ProjectHandle::create(&root, "Future", "test").unwrap();
     write_input(
         &root,
         "inputs/drawing.png",
         &red_square(64, 64, [0, 0, 8, 8]),
     );
-    let marker = root.join("omenflow.project.json");
+    let marker = root.join("bureau.project.json");
     let mut value: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
     value["version"] = json!(999);
     fs::write(&marker, serde_json::to_vec_pretty(&value).unwrap()).unwrap();

@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * `omenflow` — dev/test shim for the Omen Flow bridge helper.
+ * `bureau` — dev/test shim for the Bureau bridge helper.
  *
  * Self-contained plain Node ESM (no deps, no build step). Production builds
- * ship the compiled Rust helper from native/omenflow-bridge instead — the wire
+ * ship the compiled Rust helper from native/bureau-bridge instead — the wire
  * protocol is identical.
  *
- *   omenflow call <op> --input <file|'-'> [--idempotency-key k]
- *   omenflow mcp
+ *   bureau call <op> --input <file|'-'> [--idempotency-key k]
+ *   bureau mcp
  *
  * Env (injected per session by the agent host):
- *   OMENFLOW_BRIDGE_SOCK  unix socket path / windows pipe
- *   OMENFLOW_BRIDGE_TOKEN per-session credential
- *   OMENFLOW_PROJECT_ID / OMENFLOW_SESSION_ID (informational)
+ *   BUREAU_BRIDGE_SOCK  unix socket path / windows pipe
+ *   BUREAU_BRIDGE_TOKEN per-session credential
+ *   BUREAU_PROJECT_ID / BUREAU_SESSION_ID (informational)
  *
  * Wire protocol: 4-byte LE length-prefixed JSON frames.
  *   → {type:'hello', token, protocolVersion:1, mode:'call'|'mcp'}
@@ -69,7 +69,7 @@ function parseArgs(argv) {
   if (cmd !== 'call')
     return {
       error:
-        'usage: omenflow call <op> --input <file|-> [--idempotency-key k] | omenflow call <op> --help | omenflow mcp',
+        'usage: bureau call <op> --input <file|-> [--idempotency-key k] | bureau call <op> --help | bureau mcp',
     };
   const out = { mode: 'call' };
   for (let i = 0; i < rest.length; i++) {
@@ -82,7 +82,7 @@ function parseArgs(argv) {
   }
   if (!out.op) return { error: 'missing <op>' };
   if (out.help) {
-    // `omenflow call <op> --help` → tool.describe <op>: purpose + input JSON schema.
+    // `bureau call <op> --help` → tool.describe <op>: purpose + input JSON schema.
     return { mode: 'call', op: 'tool.describe', input: '-', helpFor: out.op };
   }
   if (out.input === undefined)
@@ -140,17 +140,17 @@ async function main() {
     process.exit(3);
   }
 
-  const socketPath = process.env.OMENFLOW_BRIDGE_SOCK;
-  const token = process.env.OMENFLOW_BRIDGE_TOKEN;
+  const socketPath = process.env.BUREAU_BRIDGE_SOCK;
+  const token = process.env.BUREAU_BRIDGE_TOKEN;
   if (!socketPath || !token) {
     fail(
       'APP_NOT_RUNNING',
-      'OMENFLOW_BRIDGE_SOCK/OMENFLOW_BRIDGE_TOKEN not set — not inside an Omen Flow session?',
+      'BUREAU_BRIDGE_SOCK/BUREAU_BRIDGE_TOKEN not set — not inside a Bureau session?',
     );
   }
 
   const socket = await connect(socketPath);
-  if (!socket) fail('APP_NOT_RUNNING', `Cannot connect to Omen Flow bridge at ${socketPath}`);
+  if (!socket) fail('APP_NOT_RUNNING', `Cannot connect to Bureau bridge at ${socketPath}`);
 
   const decoder = new FrameDecoder();
   socket.write(

@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { ErrorCodes, OmenflowError, type OmenflowErrorBody } from '@omenflow/contracts';
-import type { Repo } from '@omenflow/storage';
+import { ErrorCodes, BureauError, type BureauErrorBody } from '@bureau/contracts';
+import type { Repo } from '@bureau/storage';
 
 /** Acknowledged-write boundaries where tests inject process death. */
 export type DurabilityBoundary =
@@ -50,7 +50,7 @@ export interface AppReservation {
   requestHash: string;
   state: AppReservationState;
   result?: unknown;
-  error?: OmenflowErrorBody;
+  error?: BureauErrorBody;
   projectPath?: string;
   createdAt: string;
 }
@@ -102,11 +102,11 @@ export function replayAppReservation(
 ): unknown | null {
   if (!reservation) return null;
   if (reservation.requestHash !== requestHash)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Idempotency key reused with different payload');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Idempotency key reused with different payload');
   if (reservation.state === 'completed')
     return { ...(reservation.result as object), idempotent: true };
   if (reservation.state === 'failed' && reservation.error)
-    throw OmenflowError.fromBody(reservation.error);
+    throw BureauError.fromBody(reservation.error);
   return null;
 }
 
@@ -119,7 +119,7 @@ export interface ResultJournal {
 
 export function resultJournalPath(root: string, key: string): string {
   const digest = createHash('sha256').update(key).digest('hex');
-  return path.join(root, '.omenflow', 'recovery', 'idempotency', `${digest}.json`);
+  return path.join(root, '.bureau', 'recovery', 'idempotency', `${digest}.json`);
 }
 
 export function writeResultJournal(root: string, journal: ResultJournal): void {
@@ -148,7 +148,7 @@ export function clearResultJournal(root: string, key: string): void {
 
 /** Persist journals written after a domain commit but before SQLite idempotency. */
 export function recoverResultJournals(root: string, repo: Repo): number {
-  const dir = path.join(root, '.omenflow', 'recovery', 'idempotency');
+  const dir = path.join(root, '.bureau', 'recovery', 'idempotency');
   if (!fs.existsSync(dir)) return 0;
   let recovered = 0;
   for (const name of fs.readdirSync(dir)) {

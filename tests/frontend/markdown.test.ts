@@ -13,7 +13,7 @@ describe('markdown link safety', () => {
     ['JaVaScRiPt:alert(1)'],
     ['data:text/html,<script>alert(1)</script>'],
     ['file:///etc/passwd'],
-    ['omenflow-app://index.html'],
+    ['bureau-app://index.html'],
     ['/settings'],
     ['../other'],
     ['//evil.example/path'],

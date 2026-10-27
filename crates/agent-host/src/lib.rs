@@ -1,8 +1,8 @@
-//! Local, capability-scoped v1 bridge for the shipped `omenflow` Rust CLI.
+//! Local, capability-scoped v1 bridge for the shipped `bureau` Rust CLI.
 //! Each connection is authenticated before it may dispatch an operation or
 //! expose MCP tools. Revocation is checked again on every request.
 //!
-//! Every agent call, over MCP or `omenflow call`, goes through one function,
+//! Every agent call, over MCP or `bureau call`, goes through one function,
 //! `dispatch_agent`: it resolves the name, enforces the capability, repairs
 //! and validates the input, runs the operation, shapes the result for the
 //! session's capability profile and records the call in the ledger.
@@ -27,25 +27,25 @@ pub use adapters::{
     adapter, AdapterConfig, AdapterSpec, GuideChannel, McpInjection, ModelAlias, ModelAliases,
     Probe, Routing, RoutingLookup, SearchPath, SettingsSource, Version, ADAPTERS,
 };
+pub use bureau_core::child_env;
 pub use guide::read as guide_read;
 pub use ledger::{AgentCallRecord, AgentSessionSummary, AlsoRan, Via};
-pub use omenflow_core::child_env;
 pub use profile::{
     profile_for_model, resolve_profile, ProfileSetting, ProfileSource, ResolvedProfile,
 };
 pub use pty::{PtyHost, TerminalEvent};
 pub use session::{plan_launch, work_dir, LaunchMode, LaunchPlan, LaunchRequest, PlannedFile};
 
+use bureau_contracts::{
+    parse_agent_input, read_frame, registry, write_frame, AgentInput, ContractError, Operation,
+    Profile, ResponseEnvelope,
+};
+use bureau_core::{dispatch_shared_with_events, CoreApp, Origin};
 use chrono::{SecondsFormat, Utc};
 #[cfg(windows)]
 use interprocess::local_socket::GenericNamespaced;
 use interprocess::local_socket::{prelude::*, GenericFilePath, ListenerOptions, Stream};
 use ledger::{CallOutcome, Ledger};
-use omenflow_contracts::{
-    parse_agent_input, read_frame, registry, write_frame, AgentInput, ContractError, Operation,
-    Profile, ResponseEnvelope,
-};
-use omenflow_core::{dispatch_shared_with_events, CoreApp, Origin};
 use rand::random;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -267,7 +267,7 @@ impl BridgeServer {
     }
 
     /// Receive every agent call as it is recorded: one `AgentCallRecord` per
-    /// call, for the host channel `omenflow:agent:call`. Replaces any hook
+    /// call, for the host channel `bureau:agent:call`. Replaces any hook
     /// set before. The hook runs on the connection's thread after the
     /// application lock is released; it must not block.
     pub fn set_on_call(&self, hook: Arc<dyn Fn(Value) + Send + Sync>) {
@@ -391,7 +391,7 @@ fn pipe_name(user: &str, app_data_dir: &Path) -> String {
         digest ^= u64::from(byte);
         digest = digest.wrapping_mul(0x0100_0000_01b3);
     }
-    format!(r"\\.\pipe\omenflow-{user}-{digest:016x}")
+    format!(r"\\.\pipe\bureau-{user}-{digest:016x}")
 }
 
 fn socket_name(path: &str) -> io::Result<interprocess::local_socket::Name<'_>> {
@@ -884,7 +884,7 @@ pub fn wait_proposal(
     let definition = registry()
         .operation("proposal.wait")
         .expect("proposal.wait contract");
-    let input = omenflow_contracts::parse_input(definition, payload.clone())?;
+    let input = bureau_contracts::parse_input(definition, payload.clone())?;
     let proposal_id = input["proposalId"]
         .as_str()
         .ok_or_else(|| ContractError::validation("Missing proposalId"))?;
@@ -973,7 +973,7 @@ mod tests {
         drop(bridge);
         fs::remove_dir_all(&resolved).unwrap();
         // An absolute folder is used exactly as given.
-        let given = Path::new("/tmp/omen-absolute");
+        let given = Path::new("/tmp/bureau-absolute");
         assert_eq!(absolute_dir(given).unwrap(), given);
     }
 
@@ -981,19 +981,19 @@ mod tests {
     /// not collide with the first; the same folder always names the same one.
     #[test]
     fn each_data_folder_names_its_own_pipe() {
-        let installed = pipe_name("ada", Path::new(r"C:\Users\ada\AppData\Roaming\Omen Flow"));
+        let installed = pipe_name("ada", Path::new(r"C:\Users\ada\AppData\Roaming\Bureau"));
         let isolated = pipe_name("ada", Path::new(r"C:\Users\ada\AppData\Local\Temp\omf-1"));
         assert_ne!(installed, isolated);
         assert_eq!(
             installed,
-            pipe_name("ada", Path::new(r"c:\users\ada\appdata\roaming\omen flow"))
+            pipe_name("ada", Path::new(r"c:\users\ada\appdata\roaming\bureau"))
         );
         assert_ne!(
             installed,
-            pipe_name("bob", Path::new(r"C:\Users\ada\AppData\Roaming\Omen Flow"))
+            pipe_name("bob", Path::new(r"C:\Users\ada\AppData\Roaming\Bureau"))
         );
         assert!(
-            installed.starts_with(r"\\.\pipe\omenflow-ada-"),
+            installed.starts_with(r"\\.\pipe\bureau-ada-"),
             "{installed}"
         );
         assert!(installed.len() < 256);
@@ -1091,7 +1091,7 @@ mod tests {
         write_frame(&mut stream, &json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}})).unwrap();
         assert_eq!(
             read_frame(&mut stream).unwrap().unwrap()["result"]["serverInfo"]["name"],
-            "omenflow"
+            "bureau"
         );
         write_frame(
             &mut stream,

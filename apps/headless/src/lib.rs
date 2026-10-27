@@ -1,4 +1,4 @@
-//! Omen Flow without a window. `omenflow-host` runs the same [`Host`] the
+//! Bureau without a window. `bureau-host` runs the same [`Host`] the
 //! desktop app runs and exposes its command surface on a loopback port, for
 //! the browser preview, conformance tests and evaluations.
 //!
@@ -16,7 +16,7 @@
 //! browser as coming from a page (`Origin`, `Sec-Fetch-Site`). No response
 //! grants cross-origin access.
 //!
-//! [`Host`]: omenflow_agent_host::Host
+//! [`Host`]: bureau_agent_host::Host
 
 mod events;
 mod http;

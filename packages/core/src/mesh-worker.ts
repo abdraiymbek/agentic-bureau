@@ -1,5 +1,5 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { toErrorBody, OmenflowError, ErrorCodes } from '@omenflow/contracts';
+import { toErrorBody, BureauError, ErrorCodes } from '@bureau/contracts';
 import { analyzeMesh, parseStlTriangles, orientTriangles } from './mesh.js';
 import { runChecks, preservationCheck } from './cad-checks.js';
 import { inspectGeometry } from './cad-geometry.js';
@@ -12,7 +12,7 @@ try {
         ? workerData.tris
         : new Float64Array(workerData.tris);
   if (workerData.operation === 'prepare' && !tris.length)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'OpenSCAD output has no finite geometry');
+    throw new BureauError(ErrorCodes.VALIDATION, 'OpenSCAD output has no finite geometry');
   const report =
     workerData.operation === 'prepare'
       ? orientTriangles(tris)

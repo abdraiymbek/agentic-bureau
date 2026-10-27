@@ -999,7 +999,7 @@ fn write_export(
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(internal)?;
     }
-    let temp = dest.with_extension(format!("omenflow-{}.tmp", uuid::Uuid::new_v4()));
+    let temp = dest.with_extension(format!("bureau-{}.tmp", uuid::Uuid::new_v4()));
     let written = fs::write(&temp, content).and_then(|()| fs::rename(&temp, &dest));
     if written.is_err() {
         let _ = fs::remove_file(&temp);

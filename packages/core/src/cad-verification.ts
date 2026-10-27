@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import {
   ErrorCodes,
-  OmenflowError,
+  BureauError,
   type Expectation,
   type MechanicalPayload,
   type Revision,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import type { CheckResult } from './cad-checks.js';
 import { renderMatchesInput, type RenderIdentity } from './cad-input.js';
@@ -303,7 +303,7 @@ export function approveCadVerificationScope(
   ctx.assertWritable();
   const current = latestCadVerification(ctx, revision);
   if (current.evidenceHash !== evidenceHash || !current.evidence)
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.REVISION_CONFLICT,
       'Verification evidence changed or does not match this revision; refresh the review before accepting its scope.',
     );
@@ -314,7 +314,7 @@ export function approveCadVerificationScope(
     !evidence.integrity?.pass ||
     !hasExplicitScope(evidence.expect)
   )
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       'Failed, stale or generic-only checks cannot establish a verified engineering scope. Approve the artifact as unverified or provide matching dimensional checks.',
     );

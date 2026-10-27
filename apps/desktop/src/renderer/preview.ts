@@ -1,13 +1,13 @@
 /**
  * Development-only bridge. Runs the real Rust host on disposable fixture
  * projects: commands, project events, agent terminals, agent call records and
- * conversation changes all come from `omenflow-host` through the preview server.
+ * conversation changes all come from `bureau-host` through the preview server.
  */
-import type { ChatChange, OmenflowApi } from './api';
+import type { ChatChange, BureauApi } from './api';
 import { useStore } from './store';
 import { useChat } from './chat/chat-store';
 import { lensDef } from './project/lenses';
-import type { Project, SessionInfo } from '@omenflow/contracts';
+import type { Project, SessionInfo } from '@bureau/contracts';
 
 type Listener<T> = (value: T) => void;
 
@@ -28,14 +28,14 @@ function channel<T>() {
 }
 
 export async function installDesignPreview() {
-  const bootstrap = (await fetch('/__omen_preview/bootstrap').then((r) => r.json())) as {
+  const bootstrap = (await fetch('/__bureau_preview/bootstrap').then((r) => r.json())) as {
     token: string;
     path: string;
     projectId: string;
     previewRoot: string;
   };
   const events = channel<unknown>();
-  const terminalData = channel<Parameters<Parameters<OmenflowApi['onTerminalData']>[0]>[0]>();
+  const terminalData = channel<Parameters<Parameters<BureauApi['onTerminalData']>[0]>[0]>();
   const terminalState = channel<unknown>();
   const agentCalls = channel<unknown>();
   const chatChanges = channel<ChatChange>();
@@ -50,11 +50,11 @@ export async function installDesignPreview() {
       );
     return Promise.resolve();
   };
-  const api: OmenflowApi = {
+  const api: BureauApi = {
     command: (op, payload, opts) =>
-      fetch('/__omen_preview/command', {
+      fetch('/__bureau_preview/command', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Omen-Preview': bootstrap.token },
+        headers: { 'Content-Type': 'application/json', 'X-Bureau-Preview': bootstrap.token },
         body: JSON.stringify({ op, payload, opts }),
       }).then((r) => r.json()),
     setActiveProject: async (id) => {
@@ -88,7 +88,7 @@ export async function installDesignPreview() {
     toggleResearch: hint,
   };
 
-  const source = new EventSource(`/__omen_preview/events?token=${bootstrap.token}`);
+  const source = new EventSource(`/__bureau_preview/events?token=${bootstrap.token}`);
   const on = <T>(name: string, deliver: Listener<T>) =>
     source.addEventListener(name, (message) => deliver(JSON.parse(message.data) as T));
   on('event', events.emit);
@@ -114,7 +114,7 @@ export async function installDesignPreview() {
   source.onerror = () =>
     service.emit({ available: false, message: 'The preview host is not answering. Reconnecting.' });
 
-  window.omenflow = api;
+  window.bureau = api;
   document.documentElement.dataset.preview = 'true';
   const params = new URLSearchParams(location.search);
   const screen = params.get('screen');

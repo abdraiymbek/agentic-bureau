@@ -1,4 +1,4 @@
-import type { ArtifactView, ChatPart, Revision } from '@omenflow/contracts';
+import type { ArtifactView, ChatPart, Revision } from '@bureau/contracts';
 import { cmd } from '../api';
 
 /**

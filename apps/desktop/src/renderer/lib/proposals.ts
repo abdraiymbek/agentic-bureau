@@ -3,7 +3,7 @@
  * the activity-bar badge, the titlebar pill, the omnibar and the decision queue. Pure, with
  * type-only imports, so the entry chunk can use it without loading the decision view.
  */
-import type { Proposal } from '@omenflow/contracts';
+import type { Proposal } from '@bureau/contracts';
 
 /** The fields the rule reads. V1 cores add `supersededBy`; older ones record it in `impact`. */
 type Waiting = Pick<Proposal, 'state' | 'impact'> & { supersededBy?: string | null };

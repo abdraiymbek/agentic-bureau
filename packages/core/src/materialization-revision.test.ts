@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { CoreApp } from './app.js';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 
 const apps: CoreApp[] = [];
 const roots: string[] = [];
@@ -16,7 +16,7 @@ describe('revision working-file compare-and-swap', () => {
   it.each([false, true])(
     'updates controlled parent bytes while preserving external divergence=%s',
     async (externalEdit) => {
-      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-materialization-revision-'));
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-materialization-revision-'));
       roots.push(root);
       const app = new CoreApp(path.join(root, 'settings'));
       apps.push(app);
@@ -52,7 +52,7 @@ describe('revision working-file compare-and-swap', () => {
       ).toBe('cube(20);');
       const conflicts = fs
         .readdirSync(path.join(ctx.root, 'artifacts/mechanical'))
-        .filter((name) => name.includes('.omenflow-conflict-'));
+        .filter((name) => name.includes('.bureau-conflict-'));
       if (externalEdit) {
         expect(fs.readFileSync(path.join(ctx.root, rel), 'utf8')).toBe(
           'cube(30); // external edit',

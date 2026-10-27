@@ -85,14 +85,14 @@ export function AgentSurface() {
     const onFocus = () =>
       requestAnimationFrame(() => {
         if (useAgentUi.getState().pane === 'terminal') created.focus();
-        else window.dispatchEvent(new CustomEvent('omenflow:focus-composer'));
+        else window.dispatchEvent(new CustomEvent('bureau:focus-composer'));
       });
-    window.addEventListener('omenflow:focus-terminal', onFocus);
+    window.addEventListener('bureau:focus-terminal', onFocus);
     void detectAgents();
     void loadActivity(projectId);
     const unsubscribe = subscribeCalls(projectId);
     return () => {
-      window.removeEventListener('omenflow:focus-terminal', onFocus);
+      window.removeEventListener('bureau:focus-terminal', onFocus);
       unsubscribe?.();
       created.dispose();
       setEngine(null);

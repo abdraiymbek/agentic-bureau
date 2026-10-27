@@ -178,7 +178,7 @@ describe('terminal palette', () => {
   });
 
   // Every colour comes from tokens.css in both themes, so none is left to xterm's defaults.
-  it('sets every colour from tokens.css in Graphite and in Paper', () => {
+  it('sets every colour from tokens.css in the dark and light themes', () => {
     const css = fs.readFileSync(new URL('../../design-system/tokens.css', import.meta.url), 'utf8');
     const theme = (selector: string) => {
       const open = css.indexOf('{', css.indexOf(selector));

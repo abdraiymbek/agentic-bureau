@@ -20,7 +20,7 @@ impl Action {
     pub fn question(self) -> &'static str {
         match self {
             Self::Close => "Close this window?",
-            Self::Quit => "Quit Omen Flow?",
+            Self::Quit => "Quit Bureau?",
         }
     }
 

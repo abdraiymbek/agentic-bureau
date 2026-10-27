@@ -55,7 +55,7 @@ export interface OpDef {
   /** What the op does, when to use it and what it returns. Names other tools by tool name. */
   description: string;
   /**
-   * False for ops that remain callable (CLI, GUI, `omenflow call`) but are
+   * False for ops that remain callable (CLI, GUI, `bureau call`) but are
    * not listed as agent tools because a clearer tool supersedes them.
    * Keeps the agent's tool vocabulary small and unambiguous.
    */
@@ -1273,7 +1273,7 @@ const chatSend = z.object({
     .strict()
     .optional()
     .describe(
-      'The latest turn of this conversation that this request continues. The host strips any other key: only Omen Flow sends an automatic continuation.',
+      'The latest turn of this conversation that this request continues. The host strips any other key: only Bureau sends an automatic continuation.',
     ),
 });
 const chatCancel = z.object({ conversationId: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/) });
@@ -2399,7 +2399,7 @@ export const OPS: OpDef[] = [
     toolCall,
     'both',
     true,
-    'Call any Omen Flow tool by name, including the ones not listed for this session. Take the name from the tool_describe catalogue and its arguments from tool_describe with that tool, then pass them as input. Returns exactly what the named tool returns, including its errors. Tools reserved for the human, such as approving a proposal, are refused. Example: {"tool":"wiring_validate","input":{"artifactId":"<wiring artifact id>"}}',
+    'Call any Bureau tool by name, including the ones not listed for this session. Take the name from the tool_describe catalogue and its arguments from tool_describe with that tool, then pass them as input. Returns exactly what the named tool returns, including its errors. Tools reserved for the human, such as approving a proposal, are refused. Example: {"tool":"wiring_validate","input":{"artifactId":"<wiring artifact id>"}}',
     {
       tier: 'core',
       pack: 'core',
@@ -2668,7 +2668,7 @@ function agentAllowed(op: OpDef): boolean {
 /** Operations an agent session may call. Everything else is user-only. */
 export const AGENT_OPS = new Set(OPS.filter(agentAllowed).map((op) => op.name));
 
-/** Subset of AGENT_OPS listed as tools (MCP). Hidden ops stay callable via `omenflow call`. */
+/** Subset of AGENT_OPS listed as tools (MCP). Hidden ops stay callable via `bureau call`. */
 export const AGENT_TOOL_OPS = new Set(
   OPS.filter((op) => agentAllowed(op) && op.agentVisible).map((op) => op.name),
 );

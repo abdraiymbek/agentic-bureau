@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ArtifactView, Edge, Project, ProjectEvent, Proposal } from '@omenflow/contracts';
+import type { ArtifactView, Edge, Project, ProjectEvent, Proposal } from '@bureau/contracts';
 import { useStore } from '../../apps/desktop/src/renderer/store';
 import {
   clearAllUnsaved,
@@ -110,7 +110,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   storage.clear();
   vi.stubGlobal('window', {
-    omenflow: { command, setActiveProject: vi.fn().mockResolvedValue(undefined) },
+    bureau: { command, setActiveProject: vi.fn().mockResolvedValue(undefined) },
     dispatchEvent: vi.fn(),
   });
   vi.stubGlobal('localStorage', {
@@ -563,7 +563,7 @@ describe('navigation', () => {
 describe('preferences', () => {
   it('reopens a project where it was left once the record shows the object exists', async () => {
     storage.set(
-      'omen.project.p1',
+      'bureau.project.p1',
       JSON.stringify({ view: { level: 'object', id: 'a2' }, lens: 'parts', agentWindowOpen: true }),
     );
     const s = useStore.getState();
@@ -576,11 +576,11 @@ describe('preferences', () => {
   });
 
   it('stays on the lens when the saved object is gone, and saves where the person goes', async () => {
-    storage.set('omen.project.p1', JSON.stringify({ view: { level: 'object', id: 'gone' } }));
+    storage.set('bureau.project.p1', JSON.stringify({ view: { level: 'object', id: 'gone' } }));
     await openProject();
     expect(useStore.getState().view).toEqual({ level: 'project', lens: 'flow' });
     useStore.getState().go({ level: 'project', lens: 'timeline' });
-    expect(JSON.parse(storage.get('omen.project.p1')!)).toEqual({
+    expect(JSON.parse(storage.get('bureau.project.p1')!)).toEqual({
       view: { level: 'project', lens: 'timeline' },
       lens: 'timeline',
       agentWindowOpen: false,
@@ -588,8 +588,8 @@ describe('preferences', () => {
   });
 
   it('survives malformed stored preferences', async () => {
-    storage.set('omen.project.p1', '{not json');
-    storage.set('omen.rails', '[1,2]');
+    storage.set('bureau.project.p1', '{not json');
+    storage.set('bureau.rails', '[1,2]');
     await openProject();
     expect(useStore.getState().view).toEqual({ level: 'project', lens: 'flow' });
   });

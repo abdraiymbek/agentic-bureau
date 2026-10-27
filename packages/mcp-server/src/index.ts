@@ -9,12 +9,12 @@ import {
   ErrorCodes,
   MAX_FRAME_BYTES,
   OPS_BY_NAME,
-  OmenflowError,
+  BureauError,
   RUST_HOST_AGENT_OPS,
   RUST_HOST_OPS,
   toErrorBody,
-} from '@omenflow/contracts';
-import type { CoreApp } from '@omenflow/core';
+} from '@bureau/contracts';
+import type { CoreApp } from '@bureau/core';
 import type { z } from 'zod';
 
 /** Grant handed over by the bridge after hello authentication (structural). */
@@ -103,10 +103,10 @@ export class FrameTransport implements Transport {
 }
 
 /* ------------------------------------------------------------------ */
-/* OmenflowMcpServer — one McpServer per bridge connection                 */
+/* BureauMcpServer — one McpServer per bridge connection                 */
 /* ------------------------------------------------------------------ */
 
-export class OmenflowMcpServer {
+export class BureauMcpServer {
   readonly server: McpServer;
   private transport: FrameTransport | null = null;
 
@@ -114,7 +114,7 @@ export class OmenflowMcpServer {
     private app: CoreApp,
     private grant: McpGrant,
   ) {
-    this.server = new McpServer({ name: 'omenflow', version: '0.1.0' });
+    this.server = new McpServer({ name: 'bureau', version: '0.1.0' });
     this.registerTools();
     this.registerResources();
   }
@@ -139,7 +139,7 @@ export class OmenflowMcpServer {
         {
           description: op.description + (op.mutating ? ' (mutating)' : ''),
           ...(hasShape ? { inputSchema: shape } : {}),
-          // Every op is gated by Omen Flow's own capability + proposal model:
+          // Every op is gated by Bureau's own capability + proposal model:
           // agents can only create drafts, never touch the baseline. Declaring
           // that lets MCP clients (Codex, Claude) skip per-call approval prompts.
           annotations: {
@@ -164,7 +164,7 @@ export class OmenflowMcpServer {
               content: [{ type: 'text' as const, text: JSON.stringify(result ?? null, null, 2) }],
             };
           } catch (e) {
-            const body = e instanceof OmenflowError ? e.toBody() : toErrorBody(e);
+            const body = e instanceof BureauError ? e.toBody() : toErrorBody(e);
             return {
               content: [{ type: 'text' as const, text: JSON.stringify(body, null, 2) }],
               isError: true,
@@ -180,7 +180,7 @@ export class OmenflowMcpServer {
     if (!ops.has('project.summary')) return;
     this.server.registerResource(
       'project_summary',
-      'omenflow://project/summary',
+      'bureau://project/summary',
       { description: 'Bounded structured project summary', mimeType: 'application/json' },
       async (uri) => {
         this.assertActive();
@@ -201,7 +201,7 @@ export class OmenflowMcpServer {
 
   private assertActive(): void {
     if (this.grant.isActive && !this.grant.isActive()) {
-      throw new OmenflowError(ErrorCodes.CONNECTION_DENIED, 'Agent session grant was revoked');
+      throw new BureauError(ErrorCodes.CONNECTION_DENIED, 'Agent session grant was revoked');
     }
   }
 
@@ -226,8 +226,8 @@ export async function connectMcpToBridge(
   app: CoreApp,
   grant: McpGrant,
   buffered?: Buffer,
-): Promise<OmenflowMcpServer> {
-  const server = new OmenflowMcpServer(app, grant);
+): Promise<BureauMcpServer> {
+  const server = new BureauMcpServer(app, grant);
   await server.attach(socket, buffered);
   return server;
 }

@@ -5,7 +5,7 @@
  * functions answer "not compatible" or null. `tests/frontend/ui-units.test.ts` keeps this table
  * identical to the contracts' one, unit by unit and alias by alias.
  */
-import type { Quantity } from '@omenflow/contracts';
+import type { Quantity } from '@bureau/contracts';
 
 interface UnitDef {
   dim: string;

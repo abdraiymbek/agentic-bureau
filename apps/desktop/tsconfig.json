@@ -3,7 +3,7 @@
   "compilerOptions": {
     "types": ["node", "vite/client"],
     "paths": {
-      "@omenflow/contracts": ["../../packages/contracts/src/index.ts"]
+      "@bureau/contracts": ["../../packages/contracts/src/index.ts"]
     }
   },
   "include": ["src", "vite.*.config.ts"]

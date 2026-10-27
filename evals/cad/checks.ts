@@ -5,5 +5,5 @@
  * in packages/engineering/src/mesh.test.ts and against hand-written reference
  * solutions for every task before any agent run.
  */
-export { preservationCheck, runChecks, type CheckResult } from '@omenflow/core';
-export type { Expectation, HoleSpec, SectionSpec } from '@omenflow/contracts';
+export { preservationCheck, runChecks, type CheckResult } from '@bureau/core';
+export type { Expectation, HoleSpec, SectionSpec } from '@bureau/contracts';

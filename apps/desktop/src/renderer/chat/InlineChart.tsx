@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, ChartLine } from '@phosphor-icons/react';
+import { ArrowRight, ChartLine } from '../ui/icons';
 import {
   LineChart,
   Line,
@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { ChatPart } from '@omenflow/contracts';
+import type { ChatPart } from '@bureau/contracts';
 import { Segmented } from '../ui/kit';
 export default function ChartCard({ part }: { part: Extract<ChatPart, { kind: 'chart' }> }) {
   const [mode, setMode] = useState<'chart' | 'table'>('chart');

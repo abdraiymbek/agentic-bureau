@@ -2,7 +2,7 @@
 //! and its identity. Nothing here touches the project database, so it runs
 //! with the application lock released.
 //!
-//! Results are cached by input fingerprint under `.omenflow/cache/`. A failed
+//! Results are cached by input fingerprint under `.bureau/cache/`. A failed
 //! render is cached too, so a revision that cannot render does not cost an
 //! engine run on every check. The cache holds a small manifest; mesh bytes
 //! live in the content-addressed object store.
@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 pub(crate) const DEFAULT_TIMEOUT_MS: u64 = 90_000;
 pub(crate) const MAX_TIMEOUT_MS: u64 = 600_000;
 
-const CACHE_DIR: &str = ".omenflow/cache/render-rust-v1";
+const CACHE_DIR: &str = ".bureau/cache/render-rust-v1";
 /// A timeout or a crash depends on the machine's load, so such an entry is
 /// trusted only briefly.
 const TRANSIENT_FAILURE_TTL: Duration = Duration::from_secs(600);
@@ -41,7 +41,7 @@ impl Request {
     pub fn new(source: &str, params: &Value, timeout_ms: u64) -> Self {
         Self {
             source: source.to_owned(),
-            source_hash: omenflow_storage::sha256_hex(source.as_bytes()),
+            source_hash: bureau_storage::sha256_hex(source.as_bytes()),
             params: params.clone(),
             timeout_ms,
         }
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn a_second_caller_waits_for_the_first_render_of_the_same_inputs() {
-        let root = PathBuf::from("/tmp/omenflow-turn-test");
+        let root = PathBuf::from("/tmp/bureau-turn-test");
         let first = Turn::take(&root, "print", &|| false).unwrap();
         let waited = std::thread::scope(|scope| {
             let waiter = scope.spawn(|| {

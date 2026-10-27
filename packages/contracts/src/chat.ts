@@ -18,7 +18,7 @@ export interface ChatTurn {
   continues?: ChatContinues;
   /** What work_status reported when the turn ended. Recorded by the host, never by an agent. */
   gate?: ChatGate;
-  /** The model id Omen Flow passed to the CLI; absent when the CLI chose or the record predates 0.2.4. */
+  /** The model id Bureau passed to the CLI; absent when the CLI chose or the record predates 0.2.4. */
   model?: string;
   /** The model the CLI reported it ran (Claude Code's init event). */
   resolvedModel?: string;
@@ -48,7 +48,7 @@ export type ChatSkipReason =
   | 'agent_unavailable'
   | 'project_closed'
   | 'read_only';
-/** What Omen Flow did about unfinished work when the turn ended. Later hosts may add states. */
+/** What Bureau did about unfinished work when the turn ended. Later hosts may add states. */
 export type ChatAutoContinue =
   | { state: 'off' }
   | { state: 'started'; requestId: string }
@@ -68,7 +68,7 @@ export interface ChatGate {
   more: number;
   /** This turn's agent session and those of the turns it continues, oldest first. */
   sessionIds: string[];
-  /** Calls those sessions made to Omen Flow, from the host's call ledger. */
+  /** Calls those sessions made to Bureau, from the host's call ledger. */
   calls: number;
   /**
    * Artifacts those sessions wrote, checked, changed through a job or proposed; exporting or only
@@ -84,7 +84,7 @@ export interface ChatGate {
 export interface ChatContinues {
   /** The turn this request continues. */
   requestId: string;
-  /** True only when Omen Flow sent it. The transport cannot set this. */
+  /** True only when Bureau sent it. The transport cannot set this. */
   automatic: boolean;
 }
 /** Tokens the CLI reported for the run. Never a cost. */
@@ -97,7 +97,7 @@ export interface ChatUsage {
 }
 
 /**
- * The text of a continuation, sent by Continue and by Omen Flow's one automatic continuation.
+ * The text of a continuation, sent by Continue and by Bureau's one automatic continuation.
  * Kept equal to `CONTINUE_TEXT` in crates/agent-host/src/chat.rs.
  */
 export const CHAT_CONTINUE_TEXT =

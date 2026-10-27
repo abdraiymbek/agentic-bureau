@@ -3,9 +3,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { CoreApp, nullHost } from '@omenflow/core';
-import { createEngineTools } from '@omenflow/engineering';
-import type { Expectation } from '@omenflow/contracts';
+import { CoreApp, nullHost } from '@bureau/core';
+import { createEngineTools } from '@bureau/engineering';
+import type { Expectation } from '@bureau/contracts';
 import { canonicalScadRef } from '../../packages/core/src/cad-input.js';
 import { CAD_CHECKER_VERSION } from '../../packages/core/src/cad-verification.js';
 import { evaluateProject, type TaskResult } from './harness.js';

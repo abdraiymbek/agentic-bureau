@@ -14,7 +14,7 @@ import {
   SessionInfo,
   StaleRecord,
   newId,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 
 type Row = Record<string, unknown>;
 const J = (v: unknown) => JSON.stringify(v ?? null);

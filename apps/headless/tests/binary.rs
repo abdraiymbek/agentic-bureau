@@ -1,4 +1,4 @@
-//! The built `omenflow-host` executable: its announcement, its exit paths,
+//! The built `bureau-host` executable: its announcement, its exit paths,
 //! and that agent processes never outlive it.
 #![cfg(unix)]
 
@@ -20,7 +20,7 @@ struct Spawned {
 }
 
 fn spawn(app_data: &Path, extra: &[&str]) -> Spawned {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_omenflow-host"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_bureau-host"))
         .arg("--app-data")
         .arg(app_data)
         .args(["--cli", "/bin/echo"])
@@ -105,7 +105,7 @@ impl Spawned {
             }
             if Instant::now() >= deadline {
                 let _ = self.child.kill();
-                panic!("omenflow-host was still running after {limit:?}");
+                panic!("bureau-host was still running after {limit:?}");
             }
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -202,7 +202,7 @@ fn it_restarts_on_the_same_application_state() {
 #[test]
 fn bad_invocations_exit_with_usage() {
     let run = |args: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_omenflow-host"))
+        Command::new(env!("CARGO_BIN_EXE_bureau-host"))
             .args(args)
             .output()
             .unwrap()
@@ -210,8 +210,8 @@ fn bad_invocations_exit_with_usage() {
     let missing = run(&[]);
     assert_eq!(missing.status.code(), Some(2));
     let stderr = String::from_utf8(missing.stderr).unwrap();
-    assert!(stderr.starts_with("omenflow-host: --app-data <dir> is required"));
-    assert!(stderr.contains("usage: omenflow-host --app-data <dir>"));
+    assert!(stderr.starts_with("bureau-host: --app-data <dir> is required"));
+    assert!(stderr.contains("usage: bureau-host --app-data <dir>"));
     assert!(missing.stdout.is_empty());
 
     let temp = tempfile::tempdir().unwrap();

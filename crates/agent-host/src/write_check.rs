@@ -9,7 +9,7 @@
 //! call's ledger record lists both under `alsoRan`, as run by the host.
 
 use super::{dispatch_core, parse_agent, present, AlsoRan, CallTrace, Grant, Shared};
-use omenflow_contracts::{registry, ContractError, Operation};
+use bureau_contracts::{registry, ContractError, Operation};
 use serde_json::{json, Value};
 
 /// Operations that take `expect` and check the revision they saved.
@@ -536,7 +536,7 @@ mod tests {
 mod engine_tests {
     use super::*;
     use crate::test_support::{StandInEngine, Workspace};
-    use omenflow_contracts::Profile;
+    use bureau_contracts::Profile;
 
     fn setup(name: &str) -> (Workspace, StandInEngine) {
         let workspace = Workspace::new(name);

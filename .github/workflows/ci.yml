@@ -34,7 +34,7 @@ jobs:
       - run: pnpm notices:check
       # Renderer, contracts and the legacy TypeScript suites.
       - run: pnpm test
-      - run: pnpm --filter @omenflow/desktop build:rust-ui
+      - run: pnpm --filter @bureau/desktop build:rust-ui
 
   rust:
     name: Rust workspace (${{ matrix.os }})
@@ -71,18 +71,18 @@ jobs:
           openscad --version
       # The desktop crate's build script needs the release helper it bundles, and the
       # real-helper round trip runs it.
-      - run: cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml
+      - run: cargo build --release --locked --manifest-path native/bureau-bridge/Cargo.toml
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-      - run: cargo test -p omenflow-agent-host --locked -- --ignored
+      - run: cargo test -p bureau-agent-host --locked -- --ignored
 
   bridge:
-    name: omenflow helper (fmt, clippy, tests)
+    name: bureau helper (fmt, clippy, tests)
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: native/omenflow-bridge
+        working-directory: native/bureau-bridge
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -118,7 +118,7 @@ jobs:
           openscad --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:bridge
-      # Builds omenflow-host and runs every *.conformance.ts case against it.
+      # Builds bureau-host and runs every *.conformance.ts case against it.
       - run: pnpm test:conformance
       - run: pnpm smoke:headless
 
@@ -141,7 +141,7 @@ jobs:
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
-          name: omenflow-macos-arm64
+          name: bureau-macos-arm64
           path: target/release/bundle/
           if-no-files-found: error
           retention-days: 7
@@ -156,7 +156,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      # The recipe verified on arm64 (docs/release.md): builds the omenflow-linux-build
+      # The recipe verified on arm64 (docs/release.md): builds the bureau-linux-build
       # image (Ubuntu 22.04) from scripts/linux/Dockerfile, copies the checkout into a
       # container of it, runs `pnpm make --bundles deb,rpm,appimage` there and checks the
       # glibc and WebKitGTK floors the packages declare against the binaries, then
@@ -170,7 +170,7 @@ jobs:
       - name: Upload Linux packages
         uses: actions/upload-artifact@v4
         with:
-          name: omenflow-linux-x86_64
+          name: bureau-linux-x86_64
           path: |
             target/release/bundle/linux-amd64/*.deb
             target/release/bundle/linux-amd64/*.rpm
@@ -181,7 +181,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: omenflow-linux-x86_64-smoke
+          name: bureau-linux-x86_64-smoke
           path: target/release/bundle/linux-amd64/*.png
           if-no-files-found: warn
           retention-days: 7
@@ -193,7 +193,7 @@ jobs:
       # Ubuntu Noble's published package; update deliberately with geometry checks.
       # https://packages.ubuntu.com/noble/openscad
       OPENSCAD_PACKAGE_VERSION: 2021.01-6build4
-      OMENFLOW_OPENSCAD_E2E: '1'
+      BUREAU_OPENSCAD_E2E: '1'
       QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
@@ -215,7 +215,7 @@ jobs:
       - run: pnpm rebuild:node
       - name: Require a functioning engine before running suites that permit local skips
         run: >-
-          pnpm exec tsx -e 'import { OpenScadAdapter } from "@omenflow/engineering";
+          pnpm exec tsx -e 'import { OpenScadAdapter } from "@bureau/engineering";
           new OpenScadAdapter().probe().then((p) => {
           console.log(JSON.stringify(p));
           if (!p.available || p.executablePath !== "/usr/bin/openscad") process.exit(1);
@@ -255,7 +255,7 @@ jobs:
       - name: Upload packaged app
         uses: actions/upload-artifact@v4
         with:
-          name: omenflow-win32-x64
+          name: bureau-win32-x64
           path: target/release/bundle/
           if-no-files-found: error
           retention-days: 7

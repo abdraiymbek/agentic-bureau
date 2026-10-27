@@ -1,15 +1,15 @@
-use omenflow_headless::{Config, Server, Stopper};
+use bureau_headless::{Config, Server, Stopper};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 const USAGE: &str = "\
-usage: omenflow-host --app-data <dir> [--port <n>] [--token <t>] [--cli <path>] [--exit-on-stdin-close]
+usage: bureau-host --app-data <dir> [--port <n>] [--token <t>] [--cli <path>] [--exit-on-stdin-close]
 
   --app-data <dir>        application state directory (settings, agent bridge socket)
   --port <n>              loopback port to listen on; 0 picks a free one (default 0)
   --token <t>             token every request must carry; generated when absent
-  --cli <path>            the omenflow helper that agent sessions call back through
+  --cli <path>            the bureau helper that agent sessions call back through
   --exit-on-stdin-close   stop when standard input closes, so the host never outlives its parent
 
 Prints one JSON line { port, token, socketPath } to standard output once it is listening.";
@@ -66,9 +66,9 @@ fn parse(argv: impl IntoIterator<Item = String>) -> Result<Parsed, String> {
 /// development build inside the repository.
 fn default_cli_path() -> PathBuf {
     let name = if cfg!(windows) {
-        "omenflow.exe"
+        "bureau.exe"
     } else {
-        "omenflow"
+        "bureau"
     };
     let beside = std::env::current_exe()
         .ok()
@@ -76,7 +76,7 @@ fn default_cli_path() -> PathBuf {
         .filter(|path| path.is_file());
     beside.unwrap_or_else(|| {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../native/omenflow-bridge/target/release")
+            .join("../../native/bureau-bridge/target/release")
             .join(name)
     })
 }
@@ -160,18 +160,18 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Ok(Parsed::Version) => {
-            println!("omenflow-host {}", env!("CARGO_PKG_VERSION"));
+            println!("bureau-host {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
         Ok(Parsed::Run(args)) => match run(*args) {
             Ok(()) => ExitCode::SUCCESS,
             Err(message) => {
-                eprintln!("omenflow-host: {message}");
+                eprintln!("bureau-host: {message}");
                 ExitCode::FAILURE
             }
         },
         Err(message) => {
-            eprintln!("omenflow-host: {message}\n\n{USAGE}");
+            eprintln!("bureau-host: {message}\n\n{USAGE}");
             ExitCode::from(2)
         }
     }
@@ -195,7 +195,7 @@ mod tests {
             "--token",
             "0123456789abcdef",
             "--cli",
-            "/opt/omenflow",
+            "/opt/bureau",
             "--exit-on-stdin-close",
         ]) else {
             panic!("expected a run");
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(parsed.config.app_data_dir, PathBuf::from("/tmp/state"));
         assert_eq!(parsed.config.port, 4810);
         assert_eq!(parsed.config.token.as_deref(), Some("0123456789abcdef"));
-        assert_eq!(parsed.config.cli_path, PathBuf::from("/opt/omenflow"));
+        assert_eq!(parsed.config.cli_path, PathBuf::from("/opt/bureau"));
         assert!(parsed.exit_on_stdin_close);
     }
 
@@ -216,9 +216,9 @@ mod tests {
         assert!(parsed.config.token.is_none());
         assert!(!parsed.exit_on_stdin_close);
         assert!(parsed.config.cli_path.ends_with(if cfg!(windows) {
-            "omenflow.exe"
+            "bureau.exe"
         } else {
-            "omenflow"
+            "bureau"
         }));
     }
 

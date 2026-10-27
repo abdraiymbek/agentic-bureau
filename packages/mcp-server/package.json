@@ -1,5 +1,5 @@
 {
-  "name": "@omenflow/mcp-server",
+  "name": "@bureau/mcp-server",
   "version": "0.2.4",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@omenflow/contracts": "workspace:*",
-    "@omenflow/core": "workspace:*",
-    "@omenflow/storage": "workspace:*",
+    "@bureau/contracts": "workspace:*",
+    "@bureau/core": "workspace:*",
+    "@bureau/storage": "workspace:*",
     "zod": "^3.25.76"
   }
 }

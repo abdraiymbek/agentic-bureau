@@ -8,7 +8,7 @@
  * absorbed by the 1.5 % volume tolerance and 0.1 mm linear tolerance).
  */
 import type { Expectation } from './checks.js';
-import type { Vec3 } from '@omenflow/core';
+import type { Vec3 } from '@bureau/core';
 
 export interface SeedArtifact {
   title: string;

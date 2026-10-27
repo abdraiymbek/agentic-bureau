@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatRecord } from '@omenflow/contracts';
-import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
+import type { ChatRecord } from '@bureau/contracts';
+import { CHAT_CONTINUE_TEXT } from '@bureau/contracts/chat';
 import { useChat } from '../../apps/desktop/src/renderer/chat/chat-store';
 const command = vi.fn();
 const record = (conversation: string, request: string, text = 'first'): ChatRecord => ({
@@ -31,7 +31,7 @@ beforeEach(() => {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => storage.set(key, value),
   });
-  vi.stubGlobal('window', { omenflow: { command } });
+  vi.stubGlobal('window', { bureau: { command } });
   command.mockReset().mockResolvedValue({ ok: true, result: { version: 1, conversations: [] } });
   useChat.setState({ projects: {} });
 });
@@ -353,7 +353,7 @@ describe('Continue on a turn', () => {
   it('drops a malformed persisted continuation reference', () => {
     const conversation = 'conversation';
     storage.set(
-      'omen.chat.v1.p1',
+      'bureau.chat.v1.p1',
       JSON.stringify({
         activeId: conversation,
         pending: {

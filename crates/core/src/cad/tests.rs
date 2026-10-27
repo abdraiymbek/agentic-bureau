@@ -706,7 +706,7 @@ fn titles_that_slug_alike_or_have_no_latin_letters_get_their_own_files() {
             entry
                 .file_name()
                 .to_string_lossy()
-                .contains("omenflow-conflict")
+                .contains("bureau-conflict")
         })
         .count();
     assert_eq!(stray, 0);

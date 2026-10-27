@@ -1,8 +1,8 @@
 {
   "bundle": {
     "resources": {
-      "../../native/omenflow-bridge/target/release/omenflow": null,
-      "../../native/omenflow-bridge/target/release/omenflow.exe": "omenflow.exe",
+      "../../native/bureau-bridge/target/release/bureau": null,
+      "../../native/bureau-bridge/target/release/bureau.exe": "bureau.exe",
       "../../LICENSE": "LICENSE",
       "../../NOTICE": "NOTICE",
       "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"

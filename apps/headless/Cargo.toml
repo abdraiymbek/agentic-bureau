@@ -1,21 +1,21 @@
 [package]
-name = "omenflow-headless"
-description = "Omen Flow host without a window: the desktop command surface over loopback HTTP"
+name = "bureau-headless"
+description = "Bureau host without a window: the desktop command surface over loopback HTTP"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [lib]
-name = "omenflow_headless"
+name = "bureau_headless"
 path = "src/lib.rs"
 
 [[bin]]
-name = "omenflow-host"
+name = "bureau-host"
 path = "src/main.rs"
 
 [dependencies]
-omenflow-agent-host = { path = "../../crates/agent-host" }
-omenflow-contracts = { path = "../../crates/contracts" }
+bureau-agent-host = { path = "../../crates/agent-host" }
+bureau-contracts = { path = "../../crates/contracts" }
 serde_json.workspace = true
 uuid = { version = "1", features = ["v4"] }
 

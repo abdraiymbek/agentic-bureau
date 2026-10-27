@@ -3,7 +3,7 @@
  * decision pinned below. The person approves it themselves; nothing here reaches a record.
  */
 import React, { useState } from 'react';
-import { ArrowRight, GitBranch } from '@phosphor-icons/react';
+import { ArrowRight, GitBranch } from '../ui/icons';
 import { Button, State, Tooltip, TypeGlyph } from '../ui/kit';
 
 const AFFECTED: [type: string, title: string][] = [

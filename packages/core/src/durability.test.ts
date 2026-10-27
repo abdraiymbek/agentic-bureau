@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ErrorCodes, OmenflowError, PROJECT_FILE, type Origin } from '@omenflow/contracts';
-import { openProject } from '@omenflow/storage';
+import { ErrorCodes, BureauError, PROJECT_FILE, type Origin } from '@bureau/contracts';
+import { openProject } from '@bureau/storage';
 import { CoreApp } from './app.js';
 
 const user: Origin = { kind: 'user' };
@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function tmp() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-durability-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-durability-'));
   roots.push(root);
   return root;
 }
@@ -99,14 +99,14 @@ describe('app-level create/rename reservations and crash hooks', () => {
     };
     expect(marker.name).toBe('Old');
     expect(app.contextFor(created.projectId).repo.getProject()?.name).toBe('New');
-    expect(fs.existsSync(path.join(projectPath, '.omenflow/recovery/rename.json'))).toBe(true);
+    expect(fs.existsSync(path.join(projectPath, '.bureau/recovery/rename.json'))).toBe(true);
     app.closeProject(created.projectId);
     const reopened = openProject(projectPath);
     expect(reopened.project.name).toBe('New');
     expect(JSON.parse(fs.readFileSync(path.join(projectPath, PROJECT_FILE), 'utf8')).name).toBe(
       'New',
     );
-    expect(fs.existsSync(path.join(projectPath, '.omenflow/recovery/rename.json'))).toBe(false);
+    expect(fs.existsSync(path.join(projectPath, '.bureau/recovery/rename.json'))).toBe(false);
     reopened.close();
   });
 });
@@ -208,7 +208,7 @@ describe('calculation cancellation', () => {
       templates: () => [],
       evaluate: (_e, _i, _u, opts) =>
         new Promise((_resolve, reject) => {
-          const fail = () => reject(new OmenflowError(ErrorCodes.CANCELLED, 'cancelled'));
+          const fail = () => reject(new BureauError(ErrorCodes.CANCELLED, 'cancelled'));
           if (opts?.signal?.aborted) return fail();
           opts?.signal?.addEventListener('abort', fail);
         }),

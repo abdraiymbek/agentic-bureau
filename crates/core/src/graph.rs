@@ -2,8 +2,8 @@ use crate::{
     emit, internal, models, now, record_event, require_artifact, require_revision, txn, CoreResult,
     Origin,
 };
-use omenflow_contracts::ContractError;
-use omenflow_storage::ProjectHandle;
+use bureau_contracts::ContractError;
+use bureau_storage::ProjectHandle;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};

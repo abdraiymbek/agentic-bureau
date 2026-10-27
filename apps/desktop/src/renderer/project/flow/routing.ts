@@ -39,6 +39,8 @@ export interface LayoutEdge extends RouteLink {
 const TIP_GAP = 1.5;
 const ARROW_LENGTH = 6;
 const ARROW_HALF_WIDTH = 4;
+/** The side of the square that ends a link. */
+const TERMINAL = 4;
 /** Space a link keeps from the nodes above and below the gap it crosses. */
 const CLEARANCE = 2.5;
 const EDGE_SLOT_OFFSET = 12;
@@ -155,11 +157,15 @@ class Path {
     this.curve({ x: lane, y: this.at.y }, { x: lane, y: to.y }, to);
   }
 
-  /** An open chevron whose tip is the current point, pointing along `direction` (1 = rightwards). */
+  /**
+   * The link's terminal: a small square at the consequence end, its front edge on the current
+   * point, set back along `direction` (1 = rightwards). A square, like every mark in Bureau.
+   */
   arrow(direction: 1 | -1) {
     const { x, y } = this.at;
-    const back = x - direction * ARROW_LENGTH;
-    this.head = `M${fmt(back)},${fmt(y - ARROW_HALF_WIDTH)}L${fmt(x)},${fmt(y)}L${fmt(back)},${fmt(y + ARROW_HALF_WIDTH)}`;
+    const back = x - direction * TERMINAL;
+    const half = TERMINAL / 2;
+    this.head = `M${fmt(x)},${fmt(y - half)}L${fmt(back)},${fmt(y - half)}L${fmt(back)},${fmt(y + half)}L${fmt(x)},${fmt(y + half)}Z`;
   }
 
   /** The drawn geometry, ready to spread into an edge. */

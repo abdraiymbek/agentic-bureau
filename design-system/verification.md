@@ -4,12 +4,39 @@ The newest record comes first. Checks apply to working trees, not to a packaged 
 release. Native v0.1 qualification of the previous renderer is recorded in
 [release evidence](../audit/release-v0.1/README.md) and does not transfer to Lens.
 
+## Bureau rename and redesign · 27 October 2026
+
+Omen Flow renamed to Agentic Bureau (Bureau in the app) and the interface redrawn: the pixel
+mark, Mona Sans and JetBrains Mono, the icon set in `ui/icons.tsx`, the sidebar and sheet in place
+of the activity bar and title bar, and the Dark and Light themes. On the working tree:
+
+- `pnpm typecheck`, `pnpm test` (1127 tests), `cargo test --workspace`, `pnpm lint`,
+  `pnpm contracts:check` and `pnpm notices:check` pass. The token test measures every text, state,
+  stroke and focus role against every surface in both themes.
+- Rust tests cover the carry-over: a project with `.omenflow` and `omenflow.project.json` is
+  renamed to `.bureau` and `bureau.project.json` when opened, an archive with the old member names
+  imports, an `omenflow:guide` block in a project `AGENTS.md` is taken over, and the Omen Flow
+  settings folder is read first on first launch.
+- In the design preview at 1440 × 900, Dark: the launcher, the introduction's acts and setup, Flow,
+  Parts, Timeline, Files, Evidence, a mechanical, requirement and calculation object, Decisions,
+  the Agent tab (conversation and terminal) and floating window, the omnibar, Settings and the
+  catalogue. Light: the same shell, Flow, an object and the catalogue. At 1024 × 700 the sidebar
+  folds to icons with every row named in a tooltip. No console errors.
+- The gallery page (`design-system/index.html`) loads the new fonts and mark.
+
+Not checked here: the native app (`pnpm dev`) and a packaged build, including the carried-over
+settings folder on a real machine and the Windows and Linux icons; VoiceOver; the films, which
+still use Geist, IBM Plex Mono and the old mark until they are re-cut. What the webview keeps
+(theme, folded rails, the chosen adapter, unsent drafts, the open conversation) starts fresh once:
+the app identifier changed and the keys moved from `omenflow.*` to `bureau.*`. Conversations are
+part of the project record and are kept.
+
 ## 0.2.4 merged tree · 22 October 2026
 
 The five 0.2.4 changes together (completion gate and model ids, STEP export, cad_view and
 image_view, listed items of a CAD check, the lean CAD path), in the design preview on the merged
 tree (started through a local copy of `scripts/design-preview.ts` that reused a helper built from
-this tree, since a nested worktree cannot build `native/omenflow-bridge`), Graphite at
+this tree, since a nested worktree cannot build `native/bureau-bridge`), Graphite at
 1440 × 900:
 
 - Settings → Agents lists the adapters and, after them, “Unfinished work after a response” with
@@ -32,13 +59,13 @@ stage, the native app, VoiceOver.
 `lib/render-jobs.ts`), its export job row and outcome notice, and Settings → Engineering tools →
 STEP converter (`shell/StepConverter.tsx`). Checked in the design preview, started through a local
 copy of `scripts/design-preview.ts` that reused the built helper (a nested worktree cannot build
-`native/omenflow-bridge`), at 1440 × 900 and 1024 × 700 in Graphite and Paper, with the Compare
+`native/bureau-bridge`), at 1440 × 900 and 1024 × 700 in Graphite and Paper, with the Compare
 checkbox present at 1024:
 
 - On the rover's camera tray r2 (the illustrative mesh) Export STEP is disabled and the note
   under the bar reads “STEP: r2 shows an illustrative mesh, not a render of its source.”
 - After **Render r2** (r3, a real OpenSCAD render) with no converter set up, the export showed
-  the job row (“Exporting STEP · r3 · … · omenflow-step”, **Cancel export**, Export STEP busy),
+  the job row (“Exporting STEP · r3 · … · bureau-step”, **Cancel export**, Export STEP busy),
   then “STEP saved · faceted, not exact · 130 planar faces · 125.4 kB” with the reason, what it
   was built from, the draft and no-passing-check notes, the path, Reveal and **Engineering
   tools** (which opened Settings; opening it at the Engineering tools section was added after
@@ -117,7 +144,7 @@ validated.” The steps do the real thing: agent CLI detection and choice (`conn
 through `settings.set`), Graphite or Paper live, the shortcut primer lit by real presses, and
 where projects and settings live by platform. Replayable from Settings → Appearance, the
 launcher's footer, `⌘K` (Introduction) and the catalogue; `screen=intro` in the design preview.
-Remembered as the version seen (`omen.intro`), so skipping counts and a reworked introduction
+Remembered as the version seen (`bureau.intro`), so skipping counts and a reworked introduction
 plays again for everyone. New tokens: `--text-4xl`, `--z-intro`, `--t-scene`, `--t-draw` (both
 zeroed under reduced motion, where the pulses and the ring are hidden too).
 
@@ -158,7 +185,7 @@ tests, including `chat` events on the server-sent stream), `cargo clippy --works
 existing test, `a_relative_data_folder_gives_an_absolute_endpoint`, could not run here: the
 worktree's socket path is 116 bytes, above macOS's 104-byte limit.
 
-In the Rust design preview with `OMEN_PREVIEW_AGENTS=1`, the deterministic fixture
+In the Rust design preview with `BUREAU_PREVIEW_AGENTS=1`, the deterministic fixture
 (`tests/conformance/fixtures/inline-agent.py`) was configured as the Codex executable. Each of its
 three chunks appeared as it arrived and was read once, in the millisecond its event landed. Its
 five card presentations and the settled turn, six events within 100 ms, needed two reads. An
@@ -180,7 +207,7 @@ The Rust design preview was reviewed in Graphite and Paper at 1440×900 and 1024
 tab opens on the conversation; a part card prepares exact values; Send is refused while preview
 agents are off; the terminal pane is unchanged; the floating window and the dock show the
 compact conversation beside the Flow lens; a pending proposal opens as a review card and
-zooms to Decisions. With `OMEN_PREVIEW_AGENTS=1`, the deterministic fixture
+zooms to Decisions. With `BUREAU_PREVIEW_AGENTS=1`, the deterministic fixture
 (`tests/conformance/fixtures/inline-agent.py`) streamed text and presented a record, a chart,
 a quantity form and choices; Stop response from the terminal pane cancelled a held run; a
 running Custom CLI terminal disabled Send and the host answered `BUSY`. One real Claude Code
@@ -234,7 +261,7 @@ The integration pass joined the tracks' seams:
 - The decision guard reads the shared layer helper (`lib/layers.ts`).
 - Toasts lift above any `data-toast-avoid` control (decision bar, map controls, save bar) and
   leave with an exit animation.
-- Object rails fold (40 px strip, `omen.rails`) and each rail, the decision queue, the impact
+- Object rails fold (40 px strip, `bureau.rails`) and each rail, the decision queue, the impact
   rail and CAD geometry have their own error boundary.
 - Timeline pages through the store's event window; lens filters, picks and queries survive a
   lens switch (`useViewState`).
@@ -251,11 +278,11 @@ The integration pass joined the tracks' seams:
 
 | Check                                                                        | Result                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter @omenflow/desktop typecheck`                                  | Passed                                                                                                                                                                                                                                                                          |
+| `pnpm --filter @bureau/desktop typecheck`                                    | Passed                                                                                                                                                                                                                                                                          |
 | `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts`         | 49 files, 563 tests passed                                                                                                                                                                                                                                                      |
 | `pnpm exec eslint apps/desktop/src/renderer tests/frontend --max-warnings 0` | 0 errors, 0 warnings                                                                                                                                                                                                                                                            |
 | `prettier --check` on `apps/desktop`, `tests/frontend`, `design-system`      | Passed                                                                                                                                                                                                                                                                          |
-| `pnpm --filter @omenflow/desktop build:rust-ui`                              | Passed; entry 444.4 kB; lazy: three 499.8, xterm 331.3, ObjectView 93.5, markdown 68.7, DecideView 65.0, FlowLens 57.9, Agent 49.3, StlViewport 49.2, DesignSystemView 33.6, Omnibar 29.7, PartsLens 24.0, Settings 15.1, TimelineLens 12.4, EvidenceLens 9.5, FilesLens 8.8 kB |
+| `pnpm --filter @bureau/desktop build:rust-ui`                                | Passed; entry 444.4 kB; lazy: three 499.8, xterm 331.3, ObjectView 93.5, markdown 68.7, DecideView 65.0, FlowLens 57.9, Agent 49.3, StlViewport 49.2, DesignSystemView 33.6, Omnibar 29.7, PartsLens 24.0, Settings 15.1, TimelineLens 12.4, EvidenceLens 9.5, FilesLens 8.8 kB |
 
 ### Preview walkthrough (integration pass)
 
@@ -304,7 +331,7 @@ A fresh-eyes product QA walked every surface in the specification on the Rust-ba
 (rover and drone fixtures) in the Browser pane at 1440 × 900 and 1024 × 700, Graphite and
 Paper, and drove the Agent tab with a real shell: Settings → Custom CLI, executable `/bin/zsh`,
 arguments `-i`, saved through the form. At that time the preview started a Custom CLI without
-`OMEN_PREVIEW_AGENTS=1`; since the review it starts no terminal without it. Codex CLI and Claude
+`BUREAU_PREVIEW_AGENTS=1`; since the review it starts no terminal without it. Codex CLI and Claude
 Code were never started. The pane was hidden, so terminal content was checked against the
 host's `terminal.state` scrollback as well as on screen. The host was restarted once to pick up
 the one Rust fix.
@@ -312,9 +339,9 @@ the one Rust fix.
 What the real terminal showed (observed, not injected):
 
 - The session bar read “Running · Custom CLI · Compact · adapter default · 13 tools · 0 calls”,
-  and `which omenflow` found the bundled helper. `omenflow status` answered “Nothing is
-  unfinished in this session.” and the bar moved to 1 call; `omenflow guide cad` printed the
-  CAD playbook; `omenflow call artifact_list` listed the project.
+  and `which bureau` found the bundled helper. `bureau status` answered “Nothing is
+  unfinished in this session.” and the bar moved to 1 call; `bureau guide cad` printed the
+  CAD playbook; `bureau call artifact_list` listed the project.
 - `artifact_read` with `revisionID` was repaired, with the note “renamed revisionID →
   revisionId”; with `verbosity` it was refused as `VALIDATION` naming the allowed keys, with an
   example and a repair.
@@ -387,13 +414,13 @@ are copied from the output.
 | `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts` | 52 files, 616 tests passed                                                                |
 | `pnpm typecheck`                                                     | Passed (every workspace package and `evals/`)                                             |
 | `pnpm lint`                                                          | 0 errors; 123 warnings, none under `apps/desktop`                                         |
-| `pnpm --filter @omenflow/desktop build:rust-ui`                      | Passed; entry 445.98 kB (gzip 138.60 kB); three.js 499.75 kB and xterm 331.26 kB separate |
+| `pnpm --filter @bureau/desktop build:rust-ui`                        | Passed; entry 445.98 kB (gzip 138.60 kB); three.js 499.75 kB and xterm 331.26 kB separate |
 | `pnpm test`                                                          | 91 files, 967 passed, 2 skipped (real-engine gated cases)                                 |
 | `pnpm test:conformance`                                              | 4 files, 52 tests passed, one an expected failure                                         |
 | `cargo test --workspace --locked --no-fail-fast`                     | 544 passed, 1 ignored                                                                     |
 | `pnpm format:check`                                                  | Passed                                                                                    |
 
-On the Rust headless host, with no browser (`OMEN_PREVIEW_PORT=5199 pnpm design:preview`): the
+On the Rust headless host, with no browser (`BUREAU_PREVIEW_PORT=5199 pnpm design:preview`): the
 page's endpoints answered 403 until the printed key was traded for the cookie; then the gallery
 answered 200, a cross-origin bootstrap 403, and through the preview proxy `project.coverage`
 (2 requirements), `work.status`, `guide.read`, `agent.activity` and the `tool.describe`
@@ -428,7 +455,7 @@ The v1 renderer (sidebar, overview dashboard, nine routes, inspector side panel,
 `components/ui.tsx`, `global.css`, `welcome.css`) was removed. Lens replaces it with three
 zoom levels, a causal flow map, type-shaped stages, a decision mode, an agent composer bound to
 the PTY, an omnibar, and a settings sheet. Tokens, specification, catalogue, brand, app icons,
-and reference screens were replaced together. `@omenflow` operations, `.omenflow` storage, and
+and reference screens were replaced together. `@bureau` operations, `.bureau` storage, and
 the bridge are unchanged.
 
 ### Automated checks
@@ -438,7 +465,7 @@ the bridge are unchanged.
 | `pnpm typecheck`                                 | Passed across all workspace packages                   |
 | `pnpm test`                                      | 37 files passed; 285 tests passed, 2 skipped           |
 | `eslint apps/desktop/src/renderer`               | 0 errors, 0 warnings                                   |
-| `pnpm --filter @omenflow/desktop build:rust-ui`  | Passed (existing large-chunk advisory remains)         |
+| `pnpm --filter @bureau/desktop build:rust-ui`    | Passed (existing large-chunk advisory remains)         |
 | `prettier --check` on renderer and design-system | Passed                                                 |
 | `git diff --check`                               | Passed                                                 |
 | `pnpm dev` (Tauri, macOS)                        | Compiled and launched with the overlay titlebar config |
@@ -541,18 +568,18 @@ the bottom the agent-window toggle and Settings. The agent is one xterm/PTY inst
 mounted for the life of the open project and switches presentation — full Agent tab, floating
 bottom-left window (`⌘J`, resizable, persisted), or hidden. The composer, agent chip, context
 chip, docked console, top-right lens switcher, and the titlebar Settings button were removed.
-The agent choice moved to a Settings radio group (`omen.agent` preference) with
+The agent choice moved to a Settings radio group (`bureau.agent` preference) with
 “Restart with {agent}” for a live session on another CLI; “Ask agent” now types into the PTY
 without submitting.
 
 Checks run:
 
-- `pnpm --filter @omenflow/desktop typecheck` — passed.
+- `pnpm --filter @bureau/desktop typecheck` — passed.
 - `eslint apps/desktop/src/renderer` — 0 errors, 0 warnings.
 - `prettier --check` on `apps/desktop/src/renderer`, `design-system`, `AGENTS.md` — passed.
 - `pnpm exec vitest run` — 39 files, 340 tests passed, 2 skipped (no renderer test files exist
   under `apps/desktop`).
-- `pnpm --filter @omenflow/desktop build:rust-ui` — passed (existing large-chunk advisory
+- `pnpm --filter @bureau/desktop build:rust-ui` — passed (existing large-chunk advisory
   remains).
 - `pnpm design:preview` walkthrough at ~1440 × 900, Graphite and Paper: activity bar renders
   with the Agent tab first; the Agent tab fills the main area with the terminal; the agent
@@ -564,7 +591,7 @@ Not covered:
 - **A live agent session.** The preview cannot start a CLI (`terminal.start` is disabled), so
   autostart, the live pulse/ring, bracketed-paste typing, scrollback restore, and the
   ended/restart overlay were verified by code path only.
-- `omen.agentWindow` persisted sizing across relaunch, and native chrome (overlay titlebar,
+- `bureau.agentWindow` persisted sizing across relaunch, and native chrome (overlay titlebar,
   traffic lights) alongside the activity bar.
 
 ## Sourced parts · 26 September 2026

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ArrowClockwise, Cube, FolderOpen, Play, TerminalWindow, X } from '@phosphor-icons/react';
-import type { AdapterStatus, ProfileSetting } from '@omenflow/contracts';
+import { ArrowClockwise, Cube, FolderOpen, Play, TerminalWindow, X } from '../ui/icons';
+import type { AdapterStatus, ProfileSetting } from '@bureau/contracts';
 import { preferredAdapter, useStore } from '../store';
 import { restartAgent, startAgent } from '../lib/actions';
 import {
@@ -96,7 +96,7 @@ export function Settings() {
               {section === 'appearance' && <AppearanceSection />}
               <footer className="sheet-foot">
                 <Mark size={14} />
-                <span>Omen Flow · local by design. Your record lives in the project folder.</span>
+                <span>Bureau · local by design. Your record lives in the project folder.</span>
               </footer>
             </div>
           )}
@@ -197,7 +197,7 @@ function AgentsSection() {
 /* ------------------------------------------------------------------ */
 
 /**
- * Whether Omen Flow continues unfinished work once by itself (`conversation.autoContinue`,
+ * Whether Bureau continues unfinished work once by itself (`conversation.autoContinue`,
  * off unless set). The host reads it when a response ends.
  */
 function ContinueSetting() {
@@ -233,7 +233,7 @@ function ContinueSetting() {
         <small>
           When work_status reports blockers, the response offers Continue. Continue once also sends
           one continuation by itself per message you send, when a blocker is the agent's to resolve
-          from the project record, labelled as sent by Omen Flow; it runs the agent again and spends
+          from the project record, labelled as sent by Bureau; it runs the agent again and spends
           model credits.
         </small>
       </div>
@@ -510,7 +510,7 @@ function AdapterRow({
               variant="ghost"
               icon={<FolderOpen size={12} />}
               onClick={async () => {
-                const picked = await window.omenflow.pickFile({ title: `Locate ${v.label}` });
+                const picked = await window.bureau.pickFile({ title: `Locate ${v.label}` });
                 if (picked) setPath(picked);
               }}
             >
@@ -685,7 +685,7 @@ function ToolsSection() {
           variant="ghost"
           icon={<FolderOpen size={13} />}
           onClick={async () => {
-            const path = await window.omenflow.pickFile({ title: 'Locate OpenSCAD' });
+            const path = await window.bureau.pickFile({ title: 'Locate OpenSCAD' });
             if (path) setScadPath(path);
           }}
         >
@@ -721,15 +721,15 @@ function AppearanceSection() {
       <div className="setting-row">
         <div>
           <strong>Theme</strong>
-          <small>Graphite for long sessions, Paper for bright rooms.</small>
+          <small>Dark for long sessions, Light for bright rooms.</small>
         </div>
         <Segmented
           label="Theme"
           value={theme}
           onChange={(v) => set({ theme: v })}
           options={[
-            { value: 'dark', label: 'Graphite' },
-            { value: 'light', label: 'Paper' },
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
           ]}
         />
       </div>

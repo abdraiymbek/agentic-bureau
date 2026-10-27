@@ -6,8 +6,8 @@
  * matched by identity (id or name) or by content — never by position alone — and long text is a
  * line diff with the changed words marked. Pure: no React, no store, no I/O.
  */
-import type { FileRef, MaybeQuantity } from '@omenflow/contracts';
-import { formatQty, isUnknown } from '@omenflow/contracts/format';
+import type { FileRef, MaybeQuantity } from '@bureau/contracts';
+import { formatQty, isUnknown } from '@bureau/contracts/format';
 
 /* ------------------------------------------------------------------ */
 /* Values                                                               */

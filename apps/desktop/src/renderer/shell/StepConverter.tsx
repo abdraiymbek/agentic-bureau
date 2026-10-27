@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Export, FolderOpen } from '@phosphor-icons/react';
+import { Export, FolderOpen } from '../ui/icons';
 import { useStore } from '../store';
 import { Button, Field, Spinner, State } from '../ui/kit';
 import { pythonProbe } from './agent/adapter-view';
@@ -7,7 +7,7 @@ import { errorText, quiet } from './agent/quiet';
 
 /** How to set the converter up, pinned to the OCP release CADGenBench's own checks use. */
 export const STEP_CONVERTER_SETUP =
-  'Needs Python 3.11–3.14: python3.12 -m venv ~/.omenflow-step, then ~/.omenflow-step/bin/python -m pip install cadquery-ocp-novtk==7.9.3.1.1 (with uv: uv venv --python 3.12 ~/.omenflow-step, then uv pip install --python ~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1).';
+  'Needs Python 3.11–3.14: python3.12 -m venv ~/.bureau-step, then ~/.bureau-step/bin/python -m pip install cadquery-ocp-novtk==7.9.3.1.1 (with uv: uv venv --python 3.12 ~/.bureau-step, then uv pip install --python ~/.bureau-step/bin/python cadquery-ocp-novtk==7.9.3.1.1).';
 
 /**
  * Settings → Engineering tools: the optional STEP converter, a Python that imports OCP
@@ -98,7 +98,7 @@ export function StepConverterTool() {
           value={path}
           spellCheck={false}
           onChange={(e) => setPath(e.target.value)}
-          placeholder="~/.omenflow-step/bin/python3"
+          placeholder="~/.bureau-step/bin/python3"
         />
       </Field>
       <div className="row">
@@ -109,7 +109,7 @@ export function StepConverterTool() {
           variant="ghost"
           icon={<FolderOpen size={13} />}
           onClick={async () => {
-            const picked = await window.omenflow.pickFile({ title: 'Locate Python' });
+            const picked = await window.bureau.pickFile({ title: 'Locate Python' });
             if (picked) setPath(picked);
           }}
         >

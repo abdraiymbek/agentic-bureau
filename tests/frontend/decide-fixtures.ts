@@ -1,5 +1,5 @@
 /** Proposal shapes as `proposal.list` / `proposal.read` return them, for the decision tests. */
-import type { Artifact, Revision } from '@omenflow/contracts';
+import type { Artifact, Revision } from '@bureau/contracts';
 import type {
   ChangeDetail,
   ProposalDetail,

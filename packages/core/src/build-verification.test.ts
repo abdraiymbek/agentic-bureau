@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { unzipSync } from 'fflate';
-import { createProject } from '@omenflow/storage';
-import { type MechanicalPayload, type Revision } from '@omenflow/contracts';
+import { createProject } from '@bureau/storage';
+import { type MechanicalPayload, type Revision } from '@bureau/contracts';
 import { createDraft } from './artifacts.js';
 import { ProjectContext, nullHost } from './context.js';
 import { buildPreview, exportBuildPackage } from './build.js';
@@ -18,7 +18,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 function fixture(select = true) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-build-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-build-test-'));
   roots.push(root);
   const handle = createProject(path.join(root, 'project'), 'Build', 'fixture');
   handles.push(handle);

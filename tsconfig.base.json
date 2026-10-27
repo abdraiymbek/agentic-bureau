@@ -16,13 +16,13 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@omenflow/contracts": ["./packages/contracts/src/index.ts"],
-      "@omenflow/storage": ["./packages/storage/src/index.ts"],
-      "@omenflow/core": ["./packages/core/src/index.ts"],
-      "@omenflow/agent-host": ["./packages/agent-host/src/index.ts"],
-      "@omenflow/mcp-server": ["./packages/mcp-server/src/index.ts"],
-      "@omenflow/engineering": ["./packages/engineering/src/index.ts"],
-      "@omenflow/ui": ["./packages/ui/src/index.ts"]
+      "@bureau/contracts": ["./packages/contracts/src/index.ts"],
+      "@bureau/storage": ["./packages/storage/src/index.ts"],
+      "@bureau/core": ["./packages/core/src/index.ts"],
+      "@bureau/agent-host": ["./packages/agent-host/src/index.ts"],
+      "@bureau/mcp-server": ["./packages/mcp-server/src/index.ts"],
+      "@bureau/engineering": ["./packages/engineering/src/index.ts"],
+      "@bureau/ui": ["./packages/ui/src/index.ts"]
     }
   }
 }

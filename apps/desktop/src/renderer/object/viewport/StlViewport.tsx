@@ -8,7 +8,7 @@ import {
   Keyboard,
   Ruler,
   SquareHalf,
-} from '@phosphor-icons/react';
+} from '../../ui/icons';
 import { Button, Kbd, Menu, Segmented, Spinner, Tooltip } from '../../ui/kit';
 import type { ParsedMesh } from '../../lib/stl-parse';
 import {

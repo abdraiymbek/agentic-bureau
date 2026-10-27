@@ -1,4 +1,4 @@
-# Friction classification — /tmp/omen-eval/baseline  (45 runs)
+# Friction classification — /tmp/bureau-eval/baseline  (45 runs)
 
 - runs with zero friction events: 0
 -  58 events in 34 runs — shell: filesystem exploration (no bootstrap context delivered)
@@ -20,13 +20,13 @@
   "message": "No STL output on revision"
 }
 -  36 events in 36 runs — shell: reading README/project.json for orientation
-      e.g. basic-plate/r1: /bin/zsh -lc "sed -n '1,200p' omenflow.project.json; sed -n '1,160p' README.md"
-      e.g. bracket-thicken/r2: /bin/zsh -lc "sed -n '1,260p' README.md && sed -n '1,260p' omenflow.project.json"
+      e.g. basic-plate/r1: /bin/zsh -lc "sed -n '1,200p' bureau.project.json; sed -n '1,160p' README.md"
+      e.g. bracket-thicken/r2: /bin/zsh -lc "sed -n '1,260p' README.md && sed -n '1,260p' bureau.project.json"
 -  34 events in 34 runs — unverified done: final message claims verification with only bounds/manifold evidence
       e.g. basic-plate/r1: Created and rendered the mechanical artifact.
 
-- [OpenSCAD source](</private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-eval-basic-plate-NWrjbq/pr
-      e.g. basic-plate/r2: Created and rendered the mechanical artifact in Omen Flow.
+- [OpenSCAD source](</private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/bureau-eval-basic-plate-NWrjbq/pr
+      e.g. basic-plate/r2: Created and rendered the mechanical artifact in Bureau.
 
 - Source: `plate.scad`
 - Rendered STL: `artifacts/mechanical/100-x-40-x-6-mm-rectangular-plate-2.stl
@@ -51,19 +51,19 @@ difference() {
       e.g. basic-plate/r3: {
   "code": "INTERNAL",
   "message": "[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"array\",\n    \"received\": \"undefined\",\n    \"path\": [\n
--   3 events in  3 runs — litter: .omenflow-conflict files seen by agent
+-   3 events in  3 runs — litter: .bureau-conflict files seen by agent
       e.g. bracket-thicken/r2: /bin/zsh -lc "find artifacts -maxdepth 3 -type f -print | sort && sed -n '1,80p' artifacts/mechanical/shelf-bracket.scad"
       e.g. nema17-motor-mount/r1: /bin/zsh -lc "sed -n '1,220p' artifacts/mechanical/nema-17-stepper-motor-mount.json && printf '\\n--- conflict ---\\n' && sed -n '1,120p' artifacts/mechanical/n
 -   3 events in  3 runs — tool error: artifact_import_file PATH_OUTSIDE_PROJECT
       e.g. flanged-hub/r1: {
   "code": "PATH_OUTSIDE_PROJECT",
-  "message": "Absolute path not allowed: /private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-eval-flanged-hub-
+  "message": "Absolute path not allowed: /private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/bureau-eval-flanged-hub-
       e.g. spacer-ring/r3: {
   "code": "PATH_OUTSIDE_PROJECT",
-  "message": "Absolute path not allowed: /private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/omenflow-eval-spacer-ring-
--   3 events in  2 runs — shell: bypassed Omen Flow, ran openscad directly
+  "message": "Absolute path not allowed: /private/var/folders/nk/5wlz1lmd63z6h9x2yh8pcgxm0000gn/T/bureau-eval-spacer-ring-
+-   3 events in  2 runs — shell: bypassed Bureau, ran openscad directly
       e.g. inclined-foot/r2: /bin/zsh -lc "sed -n '1,240p' inclined_foot.scad && sed -n '1,240p' artifacts/mechanical/inclined-wedge-foot-openscad-source.json"
-      e.g. nema17-motor-mount/r3: /bin/zsh -lc "pwd && rg --files -g '"'!*.png'"' -g '"'!*.stl'"' -g '"'!*.3mf'"' | head -200 && printf '\\n--- tool hints ---\\n' && rg -n \"omenflow|openscad|re
+      e.g. nema17-motor-mount/r3: /bin/zsh -lc "pwd && rg --files -g '"'!*.png'"' -g '"'!*.stl'"' -g '"'!*.3mf'"' | head -200 && printf '\\n--- tool hints ---\\n' && rg -n \"bureau|openscad|re
 -   2 events in  2 runs — backend bug: quantity params not unwrapped in cad.render (degenerate render)
       e.g. l-bracket-parametric/r1: {"artifactId": "e70a7319-72b2-4848-bbce-dc73b719c1f7", "revisionId": "c6625bf1-04ee-4957-bf2d-d9645273742c", "idempotencyKey": "l-bracket-render-v1", "timeoutMs
       e.g. l-bracket-parametric/r2: {"artifactId": "a1c2daf2-9ce6-41a0-bd5d-4eec2e3bf0a1", "revisionId": "914980b9-e9da-4b32-850d-c66e57dc6ad8", "params": {"base_length": {"value": 60, "unit": "mm

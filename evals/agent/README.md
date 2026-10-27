@@ -1,11 +1,11 @@
 # Agent evaluation on the Rust host
 
-Measures whether a real agent CLI, driving Omen Flow through its MCP tools,
+Measures whether a real agent CLI, driving Bureau through its MCP tools,
 turns a short engineering request into correct, recorded and honestly
 reported work, with small and large models and with each capability
 profile. Everything runs on the production path: the release
-`omenflow-host`, the `omenflow` helper as the MCP server, and the host's own
-headless launch plan for the CLI. Results are judged from Omen Flow's
+`bureau-host`, the `bureau` helper as the MCP server, and the host's own
+headless launch plan for the CLI. Results are judged from Bureau's
 recorded state, never from what the model says it did.
 
 ```sh
@@ -31,7 +31,7 @@ credits and are never run by CI.
 
 ## What one cell does
 
-1. Starts `omenflow-host` with a fresh data directory under the system
+1. Starts `bureau-host` with a fresh data directory under the system
    temporary folder (the bridge socket must have a short path) and a minimal
    environment.
 2. Creates a fresh project under `--out/<cell>/project` and seeds it with
@@ -47,7 +47,7 @@ credits and are never run by CI.
    - Claude Code: `--strict-mcp-config`, `--no-session-persistence` and
      `--max-turns 40`. The plan already has `-p`,
      `--output-format stream-json`, `--include-partial-messages`, `--verbose`,
-     `--permission-mode dontAsk` and `--allowedTools mcp__omenflow`. The
+     `--permission-mode dontAsk` and `--allowedTools mcp__bureau`. The
      parser ignores the partial `stream_event` records.
    - Codex: `--ephemeral` and `--ignore-user-config`. The plan already has
      `exec --json` and its `-c` overrides. The MCP servers, plugins and
@@ -95,10 +95,10 @@ and `guide_read` were called, and, apart from that, whether the host attached
 the work status to a committed check (`workStatusAttached`, from a record's
 `alsoRan`). The CLI's stream gives tokens (all input tokens processed, of
 which cached; output), turns, the model it ran and its tokens per model, the
-final message, the playbook topics read, calls to tools that are not Omen
+final message, the playbook topics read, calls to tools that are not Bureau
 Flow's, and permission denials. Codex reports one turn per `exec`.
 
-Cost (`costUsd`, Claude Code only) is Omen Flow's estimate at list price
+Cost (`costUsd`, Claude Code only) is Bureau's estimate at list price
 from the dated table in `pricing.ts` (`PRICES_AS_OF`): each request priced
 once from its `assistant` usage, 1-hour cache writes at twice the input
 price, Claude Haiku 5.5's long-prompt tier per request, output from the

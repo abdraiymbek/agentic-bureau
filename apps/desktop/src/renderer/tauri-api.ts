@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
-import type { NativeShutdownRequest, OmenflowApi } from './api';
+import type { NativeShutdownRequest, BureauApi } from './api';
 
 function subscription<T>(name: string, callback: (value: T) => void): () => void {
   let active = true;
@@ -22,9 +22,9 @@ function subscription<T>(name: string, callback: (value: T) => void): () => void
 
 export async function installTauriApi(): Promise<void> {
   let activeProject: string | null = null;
-  const api: OmenflowApi = {
+  const api: BureauApi = {
     command: (op, payload, opts) =>
-      invoke('omenflow_command', {
+      invoke('bureau_command', {
         op,
         payload,
         projectId: opts?.projectId ?? activeProject,
@@ -33,20 +33,20 @@ export async function installTauriApi(): Promise<void> {
     setActiveProject: async (id) => {
       activeProject = id;
     },
-    onEvent: (callback) => subscription('omenflow:event', callback),
-    onTerminalData: (callback) => subscription('omenflow:terminal:data', callback),
-    onTerminalState: (callback) => subscription('omenflow:terminal:state', callback),
-    onJobProgress: (callback) => subscription('omenflow:job:progress', callback),
+    onEvent: (callback) => subscription('bureau:event', callback),
+    onTerminalData: (callback) => subscription('bureau:terminal:data', callback),
+    onTerminalState: (callback) => subscription('bureau:terminal:state', callback),
+    onJobProgress: (callback) => subscription('bureau:job:progress', callback),
     onServiceState: (callback) => {
       callback({ available: true });
-      return subscription('omenflow:service-state', callback);
+      return subscription('bureau:service-state', callback);
     },
-    onAgentCall: (callback) => subscription('omenflow:agent:call', callback),
-    onChat: (callback) => subscription('omenflow:chat', callback),
+    onAgentCall: (callback) => subscription('bureau:agent:call', callback),
+    onChat: (callback) => subscription('bureau:chat', callback),
     onShutdownRequest: (callback) => {
       let active = true;
       let unlisten: (() => void) | undefined;
-      void listen<NativeShutdownRequest>('omenflow:shutdown-request', (event) => {
+      void listen<NativeShutdownRequest>('bureau:shutdown-request', (event) => {
         if (active) callback(event.payload);
       })
         .then(async (stop) => {
@@ -74,5 +74,5 @@ export async function installTauriApi(): Promise<void> {
     revealPath: (path) => revealItemInDir(path),
     toggleResearch: () => invoke('toggle_research'),
   };
-  window.omenflow = api;
+  window.bureau = api;
 }

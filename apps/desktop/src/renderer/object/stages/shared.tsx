@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import type { ArtifactView, MaybeQuantity } from '@omenflow/contracts';
-import { isUnknown } from '@omenflow/contracts/format';
+import type { ArtifactView, MaybeQuantity } from '@bureau/contracts';
+import { isUnknown } from '@bureau/contracts/format';
 import { recordedQuantityText } from '../../lib/diff';
 import { errMsg } from '../../api';
 import { useStore } from '../../store';
@@ -64,7 +64,7 @@ function openContainedLink(event: React.MouseEvent<HTMLElement>) {
   event.preventDefault();
   const url = linkDestination(anchor.getAttribute('href') ?? anchor.getAttribute('xlink:href'));
   if (!url) return;
-  void window.omenflow
+  void window.bureau
     .openExternal(url)
     .catch((error) => useStore.getState().toast('error', errMsg(error)));
 }

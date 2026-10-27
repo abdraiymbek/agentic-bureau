@@ -4,12 +4,12 @@ import { fileURLToPath } from 'node:url';
 import {
   AGENT_OPS,
   ErrorCodes,
-  OmenflowError,
+  BureauError,
   envKeys,
   newId,
   type AdapterStatus,
-} from '@omenflow/contracts';
-import type { CoreApp, ConnectionHost, ProjectContext } from '@omenflow/core';
+} from '@bureau/contracts';
+import type { CoreApp, ConnectionHost, ProjectContext } from '@bureau/core';
 import { adapterById, createAdapterRegistry, type AgentAdapter } from './adapters/index.js';
 import type { BridgeServer } from './bridge/server.js';
 
@@ -19,7 +19,7 @@ import type { BridgeServer } from './bridge/server.js';
  */
 export class ConnectionManager implements ConnectionHost {
   private adapters: AgentAdapter[];
-  /** Path of the `omenflow` CLI shim used for the end-to-end bridge check. */
+  /** Path of the `bureau` CLI shim used for the end-to-end bridge check. */
   private cliPath: string;
 
   constructor(
@@ -45,7 +45,7 @@ export class ConnectionManager implements ConnectionHost {
 
   /**
    * Live test: executable present + version probed (discover), launch spec
-   * builds, and — the part that actually proves the bridge — a real `omenflow
+   * builds, and — the part that actually proves the bridge — a real `bureau
    * call project.summary` roundtrip through the CLI shim with a throwaway
    * session token. Agent-TUI auth itself is only exercised on real launch.
    */
@@ -54,7 +54,7 @@ export class ConnectionManager implements ConnectionHost {
     adapterId: string,
   ): Promise<{ ok: boolean; error?: string; detail?: string }> {
     const adapter = adapterById(this.adapters, adapterId);
-    if (!adapter) throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
+    if (!adapter) throw new BureauError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
 
     const finish = async (ok: boolean, error: string | null, detail?: string) => {
       await this.app.setAdapterConfig(adapterId, {
@@ -122,22 +122,22 @@ export class ConnectionManager implements ConnectionHost {
     cfg: { executablePath?: string; args?: string[]; env?: Record<string, string> },
   ): Promise<void> {
     if (!adapterById(this.adapters, adapterId)) {
-      throw new OmenflowError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
+      throw new BureauError(ErrorCodes.NOT_FOUND, `Unknown adapter: ${adapterId}`);
     }
     await this.app.setAdapterConfig(adapterId, cfg);
   }
 }
 
 /**
- * The `omenflow` helper ships beside the bundled utility (`omenflow` /
- * `omenflow.exe`); the source tree uses `bin/omenflow.mjs`.
+ * The `bureau` helper ships beside the bundled utility (`bureau` /
+ * `bureau.exe`); the source tree uses `bin/bureau.mjs`.
  */
 function defaultCliPath(): string {
-  for (const name of ['omenflow.exe', 'omenflow']) {
+  for (const name of ['bureau.exe', 'bureau']) {
     const candidate = fileURLToPath(new URL(`./${name}`, import.meta.url));
     if (fs.existsSync(candidate)) return candidate;
   }
-  return fileURLToPath(new URL('../bin/omenflow.mjs', import.meta.url));
+  return fileURLToPath(new URL('../bin/bureau.mjs', import.meta.url));
 }
 
 /**

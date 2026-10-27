@@ -1,4 +1,4 @@
-//! The MCP server an agent CLI talks to through `omenflow mcp`: one JSON-RPC
+//! The MCP server an agent CLI talks to through `bureau mcp`: one JSON-RPC
 //! message per bridge frame. What it lists and how it words results follows
 //! the session's capability profile; what it runs goes through
 //! `dispatch_agent` like every other agent call.
@@ -6,8 +6,8 @@
 use super::images::{structured_content_hides_images, Image};
 use super::{current_grant, dispatch_agent, guide, present, AgentCall, Shared, Via};
 use base64::Engine;
+use bureau_contracts::{read_frame, write_frame};
 use interprocess::local_socket::Stream;
-use omenflow_contracts::{read_frame, write_frame};
 use serde_json::{json, Value};
 
 /// Protocol revisions this server implements, newest first. A client that
@@ -91,7 +91,7 @@ fn handle(
             Ok(json!({
                 "protocolVersion": version,
                 "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false}},
-                "serverInfo": {"name": "omenflow", "title": "Omen Flow", "version": env!("CARGO_PKG_VERSION")},
+                "serverInfo": {"name": "bureau", "title": "Bureau", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": guide::instructions(grant.profile),
             }))
         }
@@ -149,7 +149,7 @@ fn handle(
     }
 }
 
-const SUMMARY_URI: &str = "omenflow://project/summary";
+const SUMMARY_URI: &str = "bureau://project/summary";
 
 /// A tool result: the body as compact JSON text for the model, any pictures
 /// as image blocks after it, and the same body as structured content for
@@ -184,7 +184,7 @@ fn compact(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omenflow_contracts::registry;
+    use bureau_contracts::registry;
 
     #[test]
     fn results_are_compact_text_and_structured_content() {
@@ -210,8 +210,7 @@ mod tests {
 
     #[test]
     fn images_follow_the_text_block_and_stay_out_of_structured_content() {
-        let body =
-            json!({"images": [{"path": ".omenflow/cache/views-v1/x.png", "attached": true}]});
+        let body = json!({"images": [{"path": ".bureau/cache/views-v1/x.png", "attached": true}]});
         let picture = Image {
             mime_type: "image/png",
             bytes: b"\x89PNG picture".to_vec(),

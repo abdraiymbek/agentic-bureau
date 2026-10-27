@@ -1,32 +1,35 @@
 /*
- * Omen Flow tokens · Lens 2.5
- * One graphite field, one signal colour, three engineering states.
+ * Bureau tokens
+ * Carbon and a sheet, square pixels, one cyan signal and three engineering states.
  * Every colour, font, radius, shadow, layer and duration in the renderer comes from here.
  * Text roles meet WCAG AA (4.5:1) on every surface they sit on; line and dot roles meet 3:1.
  */
 
 :root {
   /* Typefaces (vendored in fonts/) */
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: 'Mona Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Type scale */
-  --text-2xs: 10.5px;
-  --text-xs: 11.5px;
-  --text-sm: 12.5px;
-  --text-md: 13.5px;
-  --text-lg: 15px;
-  --text-xl: 19px;
-  --text-2xl: 26px;
-  --text-3xl: 38px;
+  --text-2xs: 11px; /* counts and key caps */
+  --text-xs: 12px; /* metadata, units, labels */
+  --text-sm: 12.5px; /* controls, rails, tables */
+  --text-md: 13px; /* working text, navigation */
+  --text-lg: 15px; /* lede, the composer, the omnibar input */
+  --text-xl: 18px; /* statements, totals */
+  --text-2xl: 26px; /* object and proposal titles */
+  --text-3xl: 34px; /* the launcher question, a calculation result */
   --text-4xl: 56px; /* the introduction's act titles */
-  --text-mono: 12px; /* code editors and source */
-  --leading-display: 1.15; /* titles at xl and above */
+  --text-mono: 12.5px; /* code editors and source */
+  --leading-display: 1.1; /* titles at xl and above */
   --leading-tight: 1.35; /* rows, labels, two-line metadata */
   --leading: 1.5; /* working text */
   --leading-prose: 1.65; /* long prose and source */
-  --tracking-tight: -0.018em; /* lg and xl */
-  --tracking-display: -0.032em; /* 2xl and 3xl */
+  --tracking-tight: -0.012em; /* lg and xl */
+  --tracking-display: -0.028em; /* 2xl and up */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
 
   /* Space (4-based) */
   --s-1: 4px;
@@ -39,37 +42,38 @@
   --s-10: 40px;
   --s-12: 48px;
 
-  /* Geometry */
-  --r-xs: 6px;
-  --r-sm: 8px;
-  --r-md: 11px;
-  --r-lg: 15px;
-  --r-xl: 20px;
+  /* Geometry: soft frames, square pixels */
+  --r-xs: 4px; /* chips, tags, key caps */
+  --r-sm: 6px; /* controls, navigation rows */
+  --r-md: 8px; /* nodes, cards, menus, inputs */
+  --r-lg: 10px; /* the sheet, islands, inline cards */
+  --r-xl: 12px; /* the composer, dialogs, the settings sheet */
   --r-pill: 999px;
   --control-sm: 26px;
-  --control: 32px;
-  --control-lg: 38px;
-  --titlebar: 48px;
+  --control: 30px;
+  --control-lg: 36px;
+  --titlebar: 48px; /* the sheet's header row; the window drags from it */
+  --sidebar: 232px;
+  --sheet-inset: 8px; /* the sheet's gap from the window's top, right and bottom */
   --rail: 248px;
   --rail-folded: 40px; /* a folded object rail: the strip that holds its unfold button */
-  --activity-bar: 48px;
+  --pixel: 4px; /* one pixel of the mark's grid at interface scale */
   --focus-width: 2px;
   --focus-offset: 2px;
-  --disabled-opacity: 0.5;
+  --disabled-opacity: 0.45;
   --press-scale: 0.97;
 
-  /* Layers, lowest first; values match the ladder the surfaces already use. Menus sit above the
-     sheet so a menu can open inside it. */
+  /* Layers, lowest first. Menus sit above the sheet so a menu can open inside it. */
   --z-raised: 1; /* sticky table heads, timeline dots */
   --z-stage-tools: 2; /* islands inside a stage: viewport revision picker, resize handles */
   --z-sticky: 3; /* save bar */
-  --z-canvas-tools: 4; /* map legend and controls */
+  --z-canvas-tools: 4; /* map key and controls */
   --z-project-head: 5;
-  --z-island: 6; /* Needs you */
+  --z-island: 6; /* hover cards over the map */
   --z-agent-tab: 8;
   --z-agent-window: 12;
   --z-titlebar: 20;
-  --z-intro: 40; /* the introduction: over the workspace and titlebar, under the scrim */
+  --z-intro: 40; /* the introduction: over the workspace, under the scrim */
   --z-overlay: 50;
   --z-dialog: 51; /* omnibar, sheet */
   --z-menu: 60;
@@ -87,191 +91,194 @@
   --t-draw: 900ms; /* the introduction: a link draws, a stage zooms, an impact travels one link */
   --t-spin: 800ms;
   --t-pulse: 1800ms;
+  --t-step: 1200ms; /* the live pixel steps through its 3×3 field once per cycle */
 
   color-scheme: dark;
 }
 
 /* ------------------------------------------------------------------ */
-/* Graphite (dark) — the default                                        */
+/* Dark — the default                                                   */
 /* ------------------------------------------------------------------ */
 :root,
 [data-theme='dark'] {
-  --field: #0b0c0e; /* window, map canvas */
-  --surface: #111214; /* stage */
-  --raised: #17181b; /* islands, menus, cards */
-  --raised-2: #1e1f23; /* hover, inputs */
-  --pressed: #25272c; /* a control while it is held down */
+  --field: #07090c; /* Carbon: window and sidebar */
+  --surface: #0d1116; /* the sheet the work sits on */
+  --raised: #141920; /* nodes, cards, menus, inputs */
+  --raised-2: #1a2029; /* hover, controls */
+  --pressed: #212935; /* a control while it is held down */
   --press-filter: brightness(1.18); /* pressed fallback for controls without their own fill */
-  --control-bg: #1e1f23; /* secondary buttons */
-  --inset: #0d0e10; /* code, terminal, viewport wells */
-  --overlay: rgba(6, 7, 8, 0.62); /* scrim behind dialogs */
+  --control-bg: #1a2029; /* secondary buttons */
+  --selected: #1c2633; /* Graphite Navy: the selected row, tab or lens */
+  --inset: #0a0d11; /* code, terminal, viewport wells */
+  --overlay: rgba(3, 5, 8, 0.64); /* scrim behind dialogs */
   --photo-bg: #f3f4f6; /* product photography well */
 
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.12);
-  --line-control: rgba(255, 255, 255, 0.17);
-  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+  --line: rgba(214, 232, 255, 0.07);
+  --line-strong: rgba(214, 232, 255, 0.11);
+  --line-control: rgba(214, 232, 255, 0.17);
+  --scrollbar-thumb: rgba(214, 232, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(214, 232, 255, 0.26);
 
-  --text: #ededee; /* content */
-  --text-2: #a4a7ae; /* support */
-  --text-3: #848890; /* metadata, labels, units: AA on every surface */
-  --text-4: #64676f; /* separators and idle marks: 3:1, never sole carrier of meaning */
+  --text: #e6eaee; /* content */
+  --text-2: #a3adb8; /* support */
+  --text-3: #818c9a; /* metadata, labels, units: AA on every surface */
+  --text-4: #5b6676; /* separators and idle marks: 3:1, never sole carrier of meaning */
 
-  /* Signal: the one chromatic accent. Live agent, focus, the selected thread. */
-  --signal: #cff36e; /* fills: the signal button, live dots on dark */
-  --signal-hover: #daf68d;
-  --signal-ink: #10130a; /* text on a signal fill */
-  --signal-text: #d9f68c; /* signal as text */
-  --signal-stroke: #cff36e; /* signal as a line, ring, dot or border */
-  --signal-soft: rgba(207, 243, 110, 0.1);
-  --signal-line: rgba(207, 243, 110, 0.42);
+  /* Signal: the one chromatic accent. The live agent, focus, the lit thread. */
+  --signal: #4fc8f0; /* fills: the Send button, the live pixel */
+  --signal-hover: #72d4f5;
+  --signal-ink: #07090c; /* text on a signal fill */
+  --signal-text: #6fd2f4; /* signal as text */
+  --signal-stroke: #4fc8f0; /* signal as a line, ring, dot or border */
+  --signal-soft: rgba(79, 200, 240, 0.1);
+  --signal-line: rgba(79, 200, 240, 0.45);
+  --ice: #c6f1ff; /* the mark's light pixels; baselines in the impact thread */
 
-  /* Engineering state — always paired with a label */
-  --ok: #8fd6aa;
-  --ok-soft: rgba(143, 214, 170, 0.11);
-  --warn: #f1bb68;
-  --warn-soft: rgba(241, 187, 104, 0.11);
-  --err: #f3928a;
-  --err-soft: rgba(243, 146, 138, 0.11);
+  /* Engineering state — always paired with a word */
+  --ok: #6fd39b;
+  --ok-soft: rgba(111, 211, 155, 0.1);
+  --warn: #e9b45e;
+  --warn-soft: rgba(233, 180, 94, 0.1);
+  --err: #f08a7e;
+  --err-soft: rgba(240, 138, 126, 0.1);
 
-  /* Neutral primary action */
-  --primary: #f1f1f2;
+  /* Neutral primary action: one per area */
+  --primary: #e6eaee;
   --primary-hover: #ffffff;
-  --primary-ink: #0b0c0e;
+  --primary-ink: #07090c;
 
   --focus: var(--signal-stroke);
   --halo: 0 0 0 3px var(--signal-soft); /* focused text field */
-  --selection: rgba(207, 243, 110, 0.2);
+  --selection: rgba(79, 200, 240, 0.22);
 
-  /* Depth: islands are lit from above and cast a contact shadow and a soft drop. */
-  --shadow-float:
-    0 0 0 1px var(--line-strong), inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 2px 6px -2px rgba(0, 0, 0, 0.5), 0 18px 48px -18px rgba(0, 0, 0, 0.75);
-  --shadow-menu:
-    0 0 0 1px var(--line-strong), inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 4px 10px -4px rgba(0, 0, 0, 0.55), 0 24px 64px -20px rgba(0, 0, 0, 0.8);
+  /* Depth: the sheet is flat; only what floats casts a shadow. */
+  --shadow-float: 0 0 0 1px var(--line-strong), 0 12px 32px -12px rgba(0, 0, 0, 0.72);
+  --shadow-menu: 0 0 0 1px var(--line-strong), 0 18px 44px -14px rgba(0, 0, 0, 0.8);
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 6px 16px -6px rgba(0, 0, 0, 0.6);
+  --shadow-sheet: 0 0 0 1px var(--line);
 
   /* Map + 3D */
-  --map-dot: rgba(255, 255, 255, 0.055);
-  --map-edge: rgba(255, 255, 255, 0.16);
-  --canvas-bg: #0d0e10;
-  --canvas-grid: #1d1f23;
-  --canvas-grid-major: #2a2d33;
-  --model-color: #c9ccd2;
-  --model-compare: #8fb6d6;
+  --map-dot: rgba(214, 232, 255, 0.045);
+  --map-edge: rgba(214, 232, 255, 0.16);
+  --canvas-bg: #0a0d11;
+  --canvas-grid: #18202a;
+  --canvas-grid-major: #243041;
+  --model-color: #c8d0d9;
+  --model-compare: #4fc8f0;
 
   /* Terminal: every colour except black is 4.5:1 or better on the terminal background. */
-  --terminal-bg: #0d0e10;
-  --terminal-fg: #ededee;
-  --terminal-cursor: #cff36e;
-  --terminal-selection: rgba(207, 243, 110, 0.24);
-  --ansi-black: #565a62;
-  --ansi-red: #f3928a;
-  --ansi-green: #8fd6aa;
-  --ansi-yellow: #f1bb68;
-  --ansi-blue: #8ab4f0;
+  --terminal-bg: #0a0d11;
+  --terminal-fg: #e6eaee;
+  --terminal-cursor: #4fc8f0;
+  --terminal-selection: rgba(79, 200, 240, 0.24);
+  --ansi-black: #566170;
+  --ansi-red: #f08a7e;
+  --ansi-green: #6fd39b;
+  --ansi-yellow: #e9b45e;
+  --ansi-blue: #7fb2f0;
   --ansi-magenta: #c3a6e3;
-  --ansi-cyan: #8fcfd6;
-  --ansi-white: #c5c8ce;
-  --ansi-bright-black: #848890;
-  --ansi-bright-red: #ffb4ad;
-  --ansi-bright-green: #b4ebc9;
+  --ansi-cyan: #4fc8f0;
+  --ansi-white: #c3cad3;
+  --ansi-bright-black: #818c9a;
+  --ansi-bright-red: #ffb4ab;
+  --ansi-bright-green: #a6e9c3;
   --ansi-bright-yellow: #ffd596;
-  --ansi-bright-blue: #b3cff7;
+  --ansi-bright-blue: #b0cff7;
   --ansi-bright-magenta: #dcc6f0;
-  --ansi-bright-cyan: #b3e3e8;
-  --ansi-bright-white: #f4f4f5;
+  --ansi-bright-cyan: #c6f1ff;
+  --ansi-bright-white: #f4f6f8;
 
   color-scheme: dark;
 }
 
 /* ------------------------------------------------------------------ */
-/* Paper (light)                                                        */
+/* Light                                                                */
 /* ------------------------------------------------------------------ */
 [data-theme='light'] {
-  --field: #ebecee;
-  --surface: #f6f6f7;
-  --raised: #ffffff;
-  --raised-2: #f0f1f3;
-  --pressed: #e5e6e9;
-  --press-filter: brightness(0.93);
+  --field: #eceef1;
+  --surface: #ffffff;
+  --raised: #f5f6f8;
+  --raised-2: #eceef1;
+  --pressed: #e2e5ea;
+  --press-filter: brightness(0.94);
   --control-bg: #ffffff;
-  --inset: #f2f3f5;
-  --overlay: rgba(28, 30, 34, 0.28);
+  --selected: #e1e8f1;
+  --inset: #f5f6f8;
+  --overlay: rgba(10, 14, 18, 0.24);
   --photo-bg: #f3f4f6;
 
-  --line: rgba(15, 17, 20, 0.08);
-  --line-strong: rgba(15, 17, 20, 0.13);
-  --line-control: rgba(15, 17, 20, 0.21);
-  --scrollbar-thumb: rgba(15, 17, 20, 0.2);
-  --scrollbar-thumb-hover: rgba(15, 17, 20, 0.34);
+  --line: rgba(10, 20, 35, 0.08);
+  --line-strong: rgba(10, 20, 35, 0.12);
+  --line-control: rgba(10, 20, 35, 0.2);
+  --scrollbar-thumb: rgba(10, 20, 35, 0.18);
+  --scrollbar-thumb-hover: rgba(10, 20, 35, 0.32);
 
-  --text: #141518;
-  --text-2: #474b53;
-  --text-3: #656972;
-  --text-4: #80858f;
+  --text: #0a0e12;
+  --text-2: #424a55;
+  --text-3: #5b6470;
+  --text-4: #7c8590;
 
-  --signal: #c8ef5a;
-  --signal-hover: #bde64a;
-  --signal-ink: #141a05;
-  --signal-text: #4c6700;
-  --signal-stroke: #5a7d00; /* lime would vanish on paper: a dark olive keeps the line readable */
-  --signal-soft: rgba(151, 196, 20, 0.14);
-  --signal-line: rgba(106, 142, 0, 0.5);
+  --signal: #4fc8f0;
+  --signal-hover: #36bbe8;
+  --signal-ink: #07090c;
+  --signal-text: #0a6c93; /* cyan would vanish on white: a deep cyan keeps the word readable */
+  --signal-stroke: #1286b6;
+  --signal-soft: rgba(18, 134, 182, 0.1);
+  --signal-line: rgba(18, 134, 182, 0.45);
+  --ice: #0a0e12; /* the mark on light grounds: its light pixels turn Carbon */
 
-  --ok: #276e44;
-  --ok-soft: rgba(43, 122, 76, 0.1);
-  --warn: #88570b;
+  --ok: #186a40;
+  --ok-soft: rgba(31, 122, 76, 0.1);
+  --warn: #87580c;
   --warn-soft: rgba(197, 128, 18, 0.12);
-  --err: #ad3835;
+  --err: #ad3631;
   --err-soft: rgba(178, 58, 54, 0.09);
 
-  --primary: #141518;
+  --primary: #0a0e12;
   --primary-hover: #000000;
   --primary-ink: #ffffff;
 
   --focus: var(--signal-stroke);
   --halo: 0 0 0 3px var(--signal-soft);
-  --selection: rgba(151, 196, 20, 0.28);
+  --selection: rgba(18, 134, 182, 0.2);
 
   --shadow-float:
-    0 0 0 1px var(--line-strong), 0 1px 2px rgba(20, 24, 30, 0.06),
-    0 4px 12px -4px rgba(20, 24, 30, 0.08), 0 18px 44px -20px rgba(20, 24, 30, 0.24);
+    0 0 0 1px var(--line-strong), 0 2px 4px rgba(10, 20, 35, 0.05),
+    0 14px 36px -16px rgba(10, 20, 35, 0.22);
   --shadow-menu:
-    0 0 0 1px var(--line-strong), 0 2px 4px rgba(20, 24, 30, 0.06),
-    0 8px 20px -8px rgba(20, 24, 30, 0.12), 0 22px 56px -18px rgba(20, 24, 30, 0.28);
-  --shadow-pop: 0 0 0 1px var(--line-strong), 0 6px 16px -6px rgba(20, 24, 30, 0.18);
+    0 0 0 1px var(--line-strong), 0 4px 10px -4px rgba(10, 20, 35, 0.1),
+    0 22px 52px -18px rgba(10, 20, 35, 0.28);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 6px 16px -6px rgba(10, 20, 35, 0.16);
+  --shadow-sheet: 0 0 0 1px var(--line), 0 1px 2px rgba(10, 20, 35, 0.04);
 
-  --map-dot: rgba(15, 17, 20, 0.09);
-  --map-edge: rgba(15, 17, 20, 0.2);
-  --canvas-bg: #eef0f2;
-  --canvas-grid: #dfe2e6;
-  --canvas-grid-major: #cbd0d6;
-  --model-color: #7d838d;
-  --model-compare: #3f7fb0;
+  --map-dot: rgba(10, 20, 35, 0.08);
+  --map-edge: rgba(10, 20, 35, 0.22);
+  --canvas-bg: #f5f6f8;
+  --canvas-grid: #e2e5ea;
+  --canvas-grid-major: #ccd2da;
+  --model-color: #7a8390;
+  --model-compare: #1286b6;
 
   --terminal-bg: #fbfbfc;
-  --terminal-fg: #141518;
-  --terminal-cursor: #5a7d00;
-  --terminal-selection: rgba(151, 196, 20, 0.3);
-  --ansi-black: #1d1f23;
+  --terminal-fg: #0a0e12;
+  --terminal-cursor: #1286b6;
+  --terminal-selection: rgba(18, 134, 182, 0.24);
+  --ansi-black: #1a2029;
   --ansi-red: #b23a36;
   --ansi-green: #256b42;
   --ansi-yellow: #875509;
   --ansi-blue: #2f64b3;
   --ansi-magenta: #8a4fb0;
-  --ansi-cyan: #1b6f78;
-  --ansi-white: #686d76; /* programs print "white" for emphasis on dark: keep it readable */
-  --ansi-bright-black: #575c65;
+  --ansi-cyan: #0a6c93;
+  --ansi-white: #5b6470; /* programs print "white" for emphasis on dark: keep it readable */
+  --ansi-bright-black: #556070;
   --ansi-bright-red: #c0332d;
   --ansi-bright-green: #2b7a4c;
   --ansi-bright-yellow: #965f0b;
   --ansi-bright-blue: #2a5ea9;
   --ansi-bright-magenta: #9a45b8;
-  --ansi-bright-cyan: #16757f;
-  --ansi-bright-white: #6d727b;
+  --ansi-bright-cyan: #0b6788;
+  --ansi-bright-white: #5b6470;
 
   color-scheme: light;
 }
@@ -283,6 +290,7 @@
     --t-slow: 0ms;
     --t-scene: 0ms;
     --t-draw: 0ms;
+    --t-step: 0ms;
     --press-scale: 1;
   }
 }
