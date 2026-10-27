@@ -1,0 +1,369 @@
+/*
+ * Omen Flow use-case showcase · 1920 × 1080.
+ * The window below is styled by the renderer's own stylesheets (linked before this file);
+ * this file only frames it: backdrop, window chrome, camera, cursor and the film's titles.
+ * Every name here starts with `sc-` so nothing collides with the app's classes.
+ */
+
+#viewport {
+  position: fixed;
+  inset: 0 0 56px 0;
+  display: grid;
+  place-items: center;
+}
+#stage {
+  position: relative;
+  flex: none;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background: #060708;
+  isolation: isolate;
+}
+#controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  font: 500 13px var(--font-sans);
+  color: var(--text-2);
+  background: var(--field);
+  border-top: 1px solid var(--line);
+}
+#controls button {
+  font: inherit;
+  color: var(--primary-ink);
+  background: var(--primary);
+  border: 0;
+  border-radius: var(--r-sm);
+  height: 30px;
+  padding: 0 14px;
+}
+#controls input {
+  flex: 1;
+  accent-color: var(--signal);
+}
+#time {
+  font-family: var(--font-mono);
+  width: 52px;
+  text-align: right;
+}
+body.render #viewport {
+  inset: 0;
+  place-items: start;
+}
+body.render #controls {
+  display: none;
+}
+
+/* Time drives every property: nothing may run on the browser's own clock. */
+#stage *,
+#stage *::before,
+#stage *::after {
+  transition: none !important;
+  animation: none !important;
+  caret-color: transparent;
+}
+
+.sc-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---------------- backdrop ---------------- */
+.sc-dots {
+  position: absolute;
+  inset: -40px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.4px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 20%, transparent 80%);
+}
+.sc-halo {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 50% at 50% 46%, rgba(207, 243, 110, 0.06), transparent 70%),
+    radial-gradient(ellipse 80% 70% at 50% 50%, rgba(255, 255, 255, 0.03), transparent 75%);
+}
+
+/* ---------------- camera and window ---------------- */
+.sc-tilt {
+  transform-origin: 50% 45%;
+}
+.sc-cam {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1200px;
+  transform-origin: 0 0;
+}
+.sc-win {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--field);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.11),
+    0 30px 80px -10px rgba(0, 0, 0, 0.75),
+    0 80px 200px -40px rgba(0, 0, 0, 0.9);
+}
+.sc-win > .app {
+  height: 100%;
+}
+.sc-lights {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 100%;
+  padding-left: 16px;
+}
+.sc-lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3a3b3f;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.35);
+}
+.sc-lights i:nth-child(1) {
+  background: #ff5f57;
+}
+.sc-lights i:nth-child(2) {
+  background: #febc2e;
+}
+.sc-lights i:nth-child(3) {
+  background: #28c840;
+}
+.sc-win-dim {
+  position: absolute;
+  inset: 0;
+  background: #060708;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The kit's pulse ring runs on a CSS animation; the film draws its own. */
+#stage .pulse::after {
+  display: none;
+}
+.sc-ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid var(--pulse-color);
+}
+
+/* The composer's text, drawn so the caret follows the film's clock. */
+.sc-ta {
+  position: relative;
+  min-height: 78px;
+  padding: var(--s-2) var(--s-2) var(--s-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  line-height: var(--leading);
+  color: var(--text);
+  white-space: pre-wrap;
+}
+.sc-ta .sc-ph {
+  position: absolute;
+  left: var(--s-2);
+  top: var(--s-2);
+  color: var(--text-3);
+}
+.sc-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 1.25em;
+  margin: 0 -1.5px -0.22em 0;
+  background: var(--signal-stroke);
+}
+.sc-grow {
+  overflow: hidden;
+}
+
+/* The 3D part inside its inline card. */
+.sc-mesh canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A light vignette keeps the eye in the middle of the frame. */
+.sc-vignette {
+  background: radial-gradient(ellipse 75% 75% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.32));
+}
+
+/* ---------------- cursor ---------------- */
+.sc-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 34px;
+  transform-origin: 3px 2px;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  z-index: 10;
+}
+.sc-ripple {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  z-index: 9;
+}
+
+/* ---------------- titles ---------------- */
+.sc-open {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 210px;
+  text-align: center;
+  opacity: 0;
+}
+.sc-open h2 {
+  margin: 0;
+  font: 600 88px / 1 var(--font-sans);
+  letter-spacing: -0.045em;
+  color: var(--text);
+}
+.sc-scrim {
+  background: radial-gradient(ellipse 1100px 460px at 0% 100%, rgba(6, 7, 8, 0.94), rgba(6, 7, 8, 0.72) 45%, transparent 78%);
+  opacity: 0;
+}
+.sc-chapter {
+  position: absolute;
+  left: 88px;
+  bottom: 84px;
+  width: 900px;
+}
+.sc-ch {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  opacity: 0;
+}
+.sc-ch-idx {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font: 500 17px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.sc-ch-bars {
+  display: flex;
+  gap: 6px;
+}
+.sc-ch-bars i {
+  width: 26px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+}
+.sc-ch-bars i.on {
+  background: var(--signal-stroke);
+}
+.sc-ch-bars i.done {
+  background: rgba(255, 255, 255, 0.5);
+}
+.sc-ch h2 {
+  margin: 14px 0 0;
+  font: 600 76px / 1 var(--font-sans);
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+.sc-ch p {
+  margin: 16px 0 0;
+  font: 400 27px / 1.3 var(--font-sans);
+  letter-spacing: -0.012em;
+  color: var(--text-2);
+}
+.sc-ch p b {
+  font-weight: 500;
+  color: var(--text);
+}
+.sc-w {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+.sc-w > span {
+  display: inline-block;
+}
+
+.sc-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 92px;
+  text-align: center;
+  font: 600 64px / 1.05 var(--font-sans);
+  letter-spacing: -0.04em;
+  color: var(--text);
+  opacity: 0;
+}
+.sc-caption .sc-dim2 {
+  color: var(--text-3);
+}
+.sc-capscrim {
+  background: linear-gradient(to top, rgba(6, 7, 8, 0.94), rgba(6, 7, 8, 0.75) 22%, transparent 45%);
+  opacity: 0;
+}
+
+/* ---------------- end card ---------------- */
+.sc-end {
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+.sc-end-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.sc-end .sc-mark {
+  width: 92px;
+  height: 92px;
+  color: var(--text);
+}
+.sc-end h1 {
+  margin: 30px 0 0;
+  font: 500 96px / 1 var(--font-sans);
+  letter-spacing: -0.045em;
+  color: var(--text);
+}
+.sc-end h1 .sc-flow {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.sc-end p {
+  margin: 26px 0 0;
+  font: 400 30px / 1.3 var(--font-sans);
+  letter-spacing: -0.015em;
+  color: var(--text-2);
+}
+.sc-end small {
+  margin-top: 64px;
+  font: 400 17px var(--font-mono);
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+.sc-fade {
+  background: #000;
+}
