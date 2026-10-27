@@ -10,7 +10,7 @@ Start with [design.md](design.md). This folder is the canonical design system.
 - [Resource manifest](resources.json): brand, fonts, libraries, licences, and provenance.
 - [Verification](verification.md): checks performed and their limits.
 - `brand/`: the pixel mark (two-tone, light and one-colour), the app icon (dark and light
-  tiles) and the favicon.
+  tiles), the favicon, and `social/` (Agentic Bureau avatars and launch posts).
 - `fonts/`: vendored Mona Sans and JetBrains Mono with licences (`bureau.css`, what the app
   loads), plus Geist and IBM Plex Mono for the films until they move (`fonts.css`).
 - `screenshots/`: earlier reference captures. They predate the Bureau redesign and are kept as

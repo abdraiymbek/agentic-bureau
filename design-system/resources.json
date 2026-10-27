@@ -20,7 +20,20 @@
     "colours": "Signal cyan #4FC8F0 and ice #C6F1FF on the #0A0E12 tile; the light mark keeps the cyan and turns ice to ink",
     "provenance": "Supplied by the product owner as vector artwork",
     "usage": "Two-tone in the renderer (var(--signal) and var(--ice)); one-colour exports for print and single-ink use",
-    "desktopIcons": "apps/rust-desktop/icons/ generated with `tauri icon design-system/brand/app-icon.png`"
+    "desktopIcons": "apps/rust-desktop/icons/ generated with `tauri icon design-system/brand/app-icon.png`",
+    "social": {
+      "avatars": [
+        "brand/social/agentic-bureau-avatar-dark.svg",
+        "brand/social/agentic-bureau-avatar-dark.png",
+        "brand/social/agentic-bureau-avatar-light.svg",
+        "brand/social/agentic-bureau-avatar-light.png"
+      ],
+      "posts": [
+        "brand/social/agentic-bureau-post-landscape.jpg",
+        "brand/social/agentic-bureau-post-square.jpg"
+      ],
+      "note": "Avatars are 1024 px with the mark inside a circular crop; posts (3200 × 1800 and 2160 × 2160) show the real renderer on the rover fixture"
+    }
   },
   "fonts": [
     {

@@ -1,11 +1,10 @@
 # Agentic Bureau
 
-Agentic Bureau (Bureau in the app) is a local desktop engineering workspace. You bring an agent CLI (Codex CLI, Claude
-Code, or another), it runs inside the app — as a conversation or in a real terminal — and it
-drafts engineering work —
-requirements, parts, CAD, calculations, wiring, tests — through Bureau's MCP tools. Nothing it
-writes becomes the baseline until a person approves it. Approval records a decision; it does not
-establish engineering validity.
+Agentic Bureau (Bureau in the app) is a local desktop engineering workspace. You bring an agent
+CLI (Codex CLI, Claude Code, or another), it runs inside the app — as a conversation or in a real
+terminal — and it drafts engineering work — requirements, parts, CAD, calculations, wiring,
+tests — through Bureau's MCP tools. Nothing it writes becomes the baseline until a person
+approves it. Approval records a decision; it does not establish engineering validity.
 
 Everything lives in the project folder: a schema 1 SQLite record, an object store of immutable
 files, and readable working files. The packaged app is Rust (Tauri) with a React renderer in the
