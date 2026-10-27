@@ -29,6 +29,6 @@ The macOS app is ad hoc signed and is not notarized. Requires macOS 13.3 or late
 
 Linux packages require glibc 2.35 or later; Debian/RPM packages also require the declared WebKitGTK runtime. The packages are now named `bureau` and install the `agentic-bureau` command; they do not replace `omen-flow`, so remove it first (`sudo apt remove omen-flow` or `sudo dnf remove omen-flow`), as well as any withdrawn 1.0.x package.
 
-Project storage stays schema 1 and existing APIs remain compatible. A 0.2.3 build can open a project 0.2.4 worked on, but it ignores 0.2.4's CAD checks; check parts again if you go back. See [the verification record](https://github.com/abdraiymbek/omen-flow/blob/main/audit/v0.2.4/README.md) for checks and limits.
+Project storage stays schema 1, and the operations agents and scripts call are unchanged under the new helper name. To open a project with 0.2.3 again, rename `.bureau` and `bureau.project.json` back first; 0.2.3 then ignores 0.2.4's CAD checks, so check parts again if you go back. See [the verification record](https://github.com/abdraiymbek/omen-flow/blob/main/audit/v0.2.4/README.md) for checks and limits.
 
 VERIFICATION_PARAGRAPH_PENDING
