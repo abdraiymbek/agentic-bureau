@@ -5,7 +5,7 @@
  * bottom is the progress; → and ← move, Esc skips; everything is remembered as seen.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, WarningCircle, X } from '../ui/icons';
+import { ArrowLeft, WarningCircle, X } from '../ui/icons';
 import { useStore } from '../store';
 import { focusKind, openLayer, topmostLayer } from '../lib/layers';
 import { isMacPlatform } from '../ui/shortcuts';
@@ -365,7 +365,6 @@ export function Intro() {
           ) : (
             <Button
               variant="primary"
-              trailing={<ArrowRight size={13} />}
               shortcut={last ? '↵' : '→'}
               disabled={!canContinue}
               onClick={next}

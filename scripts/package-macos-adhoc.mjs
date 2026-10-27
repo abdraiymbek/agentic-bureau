@@ -41,7 +41,7 @@ function verifyApp(app) {
   const plist = path.join(app, 'Contents/Info.plist');
   if (
     output('plutil', ['-extract', 'CFBundleIdentifier', 'raw', '-o', '-', plist]) !==
-    'app.bureau.desktop'
+    'app.agenticbureau.desktop'
   ) {
     throw new Error('Expected the Bureau app bundle identifier');
   }
