@@ -1,10 +1,10 @@
 [package]
 name = "bureau-bridge"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 description = "bureau CLI helper — connects agent sessions to the Bureau app bridge"
 license = "Apache-2.0"
-repository = "https://github.com/abdraiymbek/omen-flow"
+repository = "https://github.com/abdraiymbek/agentic-bureau"
 
 [[bin]]
 name = "bureau"

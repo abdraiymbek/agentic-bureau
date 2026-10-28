@@ -12,11 +12,11 @@ It is not signed with an Apple Developer ID or notarized by Apple, so the
 first-launch approval is expected. macOS may ask again after an update.
 
 Download the app only from the official release:
-https://github.com/abdraiymbek/omen-flow/releases/latest
+https://github.com/abdraiymbek/agentic-bureau/releases/latest
 
 If macOS reports that the app is damaged, download a fresh copy from that
 release and check it against SHA256SUMS. Report a continuing problem at:
-https://github.com/abdraiymbek/omen-flow/issues
+https://github.com/abdraiymbek/agentic-bureau/issues
 
 Apple's instructions for the Open Anyway button:
 https://support.apple.com/en-us/102445

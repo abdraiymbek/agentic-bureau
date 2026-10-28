@@ -8,6 +8,6 @@
     "category": "DeveloperTool",
     "shortDescription": "Local desktop engineering workspace for bring-your-own agent CLIs",
     "longDescription": "Agentic Bureau (Bureau for short) is a local desktop engineering workspace. An agent CLI (Codex CLI, Claude Code or another) runs in a real terminal inside the app and drafts engineering work through Bureau's tools; nothing it writes becomes the baseline until a person approves it. OpenSCAD is a separately installed engine.",
-    "homepage": "https://github.com/abdraiymbek/omen-flow"
+    "homepage": "https://github.com/abdraiymbek/agentic-bureau"
   }
 }

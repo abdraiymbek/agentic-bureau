@@ -135,7 +135,7 @@ and a `nextAction` (`commit_assertions`, `repair_geometry`, `resolve_inputs`,
 person accepts). The same state is what `cad_check` answers, what `work_status` reports
 (`cad_unverified`, `cad_spec_unasserted`, `cad_check_failed`, `cad_scope_changed`,
 `cad_render_failed`) and what a proposal shows. A scope with listed items that lack an assertion
-cannot be accepted. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.4: a
+cannot be accepted. Evidence is recorded by checker `omenflow-rust-mesh-checks-v3` (0.2.5: a
 section keeps a corner the cut meets twice next to a hole's vertex, which v2 could lose, and
 closes a loop whose crossing falls on a rounding boundary, which v2 left as open chains);
 evidence from earlier checkers stays readable. A 0.2.3 build ignores v3 checks and goes by its
@@ -155,7 +155,7 @@ own newest check (see [going back to 0.2.3](project-format.md#going-back-to-023)
   input therefore leaves the part unverified until a person approves it; an edge does not.
 - `cad_spec_unasserted` names a draft whose committed check has listed items without an
   assertion, or does not show a linked requirement as it stands: not taken into account
-  (`not_considered`, for example a check made before 0.2.4), linked after the check
+  (`not_considered`, for example a check made before 0.2.5), linked after the check
   (`linked_after`, from the edge's time), or changed since (`revised`, when what the check
   derives from it differs). Its `next` is a `cad_check` with the committed expect as the linked
   requirements state it now, the new requirement items, and an item naming each statement

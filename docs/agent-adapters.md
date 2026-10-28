@@ -309,7 +309,7 @@ Every `tools/call` goes through `dispatch_agent`:
    to do instead.
 2. `tool_call` validates its own input, then runs the named tool as if it
    had been called directly. `guide_read` serves the playbooks in
-   `crates/agent-host/guides/`; `parts` (the id of `components` until 0.2.4),
+   `crates/agent-host/guides/`; `parts` (the id of `components` until 0.2.5),
    `bom`, `component` and `verify` still open theirs.
 3. Input goes through `parse_agent_input`: lossless, reported repairs only.
    Unknown keys are refused with the allowed keys and the nearest one. The
