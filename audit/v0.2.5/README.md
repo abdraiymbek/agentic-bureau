@@ -50,7 +50,24 @@ record covers what came after: the rename and redesign, and what packaging them 
 
 ## Final verification
 
-FINAL_VERIFICATION_PENDING
+Local candidate checks from [the release procedure](../../docs/release.md#local-candidate), on
+27 October 2026 on macOS 27 arm64 with OpenSCAD 2026.09.18, with the packages built from
+`1b10780` (`Prepare Agentic Bureau 0.2.5`):
+
+| Check                                                             | Result                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release version consistency and dependency-lock review            | passed; workspace/app/helper 0.2.5 in the eight manifests, both Cargo versions and `tauri.conf.json`; the lockfiles change only the seven local crates                                                                                                                                                                                |
+| Generated contracts and third-party notices                       | passed                                                                                                                                                                                                                                                                                                                                |
+| TypeScript typecheck, lint and formatting                         | passed (lint: 0 errors)                                                                                                                                                                                                                                                                                                               |
+| JavaScript and renderer suites, including engine cases            | 1129 passed across 110 files with real OpenSCAD (`BUREAU_OPENSCAD_E2E=1`); no skipped tests                                                                                                                                                                                                                                           |
+| Rust formatting, clippy and workspace suites with OpenSCAD        | passed; 823 passed, 1 ignored                                                                                                                                                                                                                                                                                                         |
+| macOS arm64 build, bundle metadata, signatures and packaged smoke | passed; 0.2.5, `app.agenticbureau.desktop`, `Bureau`, macOS 13.3 or later; DMG (10,929,183 bytes) verified with `hdiutil verify` and mounted read-only, with `INSTALL.txt` linking the renamed repository; ad hoc app and helper signatures valid; packaged smoke passed from the mounted path                                        |
+| Linux arm64 build, declared floors and packaged smoke             | passed in 511 s with `--skip-tests` (32 steps); packages `bureau` 0.2.5 (.deb 12,385,864 bytes, .rpm 12,386,207, AppImage 87,697,928), command `/usr/bin/agentic-bureau`, menu entry `Bureau`; .deb on Ubuntu 22.04/24.04 and Debian 12, AppImage on Ubuntu 22.04 without GTK/WebKitGTK, .rpm on Fedora 42, all fresh Xvfb containers |
+| Native renders                                                    | on the renamed tree before the version bump, the macOS app started from its bundle with an isolated data folder pictured its own window (the introduction, then the launcher), and every Linux package smoke pictured the introduction ([design verification](../../design-system/verification.md))                                   |
+
+Not run again for 0.2.5: the STEP end-to-end tests with OCP and the live agent checks, which the
+0.2.4 record holds. CI on the release commit, the x86_64 release workflow and the re-downloaded
+assets are recorded after publication.
 
 ## Release artifacts
 
