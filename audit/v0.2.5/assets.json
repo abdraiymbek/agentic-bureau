@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "digest": "sha256:830c0ada69f0c66dfef689d84c9340257de488faaf007ef231e39bf699d46a56",
+      "name": "Bureau-0.2.5-aarch64.AppImage",
+      "size": 87697928,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/Bureau-0.2.5-aarch64.AppImage"
+    },
+    {
+      "digest": "sha256:f365661e32b1f8dbb7cac441ce092e6b371500a90786f0ade881d41099e2c8b2",
+      "name": "Bureau-0.2.5-macos-arm64.dmg",
+      "size": 10929183,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/Bureau-0.2.5-macos-arm64.dmg"
+    },
+    {
+      "digest": "sha256:17b61d9b6e0203706a4d02905e86819541c251df9a97337fd12af20df040cc2b",
+      "name": "Bureau-0.2.5-x86_64.AppImage",
+      "size": 89651704,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/Bureau-0.2.5-x86_64.AppImage"
+    },
+    {
+      "digest": "sha256:9255b7feb2694c2367e3498bda31dbaf3ec4584ecdafda22458dd0cfa31854a5",
+      "name": "SHA256SUMS",
+      "size": 649,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/SHA256SUMS"
+    },
+    {
+      "digest": "sha256:d4e7e3c2e9cb435185e8900bf9107b2a67a126ae7a1ed05575f75051aff023d8",
+      "name": "bureau-0.2.5-1.aarch64.rpm",
+      "size": 12386207,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/bureau-0.2.5-1.aarch64.rpm"
+    },
+    {
+      "digest": "sha256:07b298481dbf5c9069855157ceba35a8b74f35d54cbdc8c842bbc6182079224a",
+      "name": "bureau-0.2.5-1.x86_64.rpm",
+      "size": 12467359,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/bureau-0.2.5-1.x86_64.rpm"
+    },
+    {
+      "digest": "sha256:1f29b286f61802f8e16384cbdca9a102daa8659a02217e8048cc18d7dcc6bdb4",
+      "name": "bureau_0.2.5_amd64.deb",
+      "size": 12466850,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/bureau_0.2.5_amd64.deb"
+    },
+    {
+      "digest": "sha256:e4c2700702c795b4242366c5e1c7e0f482bab3430f91077c47210ddb1f9e7dec",
+      "name": "bureau_0.2.5_arm64.deb",
+      "size": 12385864,
+      "url": "https://github.com/abdraiymbek/agentic-bureau/releases/download/v0.2.5/bureau_0.2.5_arm64.deb"
+    }
+  ]
+}

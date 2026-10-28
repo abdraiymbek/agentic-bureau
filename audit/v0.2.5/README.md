@@ -1,6 +1,6 @@
 # Agentic Bureau 0.2.5 verification record
 
-Date: 27 October 2026 (America/Chicago). Status: **release candidate; not published**.
+Date: 27 October 2026 (America/Chicago). Status: **published; supported-platform release gates passed**.
 
 0.2.5 is the first release as Agentic Bureau (Bureau in the app, the CLI and the docs) and the
 first since 0.2.3. It carries the changes prepared as 0.2.4 on 22 October and never published:
@@ -67,8 +67,28 @@ Local candidate checks from [the release procedure](../../docs/release.md#local-
 
 Not run again for 0.2.5: the STEP end-to-end tests with OCP and the live agent checks, which the
 0.2.4 record holds. CI on the release commit, the x86_64 release workflow and the re-downloaded
-assets are recorded after publication.
+assets are recorded [below](#release-artifacts).
 
 ## Release artifacts
 
-Not published yet.
+Release: [v0.2.5](https://github.com/abdraiymbek/agentic-bureau/releases/tag/v0.2.5), published
+2026-10-28T01:05:23Z, latest stable release. Tag `v0.2.5` (annotated, “Agentic Bureau 0.2.5”)
+points at `51f78644f904940f4541ea43a70fd1b71f572d2b` (“Prepare Agentic Bureau 0.2.5 (#5)”), the
+merge of the release branch, which differs from `1b10780` only in this record. Tagger and release
+author: **abdraiymbek**.
+
+- CI on the release commit ([run 40611147498](https://github.com/abdraiymbek/agentic-bureau/actions/runs/40611147498)):
+  every job passed (contracts and renderer, both Rust workspaces, the helper, conformance and
+  headless smoke, the legacy CAD evaluator, the macOS arm64 and Linux x86_64 packages with their
+  packaged smoke) except the experimental Windows package, as above.
+- The Release Linux x86_64 workflow
+  ([run 40611204356](https://github.com/abdraiymbek/agentic-bureau/actions/runs/40611204356))
+  built and smoke-tested the x86_64 packages from the tag and added them to `SHA256SUMS`.
+- The macOS DMG and the arm64 Linux packages were built on this Mac (above). All eight assets were
+  downloaded again into a fresh folder: every expected file was present, all seven checksums
+  verified, and the four local packages matched the built files byte for byte.
+
+[SHA256SUMS](SHA256SUMS) and [assets.json](assets.json) preserve the published hashes and sizes.
+The limits above remain: no notarization, native manual walkthrough, reduced-motion or VoiceOver
+check, clean-machine macOS installation or upgrade over Omen Flow, or physical Linux desktop use
+is claimed. The draft release v0.2.4 keeps the Omen Flow packages and is not published.
