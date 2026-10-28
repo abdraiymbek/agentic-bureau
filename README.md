@@ -10,7 +10,7 @@ Everything lives in the project folder: a schema 1 SQLite record, an object stor
 files, and readable working files. The packaged app is Rust (Tauri) with a React renderer in the
 operating system's webview; it contains no Electron and no Node runtime.
 
-**[Download Bureau 0.2.4](https://github.com/abdraiymbek/omen-flow/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
+**[Download Bureau 0.2.5](https://github.com/abdraiymbek/agentic-bureau/releases/latest)** — macOS (Apple Silicon) · Linux preview (x86_64, arm64) ·
 Apache-2.0
 
 ## Install
@@ -31,7 +31,7 @@ Apache-2.0
 
 ### macOS
 
-Download `Bureau-0.2.4-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest). The app is ad hoc signed to protect its contents,
+Download `Bureau-0.2.5-macos-arm64.dmg` from the [latest release](https://github.com/abdraiymbek/agentic-bureau/releases/latest). The app is ad hoc signed to protect its contents,
 but is not notarized by Apple. macOS may require approval on first launch:
 
 1. Open the DMG and drag **Bureau** onto **Applications**.
@@ -43,25 +43,25 @@ but is not notarized by Apple. macOS may require approval on first launch:
 
 The DMG includes these steps in `INSTALL.txt`. If macOS reports the app is damaged, download
 a fresh copy from the official release, verify it against `SHA256SUMS`, and
-[report the problem](https://github.com/abdraiymbek/omen-flow/issues) if it persists.
+[report the problem](https://github.com/abdraiymbek/agentic-bureau/issues) if it persists.
 
 ### Linux (preview)
 
 Download the file for your system and architecture (`amd64`/`x86_64` for most PCs, `arm64`/
-`aarch64` for ARM machines) from the [latest release](https://github.com/abdraiymbek/omen-flow/releases/latest):
+`aarch64` for ARM machines) from the [latest release](https://github.com/abdraiymbek/agentic-bureau/releases/latest):
 
 | System                    | File                           | Install                                              |
 | ------------------------- | ------------------------------ | ---------------------------------------------------- |
-| Ubuntu 22.04+, Debian 12+ | `bureau_0.2.4_amd64.deb`       | `sudo apt install ./bureau_0.2.4_amd64.deb`          |
-| Fedora 42+                | `bureau-0.2.4-1.x86_64.rpm`    | `sudo dnf install ./bureau-0.2.4-1.x86_64.rpm`       |
-| Other distributions       | `Bureau-0.2.4-x86_64.AppImage` | `chmod +x Bureau-0.2.4-x86_64.AppImage`, then run it |
+| Ubuntu 22.04+, Debian 12+ | `bureau_0.2.5_amd64.deb`       | `sudo apt install ./bureau_0.2.5_amd64.deb`          |
+| Fedora 42+                | `bureau-0.2.5-1.x86_64.rpm`    | `sudo dnf install ./bureau-0.2.5-1.x86_64.rpm`       |
+| Other distributions       | `Bureau-0.2.5-x86_64.AppImage` | `chmod +x Bureau-0.2.5-x86_64.AppImage`, then run it |
 
-The `arm64` files are named the same way (`bureau_0.2.4_arm64.deb`,
-`bureau-0.2.4-1.aarch64.rpm`, `Bureau-0.2.4-aarch64.AppImage`). The `bureau` packages install
+The `arm64` files are named the same way (`bureau_0.2.5_arm64.deb`,
+`bureau-0.2.5-1.aarch64.rpm`, `Bureau-0.2.5-aarch64.AppImage`). The `bureau` packages install
 **Bureau** in the applications menu and the `agentic-bureau` command, and apt or dnf pulls in
 WebKitGTK and the other libraries. The AppImage needs FUSE 3 (`sudo apt install fuse3`) or
 `APPIMAGE_EXTRACT_AND_RUN=1`. The Linux build has been installed and run in fresh Ubuntu, Debian
-and Fedora containers, but not yet on a real desktop: please [report what you find](https://github.com/abdraiymbek/omen-flow/issues).
+and Fedora containers, but not yet on a real desktop: please [report what you find](https://github.com/abdraiymbek/agentic-bureau/issues).
 
 ### Verify the download
 
@@ -238,7 +238,7 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
 
 ## Limits
 
-- The macOS app (version 0.2.4, identifier `app.agenticbureau.desktop`, macOS 13.3 or later, Apple
+- The macOS app (version 0.2.5, identifier `app.agenticbureau.desktop`, macOS 13.3 or later, Apple
   Silicon only) is ad hoc signed, not notarized, so macOS asks you to allow it once (see
   [Install](#macos)). Intel Macs and Windows are not supported by this release.
 - Linux packages (`.deb`, `.rpm`, AppImage; unsigned) are built by `node scripts/linux-package.mjs`
@@ -250,7 +250,7 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
   FUSE (`fuse3`) to mount, or `APPIMAGE_EXTRACT_AND_RUN=1`. Nobody has used them on a real Linux
   desktop: Wayland, GPU drivers, HiDPI and the on-screen look of native dialogs are unverified,
   and Linux x86_64 packages use the same recipe in the release workflow. See
-  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v0.2.4/README.md).
+  [release](docs/release.md#linux-packages) and the version's [verification record](audit/v0.2.5/README.md).
 - The Rust app was verified with automated suites, browser walkthroughs and a QA pass on the Rust
   headless host, and an adversarial review whose fixes each carry a regression test. The release
   bundle was launched only by the packaged smoke and a window check; the last native
@@ -278,12 +278,12 @@ and a Claude Code cell's list-price cost is estimated afterwards from a dated pr
   `cad_view` draws parts that have OpenSCAD source, as `cad_inspect` measures them.
 - Project archives carry the record, objects and working files, not readable per-artifact views;
   agent call history stays out of archives.
-- A 0.2.3 build ignores the CAD checks 0.2.4 records: it shows each part by its newest check
-  from 0.2.3 or earlier, so a part whose newest 0.2.4 check failed can read there as verified.
+- A 0.2.3 build ignores the CAD checks 0.2.5 records: it shows each part by its newest check
+  from 0.2.3 or earlier, so a part whose newest 0.2.5 check failed can read there as verified.
   If you go back, check parts again before relying on them, and again when you return. See
   [going back to 0.2.3](docs/project-format.md#going-back-to-023).
 
-Current status and verification numbers: [0.2.4 verification record](audit/v0.2.4/README.md).
+Current status and verification numbers: [0.2.5 verification record](audit/v0.2.5/README.md).
 Releases 0.2.0–0.2.3 were first published as 1.0.0–1.0.3 and renumbered on 21 October 2026,
 because Bureau is a preview, not a 1.0; the earlier records keep the original numbers.
 Earlier records: [V1 readiness record](audit/v1/README.md), [`audit/`](audit/); [build status](BUILD_STATUS.md) says where the Electron-era

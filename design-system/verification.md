@@ -25,7 +25,7 @@ of the activity bar and title bar, and the Dark and Light themes. On the working
 - The gallery page (`design-system/index.html`) loads the new fonts and mark.
 - The packaged apps draw the redesign natively: the macOS app (WKWebView) pictured its own window
   on the introduction and the launcher, and every Linux arm64 package smoke (WebKitGTK) pictured
-  the introduction ([0.2.4 record](../audit/v0.2.4/README.md#final-verification-after-the-rename)).
+  the introduction ([0.2.5 record](../audit/v0.2.5/README.md#final-verification)).
 - The desktop icons, generated from the supplied dark tile at full size, were looked at as the
   Windows `.ico` (256 px) and the Linux PNGs (32 and 128 px).
 - The social set in `brand/social/` was made from the design preview in headless Chrome at 2×.

@@ -1,15 +1,15 @@
 {
   "name": "bureau",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "description": "Bureau — local desktop engineering workspace for bring-your-own agent CLIs",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/abdraiymbek/omen-flow",
+  "homepage": "https://github.com/abdraiymbek/agentic-bureau",
   "repository": {
     "type": "git",
-    "url": "https://github.com/abdraiymbek/omen-flow.git"
+    "url": "https://github.com/abdraiymbek/agentic-bureau.git"
   },
-  "bugs": "https://github.com/abdraiymbek/omen-flow/issues",
+  "bugs": "https://github.com/abdraiymbek/agentic-bureau/issues",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.0.0"

@@ -1,7 +1,7 @@
 # Release
 
-Version **0.2.4** is the current release; its checks and remaining limits are recorded in
-the [0.2.4 verification record](../audit/v0.2.4/README.md).
+Version **0.2.5** is the current release and the first as Agentic Bureau; its checks and
+remaining limits are recorded in the [0.2.5 verification record](../audit/v0.2.5/README.md).
 
 Bureau is a preview, so its version line starts below 1.0. The four releases first published
 as 1.0.0 (15 October 2026 UTC) to 1.0.3 (21 October 2026) were withdrawn on 21 October 2026 and
@@ -9,9 +9,12 @@ renumbered 0.2.0 to 0.2.3: 0.2.3 is the 1.0.3 code rebuilt with the new number, 
 three builds were not republished. Their records keep their original numbers: the
 [1.0.3](../audit/v1.0.3/README.md), [1.0.2](../audit/v1.0.2/README.md) and
 [1.0.1](../audit/v1.0.1/README.md) verification records, and for 1.0.0 the
-[V1 readiness record](../audit/v1/README.md). From 0.2.0 to 0.2.4 the macOS bundle carried identifier
-`app.omenflow.desktop`; from the rename to Agentic Bureau it is `app.agenticbureau.desktop`.
-The earlier 0.1.0 bundle described in the V1 readiness record was replaced. The next release is 0.2.5 or later.
+[V1 readiness record](../audit/v1/README.md). 0.2.4 was prepared as Omen Flow on 22 October 2026
+and not published: its draft release keeps the Omen Flow packages, and its changes ship in 0.2.5
+with the rename ([0.2.4 record](../audit/v0.2.4/README.md)). Up to 0.2.4 the macOS bundle
+carried identifier `app.omenflow.desktop`; from 0.2.5 it is `app.agenticbureau.desktop`. The
+earlier 0.1.0 bundle described in the V1 readiness record was replaced. The next release is
+0.2.6 or later.
 
 Publication and automated checks do not establish native manual acceptance. The last recorded
 native walkthrough by hand is the [26 September first-use audit](../audit/v1-readiness/README.md),
@@ -77,7 +80,7 @@ reads it back and is refused a human-only operation. It is not a substitute for 
 flows: before calling a package releasable, run a real agent CLI session in the Agent tab, a
 CAD render, a review approval, export and reopen of an archive, close and quit with an agent
 running, and an upgrade of a populated earlier project. The automated checks reach the live
-ends of what 0.2.4 added only through stand-ins (a fixture agent CLI, a stand-in Python), so
+ends of what 0.2.5 added only through stand-ins (a fixture agent CLI, a stand-in Python), so
 also run, in the native app:
 
 - **Export STEP** from a part's view with a Python with OCP set in Settings → Engineering
@@ -150,7 +153,7 @@ helper is quarantined, Bureau writes a byte-for-byte copy into its own `bin/bure
 folder for the agent (`apps/rust-desktop/src/helper.rs`). This leaves the signed app untouched.
 The packaged smoke checks that helper path and the bridge capability boundaries.
 
-The [0.2.4 verification record](../audit/v0.2.4/README.md) records the current package checks.
+The [0.2.5 verification record](../audit/v0.2.5/README.md) records the current package checks.
 `codesign --verify --deep --strict` validates signature consistency. `syspolicy_check distribution`
 and `spctl` separately report policy: ad hoc signing and a missing notarization ticket remain
 expected blockers, and must not be reported as accepted notarization. A fresh browser download
@@ -178,8 +181,8 @@ variable (or off macOS) it stops before building: "Run on macOS with BUREAU_SIGN
 and BUREAU_NOTARIZE_PROFILE." This path has not been run with real Apple credentials. Do not
 publish solely because a DMG exists.
 
-From the rename to Agentic Bureau the bundle identifier is `app.agenticbureau.desktop`; as Omen
-Flow, 0.2.0 to 0.2.4 used `app.omenflow.desktop`, and earlier builds `com.electron.omen-flow`. On
+From 0.2.5, the first Agentic Bureau release, the bundle identifier is `app.agenticbureau.desktop`;
+as Omen Flow, 0.2.0 to 0.2.4 used `app.omenflow.desktop`, and earlier builds `com.electron.omen-flow`. On
 its first start, the app copies `settings.json`, `reservations.json` and `window-state.json` from
 the newest earlier identifier's data folder that has each, and settings from the Electron app's
 `@omenflow/desktop`, without overwriting anything it has already written and
@@ -290,7 +293,7 @@ What the packages hold (Tauri reads `tauri.conf.json` `bundle.linux` and merges
 
 |               | `.deb` / `.rpm`                                                                                                                                                                                                                      | AppImage                                  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| Name, version | `bureau` 0.2.4 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Agentic Bureau contributors"                                                                                                                        | `Bureau_0.2.4_<arch>.AppImage`            |
+| Name, version | `bureau` 0.2.5 (rpm release 1), section `devel`, license Apache-2.0, maintainer "Agentic Bureau contributors"                                                                                                                        | `Bureau_0.2.5_<arch>.AppImage`            |
 | App           | `/usr/bin/agentic-bureau`                                                                                                                                                                                                            | `usr/bin/agentic-bureau` inside the image |
 | Helper        | `/usr/lib/Bureau/bureau`, where `cli_path` finds it (Tauri's resource folder is `../lib/<productName>` beside the executable)                                                                                                        | `$APPDIR/usr/lib/Bureau/bureau`           |
 | Menu entry    | `/usr/share/applications/Bureau.desktop`: `Name=Bureau`, `Exec=agentic-bureau`, `Icon=agentic-bureau`, `StartupWMClass=agentic-bureau` (the window's `WM_CLASS`), `Categories=Development;`; `desktop-file-validate` reports nothing | the same entry inside the image           |
@@ -334,10 +337,10 @@ that "Stop agent and close" ended with its process group.
 `node scripts/linux-package.mjs --skip-tests` on `ubuntu-22.04` and uploads the `.deb`, `.rpm` and
 AppImage (`bureau-linux-x86_64`) and the screenshots. The **Release Linux x86_64** workflow
 uses the same script, attaches packages to an existing release and updates `SHA256SUMS`. Its
-[1.0.0 run](https://github.com/abdraiymbek/omen-flow/actions/runs/38671472644) completed
+[1.0.0 run](https://github.com/abdraiymbek/agentic-bureau/actions/runs/38671472644) completed
 successfully on 15 October 2026 UTC; those three assets were attached to the 1.0.0 release, since
 withdrawn. This supersedes the earlier statement that no x86_64 package had been built or
-launched. Results for 0.2.4 belong in its [verification record](../audit/v0.2.4/README.md).
+launched. Results for 0.2.5 belong in its [verification record](../audit/v0.2.5/README.md).
 
 Known limits:
 

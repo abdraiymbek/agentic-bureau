@@ -54,27 +54,27 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
   `impact.answeredByRevisionId` on a proposal a newly accepted baseline already contained;
 - a `commitOrder` in the inputs of committed CAD check jobs (the check committed last decides,
   among the checks a build reads; see [going back to 0.2.3](#going-back-to-023));
-- CAD evidence from checker `omenflow-rust-mesh-checks-v3` (0.2.4), beside readable v2 and v1
-  and TypeScript v4 evidence. Since 0.2.4 evidence may carry `spec` (listed items, linked
+- CAD evidence from checker `omenflow-rust-mesh-checks-v3` (0.2.5), beside readable v2 and v1
+  and TypeScript v4 evidence. Since 0.2.5 evidence may carry `spec` (listed items, linked
   requirements and, for a changed scope, `replaced` and `checkChanges`) and the check job's
   inputs `expect.spec` and `requirementIds`, while the evidence stays version 1;
-- an optional `features` list in requirement payloads (0.2.4);
+- an optional `features` list in requirement payloads (0.2.5);
 - the event type `cad.exported` (a part written as STEP, STL or SCAD: `format`, `method`,
   `exact`, `destPath`, `bytes`, and `projectPath` when the file is inside the project) and the
   job kind `cad_export` (tool `omenflow-step`), whose inputs hold no machine path: a
   project-relative destination, or only the file name of one outside the project, which its
   error also names by file name;
 - `for` in the inputs of a `cad_render` job that renders a revision for `cad.view`,
-  `cad.inspect` or `cad.check` and commits nothing to it (0.2.4); an earlier build ignores it;
+  `cad.inspect` or `cad.check` and commits nothing to it (0.2.5); an earlier build ignores it;
 - the sidecar files under `.bureau/work/` and `.bureau/cache/`, including the pictures in
-  `.bureau/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
+  `.bureau/cache/views-v1/` (0.2.5): PNG files named by the SHA-256 of their bytes,
   drawn for an agent by `cad_view` and `image_view`. They are never read back as a cache, are
   pruned to the newest 256 files and 128 MiB, and an earlier build ignores the folder;
 - in `.bureau/chat/conversations.json`, turn fields `gate` (the host's completion-gate
   record), `continues`, `model`, `resolvedModel`, `usage` (tokens only) and
-  `cliConversationId` (0.2.4); turn keys a later build adds are kept on save, and an earlier
+  `cliConversationId` (0.2.5); turn keys a later build adds are kept on save, and an earlier
   build drops these fields when it saves the conversation again;
-- `alsoRan` in `calls.jsonl` records (0.2.4): what the host also ran inside the call, such as
+- `alsoRan` in `calls.jsonl` records (0.2.5): what the host also ran inside the call, such as
   the check a write with `expect` ran.
 
 `cad.export` records an event and, for STEP, a job, so it now counts as a change: a project
@@ -92,31 +92,31 @@ earlier) look only for the old names, so rename both back before opening the pro
 
 ### Going back to 0.2.3
 
-A 0.2.3 build opens a project that 0.2.4 has worked on (with its folder and marker renamed back,
+A 0.2.3 build opens a project that 0.2.5 has worked on (with its folder and marker renamed back,
 above) and keeps its data, but it reads CAD checks and conversations differently:
 
-- **It ignores every check recorded by 0.2.4** (checker v3). Each revision shows its newest
-  check from 0.2.3 or earlier, even when a later 0.2.4 check of that same revision failed,
-  changed scope or left items unasserted. A part whose newest 0.2.4 check failed can therefore
+- **It ignores every check recorded by 0.2.5** (checker v3). Each revision shows its newest
+  check from 0.2.3 or earlier, even when a later 0.2.5 check of that same revision failed,
+  changed scope or left items unasserted. A part whose newest 0.2.5 check failed can therefore
   read there as verified, and 0.2.3 lets a person approve it and build with it. A revision
-  checked only by 0.2.4 shows as without a committed check.
-- It cannot accept the scope of a check recorded by 0.2.4: accepting or approving with that
+  checked only by 0.2.5 shows as without a committed check.
+- It cannot accept the scope of a check recorded by 0.2.5: accepting or approving with that
   evidence is refused with `REVISION_CONFLICT`, because 0.2.3 does not see the evidence.
-- It still compares its own checks with the scope a 0.2.4 check recorded. When that check
+- It still compares its own checks with the scope a 0.2.5 check recorded. When that check
   listed items (`expect.spec`), which 0.2.3 strips from its own checks, every 0.2.3 check of the
   part reports `spec` as dropped: with `autoCommit` it stays an uncommitted trial, and
   otherwise it commits as `scope_changed`, even when a person runs it with the arguments its
   gate suggests. The part is verified there again only after a person accepts a scope.
 - It reads requirement `features`, but its interface drops them on the next edit and its agent
   tools refuse them; its gate echoes `expect.spec`, which its agent tools also refuse.
-- Any change it makes to the conversations rewrites the file and drops the 0.2.4 turn fields
+- Any change it makes to the conversations rewrites the file and drops the 0.2.5 turn fields
   above from every turn: sending a turn, attaching a part to a conversation, or marking a
   running turn interrupted when the project opens. A continuation then loses its
   `continues` record, so both builds show Bureau's continuation text as the person's own
-  message, and 0.2.4 replays it as the person's to an agent CLI that starts a new conversation.
+  message, and 0.2.5 replays it as the person's to an agent CLI that starts a new conversation.
 
 So after going back, do not rely on a part's verified state there until it is checked again,
-and when returning to 0.2.4, check again the parts 0.2.3 checked or approved. The job history
+and when returning to 0.2.5, check again the parts 0.2.3 checked or approved. The job history
 keeps every check with the checker that recorded it.
 
 ## Objects and working files
