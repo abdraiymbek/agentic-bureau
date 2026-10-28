@@ -13,14 +13,14 @@ const MAX_ENTRY: u64 = 128 * 1024 * 1024;
 const MAX_ENTRIES: usize = 10_000;
 /// Prefix of the temporary file an atomic working-file write leaves behind
 /// when it is interrupted.
-const WRITE_LEFTOVER: &str = ".omenflow-write-";
+const WRITE_LEFTOVER: &str = ".bureau-write-";
 
 fn bad(message: impl Into<String>) -> ContractError {
     ContractError::new("ARCHIVE_INVALID", message.into())
 }
 
 fn walk(root: &Path, relative: &str, files: &mut BTreeMap<String, Vec<u8>>) -> CoreResult<()> {
-    let dir = omenflow_storage::resolve_project_path(root, relative).map_err(storage_error)?;
+    let dir = bureau_storage::resolve_project_path(root, relative).map_err(storage_error)?;
     if !dir.exists() {
         return Ok(());
     }
@@ -40,7 +40,7 @@ fn walk(root: &Path, relative: &str, files: &mut BTreeMap<String, Vec<u8>>) -> C
             walk(root, &path, files)?;
         } else if kind.is_file() {
             let absolute =
-                omenflow_storage::resolve_project_path(root, &path).map_err(storage_error)?;
+                bureau_storage::resolve_project_path(root, &path).map_err(storage_error)?;
             files.insert(path, fs::read(absolute).map_err(internal)?);
         }
     }
@@ -118,9 +118,9 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
         .ok_or_else(|| bad("Project metadata missing"))?;
     let mut notes = Vec::new();
     let mut files = BTreeMap::new();
-    for name in ["omenflow.project.json", "README.md"] {
+    for name in ["bureau.project.json", "README.md"] {
         let path =
-            omenflow_storage::resolve_project_path(&handle.root, name).map_err(storage_error)?;
+            bureau_storage::resolve_project_path(&handle.root, name).map_err(storage_error)?;
         if path.is_file() {
             files.insert(name.to_owned(), fs::read(path).map_err(internal)?);
         }
@@ -208,7 +208,7 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
     assert_objects_present(&revisions, &files)?;
     drop(state);
     files.insert(
-        ".omenflow/state.sqlite".to_owned(),
+        ".bureau/state.sqlite".to_owned(),
         fs::read(&state_path).map_err(internal)?,
     );
     let snapshot = json!({"format":"omenflow-project-snapshot","version":1,"project":project,
@@ -238,13 +238,13 @@ pub(super) fn export_archive(handle: &ProjectHandle, input: &Value) -> CoreResul
     let dest = if Path::new(dest_str).is_absolute() {
         PathBuf::from(dest_str)
     } else {
-        omenflow_storage::resolve_materialization_path(&handle.root, dest_str)
+        bureau_storage::resolve_materialization_path(&handle.root, dest_str)
             .map_err(storage_error)?
     };
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent).map_err(internal)?;
     }
-    let temp = dest.with_extension(format!("omenflow-{}.tmp", uuid::Uuid::new_v4()));
+    let temp = dest.with_extension(format!("bureau-{}.tmp", uuid::Uuid::new_v4()));
     let write = (|| -> CoreResult<()> {
         let mut zip = zip::ZipWriter::new(fs::File::create(&temp).map_err(internal)?);
         let opts =
@@ -295,7 +295,7 @@ fn object_name(prefix: &str, name: &str) -> bool {
 /// those, so they are never written into an archive.
 fn collect_objects(root: &Path, files: &mut BTreeMap<String, Vec<u8>>) -> CoreResult<usize> {
     let store =
-        omenflow_storage::resolve_project_path(root, ".omenflow/objects").map_err(storage_error)?;
+        bureau_storage::resolve_project_path(root, ".bureau/objects").map_err(storage_error)?;
     if !store.is_dir() {
         return Ok(0);
     }
@@ -314,8 +314,8 @@ fn collect_objects(root: &Path, files: &mut BTreeMap<String, Vec<u8>>) -> CoreRe
                 && object_name(&prefix, &name)
                 && fs::read(entry.path())
                     .ok()
-                    .filter(|bytes| omenflow_storage::sha256_hex(bytes) == name)
-                    .map(|bytes| files.insert(format!(".omenflow/objects/{prefix}/{name}"), bytes))
+                    .filter(|bytes| bureau_storage::sha256_hex(bytes) == name)
+                    .map(|bytes| files.insert(format!(".bureau/objects/{prefix}/{name}"), bytes))
                     .is_some();
             if !intact {
                 skipped += 1;
@@ -353,7 +353,7 @@ fn assert_objects_present(
         referenced(&revision["payload"], &mut hashes);
         for hash in hashes {
             let present = hash.len() == 64
-                && files.contains_key(&format!(".omenflow/objects/{}/{hash}", &hash[..2]));
+                && files.contains_key(&format!(".bureau/objects/{}/{hash}", &hash[..2]));
             if !present {
                 return Err(bad(format!(
                     "Revision {} of artifact {} refers to stored content that is missing or damaged ({hash})",
@@ -422,7 +422,7 @@ impl Redactor {
             (Some(std::env::temp_dir()), "<tmp>"),
         ] {
             let Some(path) = path else { continue };
-            let canonical = omenflow_storage::canonicalize(&path).ok();
+            let canonical = bureau_storage::canonicalize(&path).ok();
             for form in [Some(path), canonical].into_iter().flatten() {
                 let form = form
                     .to_string_lossy()
@@ -592,6 +592,18 @@ fn file_name(path: &str) -> &str {
         .unwrap_or(path)
 }
 
+/// Archives exported before the rename hold `.omenflow/…` and
+/// `omenflow.project.json`; their members are read under today's names.
+fn current_member_name(name: &str) -> String {
+    match name {
+        "omenflow.project.json" => "bureau.project.json".to_owned(),
+        _ => match name.strip_prefix(".omenflow/") {
+            Some(rest) => format!(".bureau/{rest}"),
+            None => name.to_owned(),
+        },
+    }
+}
+
 fn safe_name(name: &str, seen: &mut HashSet<String>) -> CoreResult<()> {
     if name.is_empty()
         || name.starts_with('/')
@@ -603,7 +615,7 @@ fn safe_name(name: &str, seen: &mut HashSet<String>) -> CoreResult<()> {
     {
         return Err(bad(format!("Unsafe or duplicate archive path: {name}")));
     }
-    if name.starts_with(".omenflow/") && name != ".omenflow/state.sqlite" && !name.ends_with('/') {
+    if name.starts_with(".bureau/") && name != ".bureau/state.sqlite" && !name.ends_with('/') {
         let parts = name.split('/').collect::<Vec<_>>();
         if parts.len() != 4 || parts[1] != "objects" || !object_name(parts[2], parts[3]) {
             return Err(bad(format!("Reserved archive member: {name}")));
@@ -634,7 +646,7 @@ pub(super) fn import_archive(
         let mut member = zip
             .by_index(index)
             .map_err(|e| bad(format!("Invalid ZIP member: {e}")))?;
-        let name = member.name().to_owned();
+        let name = current_member_name(member.name());
         safe_name(&name, &mut seen)?;
         if member.is_dir() {
             continue;
@@ -661,8 +673,8 @@ pub(super) fn import_archive(
         if bytes.len() as u64 != member.size() {
             return Err(bad(format!("Corrupt archive member: {name}")));
         }
-        if name.starts_with(".omenflow/objects/")
-            && omenflow_storage::sha256_hex(&bytes) != name.rsplit('/').next().unwrap_or("")
+        if name.starts_with(".bureau/objects/")
+            && bureau_storage::sha256_hex(&bytes) != name.rsplit('/').next().unwrap_or("")
         {
             return Err(bad(format!("Corrupt object: {name}")));
         }
@@ -683,14 +695,14 @@ pub(super) fn import_archive(
     }
     let marker: Value = serde_json::from_slice(
         entries
-            .get("omenflow.project.json")
+            .get("bureau.project.json")
             .ok_or_else(|| bad("Missing project marker"))?,
     )
     .map_err(|e| bad(format!("Invalid project marker: {e}")))?;
     if marker["format"] != "omenflow-project"
         || marker["version"] != 1
         || marker["id"] != manifest["projectId"]
-        || !entries.contains_key(".omenflow/state.sqlite")
+        || !entries.contains_key(".bureau/state.sqlite")
     {
         return Err(bad("Unsupported or inconsistent project marker"));
     }
@@ -707,12 +719,12 @@ pub(super) fn import_archive(
     }
     let parent = dest.parent().ok_or_else(|| bad("Invalid destination"))?;
     fs::create_dir_all(parent).map_err(internal)?;
-    let staged = parent.join(format!(".omenflow-import-{}", uuid::Uuid::new_v4()));
+    let staged = parent.join(format!(".bureau-import-{}", uuid::Uuid::new_v4()));
     fs::create_dir(&staged).map_err(internal)?;
     let outcome = (|| -> CoreResult<ProjectHandle> {
         for (name, bytes) in &entries {
             let path =
-                omenflow_storage::resolve_project_path(&staged, name).map_err(storage_error)?;
+                bureau_storage::resolve_project_path(&staged, name).map_err(storage_error)?;
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).map_err(internal)?;
             }
@@ -731,7 +743,7 @@ pub(super) fn import_archive(
                 "{} (copy)",
                 marker["name"].as_str().unwrap_or("Project")
             ));
-            let db = rusqlite::Connection::open(staged.join(".omenflow/state.sqlite"))
+            let db = rusqlite::Connection::open(staged.join(".bureau/state.sqlite"))
                 .map_err(internal)?;
             db.execute(
                 "UPDATE project SET id=?1,name=?2",
@@ -739,7 +751,7 @@ pub(super) fn import_archive(
             )
             .map_err(internal)?;
             fs::write(
-                staged.join("omenflow.project.json"),
+                staged.join("bureau.project.json"),
                 serde_json::to_vec_pretty(&marker).map_err(internal)?,
             )
             .map_err(internal)?;
@@ -767,7 +779,7 @@ pub(super) fn import_archive(
 }
 
 fn validate_stage(root: &Path, manifest: &Value) -> CoreResult<()> {
-    let db_path = root.join(".omenflow/state.sqlite");
+    let db_path = root.join(".bureau/state.sqlite");
     let db =
         rusqlite::Connection::open_with_flags(&db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|e| bad(format!("Invalid project database: {e}")))?;
@@ -802,7 +814,7 @@ fn validate_stage(root: &Path, manifest: &Value) -> CoreResult<()> {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })
         .map_err(internal)?;
-    let objects = omenflow_storage::ObjectStore::new(root.join(".omenflow/objects"), true)
+    let objects = bureau_storage::ObjectStore::new(root.join(".bureau/objects"), true)
         .map_err(storage_error)?;
     for revision in revisions {
         let (files, payload) = revision.map_err(internal)?;
@@ -815,7 +827,7 @@ fn validate_stage(root: &Path, manifest: &Value) -> CoreResult<()> {
     Ok(())
 }
 
-fn verify_hashes(objects: &omenflow_storage::ObjectStore, value: &Value) -> CoreResult<()> {
+fn verify_hashes(objects: &bureau_storage::ObjectStore, value: &Value) -> CoreResult<()> {
     match value {
         Value::Array(items) => {
             for item in items {
@@ -939,7 +951,7 @@ mod tests {
     fn export_leaves_out_everything_import_would_refuse() {
         let (temp, original, created) = project_with_a_file();
         let hash = created["revision"]["files"][0]["sha256"].as_str().unwrap();
-        let store = original.root.join(".omenflow/objects");
+        let store = original.root.join(".bureau/objects");
         // What crashes and other programs leave in a project folder.
         fs::write(store.join(".DS_Store"), b"finder").unwrap();
         fs::write(
@@ -954,7 +966,7 @@ mod tests {
         fs::write(
             original
                 .root
-                .join("artifacts/research/.omenflow-write-interrupted"),
+                .join("artifacts/research/.bureau-write-interrupted"),
             b"half a file",
         )
         .unwrap();
@@ -989,7 +1001,7 @@ mod tests {
         let hash = created["revision"]["files"][0]["sha256"].as_str().unwrap();
         let object = original
             .root
-            .join(".omenflow/objects")
+            .join(".bureau/objects")
             .join(&hash[..2])
             .join(hash);
         // Objects are stored read-only; replace the file to damage it.
@@ -1091,7 +1103,7 @@ mod tests {
         let archive_path = temp.path().join("saved.zip");
         export_archive(&original, &json!({"destPath":archive_path})).unwrap();
         let names = members(&archive_path);
-        for member in [".omenflow/state.sqlite", "snapshot.json"] {
+        for member in [".bureau/state.sqlite", "snapshot.json"] {
             let bytes = &names[member];
             for leaked in [
                 root.as_str(),

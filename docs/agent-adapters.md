@@ -1,7 +1,7 @@
 # Agent adapters and the agent layer
 
 An agent CLI authors drafts; a human decides. The Rust agent host
-(`crates/agent-host`) starts the CLI in a terminal, gives it the Omen Flow
+(`crates/agent-host`) starts the CLI in a terminal, gives it the Bureau
 tools over MCP, shapes what it is shown for the model it runs, and records
 every call it makes.
 
@@ -13,14 +13,14 @@ method, tool pre-approval, timeouts, model flag, guidance channels, suggested
 models with their tiers, a `verified` flag and a documentation link. Adding a
 CLI that uses an existing injection method is one more record.
 
-| Adapter                   | Verified on this build | MCP injection                                                                     | Pre-approval                                           | Guidance                                                        | Model                                                                | Tool timeout                                     | Resume                                                           |
-| ------------------------- | ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
-| `codex` Codex CLI         | yes (0.156.1)          | `-c mcp_servers.omenflow.*` overrides; credentials forwarded by name (`env_vars`) | `default_tools_approval_mode="approve"`                | MCP instructions, `-c developer_instructions=`                  | `-m`; `ollama/…` and `lmstudio/…` ids add `--oss --local-provider …` | `tool_timeout_sec=330`, `startup_timeout_sec=20` | no                                                               |
-| `claude-code` Claude Code | yes (2.1.287)          | `--mcp-config <work>/mcp.json` with `timeout` and `alwaysLoad`                    | `--allowedTools mcp__omenflow`                         | MCP instructions, `--append-system-prompt-file <work>/guide.md` | `--model`, aliases passed as full ids (below)                        | 600 s (`timeout` in `mcp.json`)                  | `--session-id` / `--resume`, also for conversation continuations |
-| `opencode` OpenCode       | no                     | `OPENCODE_CONFIG_CONTENT` inline JSON                                             | `permission: {"omenflow_*": "allow"}`                  | MCP instructions, `instructions: [guide.md]`                    | `-m provider/model`                                                  | `timeout: 330000`                                | no                                                               |
-| `gemini` Gemini CLI       | no                     | `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=<work>/gemini.json`                              | `"trust": true`, `--allowed-mcp-server-names omenflow` | MCP instructions                                                | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
-| `qwen` Qwen Code          | no                     | `QWEN_CODE_SYSTEM_DEFAULTS_PATH=<work>/qwen.json`                                 | `"trust": true`                                        | MCP instructions, `--append-system-prompt`                      | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
-| `custom` Custom CLI       | no                     | none: bridge variables and `omenflow` on PATH                                     | n/a                                                    | bounded `AGENTS.md` block                                       | none                                                                 | n/a                                              | no                                                               |
+| Adapter                   | Verified on this build | MCP injection                                                                   | Pre-approval                                         | Guidance                                                        | Model                                                                | Tool timeout                                     | Resume                                                           |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------- |
+| `codex` Codex CLI         | yes (0.156.1)          | `-c mcp_servers.bureau.*` overrides; credentials forwarded by name (`env_vars`) | `default_tools_approval_mode="approve"`              | MCP instructions, `-c developer_instructions=`                  | `-m`; `ollama/…` and `lmstudio/…` ids add `--oss --local-provider …` | `tool_timeout_sec=330`, `startup_timeout_sec=20` | no                                                               |
+| `claude-code` Claude Code | yes (2.1.287)          | `--mcp-config <work>/mcp.json` with `timeout` and `alwaysLoad`                  | `--allowedTools mcp__bureau`                         | MCP instructions, `--append-system-prompt-file <work>/guide.md` | `--model`, aliases passed as full ids (below)                        | 600 s (`timeout` in `mcp.json`)                  | `--session-id` / `--resume`, also for conversation continuations |
+| `opencode` OpenCode       | no                     | `OPENCODE_CONFIG_CONTENT` inline JSON                                           | `permission: {"bureau_*": "allow"}`                  | MCP instructions, `instructions: [guide.md]`                    | `-m provider/model`                                                  | `timeout: 330000`                                | no                                                               |
+| `gemini` Gemini CLI       | no                     | `GEMINI_CLI_SYSTEM_DEFAULTS_PATH=<work>/gemini.json`                            | `"trust": true`, `--allowed-mcp-server-names bureau` | MCP instructions                                                | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
+| `qwen` Qwen Code          | no                     | `QWEN_CODE_SYSTEM_DEFAULTS_PATH=<work>/qwen.json`                               | `"trust": true`                                      | MCP instructions, `--append-system-prompt`                      | `-m`                                                                 | `timeout: 600000`                                | no                                                               |
+| `custom` Custom CLI       | no                     | none: bridge variables and `bureau` on PATH                                     | n/a                                                  | bounded `AGENTS.md` block                                       | none                                                                 | n/a                                              | no                                                               |
 
 "Verified" means the launch line was checked against the installed CLI's
 `--help` output and binary on the build machine. The OpenCode, Gemini CLI and
@@ -31,17 +31,17 @@ Neither verified adapter has been run against a live model by the automated
 tests: tests use stand-in executables and assert the exact arguments.
 
 Codex resume is not offered: `codex resume --last` continues the most recent
-conversation in the folder, which may be one Omen Flow never saw. Claude Code
-is started with `--session-id <Omen Flow session id>`; "Start again" resumes
+conversation in the folder, which may be one Bureau never saw. Claude Code
+is started with `--session-id <Bureau session id>`; "Start again" resumes
 that conversation with `--resume <id>` when the previous session made at
 least one tool call (so a conversation exists), and starts fresh otherwise.
 A conversation continuation of a completed Claude Code turn
 (`LaunchMode::HeadlessResume`) passes `--resume <id>` and no `--session-id`
-(the CLI refuses both without `--fork-session`), with a new Omen Flow
+(the CLI refuses both without `--fork-session`), with a new Bureau
 session, token and `mcp.json`; its prompt names what work_status reported
 instead of replaying the history. When the CLI answers "No conversation
 found" (cleaned up, or the project folder moved), the turn starts again once
-as a new conversation with the history replayed; when the resumed run's Omen
+as a new conversation with the history replayed; when the resumed run's Bureau
 Flow server does not connect, the turn fails and says so. With
 `--no-session-persistence` among the adapter's arguments a headless run keeps
 no conversation, so a continuation starts fresh. Codex continuations replay
@@ -97,8 +97,8 @@ Code `>= 2.1.0`); an unverified adapter's version is never "recognised".
 
 `connection.test` runs the CLI's version probe, checks the bundled helper,
 then makes two real round trips through the helper, run in the project
-folder with a throwaway grant: `omenflow call project_summary` (the result
-must be a project summary) and `omenflow mcp` `initialize` + `tools/list`.
+folder with a throwaway grant: `bureau call project_summary` (the result
+must be a project summary) and `bureau mcp` `initialize` + `tools/list`.
 Each step is reported in `steps`; the CLI's own MCP start-up is only
 exercised when a session starts, and the result says so.
 
@@ -150,15 +150,15 @@ it arrives, while Codex reports completed items.
   1 MiB is read to its end and dropped, and a run may carry 256 MiB of them.
   The rest of the stream has 16 MiB, one line is held up to 64 MiB, and the
   response text stays capped at 1 MiB.
-- A turn records the model id Omen Flow passed, the model the CLI reported
+- A turn records the model id Bureau passed, the model the CLI reported
   (Claude Code's init event) and the tokens it reported. The CLI's cost
-  figures are never parsed, stored or shown in Omen Flow's interface; the
+  figures are never parsed, stored or shown in Bureau's interface; the
   Terminal pane is the CLI's own screen.
 
-- Files live in `.omenflow/work/<session>/`, are written `0600`, and are
+- Files live in `.bureau/work/<session>/`, are written `0600`, and are
   removed when the session ends however it ends. Only Claude Code's
   `mcp.json` holds the token; the other adapters reference the variables.
-- `bootstrap.md` and `OMENFLOW_BOOTSTRAP` are gone. The launch guidance (the
+- `bootstrap.md` and `BUREAU_BOOTSTRAP` are gone. The launch guidance (the
   session brief) is the instructions, then **Project at launch**, then the
   CAD playbook ("Model a part in OpenSCAD"; full also carries "Verify a
   part"). Project at launch is read by the host when the session is prepared
@@ -180,7 +180,7 @@ it arrives, while Codex reports completed items.
   instructions' first step (call `project_summary`) stands. Measured: 4,241
   bytes compact, 4,242 standard and 6,631 full with an empty project; with
   the largest snapshot (2,427 bytes) 6,526, 6,527 and 8,916.
-- Inherited `OMENFLOW_*` variables are removed, configured variables cannot
+- Inherited `BUREAU_*` variables are removed, configured variables cannot
   replace the session's credentials, `TERM=xterm-256color`,
   `COLORTERM=truecolor`, and `LANG=en_US.UTF-8` when none is inherited.
 - A session starts at the size `terminal.start` asks for, or the size the
@@ -197,13 +197,13 @@ it arrives, while Codex reports completed items.
 
 ### Headless runs (evaluations)
 
-`omenflow-host` prepares a non-interactive run with the same wiring a terminal
+`bureau-host` prepares a non-interactive run with the same wiring a terminal
 session gets (`PtyHost::prepare_headless`): `POST /api/agent/launch` with
 `{projectId, adapterId, model?, profile?, executablePath?, args?}` (the launch
 fields of `terminal.start`), behind the host's token and loopback checks. The
 answer is the plan: `sessionId`, `profile`, `profileSource`, `executable`,
 `args`, `cwd`, `env` (set over the inherited environment), `envDefaults` (set
-only when absent), `scrubbedPrefix` (`OMENFLOW_`: remove inherited variables
+only when absent), `scrubbedPrefix` (`BUREAU_`: remove inherited variables
 with it first) and `files` (`{path, contents}`, write them owner-only). The
 caller spawns the CLI, writes the prompt to standard input and closes it; when
 it is done it removes the files and revokes the grant with
@@ -215,14 +215,14 @@ that speaks the bridge itself; it takes an optional `profile`.
 ### AGENTS.md
 
 Only a CLI with no other guidance channel (the custom adapter) gets a block
-in the project's `AGENTS.md`, between `<!-- omenflow:guide:begin … -->` and
-`<!-- omenflow:guide:end -->`. Text outside the markers is never touched; a
-begin marker without an end marker is left alone. Set `OMENFLOW_AGENTS_MD=off`
+in the project's `AGENTS.md`, between `<!-- bureau:guide:begin … -->` and
+`<!-- bureau:guide:end -->`. Text outside the markers is never touched; a
+begin marker without an end marker is left alone. Set `BUREAU_AGENTS_MD=off`
 in the custom adapter's environment to keep the block out. The unbounded
-guide earlier builds wrote (from `<!-- omenflow:agent-guide -->` through its
+guide earlier builds wrote (from `<!-- bureau:agent-guide -->` through its
 last sentence, "request review unless asked.") is removed on the next start
 of any session; text the person added above or below it stays. A file that
-held only Omen Flow's text is deleted.
+held only Bureau's text is deleted.
 
 ## Capability profiles
 
@@ -303,7 +303,7 @@ sessions."
 Every `tools/call` goes through `dispatch_agent`:
 
 1. The name is resolved in any form (`cad_check`, `cad.check`,
-   `mcp__omenflow__cad_check`, any case); a form the listing does not use is
+   `mcp__bureau__cad_check`, any case); a form the listing does not use is
    reported in `notes`. An unknown name returns an `isError` result with
    `didYouMean`. A human-only operation returns `CAPABILITY_DENIED` with what
    to do instead.
@@ -344,7 +344,7 @@ Every `tools/call` goes through `dispatch_agent`:
 ### Pictures
 
 `cad_view` and `image_view` write one PNG picture under
-`.omenflow/cache/views-v1/`, named by its SHA-256 (a picture over the cap is
+`.bureau/cache/views-v1/`, named by its SHA-256 (a picture over the cap is
 drawn again smaller, never sent lossy). Their result names it in `images[0]`
 by project-relative `path`, `sha256`, `mimeType`, pixel size and `bytes`. Over
 MCP the agent host reads the file back and sends it as an image block after
@@ -352,7 +352,7 @@ the text block, only when it is a picture file in that folder with the
 recorded hash; it marks the entry `attached: true` or `false` and says why in
 `notes`. A picture is at most 1 MiB and a reply carries at most one, so the
 base64 stays far below the 8 MiB frame. Picture bytes never enter the JSON,
-the structured content, the ledger or an `omenflow call` reply. In the
+the structured content, the ledger or an `bureau call` reply. In the
 conversation pane, the CLI's stream carries the picture again in its
 tool-result record; the host reads that record to its end without keeping it
 (the stream limits above), so a picture never reaches the conversation record.
@@ -368,7 +368,7 @@ tool-result record; the host reads that record to its end without keeping it
   out; the text block is the same JSON. Codex then sends the picture as an
   input image.
 - **Other clients** (OpenCode, Gemini CLI, Qwen Code, a custom CLI) and every
-  `omenflow call` reply get a note instead: open `images[0].path` (relative to
+  `bureau call` reply get a note instead: open `images[0].path` (relative to
   the project folder) with an image viewer; Codex's is `view_image`.
 
 `image_view` is read-only for the client (`readOnlyHint: true`), so Claude
@@ -397,23 +397,23 @@ sessions a continuation's status read); one agent call stays one record);
 arguments are never stored, a stored error message drops any value the call
 sent (`received …`), and `artifactIds` keeps only ids. Records are kept in
 memory per project (the latest 2,000) and appended to
-`.omenflow/work/<sessionId>/calls.jsonl`, with the session's summary in
+`.bureau/work/<sessionId>/calls.jsonl`, with the session's summary in
 `session.json` beside it, so history and the per-project sequence survive a
 restart. When a project folder moves, the ledger loads the history in the
-new folder and writes there; it never re-creates a folder whose `.omenflow`
+new folder and writes there; it never re-creates a folder whose `.bureau`
 is gone. `BridgeServer::set_on_call` receives
-each record as it is stored (host channel `omenflow:agent:call`);
+each record as it is stored (host channel `bureau:agent:call`);
 `BridgeServer::agent_activity` serves `agent.activity`.
 
-## The `omenflow` helper
+## The `bureau` helper
 
-See `native/omenflow-bridge/README.md`: `omenflow mcp`, `omenflow call <tool>`
+See `native/bureau-bridge/README.md`: `bureau mcp`, `bureau call <tool>`
 (either name form, optional `--input`, structured errors with the repair),
-`omenflow guide [topic]` and `omenflow status` for CLIs without MCP.
+`bureau guide [topic]` and `bureau status` for CLIs without MCP.
 
 ## Not built, and why
 
-- **Stop hooks** (a Claude Code or Codex hook that runs `omenflow status`
+- **Stop hooks** (a Claude Code or Codex hook that runs `bureau status`
   and refuses to let the agent finish while `work_status` reports blockers).
   Both CLIs document a `Stop` hook that can block with a reason, and Claude
   Code accepts hooks for one session through `--settings`. Whether the hook

@@ -617,8 +617,8 @@ fn encode(text: &str) -> String {
 /// that produced them, recorded as the core records one.
 fn rendered_part(f: &mut Fixture, source: &str, params: Value) -> (String, String) {
     let mesh = format!("mesh of {source} with {params}");
-    let source_hash = omenflow_storage::sha256_hex(source.as_bytes());
-    let mesh_hash = omenflow_storage::sha256_hex(mesh.as_bytes());
+    let source_hash = bureau_storage::sha256_hex(source.as_bytes());
+    let mesh_hash = bureau_storage::sha256_hex(mesh.as_bytes());
     let job = uuid::Uuid::new_v4().to_string();
     f.handle()
         .db
@@ -671,8 +671,8 @@ fn a_render_identity_supplied_with_a_draft_is_not_a_render() {
     let mut f = fixture();
     let source = "cube([5, 5, 5]);\n";
     let mesh = "solid fabricated 40 x 30 x 4 box";
-    let source_hash = omenflow_storage::sha256_hex(source.as_bytes());
-    let mesh_hash = omenflow_storage::sha256_hex(mesh.as_bytes());
+    let source_hash = bureau_storage::sha256_hex(source.as_bytes());
+    let mesh_hash = bureau_storage::sha256_hex(mesh.as_bytes());
     let draft = f.agent(
         "artifact.create_draft",
         json!({
@@ -1497,7 +1497,7 @@ fn editing_baseline_source_points_the_record_at_the_new_source_and_needs_a_rende
     );
     assert!(edited.get("warnings").is_none(), "{edited}");
     let revision = &edited["revision"];
-    let source_hash = omenflow_storage::sha256_hex(source.as_bytes());
+    let source_hash = bureau_storage::sha256_hex(source.as_bytes());
     assert_eq!(revision["payload"]["scad"]["sha256"], source_hash);
     assert_eq!(
         revision["files"],
@@ -2098,7 +2098,7 @@ fn a_file_changed_outside_the_app_is_left_alone_and_said_so() {
         json!({"artifactId": created["artifact"]["id"], "files": [{"path": path, "contentBase64": encode("two")}]}),
     );
     let warning = text(&updated["warnings"][0]);
-    assert!(warning.contains("changed outside Omen Flow"), "{warning}");
+    assert!(warning.contains("changed outside Bureau"), "{warning}");
     assert_eq!(
         fs::read_to_string(f.root().join(path)).unwrap(),
         "edited by hand"
@@ -2106,7 +2106,7 @@ fn a_file_changed_outside_the_app_is_left_alone_and_said_so() {
     let beside = fs::read_dir(f.root().join("artifacts/research"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .find(|name| name.starts_with("log.txt.omenflow-conflict-"))
+        .find(|name| name.starts_with("log.txt.bureau-conflict-"))
         .unwrap();
     assert!(warning.contains(&beside));
     assert_eq!(

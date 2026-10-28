@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { ImpactReport, RequirementPayload, Revision } from '@omenflow/contracts';
+import type { ImpactReport, RequirementPayload, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../../api';
 import { useStore } from '../../store';
 import {

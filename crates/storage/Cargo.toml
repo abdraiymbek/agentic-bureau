@@ -1,12 +1,12 @@
 [package]
-name = "omenflow-storage"
+name = "bureau-storage"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-omenflow-contracts = { path = "../contracts" }
+bureau-contracts = { path = "../contracts" }
 rusqlite = { version = "0.40.2", features = ["bundled", "backup", "serialize"] }
 serde.workspace = true
 serde_json.workspace = true

@@ -240,7 +240,7 @@
 .intro-mark {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   flex: none;
   margin-left: auto;
 }
@@ -328,7 +328,7 @@
   letter-spacing: var(--tracking-display);
   line-height: 1.1;
 }
-.intro-wordmark-flow {
+.intro-wordmark-lead {
   font-weight: 400;
   color: var(--text-2);
 }
@@ -1117,7 +1117,7 @@
   width: 7px;
   height: 7px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   border: 1px solid var(--text-4);
   transition:
     background var(--t) var(--ease),
@@ -1135,7 +1135,7 @@
   content: '';
   position: absolute;
   inset: -3px;
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   border: 1px solid var(--signal-stroke);
   animation: pulse var(--t-pulse) var(--ease) infinite;
 }

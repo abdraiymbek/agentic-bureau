@@ -1,13 +1,13 @@
 {
   "protocolVersion": 1,
   "schemaVersion": 1,
-  "projectFile": "omenflow.project.json",
+  "projectFile": "bureau.project.json",
   "maxFrameBytes": 8388608,
   "envKeys": {
-    "socketPath": "OMENFLOW_BRIDGE_SOCK",
-    "token": "OMENFLOW_BRIDGE_TOKEN",
-    "projectId": "OMENFLOW_PROJECT_ID",
-    "sessionId": "OMENFLOW_SESSION_ID"
+    "socketPath": "BUREAU_BRIDGE_SOCK",
+    "token": "BUREAU_BRIDGE_TOKEN",
+    "projectId": "BUREAU_PROJECT_ID",
+    "sessionId": "BUREAU_SESSION_ID"
   },
   "errorCodes": [
     "REVISION_CONFLICT",
@@ -7470,7 +7470,7 @@
     {
       "name": "tool.call",
       "toolName": "tool_call",
-      "description": "Call any Omen Flow tool by name, including the ones not listed for this session. Take the name from the tool_describe catalogue and its arguments from tool_describe with that tool, then pass them as input. Returns exactly what the named tool returns, including its errors. Tools reserved for the human, such as approving a proposal, are refused. Example: {\"tool\":\"wiring_validate\",\"input\":{\"artifactId\":\"<wiring artifact id>\"}}",
+      "description": "Call any Bureau tool by name, including the ones not listed for this session. Take the name from the tool_describe catalogue and its arguments from tool_describe with that tool, then pass them as input. Returns exactly what the named tool returns, including its errors. Tools reserved for the human, such as approving a proposal, are refused. Example: {\"tool\":\"wiring_validate\",\"input\":{\"artifactId\":\"<wiring artifact id>\"}}",
       "capability": "both",
       "mutating": true,
       "agentVisible": true,
@@ -8583,7 +8583,7 @@
               "requestId"
             ],
             "additionalProperties": false,
-            "description": "The latest turn of this conversation that this request continues. The host strips any other key: only Omen Flow sends an automatic continuation."
+            "description": "The latest turn of this conversation that this request continues. The host strips any other key: only Bureau sends an automatic continuation."
           }
         },
         "required": [

@@ -8,22 +8,22 @@ importers:
 
   .:
     devDependencies:
-      '@omenflow/agent-host':
+      '@bureau/agent-host':
         specifier: workspace:^
         version: link:packages/agent-host
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:^
         version: link:packages/contracts
-      '@omenflow/core':
+      '@bureau/core':
         specifier: workspace:^
         version: link:packages/core
-      '@omenflow/engineering':
+      '@bureau/engineering':
         specifier: workspace:^
         version: link:packages/engineering
-      '@omenflow/mcp-server':
+      '@bureau/mcp-server':
         specifier: workspace:^
         version: link:packages/mcp-server
-      '@omenflow/storage':
+      '@bureau/storage':
         specifier: workspace:^
         version: link:packages/storage
       '@tauri-apps/cli':
@@ -59,7 +59,7 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       react-is:
@@ -72,9 +72,6 @@ importers:
         specifier: 2.7.1
         version: 2.7.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@phosphor-icons/react':
-        specifier: ^2.1.10
-        version: 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-dialog':
         specifier: ^1.1.15
         version: 1.1.23(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -138,13 +135,13 @@ importers:
 
   packages/agent-host:
     dependencies:
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@omenflow/core':
+      '@bureau/core':
         specifier: workspace:*
         version: link:../core
-      '@omenflow/storage':
+      '@bureau/storage':
         specifier: workspace:*
         version: link:../storage
       node-pty:
@@ -162,10 +159,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@omenflow/storage':
+      '@bureau/storage':
         specifier: workspace:*
         version: link:../storage
       fflate:
@@ -174,13 +171,13 @@ importers:
 
   packages/engineering:
     dependencies:
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@omenflow/core':
+      '@bureau/core':
         specifier: workspace:*
         version: link:../core
-      '@omenflow/storage':
+      '@bureau/storage':
         specifier: workspace:*
         version: link:../storage
       mathjs:
@@ -189,25 +186,25 @@ importers:
 
   packages/mcp-server:
     dependencies:
+      '@bureau/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@bureau/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bureau/storage':
+        specifier: workspace:*
+        version: link:../storage
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@3.25.76)
-      '@omenflow/contracts':
-        specifier: workspace:*
-        version: link:../contracts
-      '@omenflow/core':
-        specifier: workspace:*
-        version: link:../core
-      '@omenflow/storage':
-        specifier: workspace:*
-        version: link:../storage
       zod:
         specifier: ^3.25.76
         version: 3.25.76
 
   packages/storage:
     dependencies:
-      '@omenflow/contracts':
+      '@bureau/contracts':
         specifier: workspace:*
         version: link:../contracts
       better-sqlite3:
@@ -873,13 +870,6 @@ packages:
     engines: {node: ^22.20 || ^24.12 || >=25}
     cpu: [x64]
     os: [linux]
-
-  '@phosphor-icons/react@2.1.10':
-    resolution: {integrity: sha512-vt8Tvq8GLjheAZZYa+YG/pW7HDbov8El/MANW8pOAz4eGxrwhnbfrQZq0Cp4q8zBEu8NIhHdnr+r8thnfRSNYA==}
-    engines: {node: '>=10'}
-    peerDependencies:
-      react: '>= 16.8'
-      react-dom: '>= 16.8'
 
   '@radix-ui/primitive@1.1.7':
     resolution: {integrity: sha512-rqWnm76nYT8HoNNqEjpgJ7Pw/DrBj5iBTrmEPo6HTX5+VJyBNOqTdv4g89G63HuR5g0AaENoAcH7Is5fF2kZ8Q==}
@@ -3664,11 +3654,6 @@ snapshots:
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
-
-  '@phosphor-icons/react@2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
 
   '@radix-ui/primitive@1.1.7': {}
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ArtifactView } from '@omenflow/contracts';
+import type { ArtifactView } from '@bureau/contracts';
 import { Segmented, State, TypeGlyph, relativeTime, shortId } from '../ui/kit';
 import {
   listPhase,

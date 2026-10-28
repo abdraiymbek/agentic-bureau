@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AGENT_TOOL_OPS } from '@omenflow/contracts';
+import { AGENT_TOOL_OPS } from '@bureau/contracts';
 import { CoreApp, nullHost } from './index.js';
 const roots: string[] = [];
 const apps: CoreApp[] = [];

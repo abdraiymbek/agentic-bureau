@@ -6,8 +6,8 @@ import {
   Package,
   HardDrive,
   MagnifyingGlass,
-} from '@phosphor-icons/react';
-import type { Project } from '@omenflow/contracts';
+} from '../ui/icons';
+import type { Project } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { useStore } from '../store';
 import { Button, Empty, Kbd, Mark, Notice, Tooltip, relativeTime } from '../ui/kit';
@@ -117,7 +117,7 @@ export function Launcher() {
   const plan = location && name.trim() ? placement(location, folder, recents) : null;
 
   const chooseLocation = async () => {
-    const dir = await window.omenflow.pickDirectory('Choose where to create the project folder');
+    const dir = await window.bureau.pickDirectory('Choose where to create the project folder');
     if (!dir) return;
     setLocation(dir);
     setFolderOverride(null);
@@ -170,6 +170,12 @@ export function Launcher() {
 
   return (
     <div className="launcher">
+      <div className="launcher-field" aria-hidden="true">
+        <i data-layer="intent" />
+        <i data-layer="parts" />
+        <i data-layer="design" />
+        <i data-layer="evidence" />
+      </div>
       <div className="launcher-col">
         <div className="launcher-hero">
           <Mark size={34} className="launcher-mark" />
@@ -282,8 +288,8 @@ export function Launcher() {
         )}
         {exists && (
           <Notice tone="neutral" role="status">
-            <strong>{exists.name ?? baseName(exists.path)}</strong> is already an Omen Flow project
-            at <span className="mono">{exists.path}</span>. Open it, or give the new project another
+            <strong>{exists.name ?? baseName(exists.path)}</strong> is already a Bureau project at{' '}
+            <span className="mono">{exists.path}</span>. Open it, or give the new project another
             name.
           </Notice>
         )}

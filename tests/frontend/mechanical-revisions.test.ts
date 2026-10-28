@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 import {
   LATEST_WORK,
   displayedMechanicalRevision,

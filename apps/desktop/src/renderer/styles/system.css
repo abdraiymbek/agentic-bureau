@@ -172,14 +172,15 @@
   gap: var(--s-3);
   border: 1px solid var(--line);
 }
-/* The mark on its two brand grounds: the literal values are the brand colours, not theme roles. */
+/* The mark on its two brand grounds: the literal values are the brand colours, not theme roles.
+ * Each tile carries its own data-theme, so the mark takes that theme's pixel colours. */
 .brand-tile.dark {
-  background: #0b0c0e;
-  color: #f4f4f2;
+  background: #0a0e12;
+  color: #f5f5f5;
 }
 .brand-tile.light {
-  background: #f4f4f2;
-  color: #0b0c0e;
+  background: #f5f5f5;
+  color: #0a0e12;
 }
 .brand-tile.icon {
   background: var(--surface);

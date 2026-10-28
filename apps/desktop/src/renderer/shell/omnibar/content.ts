@@ -1,4 +1,4 @@
-import type { ArtifactType } from '@omenflow/contracts';
+import type { ArtifactType } from '@bureau/contracts';
 
 export interface ContentHit {
   artifactId: string;

@@ -4,9 +4,9 @@
 //! are diagnostic: a picture binds and verifies nothing.
 //!
 //! The picture itself is not in the result. It is written under
-//! `.omenflow/cache/views-v1/` (see [`pictures`]) and the result names it by
+//! `.bureau/cache/views-v1/` (see [`pictures`]) and the result names it by
 //! path and hash; the agent host reads it back and sends it beside the
-//! result, and an `omenflow call` caller opens the file.
+//! result, and an `bureau call` caller opens the file.
 use super::*;
 
 mod font;
@@ -723,8 +723,8 @@ pub(crate) fn view_part(
 fn image_file(handle: &ProjectHandle, path: &str) -> CoreResult<(String, PathBuf)> {
     let given = Path::new(path.trim());
     let relative = if given.is_absolute() {
-        let root = omenflow_storage::canonicalize(&handle.root).map_err(storage_error)?;
-        let canonical = omenflow_storage::canonicalize(given).map_err(storage_error)?;
+        let root = bureau_storage::canonicalize(&handle.root).map_err(storage_error)?;
+        let canonical = bureau_storage::canonicalize(given).map_err(storage_error)?;
         canonical
             .strip_prefix(&root)
             .map_err(|_| {
@@ -794,7 +794,7 @@ impl ImagePipeline {
         let stored = pictures::store(workspace.root, &shown.picture.bytes)?;
         let [x, y, width, height] = shown.content;
         let mut result = json!({"path": self.path, "format": shown.format,
-            "sha256": omenflow_storage::sha256_hex(&bytes),
+            "sha256": bureau_storage::sha256_hex(&bytes),
             "widthPx": shown.width, "heightPx": shown.height,
             "region": shown.region.map(|value| rounded(value, 4)), "regionPx": shown.region_px,
             "scale": rounded(shown.scale, 3),

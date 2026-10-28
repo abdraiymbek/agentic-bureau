@@ -133,7 +133,7 @@ export default function TrayScene({
     scene.add(grid);
 
     // The scan plane that sweeps up while the part builds.
-    const signal = new THREE.Color(token('--signal-stroke', '#cff36e'));
+    const signal = new THREE.Color(token('--signal-stroke', '#4fc8f0'));
     const scan = new THREE.Group();
     const ringGeometry = new THREE.BufferGeometry().setFromPoints(
       [

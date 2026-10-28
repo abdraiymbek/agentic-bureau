@@ -1,4 +1,4 @@
-import type { ProjectEvent } from '@omenflow/contracts';
+import type { ProjectEvent } from '@bureau/contracts';
 
 /** Evidence can change without creating a revision or changing a proposal's list entry. */
 export function evidenceArtifactIds(event: ProjectEvent): string[] {

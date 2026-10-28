@@ -1,5 +1,5 @@
 /** Project-level operations shared by the launcher, titlebar, omnibar, and lenses. */
-import type { Project } from '@omenflow/contracts';
+import type { Project } from '@bureau/contracts';
 import { cmd, CommandError, errMsg } from '../api';
 import { useStore } from '../store';
 import { confirmLeave, guardLeave } from './dirty';
@@ -29,7 +29,7 @@ export async function enterProject(
  * a cancelled picker or a folder that does not open leaves them as they were.
  */
 export async function openProjectAt(path?: string) {
-  const dir = path ?? (await window.omenflow.pickDirectory('Open Omen Flow project'));
+  const dir = path ?? (await window.bureau.pickDirectory('Open Bureau project'));
   if (!dir) return false;
   const r = await cmd<{ project: Project; projectId: string; readOnly?: boolean }>('project.open', {
     path: dir,
@@ -45,12 +45,12 @@ export async function openProjectAt(path?: string) {
 }
 
 export async function importArchive() {
-  const archivePath = await window.omenflow.pickFile({
+  const archivePath = await window.bureau.pickFile({
     title: 'Import project archive',
-    filters: [{ name: 'Project archive', extensions: ['zip', 'omenflow.zip'] }],
+    filters: [{ name: 'Project archive', extensions: ['zip', 'bureau.zip'] }],
   });
   if (!archivePath) return false;
-  const destDir = await window.omenflow.pickDirectory('Choose where to extract the project');
+  const destDir = await window.bureau.pickDirectory('Choose where to extract the project');
   if (!destDir) return false;
   const input = { archivePath, destDir };
   let r: { project: Project; projectId: string };
@@ -97,8 +97,8 @@ export async function exportProject(kind: 'archive' | 'build', includeDrafts = f
   if (exporting || !projectId) return;
   exporting = true;
   try {
-    const dest = await window.omenflow.saveFile({
-      defaultPath: kind === 'archive' ? 'project.omenflow.zip' : 'build-package.zip',
+    const dest = await window.bureau.saveFile({
+      defaultPath: kind === 'archive' ? 'project.bureau.zip' : 'build-package.zip',
     });
     if (!dest) return;
     const result = await cmd<{ path: string; files: number; issues?: number }>(
@@ -239,7 +239,7 @@ function conversationBusy(projectId: string): boolean {
 export function showAgent() {
   const s = useStore.getState();
   if (s.view.level !== 'agent') s.set({ agentWindowOpen: true });
-  window.dispatchEvent(new CustomEvent('omenflow:focus-terminal'));
+  window.dispatchEvent(new CustomEvent('bureau:focus-terminal'));
 }
 
 /**

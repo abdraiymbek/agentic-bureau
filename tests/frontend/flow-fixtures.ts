@@ -1,5 +1,5 @@
 /** Graphs for the flow-map tests and for the synthetic load harness. */
-import type { ArtifactType, ArtifactView, Edge, Relationship } from '@omenflow/contracts';
+import type { ArtifactType, ArtifactView, Edge, Relationship } from '@bureau/contracts';
 
 const pad = (n: number) => String(n).padStart(12, '0');
 export const nodeId = (n: number) => `00000000-0000-4000-8000-${pad(n)}`;

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { ProjectContext } from './context.js';
 import { commitRevision } from './artifacts.js';
-import { sha256Hex, resolveProjectSourcePath } from '@omenflow/storage';
+import { sha256Hex, resolveProjectSourcePath } from '@bureau/storage';
 
 /**
  * Watches the project's artifacts/ tree. Completed external writes on files

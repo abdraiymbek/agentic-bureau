@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
+import type { AdapterStatus, SessionInfo } from '@bureau/contracts';
 import {
   elapsedLabel,
   latestCounts,

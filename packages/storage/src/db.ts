@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import Database from 'better-sqlite3';
-import { ErrorCodes, SCHEMA_VERSION, OmenflowError } from '@omenflow/contracts';
+import { ErrorCodes, SCHEMA_VERSION, BureauError } from '@bureau/contracts';
 import { LATEST_SCHEMA_VERSION, MIGRATIONS } from './schema.js';
 
 export class ProjectDb {
@@ -13,7 +13,7 @@ export class ProjectDb {
   constructor(dbPath: string, opts?: { create?: boolean; readOnly?: boolean }) {
     const exists = fs.existsSync(dbPath);
     if (!exists && !opts?.create) {
-      throw new OmenflowError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
+      throw new BureauError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
     }
     // Inspect a private snapshot first: opening an original WAL database can
     // create/rewrite its WAL/SHM even if no SQL mutation was requested.
@@ -27,7 +27,7 @@ export class ProjectDb {
       }
       this.db.close();
     } else if (opts?.readOnly) {
-      throw new OmenflowError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
+      throw new BureauError(ErrorCodes.NOT_FOUND, `No project database at ${dbPath}`);
     }
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new Database(dbPath);
@@ -117,7 +117,7 @@ export class ProjectDb {
 
 /** Includes committed WAL content without touching any file in the source. */
 function snapshotDatabase(dbPath: string): Buffer {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-db-snapshot-'));
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-db-snapshot-'));
   let copied: Database.Database | undefined;
   try {
     const dest = path.join(temp, 'state.sqlite');
@@ -132,5 +132,5 @@ function snapshotDatabase(dbPath: string): Buffer {
   }
 }
 
-export const OMENFLOW_DIR = '.omenflow';
+export const BUREAU_DIR = '.bureau';
 export const SCHEMA_META_VERSION = SCHEMA_VERSION;

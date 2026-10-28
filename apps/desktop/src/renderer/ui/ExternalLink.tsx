@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowSquareOut } from '@phosphor-icons/react';
+import { ArrowSquareOut } from './icons';
 import { useStore } from '../store';
 import { errMsg } from '../api';
 import { Tooltip } from './kit';
@@ -26,7 +26,7 @@ export function ExternalLink({ url, children }: { url?: string; children?: React
     );
   const open = (event: React.MouseEvent) => {
     event.preventDefault();
-    void window.omenflow
+    void window.bureau
       .openExternal(href)
       .catch((error) => useStore.getState().toast('error', errMsg(error)));
   };

@@ -1,4 +1,4 @@
-import type { ArtifactType } from '@omenflow/contracts';
+import type { ArtifactType } from '@bureau/contracts';
 import { linkKey } from '../../lib/graph';
 import { typeMeta, type Layer } from '../../ui/kit';
 import { bottom, right, type Rect } from './geometry';
@@ -42,14 +42,14 @@ export const METRICS = {
   groupGap: 20,
   groupHead: 26,
   columnHead: 46,
-  gutter: 72,
+  gutter: 64,
   /** Between sub-columns of one layer. */
-  subGutter: 52,
-  minWidth: 176,
+  subGutter: 44,
+  minWidth: 168,
   /** The widest a column grows to keep a title on one line; longer titles take two. */
-  maxText: 168,
+  maxText: 160,
   /** Everything in a node that is not its title: padding, glyph, gaps and one state mark. */
-  chrome: 68,
+  chrome: 62,
   /** Extra room a collapsed group needs for its count. */
   groupExtra: 12,
   /** A node moves down by up to this much when that makes the link from its inputs level. */
@@ -62,7 +62,7 @@ export type Measure = (text: string) => number;
 const NARROW = new Set("iljtfrI.,:;'|!()[] ");
 const WIDE = new Set('mwMW@%');
 
-/** Used where no text can be measured. Close to Geist at the map's type size. */
+/** Used where no text can be measured. Close to Mona Sans at the map's type size. */
 export const estimateTextWidth: Measure = (text) => {
   let width = 0;
   for (const ch of text) {

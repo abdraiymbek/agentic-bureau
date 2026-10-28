@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Job, MechanicalPayload, Revision } from '@omenflow/contracts';
+import type { Job, MechanicalPayload, Revision } from '@bureau/contracts';
 import {
   exportJobsFor,
   jobErrorText,

@@ -43,7 +43,7 @@ export function useChatSync(projectId: string | null) {
       if (!alive || reading || soon !== undefined) return;
       soon = setTimeout(() => void read(), Math.max(0, lastRead + CHANGE_GAP_MS - Date.now()));
     };
-    const unsubscribe = window.omenflow.onChat?.((change) => {
+    const unsubscribe = window.bureau.onChat?.((change) => {
       if (change.projectId === projectId) changed();
     });
     void read();

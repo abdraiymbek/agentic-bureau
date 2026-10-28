@@ -682,7 +682,7 @@ mod tests {
     fn a_login_shell_can_be_asked_where_a_program_is() {
         let found = which_via_shell(Path::new("/bin/sh"), "sh").unwrap();
         assert!(is_executable(&found));
-        assert!(which_via_shell(Path::new("/bin/sh"), "omenflow-no-such-program").is_none());
+        assert!(which_via_shell(Path::new("/bin/sh"), "bureau-no-such-program").is_none());
     }
 
     #[test]

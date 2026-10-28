@@ -6,8 +6,8 @@
 //! where it was cut.
 
 use base64::Engine;
-use omenflow_agent_host::ResearchSurface;
-use omenflow_contracts::ContractError;
+use bureau_agent_host::ResearchSurface;
+use bureau_contracts::ContractError;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::net::{IpAddr, ToSocketAddrs};
@@ -28,7 +28,7 @@ const NAVIGATION_PATIENCE: Duration = Duration::from_millis(250);
 
 /// Marks the document that was loaded before a navigation, so a reader can
 /// tell the page it asked for from the one it replaced.
-const MARK_STALE: &str = "window.__omenflowReplaced = true;";
+const MARK_STALE: &str = "window.__bureauReplaced = true;";
 
 /// Extracts a bounded description of the loaded document. Every list says
 /// whether it was cut, and `textLength` is the size of the full text.
@@ -54,7 +54,7 @@ const EXTRACT: &str = r#"(() => {
     text: cut(text, 40000),
     textLength: text.length,
     readyState: document.readyState,
-    replaced: window.__omenflowReplaced === true,
+    replaced: window.__bureauReplaced === true,
     images: images.slice(0, 30).map(i => ({ url: cut(i.currentSrc || i.src, 600), alt: cut(i.alt, 160), width: i.naturalWidth, height: i.naturalHeight })),
     metadata: metadata.slice(0, 30).map(m => ({ name: cut(m.getAttribute('property') || m.name, 80), content: cut(m.content, 400) })),
     structuredData,
@@ -315,7 +315,7 @@ impl WebviewSurface {
         }
         let resolver = Arc::clone(&self.resolver);
         WebviewWindowBuilder::new(&self.app, LABEL, WebviewUrl::External(url))
-            .title("Research · Omen Flow")
+            .title("Research · Bureau")
             .inner_size(560.0, 800.0)
             .incognito(true)
             .visible(reveal)

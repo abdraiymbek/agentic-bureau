@@ -1,21 +1,21 @@
 /**
  * The host's completion-gate record on a conversation turn: what work_status reported when the
- * response ended, read and recorded by Omen Flow, and what Omen Flow did about it. Agents cannot
+ * response ended, read and recorded by Bureau, and what Bureau did about it. Agents cannot
  * present this; it is not a `chat.present` kind.
  */
 import React from 'react';
-import { ListChecks } from '@phosphor-icons/react';
-import type { ChatGate, ChatTurn } from '@omenflow/contracts';
+import { ListChecks } from '../ui/icons';
+import type { ChatGate, ChatTurn } from '@bureau/contracts';
 import { Button, Notice, State, Time } from '../ui/kit';
 
 /** Who continued an earlier turn, said on its collapsed record. */
 export function continuedCaption(continuedBy: ChatTurn): string {
   return continuedBy.continues?.automatic
-    ? 'Omen Flow continued once, automatically, below.'
+    ? 'Bureau continued once, automatically, below.'
     : 'You continued this below.';
 }
 
-/** Why Omen Flow did not continue the latest turn's unfinished work by itself, when it did not. */
+/** Why Bureau did not continue the latest turn's unfinished work by itself, when it did not. */
 export function autoCaption(gate: ChatGate): string | null {
   const auto = gate.auto;
   if (auto?.state !== 'skipped') return null;
@@ -23,7 +23,7 @@ export function autoCaption(gate: ChatGate): string | null {
     case 'needs_person':
       return 'The remaining items need you or facts from outside the project; there is nothing for the agent to resolve from the record.';
     case 'already_continued':
-      return 'Omen Flow already continued once after your message. Continue yourself, or edit the request.';
+      return 'Bureau already continued once after your message. Continue yourself, or edit the request.';
     case 'jobs_running':
       return 'Not continued automatically: a job was still running when this response ended.';
     case 'busy':
@@ -73,7 +73,7 @@ export function WorkNotFinished({
       <p className="chat-gate-earlier">
         <ListChecks size={14} aria-hidden="true" />
         <span>
-          Work not finished when this response ended, per work_status recorded by Omen Flow:{' '}
+          Work not finished when this response ended, per work_status recorded by Bureau:{' '}
           {gate.summary}
           {continuedBy && ` ${continuedCaption(continuedBy)}`}
         </span>
@@ -89,8 +89,8 @@ export function WorkNotFinished({
         </span>
         <div>
           <span className="chat-eyebrow">
-            Completion gate · work_status, recorded by Omen Flow <Time value={gate.checkedAt} />{' '}
-            when this response ended
+            Completion gate · work_status, recorded by Bureau <Time value={gate.checkedAt} /> when
+            this response ended
           </span>
           <h2>Work not finished</h2>
         </div>
@@ -136,7 +136,7 @@ export function WorkNotFinished({
 }
 
 /**
- * A completed response that called no Omen Flow tool and touched nothing. Not a blocker, and
+ * A completed response that called no Bureau tool and touched nothing. Not a blocker, and
  * never continued automatically: a question can be answered without tools.
  */
 export function NoToolCalls({
@@ -154,8 +154,8 @@ export function NoToolCalls({
   return (
     <div className="chat-gate-note" role="note">
       <p>
-        <span className="chat-eyebrow">Recorded by Omen Flow</span>
-        No Omen Flow tools were called in this response.
+        <span className="chat-eyebrow">Recorded by Bureau</span>
+        No Bureau tools were called in this response.
       </p>
       {latest && (
         <Button size="sm" variant="ghost" disabled={blocked} onClick={onContinue}>
@@ -171,16 +171,16 @@ export function NoToolCalls({
   );
 }
 
-/** The request side of a continuation: the person's Continue, or Omen Flow's one send. */
+/** The request side of a continuation: the person's Continue, or Bureau's one send. */
 export function ContinuationMessage({ text, automatic }: { text: string; automatic: boolean }) {
   return (
     <article
       className={`chat-user-message is-continuation${automatic ? ' is-automatic' : ''}`}
-      aria-label={automatic ? 'Sent by Omen Flow' : 'Your message, continue'}
+      aria-label={automatic ? 'Sent by Bureau' : 'Your message, continue'}
     >
       <span className="chat-eyebrow">
         {automatic
-          ? 'Sent by Omen Flow, once, because work_status reported unfinished work'
+          ? 'Sent by Bureau, once, because work_status reported unfinished work'
           : 'You asked the agent to continue'}
       </span>
       <div>{text}</div>

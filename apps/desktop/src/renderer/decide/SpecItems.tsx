@@ -11,7 +11,7 @@ import type {
   CadSpecReadiness,
   CadSpecReport,
   CadSpecRequirement,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { Disclosure, Notice, State } from '../ui/kit';
 import { stateLabel } from '../ui/vocabulary';
 

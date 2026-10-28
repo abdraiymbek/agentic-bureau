@@ -1,4 +1,4 @@
-import { ErrorCodes, Origin, OmenflowError, TestResult, newId } from '@omenflow/contracts';
+import { ErrorCodes, Origin, BureauError, TestResult, newId } from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, createDraft, ingestFiles } from './artifacts.js';
 
@@ -49,12 +49,12 @@ export function recordResult(
 ) {
   const artifact = ctx.requireArtifact(input.artifactId);
   if (artifact.type !== 'test') {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Results attach to test artifacts');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Results attach to test artifacts');
   }
   const cur = artifact.selectedRevisionId
     ? ctx.repo.getRevision(artifact.selectedRevisionId)
     : ctx.repo.listRevisions(artifact.id).at(-1);
-  if (!cur) throw new OmenflowError(ErrorCodes.VALIDATION, 'Test has no revision');
+  if (!cur) throw new BureauError(ErrorCodes.VALIDATION, 'Test has no revision');
   const payload = cur.payload as {
     procedure: unknown[];
     conditions?: string;

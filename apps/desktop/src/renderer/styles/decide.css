@@ -843,7 +843,7 @@
   top: 0.65em;
   width: var(--s-1);
   height: var(--s-1);
-  border-radius: 50%;
+  border-radius: 0; /* a square pixel */
   background: var(--text-3);
 }
 .rail-down .record .rail-note + .rail-note {

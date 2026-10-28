@@ -7,20 +7,20 @@ There is no published security contact yet; one must exist before the first publ
 
 ## Model
 
-Omen Flow is a local desktop application. It runs no service reachable from other machines.
+Bureau is a local desktop application. It runs no service reachable from other machines.
 What it protects is the engineering record: what becomes a baseline, and who decided it. It
 does not contain the agent CLI you run.
 
 ### Agents
 
-An agent CLI is a program you chose, running with your operating-system permissions. Omen Flow
+An agent CLI is a program you chose, running with your operating-system permissions. Bureau
 does not sandbox it. It can read and write anything you can, including the project folder and
-`.omenflow/state.sqlite` itself, and it makes its own network connections to its model
+`.bureau/state.sqlite` itself, and it makes its own network connections to its model
 provider. Codex CLI is started with its own `workspace-write` sandbox (network allowed);
-Claude Code with `--allowedTools mcp__omenflow`, which pre-approves only Omen Flow's tools and
+Claude Code with `--allowedTools mcp__bureau`, which pre-approves only Bureau's tools and
 leaves the CLI's other permissions as you configured them. Other CLIs run as configured.
 
-Through Omen Flow's tools an agent can do only what the operation registry marks agent-allowed
+Through Bureau's tools an agent can do only what the operation registry marks agent-allowed
 (65 of the 106 operations): read the project, create and update drafts, write and check CAD,
 run calculations, record candidates, offers and test results as drafts, propose selections and
 BOM edits, submit proposals and wait for review, link objects and remove links an agent added,
@@ -28,7 +28,7 @@ and read public web pages through the app's research reader. It **cannot** appro
 request changes on a proposal, accept a draft as baseline, edit, revert or archive a baseline,
 change settings, start or drive terminals, import or export archives, or reveal files. The
 agent host refuses these before they reach the core (`CAPABILITY_DENIED`), and the core refuses
-them again for agent origin. The review gate governs what Omen Flow records; it cannot stop a
+them again for agent origin. The review gate governs what Bureau records; it cannot stop a
 process from editing the database file directly. Changes made that way bypass review and are
 not attributed.
 
@@ -37,21 +37,21 @@ instructions it finds there; review what it proposes.
 
 ### The bridge
 
-Agents reach the app through the bundled `omenflow` helper and a local socket at
+Agents reach the app through the bundled `bureau` helper and a local socket at
 `<app-data>/run/bridge.sock` (directory `0700`, socket `0600`; on Windows a named pipe
-`\\.\pipe\omenflow-<user>-bridge` with default pipe security, not verified on Windows). The
+`\\.\pipe\bureau-<user>-bridge` with default pipe security, not verified on Windows). The
 first frame must carry a session token: 24 random bytes, issued when a session starts, held only
 in memory, bound to one project, one session and one capability profile, and revoked when the
-session ends. The token reaches the CLI as `OMENFLOW_BRIDGE_TOKEN`; for Claude Code it is also
+session ends. The token reaches the CLI as `BUREAU_BRIDGE_TOKEN`; for Claude Code it is also
 in the session's `mcp.json` (`0600`, removed when the session ends). Any process running as you
 that can read that environment or file can use the token while the session runs. Inherited
-`OMENFLOW_*` variables are removed from the CLI's environment, and configured variables cannot
+`BUREAU_*` variables are removed from the CLI's environment, and configured variables cannot
 replace the session's credentials.
 
 ### The renderer
 
 The interface runs in the system webview with one Tauri capability (`main`: core defaults,
-window dragging, dialogs, opener) and two app commands: `omenflow_command`, which carries any
+window dragging, dialogs, opener) and two app commands: `bureau_command`, which carries any
 user-origin operation and validates it against the contracts, and `toggle_research`. The
 command surface includes configuring and starting an agent executable, so whatever runs in the
 renderer is trusted. It is kept to the app's own code by a content security policy
@@ -72,7 +72,7 @@ the window by the system on macOS and Windows. The headless host has no research
 
 ### The headless host
 
-`omenflow-host` (development, conformance tests, the design preview, evaluations; not part of
+`bureau-host` (development, conformance tests, the design preview, evaluations; not part of
 the app bundle) listens on `127.0.0.1` only. Every request needs `Authorization: Bearer
 <token>` (256 random bits unless one is given; compared in constant time), a `Host` header of
 `127.0.0.1:<port>` or `localhost:<port>`, and no `Origin` header and no `Sec-Fetch-Site` other
@@ -85,7 +85,7 @@ same-origin requests from its page.
 
 - Project mutations stay inside the project folder: paths are canonicalised and refused when
   they leave it, including through symlinks, and working files can never be written into
-  `.omenflow/`. Archive import and export check member names, case-insensitive duplicates,
+  `.bureau/`. Archive import and export check member names, case-insensitive duplicates,
   sizes, counts and object hashes, and refuse symbolic links.
 - Settings — agent executables, arguments, **environment variables you configure for an agent**,
   models, the OpenSCAD path — are plain JSON in the per-user application data folder. They are
@@ -94,8 +94,8 @@ same-origin requests from its page.
 - Archives exclude settings, credentials, the cache, the agent session folders and terminal
   history, and remove machine paths from the copy of the database they carry. Revision
   payloads are not rewritten, so a render identity's OpenSCAD path remains; the export says so.
-- The packaged smoke's requests (`OMENFLOW_SMOKE_PROJECT`, `OMENFLOW_SMOKE_AGENT`,
-  `OMENFLOW_SMOKE_SNAPSHOT`) are honoured only together with `OMENFLOW_APP_DATA_DIR`, an
+- The packaged smoke's requests (`BUREAU_SMOKE_PROJECT`, `BUREAU_SMOKE_AGENT`,
+  `BUREAU_SMOKE_SNAPSHOT`) are honoured only together with `BUREAU_APP_DATA_DIR`, an
   isolated data folder, never on a normal launch. They create a project, write an agent grant
   to `<data>/run/smoke-grant.json` (`0600`), start the named executable as a Custom CLI agent
   session, and write a picture of the window. Whoever can set the app's environment can already

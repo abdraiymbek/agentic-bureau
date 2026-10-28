@@ -10,9 +10,9 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@omenflow/contracts/format': path.resolve(root, '../../packages/contracts/src/format.ts'),
-      '@omenflow/contracts/chat': path.resolve(root, '../../packages/contracts/src/chat.ts'),
-      '@omenflow/contracts': path.resolve(root, '../../packages/contracts/src/index.ts'),
+      '@bureau/contracts/format': path.resolve(root, '../../packages/contracts/src/format.ts'),
+      '@bureau/contracts/chat': path.resolve(root, '../../packages/contracts/src/chat.ts'),
+      '@bureau/contracts': path.resolve(root, '../../packages/contracts/src/index.ts'),
     },
   },
   server: {

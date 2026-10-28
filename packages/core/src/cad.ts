@@ -6,7 +6,7 @@ import {
   Job,
   MechanicalPayload,
   Origin,
-  OmenflowError,
+  BureauError,
   formatQty,
   dimOf,
   isUnknown,
@@ -17,7 +17,7 @@ import {
   type Revision,
   type MaybeQuantity,
   type RecordedInput,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { commitRevision, materializeReadableView } from './artifacts.js';
 import { slugify } from './hash.js';
@@ -55,7 +55,7 @@ import {
 function cadTool(ctx: ProjectContext): CadAdapter {
   const cad = ctx.tools.cad as CadAdapter | undefined;
   if (!cad) {
-    throw new OmenflowError(ErrorCodes.TOOL_MISSING, 'No CAD adapter registered', {
+    throw new BureauError(ErrorCodes.TOOL_MISSING, 'No CAD adapter registered', {
       repair: 'Check Connections for tool registration.',
     });
   }
@@ -73,7 +73,7 @@ export async function cadProbe(ctx: ProjectContext) {
 function requireMechanical(ctx: ProjectContext, artifactId: string): Artifact {
   const artifact = ctx.requireArtifact(artifactId);
   if (artifact.type !== 'mechanical') {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `Artifact "${artifact.title}" is a ${artifact.type}, not a mechanical part`,
       {
@@ -94,7 +94,7 @@ function pickRevision(ctx: ProjectContext, artifact: Artifact, revisionId?: stri
   if (revisionId) {
     const rev = ctx.requireRevision(revisionId);
     if (rev.artifactId !== artifact.id) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         `Revision ${revisionId} does not belong to artifact ${artifact.id}`,
       );
@@ -105,7 +105,7 @@ function pickRevision(ctx: ProjectContext, artifact: Artifact, revisionId?: stri
     .listRevisions(artifact.id)
     .filter((r) => r.reviewState !== 'rejected' && r.reviewState !== 'superseded')
     .at(-1);
-  if (!rev) throw new OmenflowError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
+  if (!rev) throw new BureauError(ErrorCodes.VALIDATION, 'Mechanical artifact has no revision');
   return rev;
 }
 
@@ -128,13 +128,13 @@ function stlRefOf(rev: Revision) {
 
 function readScad(ctx: ProjectContext, rev: Revision): { path: string; source: string } {
   const ref = scadRefOf(rev);
-  if (!ref) throw new OmenflowError(ErrorCodes.NOT_FOUND, 'This revision has no OpenSCAD source');
+  if (!ref) throw new BureauError(ErrorCodes.NOT_FOUND, 'This revision has no OpenSCAD source');
   if (ref.sha256 && ctx.objects.has(ref.sha256)) {
     return { path: ref.path, source: ctx.objects.read(ref.sha256).toString('utf8') };
   }
   const abs = ctx.resolvePath(ref.path);
   if (!fs.existsSync(abs))
-    throw new OmenflowError(ErrorCodes.NOT_FOUND, `Missing source file: ${ref.path}`);
+    throw new BureauError(ErrorCodes.NOT_FOUND, `Missing source file: ${ref.path}`);
   return { path: ref.path, source: fs.readFileSync(abs, 'utf8') };
 }
 
@@ -149,7 +149,7 @@ function assertParamsExist(params: Record<string, ScadValue>, declared: ScadPara
   const names = new Set(declared.map((p) => p.name));
   const unknown = Object.keys(params).filter((k) => !names.has(k));
   if (unknown.length) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `Unknown parameter${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. ` +
         (names.size
@@ -263,7 +263,7 @@ async function renderSource(
     const probe = await cad.probe();
     ctx.assertJobActive(job.id);
     if (!probe.available)
-      throw new OmenflowError(ErrorCodes.TOOL_MISSING, probe.error ?? 'OpenSCAD not found', {
+      throw new BureauError(ErrorCodes.TOOL_MISSING, probe.error ?? 'OpenSCAD not found', {
         repair: 'Install OpenSCAD, then Connections → Locate OpenSCAD.',
       });
     tool = `${cad.toolId} ${probe.version ?? ''}`.trim();
@@ -278,7 +278,7 @@ async function renderSource(
       options: `stl;orientation-v1;exe=${probe.executablePath ?? 'unknown'}`,
     };
     const fingerprint = renderFingerprint(identityBase);
-    const cacheDir = ctx.resolvePath(`.omenflow/cache/render-v1/${fingerprint}`);
+    const cacheDir = ctx.resolvePath(`.bureau/cache/render-v1/${fingerprint}`);
     const cachedStl = path.join(cacheDir, 'output.stl');
     const manifest = path.join(cacheDir, 'complete.json');
     const finishMesh = async (
@@ -288,10 +288,7 @@ async function renderSource(
     ): Promise<RenderOutcome> => {
       assertMeshByteLimit(stl.byteLength);
       if (!cad.inspectStl(stl).plausible)
-        throw new OmenflowError(
-          ErrorCodes.VALIDATION,
-          'OpenSCAD output is not a complete STL mesh',
-        );
+        throw new BureauError(ErrorCodes.VALIDATION, 'OpenSCAD output is not a complete STL mesh');
       const oriented = await applyOrientation(stl, controller.signal);
       ctx.assertJobActive(job.id);
       const outputHash = ctx.objects.put(oriented.stl);
@@ -372,7 +369,7 @@ async function renderSource(
         ctx.inFlightRenders.set(fingerprint, pendingShare);
       }
     }
-    workDir = ctx.resolvePath(`.omenflow/cache/render-work/${job.id}`);
+    workDir = ctx.resolvePath(`.bureau/cache/render-work/${job.id}`);
     fs.mkdirSync(workDir, { recursive: true });
     const scadPath = path.join(workDir, 'input.scad');
     const outPath = path.join(workDir, 'output.stl');
@@ -412,7 +409,7 @@ async function renderSource(
           message,
         },
       });
-      failShared?.(new OmenflowError(ErrorCodes.VALIDATION, message));
+      failShared?.(new BureauError(ErrorCodes.VALIDATION, message));
       return {
         job,
         outcome: { ok: false, ms: Date.now() - started, tool, ...diagnostics, log, error: message },
@@ -439,7 +436,7 @@ async function renderSource(
     return { outcome, job };
   } catch (error) {
     failShared?.(error);
-    const e = OmenflowError.from(error);
+    const e = BureauError.from(error);
     ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
       error: e.toBody(),
     });
@@ -566,8 +563,7 @@ function buildReport(args: {
       );
     return base;
   }
-  if (!args.details)
-    throw new OmenflowError(ErrorCodes.INTERNAL, 'Geometry report was not prepared');
+  if (!args.details) throw new BureauError(ErrorCodes.INTERNAL, 'Geometry report was not prepared');
   base.geometry = args.details.geometry;
   base.sections = args.details.sections;
   base.probes = args.details.probes;
@@ -638,14 +634,14 @@ export async function cadWriteSource(
     artifact = requireMechanical(ctx, input.artifactId);
     parent = pickRevision(ctx, artifact);
     if (input.expectedRevisionId && parent.id !== input.expectedRevisionId)
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.REVISION_CONFLICT,
         'CAD input revision changed; read the current source before retrying.',
       );
     prevPayload = parent.payload as MechanicalPayload;
   } else {
     if (!input.title) {
-      throw new OmenflowError(ErrorCodes.VALIDATION, 'title is required when creating a new part', {
+      throw new BureauError(ErrorCodes.VALIDATION, 'title is required when creating a new part', {
         repair: 'Pass title (new part) or artifactId (revise an existing part).',
       });
     }
@@ -787,7 +783,7 @@ export async function cadWriteSource(
           revision: conflictRev!.id,
         },
       });
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.REVISION_CONFLICT,
         'Source changed during render; reread/rebase before retrying. Your existing work was preserved.',
         {
@@ -828,7 +824,7 @@ export async function cadWriteSource(
     completeRenderJob(ctx, job, outcome);
     return report;
   } catch (error) {
-    const e = OmenflowError.from(error);
+    const e = BureauError.from(error);
     ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
       error: e.toBody(),
       outputHashes: outcome.identity ? { stl: outcome.identity.outputHash } : undefined,
@@ -987,7 +983,7 @@ export async function cadInspect(
     probes: input.probes,
   });
   if (!m.outcome.ok) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `Cannot inspect: ${m.outcome.error ?? 'render failed'}`,
       {
@@ -1090,7 +1086,7 @@ export async function cadCheck(
   const linked = specRequirements(ctx, part, pickRevision(ctx, part, input.revisionId));
   if (linked.length) {
     const unsupported = linked.map((title) => `linked requirement "${title}"`);
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       `cad.check with ${unsupported.join(', ')} is implemented by the Rust host`,
       {
@@ -1114,7 +1110,7 @@ export async function cadCheck(
     const m = await resolveMesh(ctx, input, origin);
     ctx.assertJobActive(job.id);
     if (!m.outcome.ok || !m.outcome.tris) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         `Cannot check: ${m.outcome.error ?? 'render failed'}`,
         {
@@ -1151,7 +1147,7 @@ export async function cadCheck(
         parent.parentId
       ) {
         if (seen.has(parent.id))
-          throw new OmenflowError(ErrorCodes.VALIDATION, 'Revision ancestry contains a cycle');
+          throw new BureauError(ErrorCodes.VALIDATION, 'Revision ancestry contains a cycle');
         seen.add(parent.id);
         parent = ctx.requireRevision(parent.parentId);
       }
@@ -1337,7 +1333,7 @@ export async function cadCheck(
       },
     };
   } catch (error) {
-    const failure = OmenflowError.from(error);
+    const failure = BureauError.from(error);
     ctx.jobStatus(job.id, failure.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
       error: failure.toBody(),
     });
@@ -1376,7 +1372,7 @@ export async function cadPatchSource(
   const { source } = readScad(ctx, rev);
   const hits = countOccurrences(source, input.oldString);
   if (hits !== 1) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       hits === 0
         ? 'oldString was not found in the current source — read the source and copy the snippet exactly.'
@@ -1417,7 +1413,7 @@ export async function cadSetParam(
   try {
     next = setScadParameter(source, input.name, input.value);
   } catch (e) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, (e as Error).message, {
+    throw new BureauError(ErrorCodes.VALIDATION, (e as Error).message, {
       repair: 'Call cad.read_source and use a name from parameters.',
     });
   }
@@ -1584,10 +1580,10 @@ export async function cadValidateSource(
 ) {
   const { rev } = mechPayload(ctx, artifactId, revisionId);
   const scad = scadRefOf(rev);
-  if (!scad) throw new OmenflowError(ErrorCodes.VALIDATION, 'No .scad source on revision');
+  if (!scad) throw new BureauError(ErrorCodes.VALIDATION, 'No .scad source on revision');
   const { source } = readScad(ctx, rev);
   assertSelfContainedScad(source);
-  const tmp = ctx.resolvePath(`.omenflow/cache/validate-${rev.id}.scad`);
+  const tmp = ctx.resolvePath(`.bureau/cache/validate-${rev.id}.scad`);
   fs.mkdirSync(path.dirname(tmp), { recursive: true });
   fs.writeFileSync(tmp, source);
   return cadTool(ctx).validateSource(tmp);
@@ -1671,7 +1667,7 @@ export async function cadRender(
     origin,
   )
     .catch((error: unknown) => {
-      const e = OmenflowError.from(error);
+      const e = BureauError.from(error);
       ctx.jobStatus(job.id, e.code === ErrorCodes.CANCELLED ? 'cancelled' : 'failed', {
         error: e.toBody(),
       });

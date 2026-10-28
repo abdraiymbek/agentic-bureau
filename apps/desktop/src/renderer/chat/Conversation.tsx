@@ -18,8 +18,8 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Square,
-} from '@phosphor-icons/react';
-import type { AgentActivity, ChatTurn } from '@omenflow/contracts';
+} from '../ui/icons';
+import type { AgentActivity, ChatTurn } from '@bureau/contracts';
 import { useStore } from '../store';
 import { cmd, errMsg } from '../api';
 import { stopAgent } from '../lib/actions';
@@ -133,8 +133,8 @@ export function Conversation({
   }, [draft, compact]);
   useEffect(() => {
     const focus = () => input.current?.focus();
-    window.addEventListener('omenflow:focus-composer', focus);
-    return () => window.removeEventListener('omenflow:focus-composer', focus);
+    window.addEventListener('bureau:focus-composer', focus);
+    return () => window.removeEventListener('bureau:focus-composer', focus);
   }, []);
   useEffect(() => {
     followOnDelivery.current = null;
@@ -165,8 +165,8 @@ export function Conversation({
         el.scrollTop += card.getBoundingClientRect().top - el.getBoundingClientRect().top - 16;
       });
     };
-    window.addEventListener('omenflow:open-card', reveal);
-    return () => window.removeEventListener('omenflow:open-card', reveal);
+    window.addEventListener('bureau:open-card', reveal);
+    return () => window.removeEventListener('bureau:open-card', reveal);
   }, [projectId]);
   const last = turns.at(-1);
   // Text and cards that finish loading after a render (a returning pane, a card's 3D or chart)
@@ -778,7 +778,7 @@ function Turn({
           <span className="chat-assistant-mark">
             <Mark size={18} />
           </span>
-          <strong>Omen Flow</strong>
+          <strong>Bureau</strong>
           <span>{turn.adapterId === 'codex' ? 'Codex CLI' : 'Claude Code'}</span>
           {model && (
             <span

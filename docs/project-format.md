@@ -1,18 +1,18 @@
 # Project format
 
-An Omen Flow project is an ordinary folder. This is what a project created by the Rust host
+A Bureau project is an ordinary folder. This is what a project created by the Rust host
 contains (observed on a project built with `pnpm fixture:rover`):
 
 ```text
 <Project>/
-  omenflow.project.json         identity and marker version
+  bureau.project.json         identity and marker version
   README.md                     written once at creation; says what the folder holds
   artifacts/                    working files of revisions (sources, meshes, attachments)
     requirements/ research/ concepts/ components/ mechanical/
     electronics/ calculations/ software/ assembly/ tests/
   exports/                      build packages, archives and part exports the person asked for
                                 (agents write their exports only here)
-  .omenflow/
+  .bureau/
     state.sqlite (-wal, -shm)   the engineering record (SQLite, WAL mode)
     objects/<xx>/<sha256>       immutable content-addressed files
     work/<sessionId>/           one folder per agent session (below)
@@ -30,7 +30,7 @@ contains (observed on a project built with `pnpm fixture:rover`):
 `artifact_fts` (`crates/storage/src/schema_v1.sql`). Revisions are immutable; an artifact's
 `selected_revision_id` is its baseline.
 
-`omenflow.project.json`:
+`bureau.project.json`:
 
 ```json
 { "format": "omenflow-project", "version": 1, "id": "<uuid>", "name": "..." }
@@ -66,11 +66,11 @@ V1 keeps schema 1 and stays openable by earlier builds. Everything it adds is ad
   error also names by file name;
 - `for` in the inputs of a `cad_render` job that renders a revision for `cad.view`,
   `cad.inspect` or `cad.check` and commits nothing to it (0.2.4); an earlier build ignores it;
-- the sidecar files under `.omenflow/work/` and `.omenflow/cache/`, including the pictures in
-  `.omenflow/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
+- the sidecar files under `.bureau/work/` and `.bureau/cache/`, including the pictures in
+  `.bureau/cache/views-v1/` (0.2.4): PNG files named by the SHA-256 of their bytes,
   drawn for an agent by `cad_view` and `image_view`. They are never read back as a cache, are
   pruned to the newest 256 files and 128 MiB, and an earlier build ignores the folder;
-- in `.omenflow/chat/conversations.json`, turn fields `gate` (the host's completion-gate
+- in `.bureau/chat/conversations.json`, turn fields `gate` (the host's completion-gate
   record), `continues`, `model`, `resolvedModel`, `usage` (tokens only) and
   `cliConversationId` (0.2.4); turn keys a later build adds are kept on save, and an earlier
   build drops these fields when it saves the conversation again;
@@ -83,10 +83,17 @@ from such a project.
 
 No table, column or constraint was renamed or changed.
 
+### Projects made before the rename
+
+Omen Flow kept the record in `.omenflow/` beside `omenflow.project.json`. The first time Bureau
+opens such a project it renames both to `.bureau/` and `bureau.project.json`; nothing inside them
+changes, and the marker keeps `"format": "omenflow-project"`. Omen Flow builds (0.2.3 and
+earlier) look only for the old names, so rename both back before opening the project with one.
+
 ### Going back to 0.2.3
 
-A 0.2.3 build opens a project that 0.2.4 has worked on and keeps its data, but it reads CAD
-checks and conversations differently:
+A 0.2.3 build opens a project that 0.2.4 has worked on (with its folder and marker renamed back,
+above) and keeps its data, but it reads CAD checks and conversations differently:
 
 - **It ignores every check recorded by 0.2.4** (checker v3). Each revision shows its newest
   check from 0.2.3 or earlier, even when a later 0.2.4 check of that same revision failed,
@@ -105,7 +112,7 @@ checks and conversations differently:
 - Any change it makes to the conversations rewrites the file and drops the 0.2.4 turn fields
   above from every turn: sending a turn, attaching a part to a conversation, or marking a
   running turn interrupted when the project opens. A continuation then loses its
-  `continues` record, so both builds show Omen Flow's continuation text as the person's own
+  `continues` record, so both builds show Bureau's continuation text as the person's own
   message, and 0.2.4 replays it as the person's to an agent CLI that starts a new conversation.
 
 So after going back, do not rely on a part's verified state there until it is checked again,
@@ -114,20 +121,20 @@ keeps every check with the checker that recorded it.
 
 ## Objects and working files
 
-`.omenflow/objects/<xx>/<sha256>` holds immutable blobs (at most 64 MiB each); revisions name
+`.bureau/objects/<xx>/<sha256>` holds immutable blobs (at most 64 MiB each); revisions name
 their files by path, hash and role (`source`, `output`, `attachment`). After a revision commits,
 its files are written into `artifacts/` (for example `artifacts/mechanical/camera-tray.scad`).
 
-A working file that was edited outside Omen Flow is not overwritten: the revision's bytes are
-written beside it as `<file>.omenflow-conflict-<ms>` and the operation result carries a warning.
+A working file that was edited outside Bureau is not overwritten: the revision's bytes are
+written beside it as `<file>.bureau-conflict-<ms>` and the operation result carries a warning.
 The Rust host does not watch the folder; `artifact.import_file` attaches an existing project
 file to an artifact as a new draft when someone asks for it. Paths that leave the project,
 including through symlinks, are refused, and working files can never be written into
-`.omenflow/` or over the marker.
+`.bureau/` or over the marker.
 
 ## Agent session folders
 
-`.omenflow/work/<sessionId>/` holds two kinds of files:
+`.bureau/work/<sessionId>/` holds two kinds of files:
 
 | File                                                             | Lifetime                                               | Contents                                                                                                                                                                                                                                              |
 | ---------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -143,7 +150,7 @@ scrollback lives in memory for the running session only. Removing a session fold
 that session's call history and nothing else.
 
 A Custom CLI also gets a block in the project's own `AGENTS.md`, between
-`<!-- omenflow:guide:begin … -->` and `<!-- omenflow:guide:end -->`; text outside the markers is
+`<!-- bureau:guide:begin … -->` and `<!-- bureau:guide:end -->`; text outside the markers is
 never touched (see [agent adapters](agent-adapters.md)).
 
 ## What is stored where
@@ -166,8 +173,8 @@ the OpenSCAD executable in `renderIdentity.options`.
 `project.export_archive` writes a ZIP that `project.import_archive` accepts, and checks that it
 would before writing anything:
 
-- `omenflow.project.json`, `README.md`, `artifacts/**`, `.omenflow/objects/**`;
-- `.omenflow/state.sqlite` from a private copy with machine paths removed (a session's
+- `bureau.project.json`, `README.md`, `artifacts/**`, `.bureau/objects/**`;
+- `.bureau/state.sqlite` from a private copy with machine paths removed (a session's
   executable becomes its program name; project, home and temporary prefixes in job logs, errors,
   commands and event data become `<project>`, `~` and `<tmp>`, and other absolute paths in job
   logs and errors, such as a Python on `PATH`, are cut to their last component, up to any space

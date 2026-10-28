@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Proposal, StaleRecord } from '@omenflow/contracts';
+import type { Proposal, StaleRecord } from '@bureau/contracts';
 import {
   hasRows,
   needsQueue,

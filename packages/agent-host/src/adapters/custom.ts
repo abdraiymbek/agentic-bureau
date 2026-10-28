@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
-import { ErrorCodes, OmenflowError } from '@omenflow/contracts';
+import type { AdapterStatus, SessionInfo } from '@bureau/contracts';
+import { ErrorCodes, BureauError } from '@bureau/contracts';
 import {
   baseStatus,
   probeVersion,
@@ -14,7 +14,7 @@ import {
 /**
  * Custom CLI adapter — any executable the user points at. Tool access is
  * declared via config (`toolAccess`: 'mcp' | 'cli' | 'none'); the session
- * env always carries the OMENFLOW_BRIDGE_* credentials.
+ * env always carries the BUREAU_BRIDGE_* credentials.
  */
 export class CustomAdapter implements AgentAdapter {
   readonly id = 'custom';
@@ -31,7 +31,7 @@ export class CustomAdapter implements AgentAdapter {
 
   private toolAccess(): 'mcp' | 'cli' | 'none' {
     const cfg = this.getConfig();
-    const raw = cfg.toolAccess ?? cfg.env?.OMENFLOW_TOOL_ACCESS ?? 'cli';
+    const raw = cfg.toolAccess ?? cfg.env?.BUREAU_TOOL_ACCESS ?? 'cli';
     return raw === 'mcp' || raw === 'none' ? raw : 'cli';
   }
 
@@ -62,7 +62,7 @@ export class CustomAdapter implements AgentAdapter {
   async launchSpec(req: LaunchRequest): Promise<LaunchSpec> {
     const cfg = req.config;
     if (!cfg.executablePath || !fs.existsSync(cfg.executablePath)) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.TOOL_MISSING,
         'Custom adapter executable not configured/found',
         {
@@ -73,7 +73,7 @@ export class CustomAdapter implements AgentAdapter {
     return {
       path: cfg.executablePath,
       args: cfg.args ?? [],
-      env: { ...req.bridgeEnv, ...cfg.env, OMENFLOW_BOOTSTRAP: req.bootstrapPath },
+      env: { ...req.bridgeEnv, ...cfg.env, BUREAU_BOOTSTRAP: req.bootstrapPath },
       cwd: req.ctx.root,
     };
   }

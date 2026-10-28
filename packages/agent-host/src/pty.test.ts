@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CoreApp } from '@omenflow/core';
-import { createProject } from '@omenflow/storage';
+import { CoreApp } from '@bureau/core';
+import { createProject } from '@bureau/storage';
 import { BridgeServer } from './bridge/server.js';
 import { PtySessionManager, Scrollback } from './pty.js';
-import { newId } from '@omenflow/contracts';
+import { newId } from '@bureau/contracts';
 
 // node-pty is a native module — it may fail to load under vitest depending on
 // how it was built. Skip the live-PTY tests gracefully in that case.
@@ -38,7 +38,7 @@ describe('PtySessionManager', () => {
   let ctx: ReturnType<CoreApp['register']>;
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-pty-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-pty-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     ctx = app.register(createProject(path.join(dir, 'proj'), 'Pty Proj', 'intent'));
     bridge = new BridgeServer(app, { socketPath: path.join(dir, 'run', 'bridge.sock') });
@@ -83,8 +83,8 @@ describe('PtySessionManager', () => {
       const session = mgr.sessionFor(ctx.projectId)!;
       expect(bridge.grantForToken(session.token)?.sessionId).toBe(info.id);
 
-      mgr.write(ctx, 'echo omenflow-pty-marker\n');
-      await waitFor(() => mgr.getScrollback(ctx).includes('omenflow-pty-marker'));
+      mgr.write(ctx, 'echo bureau-pty-marker\n');
+      await waitFor(() => mgr.getScrollback(ctx).includes('bureau-pty-marker'));
 
       mgr.resize(ctx, 132, 43);
       expect(mgr.state(ctx)?.cols).toBe(132);
@@ -105,7 +105,7 @@ describe('PtySessionManager', () => {
       await waitFor(() => mgr.state(ctx)?.state === 'exited');
       expect(ctx.repo.getSession(info.id)?.state).toBe('exited');
       expect(bridge.grantForToken(session.token)).toBeNull();
-      expect(mgr.getScrollback(ctx)).toContain('omenflow-pty-marker');
+      expect(mgr.getScrollback(ctx)).toContain('bureau-pty-marker');
     },
     20_000,
   );

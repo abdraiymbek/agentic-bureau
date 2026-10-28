@@ -9,7 +9,7 @@ import type {
   MaybeQuantity,
   RequirementPayload,
   StaleRecord,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 
 /* ------------------------------------------------------------------ */
 /* Requirement                                                          */

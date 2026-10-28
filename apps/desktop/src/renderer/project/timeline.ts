@@ -3,7 +3,7 @@
  * merge, and where recorded agent tool calls sit between record events. The store holds the
  * record's window and pages older events in.
  */
-import type { AgentCallRecord, ProjectEvent, Proposal } from '@omenflow/contracts';
+import type { AgentCallRecord, ProjectEvent, Proposal } from '@bureau/contracts';
 
 const LABELS: Record<string, string> = {
   'proposal.submitted': 'Proposed',

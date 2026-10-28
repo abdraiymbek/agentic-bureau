@@ -1,5 +1,5 @@
 #!/bin/sh
-# System packages that build and test Omen Flow on Debian/Ubuntu. Ubuntu 22.04 is the
+# System packages that build and test Bureau on Debian/Ubuntu. Ubuntu 22.04 is the
 # build base (scripts/linux/Dockerfile) and the oldest verified; the same names install
 # on Ubuntu 24.04. Used by the Dockerfile and by the Linux CI jobs, so the container
 # build and CI install the same list. Run as root (or through sudo).

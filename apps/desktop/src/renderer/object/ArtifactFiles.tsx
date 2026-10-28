@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { FileRef, Revision } from '@omenflow/contracts';
+import type { FileRef, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../api';
 import { Block, Button, Notice, decodeBase64 } from '../ui/kit';
 import { SvgDiagram } from './stages/shared';

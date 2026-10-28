@@ -13,7 +13,7 @@ const call = (op: string, payload: unknown, origin = user as typeof user | typeo
   app.dispatch(op, payload, origin, projectId) as Promise<any>;
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-history-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-history-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

@@ -2,7 +2,7 @@
  * The agent's recorded tool calls, as the host ledger reports them. Nothing here invents a call,
  * an outcome or a duration: records are merged, counted and grouped, never synthesised.
  */
-import type { AgentCallAlsoRan, AgentCallRecord, AgentSessionSummary } from '@omenflow/contracts';
+import type { AgentCallAlsoRan, AgentCallRecord, AgentSessionSummary } from '@bureau/contracts';
 import { stateLabel } from '../../ui/vocabulary';
 
 /** Calls kept in memory per project; older ones stay in the ledger and can be paged in. */
@@ -25,7 +25,7 @@ const ACRONYMS: Record<string, string> = {
   stl: 'STL',
 };
 
-/** "cad_check" → "CAD check"; "mcp__omenflow__artifact_read" → "Artifact read". */
+/** "cad_check" → "CAD check"; "mcp__bureau__artifact_read" → "Artifact read". */
 export function toolWords(tool: string): string {
   const bare = tool.includes('__') ? tool.slice(tool.lastIndexOf('__') + 2) : tool;
   const words = bare

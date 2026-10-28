@@ -162,7 +162,7 @@ export interface StreamMetrics {
   outputTokens: number;
   turns: number;
   /**
-   * Omen Flow's estimate at list price (pricing.ts, as of `PRICES_AS_OF`); null when a model
+   * Bureau's estimate at list price (pricing.ts, as of `PRICES_AS_OF`); null when a model
    * that ran has no price, and for Codex, which reports none.
    */
   costUsd: number | null;
@@ -192,17 +192,17 @@ export interface StreamMetrics {
   outcome: string;
   /** Tool calls by name as the CLI made them (MCP and built-in). */
   toolCalls: Record<string, number>;
-  /** Calls to tools that are not Omen Flow's (shell, file reads, web). */
+  /** Calls to tools that are not Bureau's (shell, file reads, web). */
   otherToolCalls: number;
   /** Tool uses the CLI refused under its permission mode. */
   permissionDenials: number;
-  /** Whether the Omen Flow MCP server was connected when the run started. */
+  /** Whether the Bureau MCP server was connected when the run started. */
   mcpConnected: boolean | null;
   /** Playbook topics the model asked guide_read for, in order. */
   guideTopics: string[];
 }
 
-const OMEN = /^(mcp__omenflow__|omenflow[_.:/])/;
+const BUREAU_TOOL = /^(mcp__bureau__|bureau[_.:/])/;
 
 function parse(lines: string[]): Record<string, any>[] {
   return lines.flatMap((line) => {
@@ -242,7 +242,7 @@ export function claudeMetrics(lines: string[]): StreamMetrics {
       if (typeof event.model === 'string') metrics.model = event.model;
       const servers = (event.mcp_servers ?? []) as { name: string; status: string }[];
       metrics.mcpConnected = servers.some(
-        (server) => server.name === 'omenflow' && server.status === 'connected',
+        (server) => server.name === 'bureau' && server.status === 'connected',
       );
     }
     if (event.type === 'assistant') {
@@ -251,7 +251,7 @@ export function claudeMetrics(lines: string[]): StreamMetrics {
         if (block.type !== 'tool_use') continue;
         const name = String(block.name);
         metrics.toolCalls[name] = (metrics.toolCalls[name] ?? 0) + 1;
-        if (!OMEN.test(name)) metrics.otherToolCalls += 1;
+        if (!BUREAU_TOOL.test(name)) metrics.otherToolCalls += 1;
         if (name.endsWith('guide_read'))
           metrics.guideTopics.push(String(block.input?.topic ?? 'start'));
       }
@@ -332,7 +332,7 @@ export function codexMetrics(lines: string[]): StreamMetrics {
     if (item.type === 'mcp_tool_call') {
       const name = `${item.server ?? 'mcp'}:${item.tool ?? 'unknown'}`;
       metrics.toolCalls[name] = (metrics.toolCalls[name] ?? 0) + 1;
-      if (item.server !== 'omenflow') metrics.otherToolCalls += 1;
+      if (item.server !== 'bureau') metrics.otherToolCalls += 1;
       else metrics.mcpConnected = true;
       if (item.tool === 'guide_read') {
         const args =

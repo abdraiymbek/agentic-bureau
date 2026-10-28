@@ -9,12 +9,12 @@ import type { Lens } from '../project/lenses';
 export type Theme = 'dark' | 'light';
 
 export const PREF_KEYS = {
-  theme: 'omen.theme',
-  agent: 'omen.agent',
-  rails: 'omen.rails',
-  intro: 'omen.intro',
-  project: (projectId: string) => `omen.project.${projectId}`,
-  recent: (projectId: string) => `omen.recent.${projectId}`,
+  theme: 'bureau.theme',
+  agent: 'bureau.agent',
+  rails: 'bureau.rails',
+  intro: 'bureau.intro',
+  project: (projectId: string) => `bureau.project.${projectId}`,
+  recent: (projectId: string) => `bureau.recent.${projectId}`,
 } as const;
 
 /** A view worth returning to when the project opens again. */

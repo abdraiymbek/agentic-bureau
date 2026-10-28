@@ -3,7 +3,7 @@ import { idSchema } from './ids.js';
 
 export const PROTOCOL_VERSION = 1;
 export const SCHEMA_VERSION = 1;
-export const PROJECT_FILE = 'omenflow.project.json';
+export const PROJECT_FILE = 'bureau.project.json';
 
 /** Max bridge frame payload (bytes). */
 export const MAX_FRAME_BYTES = 8 * 1024 * 1024;
@@ -91,10 +91,10 @@ export type BridgeError = z.infer<typeof bridgeErrorSchema>;
 export type BridgeServerMessage = BridgeWelcome | BridgeError;
 
 export const envKeys = {
-  socketPath: 'OMENFLOW_BRIDGE_SOCK',
-  token: 'OMENFLOW_BRIDGE_TOKEN',
-  projectId: 'OMENFLOW_PROJECT_ID',
-  sessionId: 'OMENFLOW_SESSION_ID',
+  socketPath: 'BUREAU_BRIDGE_SOCK',
+  token: 'BUREAU_BRIDGE_TOKEN',
+  projectId: 'BUREAU_PROJECT_ID',
+  sessionId: 'BUREAU_SESSION_ID',
 } as const;
 
 export function protocolMismatch(version: number): boolean {

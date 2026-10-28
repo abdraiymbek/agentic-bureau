@@ -46,7 +46,7 @@ const commands: Candidate[] = [
   {
     id: 'act:theme',
     group: 'actions',
-    label: 'Switch to Paper (light)',
+    label: 'Switch to the light theme',
     keywords: 'appearance theme',
   },
 ];

@@ -5,7 +5,7 @@
  * the hover-throttle and endurance calculations stale without erasing them.
  */
 import type { FixtureCore } from '../core';
-import type { Origin } from '@omenflow/contracts';
+import type { Origin } from '@bureau/contracts';
 
 const USER: Origin = { kind: 'user' };
 const q = (value: number, unit: string) => ({ value, unit });

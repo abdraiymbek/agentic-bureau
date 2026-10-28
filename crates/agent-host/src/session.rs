@@ -7,7 +7,7 @@ use crate::adapters::{
     AdapterConfig, AdapterSpec, GuideChannel, McpInjection, BRIDGE_ENV, SERVER_NAME,
 };
 use crate::guide;
-use omenflow_contracts::{ContractError, Profile};
+use bureau_contracts::{ContractError, Profile};
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::io::{self, Write};
@@ -43,7 +43,7 @@ pub struct LaunchRequest<'a> {
     pub config: &'a AdapterConfig,
     /// The CLI to run.
     pub executable: &'a Path,
-    /// The `omenflow` helper the CLI starts as its MCP server.
+    /// The `bureau` helper the CLI starts as its MCP server.
     pub helper: &'a Path,
     pub project_id: &'a str,
     pub project_name: &'a str,
@@ -94,13 +94,13 @@ pub struct LaunchPlan {
     pub resumed: bool,
 }
 
-/// Inherited variables with this prefix belong to another Omen Flow session
+/// Inherited variables with this prefix belong to another Bureau session
 /// and must not leak into this one.
-pub const SCRUBBED_PREFIX: &str = "OMENFLOW_";
+pub const SCRUBBED_PREFIX: &str = "BUREAU_";
 
 /// The session's work folder inside the project.
 pub fn work_dir(project_root: &Path, session_id: &str) -> PathBuf {
-    project_root.join(".omenflow/work").join(session_id)
+    project_root.join(".bureau/work").join(session_id)
 }
 
 /// Plan a launch. Pure: the same request always gives the same plan.
@@ -152,7 +152,7 @@ pub fn plan_launch(request: &LaunchRequest<'_>) -> Result<LaunchPlan, ContractEr
             .env
             .iter()
             .filter(|(key, _)| {
-                !BRIDGE_ENV.contains(&key.as_str()) && !key.starts_with("OMENFLOW_BRIDGE_")
+                !BRIDGE_ENV.contains(&key.as_str()) && !key.starts_with("BUREAU_BRIDGE_")
             })
             .cloned(),
     );
@@ -440,7 +440,7 @@ impl LaunchPlan {
     /// `inherited` is the environment the process would otherwise get. When
     /// the app runs from an AppImage, the launcher's changes to it (its
     /// libraries, Python, GTK and data paths) are undone first, so the agent
-    /// works in the person's environment; see `omenflow_core::child_env`.
+    /// works in the person's environment; see `bureau_core::child_env`.
     pub fn apply_environment(
         &self,
         inherited: impl IntoIterator<Item = (String, String)>,
@@ -448,7 +448,7 @@ impl LaunchPlan {
         mut remove: impl FnMut(&str),
     ) {
         let inherited: Vec<(String, String)> = inherited.into_iter().collect();
-        let outside_appimage = omenflow_core::child_env::edits_in(&inherited);
+        let outside_appimage = bureau_core::child_env::edits_in(&inherited);
         let mut present = Vec::new();
         for (key, _) in inherited {
             if key.starts_with(SCRUBBED_PREFIX) {
@@ -481,7 +481,7 @@ mod tests {
     use crate::adapters::adapter;
 
     const SESSION: &str = "6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b";
-    const WORK: &str = "/projects/rover/.omenflow/work/6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b";
+    const WORK: &str = "/projects/rover/.bureau/work/6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b";
 
     fn plan(id: &str, config: Value, profile: Profile, mode: LaunchMode<'_>) -> LaunchPlan {
         try_plan(id, config, profile, mode).unwrap()
@@ -497,7 +497,7 @@ mod tests {
             adapter: adapter(id).unwrap(),
             config: &AdapterConfig::from_value(&config),
             executable: Path::new("/usr/local/bin/agent"),
-            helper: Path::new("/Applications/Omen Flow.app/Contents/Resources/omenflow"),
+            helper: Path::new("/Applications/Bureau.app/Contents/Resources/bureau"),
             project_id: "project-1",
             project_name: "Sable rover",
             project_root: Path::new("/projects/rover"),
@@ -505,7 +505,7 @@ mod tests {
             socket_path: "/data/run/bridge.sock",
             token: "secret-token",
             profile,
-            path: "/Applications/Omen Flow.app/Contents/Resources:/usr/bin",
+            path: "/Applications/Bureau.app/Contents/Resources:/usr/bin",
             mode,
             snapshot: None,
         })
@@ -516,10 +516,10 @@ mod tests {
     }
 
     const BRIDGE_VALUES: [(&str, &str); 4] = [
-        ("OMENFLOW_BRIDGE_SOCK", "/data/run/bridge.sock"),
-        ("OMENFLOW_BRIDGE_TOKEN", "secret-token"),
-        ("OMENFLOW_PROJECT_ID", "project-1"),
-        ("OMENFLOW_SESSION_ID", SESSION),
+        ("BUREAU_BRIDGE_SOCK", "/data/run/bridge.sock"),
+        ("BUREAU_BRIDGE_TOKEN", "secret-token"),
+        ("BUREAU_PROJECT_ID", "project-1"),
+        ("BUREAU_SESSION_ID", SESSION),
     ];
 
     fn env_of(plan: &LaunchPlan) -> Vec<(&str, &str)> {
@@ -533,7 +533,7 @@ mod tests {
         vec![
             (
                 "PATH",
-                "/Applications/Omen Flow.app/Contents/Resources:/usr/bin",
+                "/Applications/Bureau.app/Contents/Resources:/usr/bin",
             ),
             ("TERM", "xterm-256color"),
             ("COLORTERM", "truecolor"),
@@ -559,17 +559,17 @@ mod tests {
             plan.args,
             strings(&[
                 "-c",
-                "mcp_servers.omenflow.command=\"/Applications/Omen Flow.app/Contents/Resources/omenflow\"",
+                "mcp_servers.bureau.command=\"/Applications/Bureau.app/Contents/Resources/bureau\"",
                 "-c",
-                "mcp_servers.omenflow.args=[\"mcp\"]",
+                "mcp_servers.bureau.args=[\"mcp\"]",
                 "-c",
-                "mcp_servers.omenflow.env_vars=[\"OMENFLOW_BRIDGE_SOCK\",\"OMENFLOW_BRIDGE_TOKEN\",\"OMENFLOW_PROJECT_ID\",\"OMENFLOW_SESSION_ID\"]",
+                "mcp_servers.bureau.env_vars=[\"BUREAU_BRIDGE_SOCK\",\"BUREAU_BRIDGE_TOKEN\",\"BUREAU_PROJECT_ID\",\"BUREAU_SESSION_ID\"]",
                 "-c",
-                "mcp_servers.omenflow.default_tools_approval_mode=\"approve\"",
+                "mcp_servers.bureau.default_tools_approval_mode=\"approve\"",
                 "-c",
-                "mcp_servers.omenflow.startup_timeout_sec=20",
+                "mcp_servers.bureau.startup_timeout_sec=20",
                 "-c",
-                "mcp_servers.omenflow.tool_timeout_sec=330",
+                "mcp_servers.bureau.tool_timeout_sec=330",
                 "-c",
                 "sandbox_mode=\"workspace-write\"",
                 "-c",
@@ -639,7 +639,7 @@ mod tests {
                 "--mcp-config",
                 &format!("{WORK}/mcp.json"),
                 "--allowedTools",
-                "mcp__omenflow",
+                "mcp__bureau",
                 "--append-system-prompt-file",
                 &format!("{WORK}/guide.md"),
                 "--model",
@@ -658,7 +658,7 @@ mod tests {
         assert_eq!(plan.files[0].path, Path::new(WORK).join("mcp.json"));
         assert_eq!(
             plan.files[0].contents,
-            "{\"mcpServers\":{\"omenflow\":{\"type\":\"stdio\",\"command\":\"/Applications/Omen Flow.app/Contents/Resources/omenflow\",\"args\":[\"mcp\"],\"env\":{\"OMENFLOW_BRIDGE_SOCK\":\"/data/run/bridge.sock\",\"OMENFLOW_BRIDGE_TOKEN\":\"secret-token\",\"OMENFLOW_PROJECT_ID\":\"project-1\",\"OMENFLOW_SESSION_ID\":\"6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b\"},\"timeout\":600000,\"alwaysLoad\":true}}}"
+            "{\"mcpServers\":{\"bureau\":{\"type\":\"stdio\",\"command\":\"/Applications/Bureau.app/Contents/Resources/bureau\",\"args\":[\"mcp\"],\"env\":{\"BUREAU_BRIDGE_SOCK\":\"/data/run/bridge.sock\",\"BUREAU_BRIDGE_TOKEN\":\"secret-token\",\"BUREAU_PROJECT_ID\":\"project-1\",\"BUREAU_SESSION_ID\":\"6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b\"},\"timeout\":600000,\"alwaysLoad\":true}}}"
         );
         assert_eq!(plan.files[1].path, Path::new(WORK).join("guide.md"));
         assert_eq!(plan.files[1].contents, plan.guidance);
@@ -890,7 +890,7 @@ mod tests {
         let mut env = base_env();
         env.push((
             "OPENCODE_CONFIG_CONTENT",
-            "{\"$schema\":\"https://opencode.ai/config.json\",\"mcp\":{\"omenflow\":{\"type\":\"local\",\"command\":[\"/Applications/Omen Flow.app/Contents/Resources/omenflow\",\"mcp\"],\"environment\":{\"OMENFLOW_BRIDGE_SOCK\":\"{env:OMENFLOW_BRIDGE_SOCK}\",\"OMENFLOW_BRIDGE_TOKEN\":\"{env:OMENFLOW_BRIDGE_TOKEN}\",\"OMENFLOW_PROJECT_ID\":\"{env:OMENFLOW_PROJECT_ID}\",\"OMENFLOW_SESSION_ID\":\"{env:OMENFLOW_SESSION_ID}\"},\"enabled\":true,\"timeout\":330000}},\"instructions\":[\"/projects/rover/.omenflow/work/6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b/guide.md\"],\"permission\":{\"omenflow_*\":\"allow\"}}",
+            "{\"$schema\":\"https://opencode.ai/config.json\",\"mcp\":{\"bureau\":{\"type\":\"local\",\"command\":[\"/Applications/Bureau.app/Contents/Resources/bureau\",\"mcp\"],\"environment\":{\"BUREAU_BRIDGE_SOCK\":\"{env:BUREAU_BRIDGE_SOCK}\",\"BUREAU_BRIDGE_TOKEN\":\"{env:BUREAU_BRIDGE_TOKEN}\",\"BUREAU_PROJECT_ID\":\"{env:BUREAU_PROJECT_ID}\",\"BUREAU_SESSION_ID\":\"{env:BUREAU_SESSION_ID}\"},\"enabled\":true,\"timeout\":330000}},\"instructions\":[\"/projects/rover/.bureau/work/6f1d2c3b-4a59-4e8f-9b0a-1c2d3e4f5a6b/guide.md\"],\"permission\":{\"bureau_*\":\"allow\"}}",
         ));
         env.extend(BRIDGE_VALUES);
         assert_eq!(env_of(&plan), env);
@@ -909,7 +909,7 @@ mod tests {
         );
         assert_eq!(
             gemini.args,
-            strings(&["--allowed-mcp-server-names", "omenflow", "-m", "flash-lite"])
+            strings(&["--allowed-mcp-server-names", "bureau", "-m", "flash-lite"])
         );
         let mut env = base_env();
         let settings = format!("{WORK}/gemini.json");
@@ -919,7 +919,7 @@ mod tests {
         assert_eq!(gemini.files.len(), 1);
         assert_eq!(
             gemini.files[0].contents,
-            "{\"mcpServers\":{\"omenflow\":{\"command\":\"/Applications/Omen Flow.app/Contents/Resources/omenflow\",\"args\":[\"mcp\"],\"env\":{\"OMENFLOW_BRIDGE_SOCK\":\"$OMENFLOW_BRIDGE_SOCK\",\"OMENFLOW_BRIDGE_TOKEN\":\"$OMENFLOW_BRIDGE_TOKEN\",\"OMENFLOW_PROJECT_ID\":\"$OMENFLOW_PROJECT_ID\",\"OMENFLOW_SESSION_ID\":\"$OMENFLOW_SESSION_ID\"},\"timeout\":600000,\"trust\":true}},\"context\":{\"fileName\":[\"GEMINI.md\",\"AGENTS.md\"]}}"
+            "{\"mcpServers\":{\"bureau\":{\"command\":\"/Applications/Bureau.app/Contents/Resources/bureau\",\"args\":[\"mcp\"],\"env\":{\"BUREAU_BRIDGE_SOCK\":\"$BUREAU_BRIDGE_SOCK\",\"BUREAU_BRIDGE_TOKEN\":\"$BUREAU_BRIDGE_TOKEN\",\"BUREAU_PROJECT_ID\":\"$BUREAU_PROJECT_ID\",\"BUREAU_SESSION_ID\":\"$BUREAU_SESSION_ID\"},\"timeout\":600000,\"trust\":true}},\"context\":{\"fileName\":[\"GEMINI.md\",\"AGENTS.md\"]}}"
         );
 
         let qwen = plan(
@@ -956,9 +956,9 @@ mod tests {
             "custom",
             json!({"args": ["--flag"], "model": "local-model", "env": {
                 "MY_KEY": "1",
-                "OMENFLOW_BRIDGE_TOKEN": "forged",
-                "OMENFLOW_BRIDGE_EXTRA": "forged",
-                "OMENFLOW_SESSION_ID": "forged"
+                "BUREAU_BRIDGE_TOKEN": "forged",
+                "BUREAU_BRIDGE_EXTRA": "forged",
+                "BUREAU_SESSION_ID": "forged"
             }}),
             Profile::Compact,
             LaunchMode::Interactive,
@@ -976,11 +976,11 @@ mod tests {
         assert!(plan.agents_md);
         assert!(plan.guidance.contains("Profile: compact (15 tools listed)"));
 
-        let off = plan_with_env("custom", json!({"OMENFLOW_AGENTS_MD": "off"}));
+        let off = plan_with_env("custom", json!({"BUREAU_AGENTS_MD": "off"}));
         assert!(!off.agents_md);
         assert!(off
             .env
-            .contains(&("OMENFLOW_AGENTS_MD".to_owned(), "off".to_owned())));
+            .contains(&("BUREAU_AGENTS_MD".to_owned(), "off".to_owned())));
     }
 
     fn plan_with_env(id: &str, env: Value) -> LaunchPlan {
@@ -1030,7 +1030,7 @@ mod tests {
                 adapter: adapter("claude-code").unwrap(),
                 config: &AdapterConfig::from_value(&json!({"args": args})),
                 executable: Path::new("/usr/local/bin/claude"),
-                helper: Path::new("/Applications/Omen Flow.app/Contents/Resources/omenflow"),
+                helper: Path::new("/Applications/Bureau.app/Contents/Resources/bureau"),
                 project_id: "project-1",
                 project_name: "Sable rover",
                 project_root: Path::new("/projects/rover"),
@@ -1093,7 +1093,7 @@ mod tests {
                 adapter: spec,
                 config: &AdapterConfig::default(),
                 executable: Path::new("/usr/local/bin/agent"),
-                helper: Path::new("/Applications/Omen Flow.app/Contents/Resources/omenflow"),
+                helper: Path::new("/Applications/Bureau.app/Contents/Resources/bureau"),
                 project_id: "project-1",
                 project_name: "Sable rover",
                 project_root: Path::new("/projects/rover"),
@@ -1139,8 +1139,8 @@ mod tests {
         );
         let inherited = vec![
             ("HOME".to_owned(), "/Users/me".to_owned()),
-            ("OMENFLOW_BRIDGE_TOKEN".to_owned(), "stale".to_owned()),
-            ("OMENFLOW_APP_DATA_DIR".to_owned(), "/elsewhere".to_owned()),
+            ("BUREAU_BRIDGE_TOKEN".to_owned(), "stale".to_owned()),
+            ("BUREAU_APP_DATA_DIR".to_owned(), "/elsewhere".to_owned()),
         ];
         let mut set = Vec::new();
         let mut removed = Vec::new();
@@ -1149,14 +1149,14 @@ mod tests {
             |key, value| set.push((key.to_owned(), value.to_owned())),
             |key| removed.push(key.to_owned()),
         );
-        assert_eq!(removed, ["OMENFLOW_BRIDGE_TOKEN", "OMENFLOW_APP_DATA_DIR"]);
+        assert_eq!(removed, ["BUREAU_BRIDGE_TOKEN", "BUREAU_APP_DATA_DIR"]);
         assert_eq!(set[0], ("LANG".to_owned(), "en_US.UTF-8".to_owned()));
         let last_lang = set.iter().rev().find(|(key, _)| key == "LANG").unwrap();
         assert_eq!(
             last_lang.1, "de_DE.UTF-8",
             "configured values win over the default"
         );
-        assert_eq!(set.last().unwrap().0, "OMENFLOW_SESSION_ID");
+        assert_eq!(set.last().unwrap().0, "BUREAU_SESSION_ID");
 
         let mut set = Vec::new();
         plan.apply_environment(
@@ -1179,13 +1179,10 @@ mod tests {
             Profile::Compact,
             LaunchMode::Interactive,
         );
-        let image = "/tmp/.mount_OmenFlq3xK2b";
+        let image = "/tmp/.mount_Bureauq3xK2b";
         let inherited = vec![
             ("APPDIR".to_owned(), image.to_owned()),
-            (
-                "APPIMAGE".to_owned(),
-                "/home/me/Omen Flow.AppImage".to_owned(),
-            ),
+            ("APPIMAGE".to_owned(), "/home/me/Bureau.AppImage".to_owned()),
             ("HOME".to_owned(), "/home/me".to_owned()),
             ("LD_LIBRARY_PATH".to_owned(), format!("{image}/usr/lib/:")),
             ("PYTHONHOME".to_owned(), format!("{image}/usr/")),
@@ -1217,7 +1214,7 @@ mod tests {
         assert!(set.contains(&("PATH".to_owned(), "/usr/bin".to_owned())));
         let path = set.iter().rev().find(|(key, _)| key == "PATH").unwrap();
         assert_eq!(
-            path.1, "/Applications/Omen Flow.app/Contents/Resources:/usr/bin",
+            path.1, "/Applications/Bureau.app/Contents/Resources:/usr/bin",
             "the plan's own PATH still wins"
         );
         assert!(!set.iter().any(|(key, _)| key == "HOME"));

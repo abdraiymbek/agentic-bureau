@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Omen Flow — Lens</title>
-    <link rel="icon" type="image/svg+xml" href="brand/app-icon.svg" />
-    <link rel="stylesheet" href="fonts/fonts.css" />
+    <title>Bureau design system</title>
+    <link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+    <link rel="stylesheet" href="fonts/bureau.css" />
     <link rel="stylesheet" href="tokens.css" />
     <style>
       * {
@@ -47,10 +47,9 @@
         border-bottom: 1px solid var(--line);
       }
       .mark {
+        display: block;
         width: 20px;
         height: 20px;
-        background: currentColor;
-        mask: url('brand/omen-mark.svg') center / contain no-repeat;
       }
       .word {
         font-weight: 600;
@@ -179,7 +178,6 @@
         content: '';
         width: 6px;
         height: 6px;
-        border-radius: 50%;
         background: currentColor;
       }
       .ok {
@@ -225,8 +223,8 @@
   <body>
     <div class="wrap">
       <header class="top">
-        <span class="mark" aria-hidden="true"></span>
-        <span class="word">Omen <span>Flow</span></span>
+        <img class="mark" src="brand/bureau-mark.svg" alt="" />
+        <span class="word">Bureau</span>
         <nav aria-label="Design resources">
           <a href="design.md">Specification</a>
           <a href="tokens.css">Tokens</a>
@@ -236,21 +234,22 @@
       </header>
 
       <div class="hero">
-        <span class="mark" style="width: 34px; height: 34px" aria-hidden="true"></span>
+        <img class="mark" src="brand/bureau-mark.svg" alt="" style="width: 34px; height: 34px" />
         <h1>See the whole. Focus on one. Decide.</h1>
         <p>
-          Lens is the design language of Omen Flow. Three zoom levels replace pages, space follows
-          causality, the interface takes the shape of the work, and the agent is a real terminal you
-          can reach from anywhere.
+          Lens is the design language of Bureau, the app of Agentic Bureau. Three zoom levels
+          replace pages, space follows causality, the interface takes the shape of the work, and the
+          agent is a real conversation and terminal you can reach from anywhere.
         </p>
       </div>
 
       <section aria-labelledby="model">
         <h2 id="model">The workbench</h2>
         <p>
-          A 48 px activity bar on the left edge holds the Agent tab first, then the lenses and
-          Decisions; the agent window toggle and Settings sit at the bottom. There is no dashboard.
-          Each link below opens the live screen on the disposable preview project.
+          A sidebar on the field holds the project and its census, search, the Agent first, then
+          Decisions, the lenses and the conversations; the agent window toggle and Settings sit at
+          the bottom. The work sits on one sheet beside it. There is no dashboard. Each link below
+          opens the live screen on the disposable preview project.
         </p>
         <div class="grid">
           <div class="island">
@@ -305,15 +304,16 @@
       <section aria-labelledby="language">
         <h2 id="language">Visual language</h2>
         <p>
-          A graphite field, islands for floating controls, Geist for the interface and IBM Plex Mono
-          for values. One signal accent, reserved for live and focused things; drawn as a line it
-          uses the stroke role so it stays readable on Paper. Every state is a dot and a word. Both
-          themes share every role; text, supporting and metadata text and the state words meet WCAG
-          AA on every surface, and lines and rings meet 3:1.
+          A near-black field, one sheet for the work, islands for floating controls, Mona Sans for
+          the interface and JetBrains Mono for values, and icons drawn on the mark's square grid.
+          One signal accent, the mark's cyan, reserved for live and focused things; drawn as a line
+          it uses the stroke role so it stays readable in Light. Every state is a square and a word.
+          Both themes share every role; text, supporting and metadata text and the state words meet
+          WCAG AA on every surface, and lines and rings meet 3:1.
         </p>
         <div class="panes">
           <div class="pane" data-theme="dark">
-            <span>Graphite</span>
+            <span>Dark</span>
             <div class="swatches">
               <div class="swatch"><i style="background: var(--field)"></i>field</div>
               <div class="swatch"><i style="background: var(--surface)"></i>surface</div>
@@ -329,7 +329,7 @@
             <span class="thread" aria-hidden="true"></span>
           </div>
           <div class="pane" data-theme="light">
-            <span>Paper</span>
+            <span>Light</span>
             <div class="swatches">
               <div class="swatch"><i style="background: var(--field)"></i>field</div>
               <div class="swatch"><i style="background: var(--surface)"></i>surface</div>
@@ -356,7 +356,7 @@
           </li>
           <li>
             <a href="tokens.css">tokens.css</a>: every colour, type, spacing, radius, shadow, layer
-            and motion value, for Graphite and Paper, including the terminal palette.
+            and motion value, for Dark and Light, including the terminal palette.
           </li>
           <li>
             <code>apps/desktop/src/renderer/ui/kit.tsx</code>: the primitives, with one state
@@ -373,7 +373,7 @@
       <footer>
         The links open <code>pnpm design:preview</code> on disposable fixture projects; the preview
         mesh is illustrative, not a verified render. Reference captures in
-        <code>screenshots/</code> predate the activity bar and are kept as history. See
+        <code>screenshots/</code> show the Omen Flow interface and are kept as history. See
         <a href="verification.md">verification</a> for what has been checked.
       </footer>
     </div>

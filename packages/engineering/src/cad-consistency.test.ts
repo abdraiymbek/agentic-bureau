@@ -9,8 +9,8 @@ import {
   approveCadVerificationScope,
   writeBinaryStl,
   type CadReport,
-} from '@omenflow/core';
-import type { Job, MechanicalPayload, Revision } from '@omenflow/contracts';
+} from '@bureau/core';
+import type { Job, MechanicalPayload, Revision } from '@bureau/contracts';
 import { createEngineTools, OpenScadAdapter } from './index.js';
 
 const user = { kind: 'user' } as const;
@@ -23,7 +23,7 @@ afterEach(() => {
   for (const app of apps.splice(0)) app.closeAll();
 });
 async function project() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-cad-consistency-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-cad-consistency-'));
   const app = new CoreApp(path.join(root, 'settings'), nullHost);
   app.engineTools = createEngineTools();
   apps.push(app);
@@ -286,7 +286,7 @@ describe.skipIf(
     const identity = (ctx.repo.getRevision(first.revisionId)?.payload as MechanicalPayload)
       .renderIdentity!;
     fs.writeFileSync(
-      ctx.resolvePath(`.omenflow/cache/render-v1/${identity.inputFingerprint}/output.stl`),
+      ctx.resolvePath(`.bureau/cache/render-v1/${identity.inputFingerprint}/output.stl`),
       'corrupt',
     );
     const second = await write(undefined, { artifactId: first.artifactId });

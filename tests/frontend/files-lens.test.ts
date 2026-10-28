@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ArtifactView, Revision } from '@omenflow/contracts';
+import type { ArtifactView, Revision } from '@bureau/contracts';
 import {
   PREVIEW_LIMIT_BYTES,
   baselineFiles,

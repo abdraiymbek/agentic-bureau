@@ -1,11 +1,11 @@
 import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ProjectEvent, SessionInfo } from '@omenflow/contracts';
+import type { ProjectEvent, SessionInfo } from '@bureau/contracts';
 import { useStore, type View } from './store';
 import { LENSES } from './project/lenses';
 import { CommandError } from './api';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Titlebar } from './shell/Titlebar';
-import { ActivityBar } from './shell/ActivityBar';
+import { Sidebar } from './shell/Sidebar';
 import { Launcher } from './launcher/Launcher';
 import { ProjectView } from './project/ProjectView';
 import { FrameStrip } from './frame/FrameStrip';
@@ -103,7 +103,7 @@ export default function App() {
   const workspaceFocus = useRef<HTMLElement | null>(null);
   /** Where the last press in the stage landed, as a transform origin for the next zoom in. */
   const press = useRef<{ origin: string; at: number } | null>(null);
-  useEffect(() => installNativeShutdownGuard(window.omenflow), []);
+  useEffect(() => installNativeShutdownGuard(window.bureau), []);
   // Arriving at a deeper level zooms in (from the press that asked for it), arriving at a wider
   // one zooms out; moving across a level does not move the stage.
   const motion = useRef<{ key: string; depth: number; zoom?: 'in' | 'out'; origin?: string }>({
@@ -139,13 +139,13 @@ export default function App() {
       const id = (value as { projectId?: string } | null)?.projectId;
       return !id || id === useStore.getState().projectId;
     };
-    const un = window.omenflow.onEvent((e) => {
+    const un = window.bureau.onEvent((e) => {
       if (mine(e)) s.pushEvent(e as ProjectEvent);
     });
-    const unJob = window.omenflow.onJobProgress((e) => {
+    const unJob = window.bureau.onJobProgress((e) => {
       if (mine(e)) s.invalidate(['jobs']);
     });
-    const unTerm = window.omenflow.onTerminalState((value) => {
+    const unTerm = window.bureau.onTerminalState((value) => {
       if (mine(value))
         s.receiveSession(
           (value && typeof value === 'object' && 'session' in value
@@ -153,7 +153,7 @@ export default function App() {
             : value) as SessionInfo | null,
         );
     });
-    const unService = window.omenflow.onServiceState?.((state) =>
+    const unService = window.bureau.onServiceState?.((state) =>
       setServiceError(state.available ? null : (state.message ?? 'Workspace service unavailable')),
     );
     // An operation that failed with nobody to tell the person reaches the frame once.
@@ -283,17 +283,17 @@ export default function App() {
   }, [key, firstLoadComplete]);
 
   return (
-    <div className="app">
-      <ErrorBoundary label="The title bar">
-        <Titlebar />
-      </ErrorBoundary>
-      <FrameStrip serviceError={serviceError} />
-      <div className="workbench">
-        {projectId && (
-          <ErrorBoundary label="The activity bar">
-            <ActivityBar />
-          </ErrorBoundary>
-        )}
+    <div className={projectId ? 'app' : 'app no-project'}>
+      {projectId && (
+        <ErrorBoundary label="The sidebar">
+          <Sidebar />
+        </ErrorBoundary>
+      )}
+      <div className="app-sheet">
+        <ErrorBoundary label="The title bar">
+          <Titlebar />
+        </ErrorBoundary>
+        <FrameStrip serviceError={serviceError} />
         <div className="workbench-main">
           <div
             className="stage-area"

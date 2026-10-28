@@ -18,7 +18,7 @@ const run = (command, args, cwd = root) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 run('pnpm', ['build:bridge']);
-if (mode === 'build') run('pnpm', ['--filter', '@omenflow/desktop', 'build:rust-ui']);
+if (mode === 'build') run('pnpm', ['--filter', '@bureau/desktop', 'build:rust-ui']);
 const tauri = path.join(
   root,
   'node_modules',

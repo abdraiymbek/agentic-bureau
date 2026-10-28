@@ -9,14 +9,14 @@ export default defineConfig({
   resolve: {
     alias: {
       // Subpath first: the string alias below would otherwise capture it.
-      '@omenflow/contracts/format': path.join(root, 'packages', 'contracts', 'src', 'format.ts'),
-      '@omenflow/contracts/chat': path.join(root, 'packages', 'contracts', 'src', 'chat.ts'),
-      '@omenflow/contracts': pkg('contracts'),
-      '@omenflow/storage': pkg('storage'),
-      '@omenflow/core': pkg('core'),
-      '@omenflow/agent-host': pkg('agent-host'),
-      '@omenflow/mcp-server': pkg('mcp-server'),
-      '@omenflow/engineering': pkg('engineering'),
+      '@bureau/contracts/format': path.join(root, 'packages', 'contracts', 'src', 'format.ts'),
+      '@bureau/contracts/chat': path.join(root, 'packages', 'contracts', 'src', 'chat.ts'),
+      '@bureau/contracts': pkg('contracts'),
+      '@bureau/storage': pkg('storage'),
+      '@bureau/core': pkg('core'),
+      '@bureau/agent-host': pkg('agent-host'),
+      '@bureau/mcp-server': pkg('mcp-server'),
+      '@bureau/engineering': pkg('engineering'),
     },
   },
   test: {

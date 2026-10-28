@@ -10,7 +10,7 @@
 //! consistent its hashes are with the files it attaches.
 
 use crate::{internal, storage_error, CoreResult};
-use omenflow_storage::ProjectHandle;
+use bureau_storage::ProjectHandle;
 use regex::Regex;
 use rusqlite::OptionalExtension;
 use serde_json::{Map, Value};

@@ -521,7 +521,7 @@ fn only_web_and_mail_links_leave_the_app() {
     for url in [
         "file:///etc/passwd",
         "javascript:alert(1)",
-        "omenflow://x",
+        "bureau://x",
         "example.com",
     ] {
         assert_eq!(
@@ -543,7 +543,7 @@ fn agent_call_records_are_forwarded_on_their_own_channel() {
     f.host.record_agent_call(record.clone());
     assert_eq!(f.events.named("agent-call"), vec![record]);
     let event = HostEvent::AgentCall(json!({}));
-    assert_eq!(event.channel(), "omenflow:agent:call");
+    assert_eq!(event.channel(), "bureau:agent:call");
     assert_eq!(
         [
             HostEvent::Project(json!({})).channel(),
@@ -551,9 +551,9 @@ fn agent_call_records_are_forwarded_on_their_own_channel() {
             HostEvent::TerminalState(json!({})).channel(),
         ],
         [
-            "omenflow:event",
-            "omenflow:terminal:data",
-            "omenflow:terminal:state"
+            "bureau:event",
+            "bureau:terminal:data",
+            "bureau:terminal:state"
         ]
     );
 }
@@ -811,8 +811,8 @@ fn chat_invalid_output_never_becomes_a_success_or_terminal_session() {
         .command("terminal.state", json!({}), Some(&f.project_id), None));
     assert!(terminal["session"].is_null());
     let root = f._temp.path().join("project");
-    let saved = std::fs::read_to_string(root.join(".omenflow/chat/conversations.json")).unwrap();
-    assert!(!saved.contains("OMENFLOW_BRIDGE_TOKEN"));
+    let saved = std::fs::read_to_string(root.join(".bureau/chat/conversations.json")).unwrap();
+    assert!(!saved.contains("BUREAU_BRIDGE_TOKEN"));
     f.host.shutdown();
 }
 
@@ -923,7 +923,7 @@ fn a_conversation_run_announces_each_change_to_its_record() {
         5,
         "acceptance, two text changes, the presented card and the settled turn; the tool line and the repeated item change nothing: {changes:?}"
     );
-    assert_eq!(HostEvent::Chat(json!({})).channel(), "omenflow:chat");
+    assert_eq!(HostEvent::Chat(json!({})).channel(), "bureau:chat");
     f.host.shutdown();
 }
 
@@ -1081,14 +1081,14 @@ fn unfinished_work_is_continued_once_when_the_setting_is_on() {
     );
     let prompt = std::fs::read_to_string(dir.join("prompt-2")).unwrap();
     assert!(prompt.contains("User: Write the test notes\n"), "{prompt}");
-    assert!(prompt.contains("Omen Flow ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty."));
+    assert!(prompt.contains("Bureau ran work_status after the previous reply (recorded by the host, not by the agent): 1 draft is empty."));
     let notes = reply["result"]["artifact"]["id"].as_str().unwrap();
     assert!(prompt.contains(&format!(
         "- Test notes (empty_payload, artifactId {notes}): Draft r1 has no content yet. Next: artifact_update_draft."
     )));
     assert!(prompt.contains("In this run, work_status and the workStatus digest on check replies cover the previous replies' work as well as yours"));
     assert!(prompt.contains(&format!(
-        "Omen Flow (automatic continuation): {}\n",
+        "Bureau (automatic continuation): {}\n",
         crate::chat::CONTINUE_TEXT
     )));
     assert_eq!(executions(&dir), 2);
@@ -1104,7 +1104,7 @@ fn holding_agent(f: &Fixture) -> PathBuf {
     chat_agent(
         f,
         &format!(
-            "n=$(($(cat '{count}' 2>/dev/null || echo 0) + 1)); echo $n > '{count}'\ncat >/dev/null\nprintf '%s' \"$OMENFLOW_BRIDGE_TOKEN\" > '{dir}/token.tmp' && mv '{dir}/token.tmp' '{dir}/token-'$n\nwhile [ ! -e '{dir}/finish-'$n ]; do sleep 0.05; done\nprintf '%s\\n' '{message}' '{completed}'",
+            "n=$(($(cat '{count}' 2>/dev/null || echo 0) + 1)); echo $n > '{count}'\ncat >/dev/null\nprintf '%s' \"$BUREAU_BRIDGE_TOKEN\" > '{dir}/token.tmp' && mv '{dir}/token.tmp' '{dir}/token-'$n\nwhile [ ! -e '{dir}/finish-'$n ]; do sleep 0.05; done\nprintf '%s\\n' '{message}' '{completed}'",
             count = dir.join("executions").display(),
             dir = dir.display(),
             completed = json!({"type": "turn.completed"}),
@@ -1365,7 +1365,7 @@ for argument in "$@"; do
 done
 case " $* " in *" --resume {gone} "*) echo "No conversation found with session ID: {gone}" >&2; exit 1 ;; esac
 if [ $n = 1 ]; then while [ ! -e '{finish}' ]; do sleep 0.05; done; fi
-printf '{{"type":"system","subtype":"init","session_id":"%s","model":"%s","mcp_servers":[{{"name":"omenflow","status":"connected"}}]}}\n' "$id" "$model"
+printf '{{"type":"system","subtype":"init","session_id":"%s","model":"%s","mcp_servers":[{{"name":"bureau","status":"connected"}}]}}\n' "$id" "$model"
 printf '%s\n' '{result}'
 "#,
             count = dir.join("executions").display(),
@@ -1435,7 +1435,7 @@ fn a_claude_code_continuation_resumes_the_cli_conversation() {
     assert!(!argv.lines().any(|line| line == "--session-id"), "{argv}");
     assert_eq!(after(&argv, "--model").as_deref(), Some("claude-haiku-5-5"));
     let prompt = std::fs::read_to_string(dir.join("prompt-2")).unwrap();
-    assert!(prompt.starts_with("Omen Flow resumed this conversation with a new tool session."));
+    assert!(prompt.starts_with("Bureau resumed this conversation with a new tool session."));
     assert!(
         !prompt.contains("User: Write the bracket notes"),
         "{prompt}"
@@ -1445,7 +1445,7 @@ fn a_claude_code_continuation_resumes_the_cli_conversation() {
         "User (continue): {}\n",
         crate::chat::CONTINUE_TEXT
     )));
-    // A new Omen Flow session in the same CLI conversation.
+    // A new Bureau session in the same CLI conversation.
     assert_ne!(turns[1]["sessionId"], session.as_str());
     assert_eq!(turns[1]["cliConversationId"], session.as_str());
     assert_eq!(
@@ -1544,7 +1544,7 @@ fn a_send_racing_project_close_never_deadlocks() {
     drop(_temp);
 }
 
-/// One call from an agent session on the bridge, as the `omenflow` helper makes it.
+/// One call from an agent session on the bridge, as the `bureau` helper makes it.
 #[cfg(unix)]
 fn agent_call(f: &Fixture, session: &str, op: &str, payload: Value) -> Value {
     let token = f.host.bridge().issue_token(&f.project_id, session);
@@ -1554,7 +1554,7 @@ fn agent_call(f: &Fixture, session: &str, op: &str, payload: Value) -> Value {
 /// One call on the bridge with a token a session was given.
 #[cfg(unix)]
 fn call_with_token(f: &Fixture, token: &str, op: &str, payload: Value) -> Value {
-    use omenflow_contracts::{read_frame, write_frame};
+    use bureau_contracts::{read_frame, write_frame};
     let mut stream =
         std::os::unix::net::UnixStream::connect(f.host.bridge().socket_path()).unwrap();
     write_frame(

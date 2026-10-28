@@ -1,6 +1,6 @@
 //! What the read side costs on a synthetic project.
 //!
-//! `cargo run --release -p omenflow-core --example read_costs -- [ARTIFACTS] [FOLDER]`
+//! `cargo run --release -p bureau-core --example read_costs -- [ARTIFACTS] [FOLDER]`
 //!
 //! Seeds a project (600 artifacts unless told otherwise) straight into
 //! storage, opens it through `CoreApp` and times the reads the interface and
@@ -10,8 +10,8 @@
 //! and calculations link to requirements; every sixth artifact is stale and
 //! every fifteenth has a pending proposal. Nothing is asserted: the table is
 //! for comparing one build with another on the same machine.
-use omenflow_core::{CoreApp, Origin};
-use omenflow_storage::ProjectHandle;
+use bureau_core::{CoreApp, Origin};
+use bureau_storage::ProjectHandle;
 use rusqlite::params;
 use serde_json::json;
 use std::time::Instant;

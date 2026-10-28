@@ -26,7 +26,7 @@ export const ErrorCodes = {
 } as const;
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 
-export interface OmenflowErrorBody {
+export interface BureauErrorBody {
   code: ErrorCode;
   message: string;
   /** Concrete repair action shown to the user/agent, e.g. 'Select agent executable'. */
@@ -34,37 +34,37 @@ export interface OmenflowErrorBody {
   details?: unknown;
 }
 
-export class OmenflowError extends Error {
+export class BureauError extends Error {
   readonly code: ErrorCode;
   readonly repair?: string;
   readonly details?: unknown;
 
   constructor(code: ErrorCode, message: string, opts?: { repair?: string; details?: unknown }) {
     super(message);
-    this.name = 'OmenflowError';
+    this.name = 'BureauError';
     this.code = code;
     this.repair = opts?.repair;
     this.details = opts?.details;
   }
 
-  toBody(): OmenflowErrorBody {
+  toBody(): BureauErrorBody {
     return { code: this.code, message: this.message, repair: this.repair, details: this.details };
   }
 
-  static from(err: unknown): OmenflowError {
-    if (err instanceof OmenflowError) return err;
+  static from(err: unknown): BureauError {
+    if (err instanceof BureauError) return err;
     const message = err instanceof Error ? err.message : String(err);
-    return new OmenflowError(ErrorCodes.INTERNAL, message);
+    return new BureauError(ErrorCodes.INTERNAL, message);
   }
 
-  static fromBody(body: OmenflowErrorBody): OmenflowError {
-    return new OmenflowError(body.code, body.message, {
+  static fromBody(body: BureauErrorBody): BureauError {
+    return new BureauError(body.code, body.message, {
       repair: body.repair,
       details: body.details,
     });
   }
 }
 
-export function toErrorBody(err: unknown): OmenflowErrorBody {
-  return OmenflowError.from(err).toBody();
+export function toErrorBody(err: unknown): BureauErrorBody {
+  return BureauError.from(err).toBody();
 }

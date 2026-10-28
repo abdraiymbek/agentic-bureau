@@ -182,7 +182,7 @@ impl ContractRegistry {
 
     /// Lookup by the name an agent or person is likely to type: dotted
     /// (`cad.write_source`), tool (`cad_write_source`), any letter case, or a
-    /// client-prefixed tool name (`mcp__omenflow__cad_write_source`).
+    /// client-prefixed tool name (`mcp__bureau__cad_write_source`).
     pub fn resolve(&self, name: &str) -> Option<&Operation> {
         self.by_alias
             .get(&alias(name))

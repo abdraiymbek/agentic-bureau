@@ -41,5 +41,6 @@ export function startServer(port = 0) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { port } = await startServer(Number(process.env.PORT ?? 4173));
-  console.log(`Trailer preview: http://127.0.0.1:${port}/videos/trailer/`);
+  console.log(`Launch film: http://127.0.0.1:${port}/videos/launch/  (?format=9x16 for vertical)`);
+  console.log(`Trailer:     http://127.0.0.1:${port}/videos/trailer/`);
 }

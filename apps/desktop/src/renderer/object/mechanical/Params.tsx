@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ArtifactView, MechanicalPayload, Revision } from '@omenflow/contracts';
+import type { ArtifactView, MechanicalPayload, Revision } from '@bureau/contracts';
 import { cmd } from '../../api';
 import { useStore } from '../../store';
 import { Block, Skeleton, State, Tooltip } from '../../ui/kit';

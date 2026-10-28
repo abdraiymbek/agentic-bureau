@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, X } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, X } from '../../ui/icons';
 import { IconButton } from '../../ui/kit';
 import type { SearchResult, TerminalEngine } from './terminal';
 

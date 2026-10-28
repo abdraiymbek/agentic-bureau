@@ -10,7 +10,7 @@ export interface FlowMemory {
   focusId: string | null;
 }
 
-const storageKey = (projectId: string) => `omen.flow.${projectId}`;
+const storageKey = (projectId: string) => `bureau.flow.${projectId}`;
 const session = new Map<string, FlowMemory>();
 
 /** Reads what was stored, keeping only values of the right shape. */

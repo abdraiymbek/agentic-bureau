@@ -2,7 +2,7 @@
 //!
 //! The default data directory is guarded by the single-instance plugin, which
 //! also brings the running window forward. A directory named by
-//! `OMENFLOW_APP_DATA_DIR` is an isolated run (development, smoke tests) and
+//! `BUREAU_APP_DATA_DIR` is an isolated run (development, smoke tests) and
 //! must neither collide with the installed app nor be shared by two
 //! processes, so it is guarded by a lock file inside that directory instead.
 
@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 /// The data directory override, when the environment names one.
 pub fn data_dir_override() -> Option<PathBuf> {
-    std::env::var_os("OMENFLOW_APP_DATA_DIR")
+    std::env::var_os("BUREAU_APP_DATA_DIR")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
 }

@@ -2,9 +2,9 @@
 
 mod common;
 
+use bureau_agent_host::{Routing, RoutingLookup};
+use bureau_headless::{Config, Server, Stopper};
 use common::{Call, Response};
-use omenflow_agent_host::{Routing, RoutingLookup};
-use omenflow_headless::{Config, Server, Stopper};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::thread::JoinHandle;
@@ -90,7 +90,7 @@ fn commands_run_against_the_real_core_and_answer_with_the_desktop_envelope() {
     let host = Running::start();
     let health = host.send(Call::get("/api/health"));
     assert_eq!(health.status, 200);
-    assert_eq!(health.body["service"], "omenflow-host");
+    assert_eq!(health.body["service"], "bureau-host");
     assert_eq!(health.body["protocolVersion"], 1);
     assert!(health.body["socketPath"]
         .as_str()
@@ -441,7 +441,7 @@ fn research_answers_with_a_typed_unavailable_error() {
 #[cfg(unix)]
 #[test]
 fn an_issued_agent_session_reaches_the_core_through_the_bridge() {
-    use omenflow_contracts::{read_frame, write_frame};
+    use bureau_contracts::{read_frame, write_frame};
     use std::os::unix::net::UnixStream;
 
     let host = Running::start();
@@ -453,13 +453,10 @@ fn an_issued_agent_session_reaches_the_core_through_the_bridge() {
     assert_eq!(issued.body["ok"], true, "{}", issued.body);
     let session = &issued.body["result"];
     let session_id = session["sessionId"].as_str().unwrap();
-    assert_eq!(session["env"]["OMENFLOW_SESSION_ID"], session_id);
-    assert_eq!(session["env"]["OMENFLOW_PROJECT_ID"], project_id.as_str());
-    assert_eq!(session["env"]["OMENFLOW_BRIDGE_TOKEN"], session["token"]);
-    assert_eq!(
-        session["env"]["OMENFLOW_BRIDGE_SOCK"],
-        session["socketPath"]
-    );
+    assert_eq!(session["env"]["BUREAU_SESSION_ID"], session_id);
+    assert_eq!(session["env"]["BUREAU_PROJECT_ID"], project_id.as_str());
+    assert_eq!(session["env"]["BUREAU_BRIDGE_TOKEN"], session["token"]);
+    assert_eq!(session["env"]["BUREAU_BRIDGE_SOCK"], session["socketPath"]);
 
     let mut bridge = UnixStream::connect(session["socketPath"].as_str().unwrap()).unwrap();
     write_frame(
@@ -578,7 +575,7 @@ fn the_shutdown_route_ends_streams_and_terminates_agent_processes() {
 #[cfg(unix)]
 #[test]
 fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
-    use omenflow_contracts::{read_frame, write_frame};
+    use bureau_contracts::{read_frame, write_frame};
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     use std::os::unix::net::UnixStream;
@@ -591,7 +588,7 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
     std::fs::write(
         &stand_in,
         format!(
-            "#!/bin/sh\nfor arg in \"$@\"; do echo \"arg $arg\"; done > '{r}'\necho \"token $OMENFLOW_BRIDGE_TOKEN\" >> '{r}'\necho \"session $OMENFLOW_SESSION_ID\" >> '{r}'\necho \"other ${{OMENFLOW_OTHER:-unset}}\" >> '{r}'\nsed 's/^/stdin /' >> '{r}'\n",
+            "#!/bin/sh\nfor arg in \"$@\"; do echo \"arg $arg\"; done > '{r}'\necho \"token $BUREAU_BRIDGE_TOKEN\" >> '{r}'\necho \"session $BUREAU_SESSION_ID\" >> '{r}'\necho \"other ${{BUREAU_OTHER:-unset}}\" >> '{r}'\nsed 's/^/stdin /' >> '{r}'\n",
             r = record.display()
         ),
     )
@@ -649,21 +646,21 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
             .to_owned()
     };
     let mcp: Value = serde_json::from_str(&file(&after("--mcp-config"))).unwrap();
-    let server = &mcp["mcpServers"]["omenflow"];
+    let server = &mcp["mcpServers"]["bureau"];
     assert_eq!(
         server["command"], "/bin/echo",
         "the helper this host was given"
     );
     assert_eq!(server["args"], json!(["mcp"]));
-    assert_eq!(server["env"]["OMENFLOW_SESSION_ID"], session_id.as_str());
+    assert_eq!(server["env"]["BUREAU_SESSION_ID"], session_id.as_str());
     let guidance = file(&after("--append-system-prompt-file"));
     assert!(guidance.contains("work_status"), "{guidance}");
-    assert_eq!(plan["env"]["OMENFLOW_SESSION_ID"], session_id.as_str());
+    assert_eq!(plan["env"]["BUREAU_SESSION_ID"], session_id.as_str());
     assert_eq!(
-        plan["env"]["OMENFLOW_BRIDGE_TOKEN"],
-        server["env"]["OMENFLOW_BRIDGE_TOKEN"]
+        plan["env"]["BUREAU_BRIDGE_TOKEN"],
+        server["env"]["BUREAU_BRIDGE_TOKEN"]
     );
-    assert_eq!(plan["scrubbedPrefix"], "OMENFLOW_");
+    assert_eq!(plan["scrubbedPrefix"], "BUREAU_");
 
     // Run the plan the way it says: files first, the environment applied
     // over an inherited one, the prompt on standard input.
@@ -682,7 +679,7 @@ fn a_headless_agent_run_is_prepared_with_the_desktop_wiring() {
         .stdin(Stdio::piped());
     let inherited = [
         ("PATH", "/usr/bin:/bin"),
-        ("OMENFLOW_OTHER", "from another session"),
+        ("BUREAU_OTHER", "from another session"),
     ];
     let scrubbed = plan["scrubbedPrefix"].as_str().unwrap();
     for (key, value) in inherited {

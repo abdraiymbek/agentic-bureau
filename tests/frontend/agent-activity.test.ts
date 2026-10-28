@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentCallRecord } from '@omenflow/contracts';
+import type { AgentCallRecord } from '@bureau/contracts';
 import {
   activitySignal,
   alsoRanLine,
@@ -39,7 +39,7 @@ describe('agent call records', () => {
   it('names tools in words', () => {
     expect(toolWords('cad_check')).toBe('CAD check');
     expect(toolWords('artifact_create_draft')).toBe('Artifact create draft');
-    expect(toolWords('mcp__omenflow__bom_read')).toBe('BOM read');
+    expect(toolWords('mcp__bureau__bom_read')).toBe('BOM read');
     expect(toolWords('project.summary')).toBe('Project summary');
     expect(toolWords('')).toBe('');
   });

@@ -8,8 +8,8 @@ import {
   FolderSimple,
   MagnifyingGlass,
   X,
-} from '@phosphor-icons/react';
-import type { Revision } from '@omenflow/contracts';
+} from '../ui/icons';
+import type { Revision } from '@bureau/contracts';
 import { CommandError, cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { useViewState } from '../lib/view-memory';
@@ -156,9 +156,7 @@ export function FilesLens() {
     setOpen(null);
   };
   const reveal = (path: string) =>
-    void window.omenflow
-      .revealPath(path)
-      .catch((e) => useStore.getState().toast('error', errMsg(e)));
+    void window.bureau.revealPath(path).catch((e) => useStore.getState().toast('error', errMsg(e)));
 
   // The outcome shown is the host's answer: a path and file count, or the issues it refused on.
   const exportPackage = async (kind: 'archive' | 'build') => {
@@ -166,8 +164,8 @@ export function FilesLens() {
     setBusy(kind);
     setOutcome(null);
     try {
-      const dest = await window.omenflow.saveFile({
-        defaultPath: kind === 'archive' ? 'project.omenflow.zip' : 'build-package.zip',
+      const dest = await window.bureau.saveFile({
+        defaultPath: kind === 'archive' ? 'project.bureau.zip' : 'build-package.zip',
         filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
       });
       if (!dest) return;

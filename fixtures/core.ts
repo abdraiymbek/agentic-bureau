@@ -1,4 +1,4 @@
-import type { Origin } from '@omenflow/contracts';
+import type { Origin } from '@bureau/contracts';
 
 /**
  * What a fixture builder needs from a core: the dispatch surface and nothing

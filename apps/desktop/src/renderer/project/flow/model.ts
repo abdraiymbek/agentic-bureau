@@ -1,4 +1,4 @@
-import type { ArtifactView, Edge } from '@omenflow/contracts';
+import type { ArtifactView, Edge } from '@bureau/contracts';
 import { isCausal, linkKey } from '../../lib/graph';
 
 export interface FlowNode {

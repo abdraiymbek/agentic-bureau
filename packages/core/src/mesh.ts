@@ -12,7 +12,7 @@
  */
 
 import { Worker } from 'node:worker_threads';
-import { ErrorCodes, OmenflowError, type OmenflowErrorBody } from '@omenflow/contracts';
+import { ErrorCodes, BureauError, type BureauErrorBody } from '@bureau/contracts';
 
 /** Supported synchronous V0.1 mesh budget; 6 MB remains below 8 MiB after base64. */
 export const MAX_CAD_MESH_BYTES = 6_000_000;
@@ -23,7 +23,7 @@ export const MAX_CAD_CHECK_TRIANGLE_VISITS = 10_000_000;
 export const MAX_CAD_CHECK_ASSERTIONS = 512;
 
 export function meshWorkLimit(operation: string, actual: number, limit: number): never {
-  throw new OmenflowError(
+  throw new BureauError(
     ErrorCodes.VALIDATION,
     `${operation} exceeds the supported V0.1 work limit (${actual} > ${limit})`,
     {
@@ -40,7 +40,7 @@ export function assertMeshByteLimit(bytes: number): void {
 
 export function assertTriangleLimit(tris: Float64Array): void {
   if (tris.length % 9)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Triangle buffer has incomplete vertices');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Triangle buffer has incomplete vertices');
   if (tris.length / 9 > MAX_CAD_TRIANGLES)
     meshWorkLimit('Mesh triangles', tris.length / 9, MAX_CAD_TRIANGLES);
 }
@@ -48,7 +48,7 @@ export function assertTriangleLimit(tris: Float64Array): void {
 export function assertFiniteMesh(tris: Float64Array): void {
   assertTriangleLimit(tris);
   if (tris.some((value) => !Number.isFinite(value)))
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+    throw new BureauError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
 }
 
 /** Requested inspection work plus at most five automatic section planes. */
@@ -98,7 +98,7 @@ export function parseStlTriangles(buf: Buffer): TriangleBuffer {
         for (let k = 0; k < 9; k++) {
           const value = buf.readFloatLE(base + k * 4);
           if (!Number.isFinite(value))
-            throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+            throw new BureauError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
           out[i * 9 + k] = value;
         }
       }
@@ -114,11 +114,11 @@ export function parseStlTriangles(buf: Buffer): TriangleBuffer {
       meshWorkLimit('Mesh triangles', (vals.length + 3) / 9, MAX_CAD_TRIANGLES);
     const vertex = [Number(m[1]), Number(m[2]), Number(m[3])];
     if (vertex.some((value) => !Number.isFinite(value)))
-      throw new OmenflowError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
+      throw new BureauError(ErrorCodes.VALIDATION, 'STL contains non-finite coordinates');
     vals.push(...vertex);
   }
   if (vals.length % 9)
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'ASCII STL contains an incomplete triangle');
+    throw new BureauError(ErrorCodes.VALIDATION, 'ASCII STL contains an incomplete triangle');
   return Float64Array.from(vals);
 }
 
@@ -798,7 +798,7 @@ export async function analyzeMeshCancellable(
   tris: TriangleBuffer,
   signal?: AbortSignal,
 ): Promise<MeshReport> {
-  if (signal?.aborted) throw new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled');
+  if (signal?.aborted) throw new BureauError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled');
   if (!signal && triangleCount(tris) < MESH_WORKER_MIN_TRIANGLES) return analyzeMesh(tris);
   return runMeshTask<MeshReport>({ operation: 'analyze', tris }, signal);
 }
@@ -814,8 +814,8 @@ export function runMeshTask<T>(data: Record<string, unknown>, signal?: AbortSign
       });
     } catch (error) {
       if (signal?.aborted)
-        return reject(new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled'));
-      return reject(OmenflowError.from(error));
+        return reject(new BureauError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled'));
+      return reject(BureauError.from(error));
     }
     const done = (fn: () => void) => {
       if (settled) return;
@@ -825,31 +825,31 @@ export function runMeshTask<T>(data: Record<string, unknown>, signal?: AbortSign
       fn();
     };
     const onAbort = () =>
-      done(() => reject(new OmenflowError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled')));
+      done(() => reject(new BureauError(ErrorCodes.CANCELLED, 'Mesh analysis was cancelled')));
     if (signal) {
       if (signal.aborted) return onAbort();
       signal.addEventListener('abort', onAbort, { once: true });
     }
-    worker.once('message', (message: { ok?: boolean; report?: T; error?: OmenflowErrorBody }) => {
+    worker.once('message', (message: { ok?: boolean; report?: T; error?: BureauErrorBody }) => {
       if (message?.ok && message.report) done(() => resolve(message.report!));
       else if (signal?.aborted) onAbort();
       else
         done(() =>
           reject(
             message.error
-              ? OmenflowError.fromBody(message.error)
-              : new OmenflowError(ErrorCodes.INTERNAL, 'Mesh worker returned no analysis'),
+              ? BureauError.fromBody(message.error)
+              : new BureauError(ErrorCodes.INTERNAL, 'Mesh worker returned no analysis'),
           ),
         );
     });
     worker.once('error', (error) => {
       if (signal?.aborted) return onAbort();
-      done(() => reject(OmenflowError.from(error)));
+      done(() => reject(BureauError.from(error)));
     });
     worker.once('exit', (code) =>
       done(() =>
         reject(
-          new OmenflowError(
+          new BureauError(
             ErrorCodes.JOB_INTERRUPTED,
             `Mesh worker exited before returning analysis (code ${code})`,
           ),
@@ -887,7 +887,7 @@ export function writeBinaryStl(tris: TriangleBuffer): Buffer {
   assertFiniteMesh(tris);
   const n = triangleCount(tris);
   const buf = Buffer.alloc(84 + n * 50);
-  buf.write('omenflow', 0, 'ascii');
+  buf.write('bureau', 0, 'ascii');
   buf.writeUInt32LE(n, 80);
   for (let i = 0; i < n; i++) {
     const base = 84 + i * 50 + 12;

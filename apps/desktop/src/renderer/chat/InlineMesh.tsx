@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowsOut, CornersOut, CornersIn } from '@phosphor-icons/react';
-import type { MechanicalPayload, Revision } from '@omenflow/contracts';
+import { ArrowsOut, CornersOut, CornersIn } from '../ui/icons';
+import type { MechanicalPayload, Revision } from '@bureau/contracts';
 import { Button, Spinner } from '../ui/kit';
 import { useRevisionMesh } from '../object/mechanical/useCad';
 import { ViewportScene, type SceneTheme } from '../object/viewport/scene';

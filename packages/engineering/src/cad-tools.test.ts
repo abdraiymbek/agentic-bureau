@@ -2,8 +2,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Origin } from '@omenflow/contracts';
-import { CoreApp, nullHost, cadInspect, type CadReport } from '@omenflow/core';
+import type { Origin } from '@bureau/contracts';
+import { CoreApp, nullHost, cadInspect, type CadReport } from '@bureau/core';
 import { createEngineTools, OpenScadAdapter } from './index.js';
 
 /**
@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 async function project() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-cadtools-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-cadtools-'));
   const app = new CoreApp(path.join(dir, 'appdata'), nullHost);
   app.engineTools = createEngineTools();
   apps.push(app);

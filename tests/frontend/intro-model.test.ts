@@ -172,8 +172,8 @@ describe('platform copy', () => {
     expect(engineInstallHint('mac').command).toBe('brew install --cask openscad@snapshot');
     expect(engineInstallHint('linux').command).toBe('sudo apt install openscad');
     expect(engineInstallHint('other').command).toBeNull();
-    expect(settingsFolder('mac')).toContain('app.omenflow.desktop');
-    expect(settingsFolder('linux')).toBe('~/.local/share/app.omenflow.desktop');
+    expect(settingsFolder('mac')).toContain('app.agenticbureau.desktop');
+    expect(settingsFolder('linux')).toBe('~/.local/share/app.agenticbureau.desktop');
   });
 });
 

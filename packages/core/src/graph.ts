@@ -9,10 +9,10 @@ import {
   RecordedInput,
   Revision,
   RevisionRef,
-  OmenflowError,
+  BureauError,
   StaleRecord,
   newId,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 
 /**
@@ -137,7 +137,7 @@ function requireValidReferences(
     ctx.requireArtifact(input.artifactId);
     const revision = ctx.requireRevision(input.revisionId);
     if (revision.artifactId !== input.artifactId) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.VALIDATION,
         'Input revision does not belong to its artifact',
         {
@@ -146,7 +146,7 @@ function requireValidReferences(
       );
     }
     if (input.artifactId === artifactId && EVAL_RELATIONSHIPS.includes(input.relationship)) {
-      throw new OmenflowError(ErrorCodes.CYCLE_DETECTED, 'An artifact cannot depend on itself', {
+      throw new BureauError(ErrorCodes.CYCLE_DETECTED, 'An artifact cannot depend on itself', {
         details: { path: [artifactId, artifactId] },
       });
     }
@@ -173,7 +173,7 @@ function assertNoCycles(graph: GraphSnapshot): void {
       const id = edge.downstreamArtifactId;
       if (state.get(id) === 'visiting') {
         const first = stack.findIndex((f) => f.id === id);
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.CYCLE_DETECTED,
           'Revision inputs would create a dependency cycle',
           {
@@ -249,12 +249,12 @@ export function addEdge(
   ctx.requireArtifact(upstreamArtifactId);
   ctx.requireArtifact(downstreamArtifactId);
   if (upstreamArtifactId === downstreamArtifactId) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Self-edge not allowed');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Self-edge not allowed');
   }
   if (EVAL_RELATIONSHIPS.includes(relationship)) {
     const cycle = findCycle(ctx, upstreamArtifactId, downstreamArtifactId);
     if (cycle) {
-      throw new OmenflowError(
+      throw new BureauError(
         ErrorCodes.CYCLE_DETECTED,
         `Adding ${relationship} edge would create a cycle`,
         {
@@ -523,7 +523,7 @@ export function impactReport(
     const rowBytes = Buffer.byteLength(JSON.stringify(row)) + 1;
     if (bytes + rowBytes > budget) {
       if (result.affected.length === 0)
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.VALIDATION,
           'Impact page exceeds the response budget; use fewer changed refs or includePaths: false',
         );

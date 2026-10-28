@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
-import type { ChatRecord, ChatInput, ChatPart, ChatCard, ChatTurn } from '@omenflow/contracts';
+import { CHAT_CONTINUE_TEXT } from '@bureau/contracts/chat';
+import type { ChatRecord, ChatInput, ChatPart, ChatCard, ChatTurn } from '@bureau/contracts';
 import { cmd, errMsg, CommandError } from '../api';
 import { resolveInspection } from './inspection';
 import { shareDeep } from '../lib/share';
@@ -52,7 +52,7 @@ interface ChatState {
   open: (project: string, part: ChatPart) => Promise<void>;
   cancel: (project: string, conversation: string) => Promise<void>;
 }
-const key = (project: string) => `omen.chat.v1.${project}`;
+const key = (project: string) => `bureau.chat.v1.${project}`;
 const emptyRecord = (): ChatRecord => ({ version: 1, conversations: [] });
 function initial(project: string): ProjectChat {
   let saved: Partial<ProjectChat> = {};
@@ -285,7 +285,7 @@ export const useChat = create<ChatState>((set, get) => {
           },
         },
       }));
-      window.dispatchEvent?.(new Event('omenflow:focus-composer'));
+      window.dispatchEvent?.(new Event('bureau:focus-composer'));
     },
     open: async (project, part) => {
       get().ensure(project);
@@ -321,7 +321,7 @@ export const useChat = create<ChatState>((set, get) => {
         });
       }
       window.dispatchEvent?.(
-        new CustomEvent('omenflow:open-card', { detail: { project, conversationId } }),
+        new CustomEvent('bureau:open-card', { detail: { project, conversationId } }),
       );
     },
     send: async (project, adapter, retry) => {

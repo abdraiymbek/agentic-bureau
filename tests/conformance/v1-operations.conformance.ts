@@ -35,7 +35,7 @@ const refusal = (call: Promise<unknown>) =>
   );
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-v1-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-v1-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',
@@ -280,8 +280,8 @@ describe('image.view', () => {
     });
     expect(shown.grid.x[0]).toBe(0);
     const [picture] = shown.images;
-    expect(picture.path).toMatch(/^\.omenflow\/cache\/views-v1\/[0-9a-f]{64}\.png$/);
-    // Through `omenflow call` the result names the file; nothing is attached.
+    expect(picture.path).toMatch(/^\.bureau\/cache\/views-v1\/[0-9a-f]{64}\.png$/);
+    // Through `bureau call` the result names the file; nothing is attached.
     expect(picture).not.toHaveProperty('attached');
     expect(JSON.stringify(shown)).not.toMatch(/"data"/);
     expect(shown.notes).toContain(

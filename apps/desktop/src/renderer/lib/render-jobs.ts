@@ -3,7 +3,7 @@
  * and export jobs belong to a part and what state they are in, where the core will accept a
  * render, and what a STEP export wrote.
  */
-import type { Job, MechanicalPayload, Revision } from '@omenflow/contracts';
+import type { Job, MechanicalPayload, Revision } from '@bureau/contracts';
 import { formatQuantity } from '../ui/format';
 import { formatBytes } from './diff';
 import { sameValue } from './revision-draft';

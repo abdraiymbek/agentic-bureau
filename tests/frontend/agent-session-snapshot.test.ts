@@ -77,7 +77,7 @@ describe('terminal snapshot metadata', () => {
     );
     vi.stubGlobal('window', {
       clearTimeout,
-      omenflow: {
+      bureau: {
         onTerminalData: () => () => {},
         onTerminalState: (listener: (state: unknown) => void) => {
           harness.stateListener = listener;

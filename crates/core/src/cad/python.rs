@@ -1,8 +1,9 @@
 //! Python with OCP, the OpenCASCADE bindings CadQuery uses: the optional
-//! converter behind exact STEP export. Omen Flow never ships or downloads
+//! converter behind exact STEP export. Bureau never ships or downloads
 //! OpenCASCADE; it looks for a Python the person installed, the way it looks
-//! for OpenSCAD: the Settings path, `OMENFLOW_PYTHON`, the conventional
-//! virtual environment `~/.omenflow-step`, `python3` and `python` on PATH,
+//! for OpenSCAD: the Settings path, `BUREAU_PYTHON`, the conventional
+//! virtual environment `~/.bureau-step` (or `~/.omenflow-step` from before the
+//! rename), `python3` and `python` on PATH,
 //! the platform's usual places and, on macOS, a login shell. A Python is
 //! usable when it imports OCP.
 use super::*;
@@ -18,7 +19,7 @@ const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 /// trusted only briefly, and only by an export's own search.
 const MISSING_TTL: Duration = Duration::from_secs(60);
 const MAX_TRIED: usize = 8;
-const CHECK_SCRIPT: &str = "import sys, OCP; print('OMENFLOW-OCP', getattr(OCP, '__version__', 'unknown'), sys.version.split()[0])";
+const CHECK_SCRIPT: &str = "import sys, OCP; print('BUREAU-OCP', getattr(OCP, '__version__', 'unknown'), sys.version.split()[0])";
 pub(crate) const MISSING: &str = "No Python with OCP (OpenCASCADE) was found";
 
 pub(crate) struct Python {
@@ -31,7 +32,7 @@ pub(crate) struct Python {
 
 pub(crate) struct Search {
     pub found: Option<Python>,
-    /// Said when the configured (or `OMENFLOW_PYTHON`) Python was unusable.
+    /// Said when the configured (or `BUREAU_PYTHON`) Python was unusable.
     pub note: Option<String>,
     /// The first candidates that failed, with why.
     pub tried: Vec<(PathBuf, String)>,
@@ -86,10 +87,14 @@ fn candidates(
     }
     let automatic = out.len();
     if let Some(home) = home {
-        out.push(match os {
-            Os::Windows => home.join(r".omenflow-step\Scripts\python.exe"),
-            _ => home.join(".omenflow-step/bin/python3"),
-        });
+        // `~/.omenflow-step` is the same environment made before the rename;
+        // a virtual environment cannot be moved, so it is looked for as is.
+        for folder in [".bureau-step", ".omenflow-step"] {
+            out.push(match os {
+                Os::Windows => home.join(format!(r"{folder}\Scripts\python.exe")),
+                _ => home.join(folder).join("bin/python3"),
+            });
+        }
     }
     let names: &[&str] = match os {
         Os::Windows => &["python3.exe", "python.exe"],
@@ -150,7 +155,7 @@ fn machine_candidates(configured: Option<&Path>) -> (Vec<PathBuf>, usize) {
         .map(PathBuf::from);
     candidates(
         configured,
-        std::env::var_os("OMENFLOW_PYTHON").as_deref(),
+        std::env::var_os("BUREAU_PYTHON").as_deref(),
         home.as_deref(),
         std::env::var_os("PATH").as_deref(),
         Os::current(),
@@ -183,7 +188,7 @@ fn checks() -> &'static Mutex<HashMap<PathBuf, Remembered>> {
 fn answer_line(log: &str) -> Option<(String, String)> {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern =
-        PATTERN.get_or_init(|| Regex::new(r"^OMENFLOW-OCP (\S+) (\S+)$").expect("static pattern"));
+        PATTERN.get_or_init(|| Regex::new(r"^BUREAU-OCP (\S+) (\S+)$").expect("static pattern"));
     log.lines().find_map(|line| {
         pattern
             .captures(line.trim())
@@ -433,7 +438,7 @@ mod tests {
             .unwrap_or(0)
     }
 
-    const WITH_OCP: &str = "[ \"$1\" = \"-E\" ] || exit 3\necho 'OMENFLOW-OCP 7.9.3.1 3.12.14'";
+    const WITH_OCP: &str = "[ \"$1\" = \"-E\" ] || exit 3\necho 'BUREAU-OCP 7.9.3.1 3.12.14'";
     const WITHOUT_OCP: &str = "echo 'Traceback (most recent call last):' >&2\necho \"ModuleNotFoundError: No module named 'OCP'\" >&2\nexit 1";
 
     #[test]
@@ -453,6 +458,7 @@ mod tests {
             [
                 "/Users/me/venvs/ocp/bin/python",
                 "/Users/me/other/python3",
+                "/Users/me/.bureau-step/bin/python3",
                 "/Users/me/.omenflow-step/bin/python3",
                 "/opt/homebrew/bin/python3",
                 "/opt/homebrew/bin/python",
@@ -478,7 +484,7 @@ mod tests {
         assert_eq!(none, 0);
         assert_eq!(
             linux[0],
-            PathBuf::from("/Users/me/.omenflow-step/bin/python3")
+            PathBuf::from("/Users/me/.bureau-step/bin/python3")
         );
         assert!(linux.contains(&PathBuf::from("/usr/bin/python3")));
         assert_eq!(
@@ -496,8 +502,11 @@ mod tests {
             )),
             Os::Windows,
         );
-        assert_eq!(windows.len(), 1, "{windows:?}");
+        assert_eq!(windows.len(), 2, "{windows:?}");
         assert!(windows[0]
+            .to_string_lossy()
+            .ends_with(r".bureau-step\Scripts\python.exe"));
+        assert!(windows[1]
             .to_string_lossy()
             .ends_with(r".omenflow-step\Scripts\python.exe"));
         assert_eq!(
@@ -573,8 +582,8 @@ mod tests {
         fs::create_dir_all(venv.parent().unwrap()).unwrap();
         std::os::unix::fs::symlink(&base, &venv).unwrap();
         assert_eq!(
-            omenflow_storage::canonicalize(&venv).unwrap(),
-            omenflow_storage::canonicalize(&base).unwrap()
+            bureau_storage::canonicalize(&venv).unwrap(),
+            bureau_storage::canonicalize(&base).unwrap()
         );
         let search = find_in(
             vec![base.clone(), base.clone(), venv.clone()],

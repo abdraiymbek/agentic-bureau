@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NativeShutdownRequest, OmenflowApi } from '../../apps/desktop/src/renderer/api';
+import type { NativeShutdownRequest, BureauApi } from '../../apps/desktop/src/renderer/api';
 import {
   clearAllUnsaved,
   listUnsaved,
@@ -20,7 +20,7 @@ const api = {
     return vi.fn();
   },
   replyToShutdown: reply,
-} as unknown as OmenflowApi;
+} as unknown as BureauApi;
 
 const flush = async () => {
   await Promise.resolve();
@@ -60,7 +60,7 @@ describe('native close and quit', () => {
     receive({ requestId: 'quit', action: 'quit' });
     await flush();
     expect(prompts).toHaveLength(1);
-    expect(prompts[0]!.action).toBe('quit Omen Flow');
+    expect(prompts[0]!.action).toBe('quit Bureau');
     expect(reply.mock.calls).toEqual([['quit', 'received']]);
     prompts[0]!.cancel();
     await flush();

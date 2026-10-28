@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { Disclosure, Spinner } from '../ui/kit';
 import { diffFiles, diffLines, formatBytes, textContent, type FileChange } from '../lib/diff';

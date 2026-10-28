@@ -1,6 +1,6 @@
 # Start a session
 
-Omen Flow is a local engineering workspace. Everything is an artifact (requirement, part, component, wiring, calculation, test, note) with immutable revisions. You author drafts; only the human approves them into the baseline.
+Bureau is a local engineering workspace. Everything is an artifact (requirement, part, component, wiring, calculation, test, note) with immutable revisions. You author drafts; only the human approves them into the baseline.
 
 1. Call project_summary once, unless your session brief says to skip it. Read the intent, the requirements, what is waiting for review and your unfinished work.
 2. Find ids with artifact_list (filter by type) and read content with artifact_read. Do not explore the filesystem or run git: files under artifacts/ are read-only mirrors, and a change counts only when a tool records it as a revision. A drawing or other image: image_view it whole with its grid, then a region [x0,y0,x1,y1] where callouts are too small to read; take dimensions from the printed numbers, never by scaling pixels.

@@ -1,4 +1,4 @@
-import type { ResponseEnvelope, OmenflowErrorBody } from '@omenflow/contracts';
+import type { ResponseEnvelope, BureauErrorBody } from '@bureau/contracts';
 
 export interface NativeShutdownRequest {
   requestId: string;
@@ -10,7 +10,7 @@ export interface ChatChange {
   seq: number;
 }
 
-export interface OmenflowApi {
+export interface BureauApi {
   command(
     op: string,
     payload: unknown,
@@ -50,15 +50,15 @@ export interface OmenflowApi {
 
 declare global {
   interface Window {
-    omenflow: OmenflowApi;
+    bureau: BureauApi;
   }
 }
 
 export class CommandError extends Error {
-  body: OmenflowErrorBody;
+  body: BureauErrorBody;
   /** The operation that failed, when the error came from `cmd`. */
   op: string | undefined;
-  constructor(body: OmenflowErrorBody, op?: string) {
+  constructor(body: BureauErrorBody, op?: string) {
     super(body.message);
     this.body = body;
     this.op = op;
@@ -101,9 +101,9 @@ export async function cmd<T = unknown>(
   payload: unknown = {},
   opts?: { idempotencyKey?: string; projectId?: string },
 ): Promise<T> {
-  let res: Awaited<ReturnType<OmenflowApi['command']>>;
+  let res: Awaited<ReturnType<BureauApi['command']>>;
   try {
-    res = await window.omenflow.command(op, payload, opts);
+    res = await window.bureau.command(op, payload, opts);
   } catch (e) {
     throw new CommandError(
       { code: 'INTERNAL', message: e instanceof Error ? e.message : String(e) },
@@ -111,7 +111,7 @@ export async function cmd<T = unknown>(
     );
   }
   if (!res.ok) {
-    const body = (res.error as OmenflowErrorBody | undefined) ?? {
+    const body = (res.error as BureauErrorBody | undefined) ?? {
       code: 'INTERNAL',
       message: 'unknown error',
     };

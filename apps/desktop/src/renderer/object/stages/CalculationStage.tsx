@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { CalculationPayload, Revision } from '@omenflow/contracts';
+import type { CalculationPayload, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../../api';
 import { useStore } from '../../store';
 import { Block, Button, Notice, State, relativeTime, shortId } from '../../ui/kit';

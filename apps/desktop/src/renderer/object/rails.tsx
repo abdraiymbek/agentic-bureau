@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { ArrowSquareOut, CaretDoubleLeft, CaretDoubleRight } from '@phosphor-icons/react';
-import type { ArtifactView, MechanicalPayload, Revision } from '@omenflow/contracts';
+import { ArrowSquareOut, CaretDoubleLeft, CaretDoubleRight } from '../ui/icons';
+import type { ArtifactView, MechanicalPayload, Revision } from '@bureau/contracts';
 import { cmd, errMsg } from '../api';
 import { useStore } from '../store';
 import { relationshipLabel, type Link } from '../lib/graph';
@@ -21,7 +21,7 @@ import { useNavigate } from './stages/shared';
 
 /**
  * One side rail of the object view: inputs on the left, consequences on the right. It folds to
- * its edge (remembered for every object, `omen.rails`), and a rail that fails to render says so
+ * its edge (remembered for every object, `bureau.rails`), and a rail that fails to render says so
  * while the stage and the other rail keep working.
  */
 export function ObjectRail({

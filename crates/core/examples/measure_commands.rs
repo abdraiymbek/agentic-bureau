@@ -1,5 +1,5 @@
 //! Comparable source-core latency samples on the disposable release fixture.
-use omenflow_core::{CoreApp, Origin};
+use bureau_core::{CoreApp, Origin};
 use serde_json::{json, Value};
 use std::{
     env, fs,

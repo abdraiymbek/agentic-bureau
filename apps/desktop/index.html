@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'sha256-JAhKTeCkt4cHufq05GcG7R/kwv6VEvB/I+p0bLKn5R4='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* http://localhost:*; worker-src 'self' blob:"
+      content="default-src 'self'; script-src 'self' 'sha256-cxgsDE+OKij+iVHZfDjyzNDNnb3hvy8hRgvlixkscPs='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' ipc: http://ipc.localhost ws://localhost:* http://localhost:*; worker-src 'self' blob:"
     />
     <meta name="color-scheme" content="dark light" />
     <!-- Theme before first paint: the stored preference, read the way store.ts reads it. Allowed
@@ -13,13 +13,13 @@
     <script>
       try {
         document.documentElement.dataset.theme =
-          localStorage.getItem('omen.theme') === 'light' ? 'light' : 'dark';
+          localStorage.getItem('bureau.theme') === 'light' ? 'light' : 'dark';
       } catch {
         document.documentElement.dataset.theme = 'dark';
       }
     </script>
     <link rel="icon" type="image/png" href="/src/renderer/assets/favicon.png" />
-    <title>Omen Flow</title>
+    <title>Bureau</title>
   </head>
   <body>
     <div id="root"></div>

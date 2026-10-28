@@ -3,7 +3,7 @@
  * the rover fixture use, placed left to right by causal layer the way the Flow lens places them.
  * Positions are in map units; the introduction scales the whole map to the window.
  */
-import type { ArtifactType } from '@omenflow/contracts';
+import type { ArtifactType } from '@bureau/contracts';
 
 export const NODE_W = 216;
 export const NODE_H = 40;

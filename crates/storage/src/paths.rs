@@ -89,7 +89,14 @@ pub fn resolve_materialization_path(
             _ => None,
         });
     if [first, actual_first].into_iter().flatten().any(|name| {
-        name.eq_ignore_ascii_case(".omenflow") || name.eq_ignore_ascii_case("omenflow.project.json")
+        [
+            ".bureau",
+            "bureau.project.json",
+            ".omenflow",
+            "omenflow.project.json",
+        ]
+        .iter()
+        .any(|reserved| name.eq_ignore_ascii_case(reserved))
     }) {
         return Err(StorageError::domain(
             "PATH_OUTSIDE_PROJECT",
@@ -108,7 +115,7 @@ pub fn write_materialized_file(
     let path = resolve_materialization_path(root, relative)?;
     fs::create_dir_all(path.parent().expect("resolved file has parent"))?;
     resolve_materialization_path(root, relative)?;
-    let temp = path.with_file_name(format!(".omenflow-write-{}", uuid::Uuid::new_v4()));
+    let temp = path.with_file_name(format!(".bureau-write-{}", uuid::Uuid::new_v4()));
     let result = (|| {
         use std::io::Write;
         let mut file = fs::OpenOptions::new()
@@ -135,7 +142,7 @@ mod tests {
         assert!(resolve_project_path(root.path(), "artifacts/a.scad").is_ok());
         assert!(resolve_project_path(root.path(), "../outside").is_err());
         assert!(resolve_project_path(root.path(), "C:\\outside").is_err());
-        assert!(resolve_materialization_path(root.path(), ".omenflow/state.sqlite").is_err());
+        assert!(resolve_materialization_path(root.path(), ".bureau/state.sqlite").is_err());
     }
 
     #[cfg(unix)]

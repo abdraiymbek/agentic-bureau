@@ -1,6 +1,6 @@
 import React from 'react';
-import { ArrowRight, At, CaretRight } from '@phosphor-icons/react';
-import type { ArtifactView, StaleRecord } from '@omenflow/contracts';
+import { ArrowRight, At, CaretRight } from '../ui/icons';
+import type { ArtifactView, StaleRecord } from '@bureau/contracts';
 import { openProposals, useStore } from '../store';
 import { Button, Notice, Skeleton, State, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
 import { otherDraftCount } from '../lib/mechanical-revisions';
@@ -29,7 +29,7 @@ export function StageHeader({ view }: { view: ArtifactView }) {
   const fresh = freshnessLabel(view.freshness, view.staleReasons, artifacts);
   const ask = () =>
     askAbout(
-      `About the Omen Flow ${meta.label.toLowerCase()} "${view.artifact.title}" (artifact ${view.artifact.id}${rev ? `, revision ${rev.seq}` : ''}): `,
+      `About the Bureau ${meta.label.toLowerCase()} "${view.artifact.title}" (artifact ${view.artifact.id}${rev ? `, revision ${rev.seq}` : ''}): `,
     );
   return (
     <header className="stage-head">

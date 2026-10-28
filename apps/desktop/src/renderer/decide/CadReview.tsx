@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { MechanicalPayload, Revision } from '@omenflow/contracts';
+import type { MechanicalPayload, Revision } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { Checkbox, Disclosure, Notice, Segmented, Spinner, State, type Tone } from '../ui/kit';
 import { StlViewport, type ViewportStatus } from '../object/StlViewport';

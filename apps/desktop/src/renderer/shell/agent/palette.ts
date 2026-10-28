@@ -1,7 +1,7 @@
 /**
  * The terminal's colours, read from the design tokens: `--terminal-*` for the surface, cursor and
  * selection, the sixteen `--ansi-*` colours, and the themed scrollbar. Every colour is set, so
- * xterm's own defaults (unreadable on Paper) never show.
+ * xterm's own defaults (unreadable on the light theme) never show.
  */
 import type { ITheme } from '@xterm/xterm';
 

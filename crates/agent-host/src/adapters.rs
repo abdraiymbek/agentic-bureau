@@ -1,10 +1,10 @@
-//! The agent CLIs Omen Flow can host, as data: one definition per CLI saying
-//! how to find it, how to hand it the Omen Flow MCP server, how its tools are
+//! The agent CLIs Bureau can host, as data: one definition per CLI saying
+//! how to find it, how to hand it the Bureau MCP server, how its tools are
 //! pre-approved, which channels carry guidance, and which models it offers.
 //! Adding a CLI that uses an existing injection method is one more record.
 
 use crate::profile::{profile_for_model, resolve_profile, ProfileSetting};
-use omenflow_contracts::Profile;
+use bureau_contracts::Profile;
 use serde_json::{json, Value};
 use std::fmt;
 use std::io::Read;
@@ -14,21 +14,21 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Name of the MCP server in every CLI's configuration.
-pub const SERVER_NAME: &str = "omenflow";
+pub const SERVER_NAME: &str = "bureau";
 
 /// The four variables that carry a session's bridge credentials.
 pub const BRIDGE_ENV: [&str; 4] = [
-    "OMENFLOW_BRIDGE_SOCK",
-    "OMENFLOW_BRIDGE_TOKEN",
-    "OMENFLOW_PROJECT_ID",
-    "OMENFLOW_SESSION_ID",
+    "BUREAU_BRIDGE_SOCK",
+    "BUREAU_BRIDGE_TOKEN",
+    "BUREAU_PROJECT_ID",
+    "BUREAU_SESSION_ID",
 ];
 
-/// How a CLI is told about the Omen Flow MCP server for one session, without
+/// How a CLI is told about the Bureau MCP server for one session, without
 /// touching the person's own configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpInjection {
-    /// Codex: repeated `-c mcp_servers.omenflow.<key>=<toml>` overrides. The
+    /// Codex: repeated `-c mcp_servers.bureau.<key>=<toml>` overrides. The
     /// credentials are forwarded by name, never placed in arguments.
     CodexOverrides,
     /// Claude Code: `--mcp-config <file>` naming a JSON file in the session's
@@ -45,7 +45,7 @@ pub enum McpInjection {
     /// OpenCode: the whole configuration inline in one environment variable.
     InlineConfig { variable: &'static str },
     /// No injection: the CLI inherits the bridge variables and finds the
-    /// `omenflow` helper on its PATH.
+    /// `bureau` helper on its PATH.
     EnvironmentOnly,
 }
 
@@ -80,9 +80,9 @@ impl GuideChannel {
 }
 
 /// How a CLI continues an earlier conversation: it is started with a
-/// conversation id Omen Flow chooses, and resumed later by that id. A CLI
+/// conversation id Bureau chooses, and resumed later by that id. A CLI
 /// that only offers "the most recent conversation in this folder" is not
-/// resumable here, because that may be a conversation Omen Flow never saw.
+/// resumable here, because that may be a conversation Bureau never saw.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resume {
     /// Flag that assigns the id on a fresh start.
@@ -114,7 +114,7 @@ impl SuggestedModel {
     }
 }
 
-/// A short name a CLI resolves itself, and the full id Omen Flow passes instead.
+/// A short name a CLI resolves itself, and the full id Bureau passes instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ModelAlias {
     pub alias: &'static str,
@@ -269,7 +269,7 @@ fn claude_settings_sources(
 /// project folder: [`Routing::system`], or a fixed answer in tests.
 pub type RoutingLookup = fn(&AdapterSpec, &AdapterConfig, Option<&Path>) -> Routing;
 
-/// What the person's own configuration outside Omen Flow says about routing a CLI's models:
+/// What the person's own configuration outside Bureau says about routing a CLI's models:
 /// the variables the host inherited and those the CLI's settings set, whether a setting maps
 /// model ids itself, and whether a source the CLI reads could not be read here. Reading it
 /// touches files and may run `plutil` or `reg`, so it is never done under the workspace lock.
@@ -386,7 +386,7 @@ impl Routing {
         }
     }
 
-    /// The value the CLI will see for `key`: its settings files over what Omen Flow sets for
+    /// The value the CLI will see for `key`: its settings files over what Bureau sets for
     /// the adapter (`configured`, last entry wins) over the inherited environment.
     fn value<'a>(&'a self, configured: &'a [(String, String)], key: &str) -> Option<&'a str> {
         let last = |pairs: &'a [(String, String)]| {
@@ -630,7 +630,7 @@ pub static ADAPTERS: [AdapterSpec; 6] = [
         docs_url: Some("https://code.claude.com/docs/en/mcp"),
         verified: true,
         mcp: McpInjection::ClaudeConfigFile,
-        launch_args: &["--allowedTools", "mcp__omenflow"],
+        launch_args: &["--allowedTools", "mcp__bureau"],
         guidance: &[
             GuideChannel::McpInstructions,
             GuideChannel::SystemPromptFile("--append-system-prompt-file"),
@@ -813,8 +813,8 @@ pub fn adapter(id: &str) -> Option<&'static AdapterSpec> {
 }
 
 /// The variable a custom adapter's configured environment sets to `off` to
-/// keep Omen Flow from writing its block into the project's `AGENTS.md`.
-pub const AGENTS_MD_SWITCH: &str = "OMENFLOW_AGENTS_MD";
+/// keep Bureau from writing its block into the project's `AGENTS.md`.
+pub const AGENTS_MD_SWITCH: &str = "BUREAU_AGENTS_MD";
 
 impl AdapterSpec {
     /// Whether the session writes the bounded `AGENTS.md` block: only for a
@@ -833,7 +833,7 @@ impl AdapterSpec {
 
     /// The model id to launch: a listed alias becomes its full id, unless the person routes
     /// models themselves; any other id (a dated id, `opusplan`, a provider's id) is passed as
-    /// written. `configured` is the environment Omen Flow sets for the adapter.
+    /// written. `configured` is the environment Bureau sets for the adapter.
     pub fn canonical_model(
         &self,
         model: &str,
@@ -869,7 +869,7 @@ impl AdapterSpec {
         }
     }
 
-    /// Whether the CLI is told about the MCP server by Omen Flow.
+    /// Whether the CLI is told about the MCP server by Bureau.
     pub fn injects_mcp(&self) -> bool {
         self.mcp != McpInjection::EnvironmentOnly
     }
@@ -1045,10 +1045,10 @@ impl SearchPath {
     /// vanish when it quits.
     pub fn system() -> Self {
         let mut found = Self::system_unfiltered();
-        if let Some(bundle) = omenflow_core::child_env::appimage_dir() {
+        if let Some(bundle) = bureau_core::child_env::appimage_dir() {
             found
                 .dirs
-                .retain(|dir| !omenflow_core::child_env::is_inside(dir, &bundle));
+                .retain(|dir| !bureau_core::child_env::is_inside(dir, &bundle));
         }
         found
     }
@@ -1111,7 +1111,7 @@ impl SearchPath {
         })
     }
 
-    /// The PATH for an agent process: `first` (the folder of the `omenflow`
+    /// The PATH for an agent process: `first` (the folder of the `bureau`
     /// helper), then every search folder.
     pub fn child_path(&self, first: &Path) -> String {
         let dirs = std::iter::once(first.to_owned()).chain(self.dirs.iter().cloned());
@@ -1197,8 +1197,8 @@ pub fn warm() {
     thread::spawn(login_shell_path);
 }
 
-const PATH_BEGIN: &str = "__OMENFLOW_PATH_BEGIN__";
-const PATH_END: &str = "__OMENFLOW_PATH_END__";
+const PATH_BEGIN: &str = "__BUREAU_PATH_BEGIN__";
+const PATH_END: &str = "__BUREAU_PATH_END__";
 
 /// Ask an interactive login shell for its PATH. Start-up files may print
 /// anything, so the value is read from between two markers.
@@ -1227,7 +1227,7 @@ pub fn probe_version(path: &Path, args: &[&str], timeout: Duration) -> Option<St
 fn run_bounded(program: &Path, args: &[&str], timeout: Duration, limit: u64) -> Option<String> {
     use std::process::{Command, Stdio};
     let mut command = Command::new(program);
-    omenflow_core::child_env::apply(&mut command);
+    bureau_core::child_env::apply(&mut command);
     command
         .args(args)
         .stdin(Stdio::null())
@@ -1505,7 +1505,7 @@ mod tests {
                 "{routing:?}"
             );
         }
-        // What Omen Flow sets for the adapter wins over the inherited value; the CLI's own
+        // What Bureau sets for the adapter wins over the inherited value; the CLI's own
         // settings win over both, as the CLI applies them last.
         let inherited = Routing::of(&[("ANTHROPIC_DEFAULT_HAIKU_MODEL", "my-haiku")], &[], false);
         assert_eq!(

@@ -1,4 +1,4 @@
-import type { MechanicalPayload, Revision } from '@omenflow/contracts';
+import type { MechanicalPayload, Revision } from '@bureau/contracts';
 
 function revisionById(revisions: Revision[]): Map<string, Revision> {
   return new Map(revisions.map((revision) => [revision.id, revision]));

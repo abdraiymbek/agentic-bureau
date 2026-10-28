@@ -1,16 +1,19 @@
-# Omen Flow design system — Lens
+# Bureau design system — Lens
 
-Version 2.5 · 21 October 2026 · **See the whole. Focus on one. Decide.**
+Version 3.0 · 27 October 2026 · **See the whole. Focus on one. Decide.**
 
-Lens is the design language and interaction model of Omen Flow. It replaces the previous
-sidebar-and-dashboard system entirely; no component, layout, or token from that system is a
-compatibility constraint. The executable references are [`tokens.css`](tokens.css), the
-primitives in `apps/desktop/src/renderer/ui/kit.tsx`, the stylesheets in
+Lens is the interaction model of Bureau (Agentic Bureau, formerly Omen Flow): three zoom
+levels in a causal grammar. Version 3.0 gives it the Bureau visual language: a Carbon window,
+one sheet for the work, a navigation sidebar (never a dashboard), Mona Sans and JetBrains Mono,
+one cyan signal, soft frames and square pixels taken from the mark, and dark and light themes
+that share every role. The executable references are [`tokens.css`](tokens.css), the
+primitives in `apps/desktop/src/renderer/ui/kit.tsx`, the icons in
+`apps/desktop/src/renderer/ui/icons.tsx`, the stylesheets in
 `apps/desktop/src/renderer/styles/`, and the in-app **Design system** view.
 
 ## 1. Why Lens exists
 
-Omen Flow connects intent, parts, design, and evidence in one engineering record, and an agent
+Bureau connects intent, parts, design, and evidence in one engineering record, and an agent
 CLI does much of the authoring. The human's job shifts from _producing_ artifacts to _directing
 and deciding_. An interface organised by file type and discipline — nine routes, a dashboard,
 an inspector, a status bar — makes the human do the connecting. Lens organises the interface
@@ -36,13 +39,14 @@ around the three things a person actually does:
 
 ## 3. Interaction model: semantic zoom
 
-Omen Flow has three zoom levels plus the agent. Navigation is a 48 px **activity bar** on the
-left edge: the Agent tab first, then the lens tabs and Decisions. There is no dashboard.
+Bureau has three zoom levels plus the agent. Navigation is the **sidebar** on the window's
+left edge: the project and its census, search, the Agent, Decisions, the lenses and the
+project's conversations. The work sits on one **sheet** beside it. There is no dashboard.
 
 | Level        | What fills the stage                                                                               | How you get here                                                 |
 | ------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | Agent        | The conversation or the real agent terminal (PTY) under a slim session bar, with the activity rail | The first activity-bar tab, “Agent” in `⌘K`                      |
-| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files, Evidence               | Lens tabs on the activity bar, the mark, `Esc`, `⌘1–5`           |
+| 0 · Project  | The whole project, seen through one lens: **Flow**, Parts, Timeline, Files, Evidence               | Lenses in the sidebar, `Esc`, `⌘1–5`                             |
 | 1 · Object   | One object on the stage, its inputs on the left rail, consequences on the right                    | Click a node, a link on a rail, a row anywhere, or `⌘K`          |
 | 2 · Decision | One proposal: changes in the centre, impact on the right, decision pinned below                    | The “to review” pill, a Needs-you row, “Change in review”, `⌘⇧D` |
 
@@ -62,7 +66,8 @@ left edge: the Agent tab first, then the lens tabs and Decisions. There is no da
   navigate over unsaved work: the view stays and a toast says why. Native window close and
   application quit use the same prompt, including parked edits; canceling either the edits
   prompt or the running-agent prompt keeps the work.
-- The titlebar trail names only where you are (`Project › Mechanical › Camera tray`).
+- The sheet's header names only where you are (`Calculation › Wheel torque at 15° incline`);
+  the project's name is in the sidebar.
 - The launcher is the only screen without a project. It asks one question — _What are you
   building?_ — creates the project in a named folder it shows before anything is written, and
   lists recent work.
@@ -72,10 +77,10 @@ left edge: the Agent tab first, then the lens tabs and Decisions. There is no da
   map draws itself left to right and its thread lights; _focus on one_, the camera tray zooms
   into its stage and renders live; _decide_, the person approves a proposal themselves and the
   impact travels the recorded links), then five setup steps do the real thing (detect and choose
-  the agent CLI, probe OpenSCAD, pick Graphite or Paper, press the shortcuts, see where
+  the agent CLI, probe OpenSCAD, pick Dark or Light, press the shortcuts, see where
   everything lives). One causal rail along the bottom is the progress; `→` and `←` move, `Esc`
   skips, nothing in it reaches a record, and it is remembered as the version seen
-  (`omen.intro`), so a reworked introduction plays again for everyone.
+  (`bureau.intro`), so a reworked introduction plays again for everyone.
 - Settings is a sheet (`⌘,`) with three remembered sections (Agents, Engineering tools,
   Appearance), never a destination.
 - The Design system view is reachable from the launcher and `⌘K`.
@@ -83,7 +88,7 @@ left edge: the Agent tab first, then the lens tabs and Decisions. There is no da
 ### Level 0 — Project
 
 The project identity (name and editable one-line intent) floats top-left over the canvas; the
-lenses are tabs on the activity bar. Opening a project shows its name and intent with a
+lenses are rows in the sidebar. Opening a project shows its name and intent with a
 placeholder until its record loads; a project whose record could not be read says what failed
 and offers **Try again**. A project reopens on the view it was left on. A background refresh
 that fails keeps the record on screen and says so in the frame strip, with Retry.
@@ -98,7 +103,7 @@ that fails keeps the record on screen and says so in the frame strip, with Retry
   never hand-arranged and never random. Column widths follow the titles; a long title takes
   two lines.
 - **Links** change height only inside the gutters between columns and pass a column through
-  the gaps between rows. Every link ends in an open chevron at the consequence end. Dashed
+  the gaps between rows. Every link ends in a small square at the consequence end. Dashed
   means related (not causal); dotted means it runs right to left; a link within one column is
   a bracket on the column's right.
 - **Hover lights the thread**: the full upstream and downstream causal chain through the
@@ -115,7 +120,7 @@ that fails keeps the record on screen and says so in the frame strip, with Retry
 - **Detail levels**: full nodes from 62 %, glyph and marks from 40 %, a strip of state bars
   below. Every type group can collapse into one summary node; large groups start collapsed in
   projects of more than 80 objects.
-- The legend lists only what the map shows. The peek strip below the map spells out the
+- The key rests behind a **Key** button at the bottom left and lists only what the map shows. The peek strip below the map spells out the
   hovered or focused node. Nodes open their object.
 - The map is one tab stop. ←/→ follow links (the way you came first), ↑/↓ move within a
   column, Home/End jump to its ends, ↵ opens, `T` pins the thread, `C` collapses a group,
@@ -126,8 +131,9 @@ out-of-date objects (missing input first, each with its recorded reason and “A
 re-evaluate”), then agent suggestions. Proposals returned to the agent are listed apart under
 “Back with the agent” and are not counted. The quiet line says “Every baseline is current and
 reviewed” only when that is true; otherwise it names what is unfinished (objects without a
-baseline, drafts not proposed). At 1120 px and narrower it rests as a pill; at 1360 px and
-wider its rows run two abreast.
+baseline, drafts not proposed). It rests as a pill at every width and opens over the map;
+open, at 1360 px and wider, its rows run two abreast. On other views the sheet's header
+carries the same count as "n needs you".
 
 **Parts** is two tables. **Components** (the default, so agent suggestions are visible before
 human selection) groups parts as Candidates, Selected and Set aside; 2 to 4 parts can be
@@ -250,7 +256,7 @@ The same three-part grammar: **queue · proposal · impact**.
 
 - Left rail: “Needs you” lists pending proposals that nothing replaced, newest first; “n
   waiting on the agent” links to All. Rows show the reason, the objects, the state in words,
-  who, when and the change count. The activity-bar badge and the titlebar pill count the same
+  who, when and the change count. The sidebar's Decisions count and the header's pill count the same
   proposals.
 - Centre: “Proposal n of m” with previous/next, the reason as the title, who proposed it and
   when, then a phase notice when the next move is not yours: **Base moved** (approval blocked,
@@ -308,7 +314,7 @@ navigation.
   so with Switch to Terminal and Stop terminal session; the terminal pane says so with Switch to
   Conversation and Stop response.
 - **Conversation**: one durable thread per conversation, recorded in
-  `.omenflow/chat/conversations.json` (local, not part of a project archive). Each turn shows
+  `.bureau/chat/conversations.json` (local, not part of a project archive). Each turn shows
   the request with any exact inputs, the response as it arrives (Claude Code streams partial
   text; Codex reports completed items; the host announces each change and the pane reads the
   record again), and the cards the run presented with `chat.present`:
@@ -319,25 +325,25 @@ navigation.
   agent's still move it. Cards you open from the project record or `+` read “Opened by you”.
   Recorded activity under each turn lists the host's call ledger for that run, with what the
   host also ran inside a call; a call whose check did not pass reads “Returned” in the warning
-  tone. The turn header names the model in mono: what the CLI reported, else the id Omen Flow
+  tone. The turn header names the model in mono: what the CLI reported, else the id Bureau
   passed, with a warning Notice when Claude Code reports another model than the full id it was
-  given. Omen Flow never
+  given. Bureau never
   parses or shows a CLI's cost figure in its own interface; the Terminal pane is the CLI's own
   screen. An empty conversation asks “What are we making?” with three starters and the
   project's first objects.
 - **Completion gate**: when a response ends, the host reads `work_status` for the turn's agent
   session and those of the turns it continues, and records it on the turn; a continuation's own
   `work_status` reads the same sessions. With blockers left, the turn ends with **Work not
-  finished**: the eyebrow “Completion gate · work_status, recorded by Omen Flow” with the time it
+  finished**: the eyebrow “Completion gate · work_status, recorded by Bureau” with the time it
   was read, the summary, up to five items with their `work` state and the tool that resolves
   each (“Needs you” otherwise), **Continue** (disabled while the project is busy) and **Edit
   request** (the request the chain started from); a failed turn shows it under the error. An
   earlier turn's record collapses to one dated line, which says who continued it below when a
-  continuation follows. A response that called no Omen Flow tool and touched nothing says so in
+  continuation follows. A response that called no Bureau tool and touched nothing says so in
   a quiet labelled line, with Continue. Continue sends one fixed continuation, shown as “You asked the agent to
   continue”. With Settings → Agents → **Unfinished work after a response: Continue once** (off
-  by default), Omen Flow sends it itself once per message you sent, when a blocker is the
-  agent's to resolve from the record, shown outlined as “Sent by Omen Flow, once, because
+  by default), Bureau sends it itself once per message you sent, when a blocker is the
+  agent's to resolve from the record, shown outlined as “Sent by Bureau, once, because
   work_status reported unfinished work”; sourcing and seller offers never qualify, it never
   continues its own continuation (a Continue you press counts as a message you sent, so it may
   continue once after that), and Stop prevents it. Claude Code continuations resume the CLI
@@ -373,7 +379,7 @@ navigation.
   the area. It docks to the right (the stage narrows) or collapses to its header with a
   one-line ticker of the latest call, remembers size, place and mode, and returns focus when it
   closes. Until the person places it, it sits above the controls pinned to the bottom of the
-  area that mark themselves `data-toast-avoid` (the map's legend and peek strip, the decision
+  area that mark themselves `data-toast-avoid` (the map's key and peek strip, the decision
   bar); once placed it stays where it was put. A signal ring marks a live session.
 - **States** are explicit: “Looking for agent CLIs…”, “Connect an agent CLI” (every adapter
   with its install guide, Set path…, Detect again), a one-click choice when several are
@@ -409,17 +415,19 @@ navigation.
 
 ### Colour
 
-Two themes share roles: **Graphite** (default) and **Paper**. `tokens.css` is the only source.
+Two themes share roles: **Dark** (the default) and **Light**. `tokens.css` is the only source.
 
 | Role          | Token                                                                                     | Use                                                                                                   |
 | ------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Field         | `--field`                                                                                 | Window, map canvas, rails                                                                             |
-| Surface       | `--surface`                                                                               | The stage in focus                                                                                    |
+| Field         | `--field`                                                                                 | Carbon: the window and the sidebar                                                                    |
+| Surface       | `--surface`                                                                               | The sheet the work sits on: the map, the stage, the lenses                                            |
+| Selected      | `--selected`                                                                              | Graphite Navy: the selected sidebar row, segment or list row                                          |
+| Ice           | `--ice`                                                                                   | The mark's light pixels (Carbon on Light); baselines in the impact thread                             |
 | Raised        | `--raised`, `--raised-2`                                                                  | Islands, menus, hover, inputs                                                                         |
 | Inset         | `--inset`, `--terminal-bg`                                                                | Code, terminal, viewport wells                                                                        |
 | Text          | `--text`, `--text-2`, `--text-3`, `--text-4`                                              | Content, support, metadata; separators and idle marks (`--text-4`, never the only carrier of meaning) |
 | Signal        | `--signal`, `--signal-text`                                                               | Live agent, the lit thread, context (fills)                                                           |
-| Signal stroke | `--signal-stroke`, `--focus`                                                              | Signal drawn as a line, ring, dot or border; the focus ring (olive on Paper)                          |
+| Signal stroke | `--signal-stroke`, `--focus`                                                              | Signal drawn as a line, ring, dot or border; the focus ring (deep cyan on Light)                      |
 | Pressed       | `--pressed`, `--press-scale`                                                              | A control held down                                                                                   |
 | Scrim         | `--overlay`                                                                               | Behind dialogs and the sheet                                                                          |
 | Photo         | `--photo-bg`                                                                              | The well behind product photography                                                                   |
@@ -429,45 +437,50 @@ Two themes share roles: **Graphite** (default) and **Paper**. `tokens.css` is th
 | Error         | `--err`                                                                                   | Missing input, failure, rejection                                                                     |
 | Primary       | `--primary`, `--primary-ink`                                                              | The one decisive action per area                                                                      |
 
-- **Signal lime is the only chromatic accent outside state.** It means _alive or selected_:
+- **Bureau Cyan is the only chromatic accent outside state.** It means _alive or selected_:
   a running agent, keyboard focus, the hovered causal thread, the context chip. It is never a
   category colour and never decoration.
-- Primary actions are high-contrast neutrals (white on Graphite, black on Paper).
+- Primary actions are high-contrast neutrals (soft white on Dark, Carbon on Light), one per area.
+  Cyan fills only what talks to the agent (Send).
 - State colours always pair with a word (`State` renders a dot plus a label).
 - Text roles and state words meet 4.5:1 on every surface in both themes; strokes, the focus
   ring and `--text-4` meet 3:1. `tests/frontend/ui-tokens.test.ts` enforces it.
 
 ### Type
 
-Geist for the interface; IBM Plex Mono for values, identifiers, parameters, source, and the
-terminal. Both are vendored in `fonts/`.
+Mona Sans for the interface and display; JetBrains Mono for values, identifiers, parameters,
+source, and the terminal. Both are vendored in `fonts/` and declared in `fonts/bureau.css`.
 
 | Token        | Size | Role                                  |
 | ------------ | ---- | ------------------------------------- |
 | `--text-4xl` | 56   | The introduction's act titles         |
-| `--text-3xl` | 38   | Launcher question, calculation result |
-| `--text-2xl` | 26   | Project and object titles             |
-| `--text-xl`  | 19   | Statements, target values, totals     |
-| `--text-lg`  | 15   | Lede, omnibar input                   |
-| `--text-md`  | 13.5 | Working text                          |
+| `--text-3xl` | 34   | Launcher question, calculation result |
+| `--text-2xl` | 26   | Object and proposal titles            |
+| `--text-xl`  | 18   | Statements, target values, totals     |
+| `--text-lg`  | 15   | Lede, the composer, omnibar input     |
+| `--text-md`  | 13   | Working text, navigation              |
 | `--text-sm`  | 12.5 | Controls, rails, tables               |
-| `--text-xs`  | 11.5 | Metadata                              |
-| `--text-2xs` | 10.5 | Counts and key caps                   |
+| `--text-xs`  | 12   | Metadata, units, labels               |
+| `--text-2xs` | 11   | Counts and keys                       |
 
 Display sizes use `--tracking-display` and `.text-display`; titles use `.text-title`. Line
 heights are tokens (`--leading-display`, `--leading-tight`, `--leading`, `--leading-prose`).
-Numbers use tabular figures (`.num`, `.tabular`). Sentence case everywhere; no all-caps labels.
+Numbers use tabular figures (`.num`, `.tabular`). Sentence case everywhere; no capitals, no
+tags above headings. Keys are plain mono text (`Kbd`), never boxes.
 
 ### Geometry, depth, motion
 
-- Spacing is 4-based (`--s-1` … `--s-12`). Controls are 26 / 32 / 38 px.
-- Radii: 6 (small controls), 8 (controls), 11 (menus, nodes), 15 (islands), 20 (stage, sheet).
-- Depth has three planes: the **field** (flat), the **stage** (surface, 1 px line, no shadow),
-  and **islands** (raised, the layered `--shadow-float`) that hover over the field or stage:
+- Spacing is 4-based (`--s-1` … `--s-12`). Controls are 26 / 30 / 36 px.
+- **Soft frames, square pixels.** Radii: 4 (chips, keys), 6 (controls, sidebar rows), 8 (nodes,
+  cards, menus, inputs), 10 (the sheet, islands, inline cards), 12 (the composer, dialogs).
+  Everything that is a pixel stays square: the mark, the live pixel, state marks, the census,
+  link terminals and the layer patterns.
+- Depth has three planes: the **field** (Carbon, flat), the **sheet** (surface, a hairline, no
+  shadow; the stage is the sheet itself), and **islands** (raised, the layered `--shadow-float`) that hover over the field or stage:
   Needs you, the agent window, viewport tools, map controls, omnibar, sheet. Menus use
   `--shadow-menu`, tooltips `--shadow-pop`.
 - Layers are tokens (`--z-raised` … `--z-tooltip`): sticky heads, stage tools, the save bar,
-  canvas tools, the project head, islands, the agent tab and window, the titlebar, the
+  canvas tools, the project head, islands, the agent tab and window, the sheet header, the
   introduction, the scrim, dialogs, menus, toasts, tooltips.
 - Pressed is `--pressed` with `--press-scale` at once (other controls fall back to
   `--press-filter`); disabled is `--disabled-opacity`.
@@ -488,51 +501,63 @@ Numbers use tabular figures (`.num`, `.tabular`). Sentence case everywhere; no a
 
 ### Brand
 
-The mark is three facets meeting at one point — intent, design, and evidence converging. It is
-vectorised from the supplied artwork (`brand/source-mark-*.png`) as `brand/omen-mark.svg`
-(`currentColor`) and rendered in code by `Mark`.
+The product is **Agentic Bureau**: that name goes on the licence, the terms, the website, the
+App Store and social profiles. Everywhere else, the app included, it is **Bureau**.
 
-- Monochrome only: `--text` on Graphite, black on Paper. Never tinted with signal.
-- Sizes: 17 px titlebar button, 18–22 px lockup, 30–34 px launcher and catalogue hero, 40 px
-  introduction.
-- Wordmark **Omen Flow** in Geist; “Omen” semibold, “Flow” regular and secondary.
-- The app icon (`brand/app-icon.svg` → `apps/rust-desktop/icons/`) places the Paper mark on a
-  graphite squircle with a faint rim.
-- Keep clear space of half the mark's width. Don't stretch, rotate, outline, or animate it.
+The mark is two rows of the checker: ten square pixels on a 5 × 5 grid (20-unit pitch, 18-unit
+pixels), Bureau Cyan (`#4FC8F0`) and Ice (`#C6F1FF`). It is drawn in code by `Mark` from the
+theme's `--signal` and `--ice`, so on Light its ice pixels turn Carbon; `mono` draws it in the
+current text colour. The files in `brand/`:
+
+- `bureau-mark.svg` (two-tone, for dark grounds), `bureau-mark-light.svg` (deep cyan and Carbon,
+  for light grounds), `bureau-mark-black.svg` and `bureau-mark-white.svg` (one colour), with
+  PNGs of the one-colour marks.
+- `app-icon.svg`: the mark on the Carbon tile (`#0A0E12`, radius 36 on 256), as supplied.
+  `app-icon.png` is that tile rendered edge to edge at 1024 px, with no added margin, from which
+  `apps/rust-desktop/icons/` is generated (`pnpm exec tauri icon`); `app-icon-light.svg` is the
+  light tile for documents and the web.
+- `favicon.svg`: the same mark drawn on its own 16-unit grid, so no pixel lands between two
+  screen pixels at 16 and 32 px.
+- Sizes: 16 px in the sidebar, 18–22 px lockups, 34 px launcher, 40 px introduction.
+- The agent's glyph is five pixels of the mark's checker; while a run is live it steps through
+  a 3×3 field (`Pulse`). Nothing else in the app moves on its own.
+- Wordmark: **Bureau** in Mona Sans semibold; the official lockup sets **Agentic Bureau** after
+  the mark with two pixels of clear space.
+- Never round, rotate, outline, stretch or animate the mark itself.
 
 ## 5. Primitives
 
 All live in `ui/kit.tsx` (`ErrorBoundary` in `ui/ErrorBoundary.tsx`), are styled in
 `styles/kit.css`, and appear in the Design system view.
 
-| Primitive            | Purpose                                                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `Mark`, `Brand`      | Identity                                                                                                         |
-| `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types                                        |
-| `State`, `Pulse`     | Labelled state by dimension (`ui/vocabulary.ts`; `spec` for listed CAD items, `work` for the gate); live pulse   |
-| `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`; `busy` keeps its width; `shortcut`  |
-| `IconButton`         | Named icon-only action, 26 / 32 / 38 px; the label is its accessible name and its tooltip; `pressed`, `shortcut` |
-| `Tooltip`            | Names a control on hover and when Tab reaches it; `TooltipProvider` wraps the application                        |
-| `ConfirmButton`      | Two-press action for anything irreversible; stands down after four seconds, on blur, or on Escape                |
-| `Menu`               | A short list of actions behind one trigger, with icons, shortcuts, and a destructive tone                        |
-| `Segmented`          | A radio group for lens and mode switching, one tab stop, arrow keys, optional counts                             |
-| `Field`              | Label + control + hint with connected ids; `error`, `required`                                                   |
-| `Checkbox`           | A labelled choice with an optional hint                                                                          |
-| `QuantityField`      | Value and unit changed together; empty is not set, never zero; non-numbers are flagged, not saved                |
-| `Notice`             | Inline, toned explanation with an optional action                                                                |
-| `Empty`              | Specific empty state with a recovery                                                                             |
-| `Skeleton`           | Placeholder with the rough shape of content that is still loading                                                |
-| `ErrorBoundary`      | Contains a render failure to one region, shows the recorded error, and offers a retry                            |
-| `Disclosure`         | Progressive detail with contextual actions, controlled or `defaultOpen`                                          |
-| `Qty`, `Time`        | One formatter for quantities (`formatQuantity`) and one for times (`formatDate`), unit attached                  |
-| `Block`, `Facts`     | Quiet labelled sections and key/value metadata                                                                   |
-| `Kbd`, `Spinner`     | Shortcuts and active work                                                                                        |
+| Primitive            | Purpose                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `Mark`, `Brand`      | Identity: the pixel mark in theme colours (`mono` for one colour) and the Bureau wordmark                          |
+| `TypeGlyph`, `TYPES` | Neutral object glyphs, labels, plurals, and causal layer for all 14 types                                          |
+| `State`, `Pulse`     | Labelled state by dimension (`ui/vocabulary.ts`; `spec` for listed CAD items, `work` for the gate); the live pixel |
+| `Button`             | `primary` · `secondary` · `ghost` · `danger` · `signal`; `sm` · `md` · `lg`; `busy` keeps its width; `shortcut`    |
+| `IconButton`         | Named icon-only action, 26 / 32 / 38 px; the label is its accessible name and its tooltip; `pressed`, `shortcut`   |
+| `Tooltip`            | Names a control on hover and when Tab reaches it; `TooltipProvider` wraps the application                          |
+| `ConfirmButton`      | Two-press action for anything irreversible; stands down after four seconds, on blur, or on Escape                  |
+| `Menu`               | A short list of actions behind one trigger, with icons, shortcuts, and a destructive tone                          |
+| `Segmented`          | A radio group for lens and mode switching, one tab stop, arrow keys, optional counts                               |
+| `Field`              | Label + control + hint with connected ids; `error`, `required`                                                     |
+| `Checkbox`           | A labelled choice with an optional hint                                                                            |
+| `QuantityField`      | Value and unit changed together; empty is not set, never zero; non-numbers are flagged, not saved                  |
+| `Notice`             | Inline, toned explanation with an optional action                                                                  |
+| `Empty`              | Specific empty state with a recovery                                                                               |
+| `Skeleton`           | Placeholder with the rough shape of content that is still loading                                                  |
+| `ErrorBoundary`      | Contains a render failure to one region, shows the recorded error, and offers a retry                              |
+| `Disclosure`         | Progressive detail with contextual actions, controlled or `defaultOpen`                                            |
+| `Qty`, `Time`        | One formatter for quantities (`formatQuantity`) and one for times (`formatDate`), unit attached                    |
+| `Block`, `Facts`     | Quiet labelled sections and key/value metadata                                                                     |
+| `Kbd`, `Spinner`     | Shortcuts and active work                                                                                          |
 
-Composite patterns: map node, map legend and peek, Needs-you row, rail link node, folding rail,
+Composite patterns: map node, map key and peek, Needs-you row, rail link node, folding rail,
 stage header, revision banner, underneath notice, save bar, viewport tool island, render and
 export job rows, STEP export outcome, diff row (short and stacked), line diff, phase notice,
 change-underneath notice, listed items of a CAD check, decision bar, handoff card, lens table
-row, totals strip, evidence chip, activity bar, session bar,
+row, totals strip, evidence chip, sidebar and census, session bar,
 pane switch, conversation turn and composer, input attachment, inline card (part, record,
 quantities, chart, choices, review), work-not-finished card, continuation message, turn model
 and model-mismatch notice, activity rail and call row, agent onboarding panel,
@@ -564,7 +589,7 @@ These rules outrank aesthetics.
   The activity rail shows only recorded ledger calls; counts come from the host or the ledger,
   never estimated. Starters and asks are typed or drafted, never sent; Continue sends only its
   fixed, labelled continuation, and the one automatic continuation is sent only with the
-  setting on, labelled as sent by Omen Flow below the gate record that caused it. An ended
+  setting on, labelled as sent by Bureau below the gate record that caused it. An ended
   session shows only an exit code the process returned.
 - **The record states only what happened**: a Timeline row, an approval effect or a re-run
   message says a baseline moved, a bill of materials changed or a proposal waits only when the
@@ -616,9 +641,12 @@ use a live region. Target WCAG AA for essential text; verify with VoiceOver befo
 
 ## 8. Layout
 
-- Titlebar 48 px with macOS overlay traffic lights (70 px reserved); the whole bar drags.
-- Activity bar 48 px on the left edge, below the titlebar: icon tabs, the agent window toggle,
-  and Settings at the bottom.
+- The window is Carbon. The **sidebar** is 232 px on its left edge; its top 44 px hold the macOS
+  traffic lights and drag the window. The **sheet** fills the rest, inset 8 px from the
+  window's top, right and bottom, radius 10.
+- The sheet's **header** is 48 px: back, where you are, and only what asks something of you
+  (running jobs, "n needs you"). It drags the window. Without a project (the launcher) there is
+  no sidebar and the sheet is the whole window.
 - Rails 248 px, 216 px below 1280, 196 px below 1120; a folded rail is 40 px. The stage takes
   the rest.
 - Supported from **1024 × 700**; designed at **1440 × 900**.
@@ -641,10 +669,12 @@ action is, what evidence must be visible, and which states apply. Then:
 6. Verify at 1024 × 700 and 1440 × 900 in both themes, then update this document,
    `verification.md`, and the catalogue together.
 
-Never add: metric-card dashboards, decorative charts, gradient heroes, glowing
-purple, fake chat bubbles, unlabelled colour, or collaboration features that don't exist. The
-conversation pane is not a chat bubble: every message in it is a recorded request or a real
-run's output.
+Never add: metric-card dashboards, decorative charts, gradient heroes, glowing accents, an
+icon library beside `ui/icons.tsx`, round marks where a pixel belongs, capital-letter tags,
+fake chat bubbles, unlabelled colour, or collaboration features that don't exist. Full pixel
+fields (the four layer patterns at size) belong to the launcher, the introduction, empty states
+and brand material; working screens keep to the swatch, the live pixel, the census and the
+link terminal.
 
 ## 10. Implementation map
 
@@ -658,7 +688,8 @@ run's output.
 | Styling                                            | `renderer/styles/`, one file per surface (below)                                                                           |
 | Zoom model, keyboard, events                       | `renderer/App.tsx`, `renderer/store.ts`, `renderer/lib/{navigation,shortcuts,layers,sync,dirty,view-memory}.ts`            |
 | Frame: strip, unsaved-work prompt, loading, toasts | `renderer/frame/`                                                                                                          |
-| Titlebar, activity bar, omnibar, sheet             | `renderer/shell/`, `renderer/shell/omnibar/rank.ts`                                                                        |
+| Sidebar, sheet header, omnibar, settings sheet     | `renderer/shell/` (`Sidebar.tsx`, `Titlebar.tsx`), `renderer/shell/omnibar/rank.ts`                                        |
+| Icons                                              | `renderer/ui/icons.tsx`: Bureau's own set on a 16-unit grid                                                                |
 | Agent surface                                      | `renderer/shell/Agent.tsx`, `renderer/shell/agent/` (terminal engine, session bar, activity rail, onboarding, view-models) |
 | Conversation pane and inline cards                 | `renderer/chat/` (chat store, `Conversation`, `InlineCards` and their parts); host side `crates/agent-host/src/chat.rs`    |
 | Lens registry                                      | `renderer/project/lenses.ts`                                                                                               |
@@ -677,30 +708,30 @@ run's output.
 so the order is the cascade order. Responsive and reduced-motion rules sit in the file of the
 surface they style.
 
-| File               | Styles                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------- |
-| `base.css`         | Reset, document defaults, form controls, scrollbars, utilities                                    |
-| `kit.css`          | Everything `ui/kit.tsx` renders, plus shared patterns: island, menus, tables                      |
-| `shell.css`        | App frame, stage zoom motion, activity bar, titlebar, omnibar, settings sheet, toasts             |
-| `app-frame.css`    | The frame strip, the unsaved-work prompt, the project loading state                               |
-| `agent.css`        | The agent surface, as a tab and as a floating window                                              |
-| `conversation.css` | The conversation pane: thread, composer, and inline cards                                         |
-| `project.css`      | Project identity, Needs you, the empty project                                                    |
-| `flow.css`         | The flow map: canvas, nodes, links, headers, legend, peek, controls                               |
-| `lenses.css`       | Lens page chrome and tables, then Parts (with the part card), Timeline, Files, Evidence           |
-| `launcher.css`     | The launcher                                                                                      |
-| `object.css`       | The three-part grid, folding rails and stage shell that Object and Decide share, then every stage |
-| `viewport.css`     | The mechanical stage and the STL viewport                                                         |
-| `decide.css`       | Queue, proposal, diff, decision bar, CAD review                                                   |
-| `system.css`       | The catalogue                                                                                     |
-| `intro.css`        | The introduction: the map's draw-in and impact, the acts, the setup card, the rail                |
+| File               | Styles                                                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `base.css`         | Reset, document defaults, form controls, scrollbars, utilities                                      |
+| `kit.css`          | Everything `ui/kit.tsx` renders, plus shared patterns: island, menus, tables                        |
+| `shell.css`        | Window frame, sidebar, the sheet and its header, stage zoom motion, omnibar, settings sheet, toasts |
+| `app-frame.css`    | The frame strip, the unsaved-work prompt, the project loading state                                 |
+| `agent.css`        | The agent surface, as a tab and as a floating window                                                |
+| `conversation.css` | The conversation pane: thread, composer, and inline cards                                           |
+| `project.css`      | Project identity, Needs you, the empty project                                                      |
+| `flow.css`         | The flow map: canvas, nodes, links, headers and layer swatches, key, peek, controls                 |
+| `lenses.css`       | Lens page chrome and tables, then Parts (with the part card), Timeline, Files, Evidence             |
+| `launcher.css`     | The launcher                                                                                        |
+| `object.css`       | The three-part grid, folding rails and stage shell that Object and Decide share, then every stage   |
+| `viewport.css`     | The mechanical stage and the STL viewport                                                           |
+| `decide.css`       | Queue, proposal, diff, decision bar, CAD review                                                     |
+| `system.css`       | The catalogue                                                                                       |
+| `intro.css`        | The introduction: the map's draw-in and impact, the acts, the setup card, the rail                  |
 
 A lens is one entry in `LENSES` (`renderer/project/lenses.ts`) plus its component. The activity
 bar, `⌘n`, the omnibar, the preview's `screen=` parameter, and the catalogue read that list.
 The Object, Decision, Design system and Agent views, the omnibar and the sheet are code-split
 and fetched once the first screen is up; three.js, xterm and the markdown renderer have chunks
-of their own, and so do the conversation's markdown stream and chart. The renderer imports only types and the dependency-free entry points `@omenflow/contracts/format`
-and `@omenflow/contracts/chat` from the contracts package, never its runtime barrel.
+of their own, and so do the conversation's markdown stream and chart. The renderer imports only types and the dependency-free entry points `@bureau/contracts/format`
+and `@bureau/contracts/chat` from the contracts package, never its runtime barrel.
 
 Class names are global. Name a class for its surface (`object-view`, `lens-check`,
 `verify-row`), never with a bare state word such as `focus` or `check`: libraries such as xterm

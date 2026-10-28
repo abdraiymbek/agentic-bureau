@@ -486,7 +486,7 @@ fn unknown_parameter(names: &[&str], declared: &[ScadParam]) -> ContractError {
     let nearest = names
         .iter()
         .filter_map(|name| {
-            omenflow_contracts::nearest_match(name, available.iter().copied())
+            bureau_contracts::nearest_match(name, available.iter().copied())
                 .map(|found| format!("{name} → {found}"))
         })
         .collect::<Vec<_>>();

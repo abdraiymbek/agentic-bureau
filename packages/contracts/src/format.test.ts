@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import ts from 'typescript';
 // Type-only, so it is checked by `tsc` (which resolves the subpath through the
 // package's export map) and erased before the test runs.
-import type * as FormatEntry from '@omenflow/contracts/format';
+import type * as FormatEntry from '@bureau/contracts/format';
 import * as barrel from './index.js';
 import { formatQty, isUnknown, originLabel } from './format.js';
 
@@ -36,7 +36,7 @@ describe('formatting helpers', () => {
   });
 });
 
-describe('@omenflow/contracts/format entry point', () => {
+describe('@bureau/contracts/format entry point', () => {
   it('has no runtime imports, so it never pulls in zod or the registry', () => {
     const source = ts.createSourceFile(
       formatFile,
@@ -53,7 +53,7 @@ describe('@omenflow/contracts/format entry point', () => {
   });
 
   it('is resolved by Node through the package export map and loads on its own', async () => {
-    const resolved = createRequire(import.meta.url).resolve('@omenflow/contracts/format');
+    const resolved = createRequire(import.meta.url).resolve('@bureau/contracts/format');
     expect(fs.realpathSync(resolved)).toBe(fs.realpathSync(formatFile));
     const entry = (await import(/* @vite-ignore */ resolved)) as typeof FormatEntry;
     expect(Object.keys(entry).sort()).toEqual(['formatQty', 'isUnknown', 'originLabel']);
@@ -76,10 +76,8 @@ describe('@omenflow/contracts/format entry point', () => {
     const resolve = (specifier: string) =>
       ts.resolveModuleName(specifier, importer, config.options, ts.sys).resolvedModule
         ?.resolvedFileName;
-    expect(fs.realpathSync(resolve('@omenflow/contracts/format')!)).toBe(
-      fs.realpathSync(formatFile),
-    );
-    expect(resolve('@omenflow/contracts')).toMatch(/packages\/contracts\/src\/index\.ts$/);
+    expect(fs.realpathSync(resolve('@bureau/contracts/format')!)).toBe(fs.realpathSync(formatFile));
+    expect(resolve('@bureau/contracts')).toMatch(/packages\/contracts\/src\/index\.ts$/);
   });
 
   it('stays available from the package root for existing callers', () => {

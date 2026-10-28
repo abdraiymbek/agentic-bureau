@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentActivity, AgentCallRecord } from '@omenflow/contracts';
+import type { AgentActivity, AgentCallRecord } from '@bureau/contracts';
 
 const command = vi.hoisted(() => vi.fn());
 vi.mock('../../apps/desktop/src/renderer/store', () => ({ useStore: { getState: () => ({}) } }));

@@ -3,8 +3,8 @@
 
 use crate::events::EventHub;
 use crate::http::{self, Rejected, Request};
-use omenflow_agent_host::{EventSink, Grant, Host, HostPaths, ResearchSurface, Shell};
-use omenflow_contracts::{registry, ContractError, Profile, ResponseEnvelope};
+use bureau_agent_host::{EventSink, Grant, Host, HostPaths, ResearchSurface, Shell};
+use bureau_contracts::{registry, ContractError, Profile, ResponseEnvelope};
 use serde_json::{json, Value};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
@@ -28,7 +28,7 @@ const MIN_TOKEN_CHARS: usize = 16;
 
 pub struct Config {
     pub app_data_dir: PathBuf,
-    /// The `omenflow` helper agent sessions call back through.
+    /// The `bureau` helper agent sessions call back through.
     pub cli_path: PathBuf,
     /// `0` asks the system for a free port.
     pub port: u16,
@@ -80,7 +80,7 @@ impl Headless {
     fn research() -> ContractError {
         Self::unavailable(
             "Research browsing",
-            "Use the Omen Flow desktop app to browse and read pages. A source that is already known can be recorded with source_capture.",
+            "Use the Bureau desktop app to browse and read pages. A source that is already known can be recorded with source_capture.",
         )
     }
 }
@@ -198,7 +198,7 @@ impl Server {
     /// Replace how the host reads a CLI's model routing, so a test's result never depends on
     /// the developer's own variables and Claude settings.
     #[doc(hidden)]
-    pub fn set_routing(&self, routing: omenflow_agent_host::RoutingLookup) {
+    pub fn set_routing(&self, routing: bureau_agent_host::RoutingLookup) {
         self.shared.host.pty().set_routing(routing);
     }
 
@@ -396,7 +396,7 @@ impl Shared {
                 200,
                 json!({
                     "ok": true,
-                    "service": "omenflow-host",
+                    "service": "bureau-host",
                     "version": env!("CARGO_PKG_VERSION"),
                     "protocolVersion": registry().protocol_version,
                     "appDataDir": self.app_data_dir,

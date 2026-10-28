@@ -9,7 +9,9 @@ const SCOPE: &str = "Experimental: referenced source values are labels, not reso
 
 /// Recorded with every result and job, so a reader can tell which evaluator
 /// produced a number.
-const ENGINE: &str = "omenflow-calc/2";
+/// Recorded with every calculation run. Runs before the rename recorded
+/// `omenflow-calc/2`, the same engine; the label is provenance, never compared.
+const ENGINE: &str = "bureau-calc/2";
 
 const MAX_EXPRESSION_CHARS: usize = 2000;
 const MAX_TOKENS: usize = 512;
@@ -624,7 +626,7 @@ fn function(name: &str, args: &[Number]) -> CoreResult<Number> {
             })
         }
         _ => {
-            let nearest = omenflow_contracts::nearest_match(name, FUNCTIONS);
+            let nearest = bureau_contracts::nearest_match(name, FUNCTIONS);
             let hint = nearest
                 .map(|nearest| format!("Did you mean {nearest}? "))
                 .unwrap_or_default();
@@ -944,7 +946,7 @@ impl<'a> Parser<'a> {
             .iter()
             .map(|(known, _)| known.as_str())
             .collect::<Vec<_>>();
-        let nearest = omenflow_contracts::nearest_match(name, names.iter().copied());
+        let nearest = bureau_contracts::nearest_match(name, names.iter().copied());
         let listed = if names.is_empty() {
             "No inputs were given".to_owned()
         } else {

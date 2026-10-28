@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ErrorCodes, Origin, SourcePayload, OmenflowError, newId } from '@omenflow/contracts';
+import { ErrorCodes, Origin, SourcePayload, BureauError, newId } from '@bureau/contracts';
 import type { ProjectContext } from './context.js';
 import { createDraft } from './artifacts.js';
-import { resolveProjectSourcePath } from '@omenflow/storage';
+import { resolveProjectSourcePath } from '@bureau/storage';
 
 /**
  * Sources: captured URLs and imported files with provenance.
@@ -23,7 +23,7 @@ export function captureSource(
   origin: Origin,
 ) {
   if (!input.url && !input.filePath) {
-    throw new OmenflowError(ErrorCodes.VALIDATION, 'Source needs a url or filePath');
+    throw new BureauError(ErrorCodes.VALIDATION, 'Source needs a url or filePath');
   }
   let fileHash: string | undefined;
   if (input.filePath) {
@@ -39,7 +39,7 @@ export function captureSource(
           ? input.filePath
           : ctx.resolvePath(input.filePath);
     if (!fs.existsSync(abs)) {
-      throw new OmenflowError(ErrorCodes.NOT_FOUND, `Source file not found: ${input.filePath}`);
+      throw new BureauError(ErrorCodes.NOT_FOUND, `Source file not found: ${input.filePath}`);
     }
     fileHash = ctx.objects.putFile(abs);
   }
@@ -70,7 +70,7 @@ export function captureSource(
 
 export function readSource(ctx: ProjectContext, sourceId: string) {
   const a = ctx.requireArtifact(sourceId);
-  if (a.type !== 'source') throw new OmenflowError(ErrorCodes.VALIDATION, 'Not a source artifact');
+  if (a.type !== 'source') throw new BureauError(ErrorCodes.VALIDATION, 'Not a source artifact');
   const rev = a.selectedRevisionId
     ? ctx.repo.getRevision(a.selectedRevisionId)
     : ctx.repo.listRevisions(a.id).at(-1);

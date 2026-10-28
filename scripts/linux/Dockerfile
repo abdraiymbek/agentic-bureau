@@ -1,10 +1,10 @@
-# Build and test image for the Omen Flow Linux packages (deb, rpm, AppImage).
+# Build and test image for the Bureau Linux packages (deb, rpm, AppImage).
 #
 # Built and used by scripts/linux-package.mjs, which copies the working tree into a
 # container of this image (never a bind mount: node_modules and target/ on the host
 # hold that machine's binaries). The image holds only tools; no sources.
 #
-#   docker build -t omenflow-linux-build scripts/linux
+#   docker build -t bureau-linux-build scripts/linux
 #
 # It builds for the architecture Docker runs it on (arm64 on Apple Silicon through
 # colima, x86_64 on GitHub's runners).
@@ -20,9 +20,9 @@ FROM ubuntu:22.04
 # Tauri 2 and node-pty build requirements, the virtual display the packaged smoke
 # launches the app on, and Ubuntu's OpenSCAD (2021.01), which the Rust engine tests
 # require: without it they fail rather than skip.
-COPY build-deps.sh /usr/local/sbin/omenflow-build-deps
-RUN chmod 755 /usr/local/sbin/omenflow-build-deps \
-  && omenflow-build-deps --display --openscad \
+COPY build-deps.sh /usr/local/sbin/bureau-build-deps
+RUN chmod 755 /usr/local/sbin/bureau-build-deps \
+  && bureau-build-deps --display --openscad \
   && rm -rf /var/lib/apt/lists/*
 
 # Node (the version the macOS record used; .nvmrc says 24), checked against the

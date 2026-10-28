@@ -103,7 +103,7 @@ function Identity() {
   };
   return (
     <div className="identity">
-      <h1>{project?.name}</h1>
+      <h1 className="sr-only">{project?.name}</h1>
       {editing ? (
         <textarea
           ref={ref}

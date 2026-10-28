@@ -3,7 +3,7 @@
  *
  * The CLI's own figure is never used: Claude Code 2.1.287 prices a model it does not know at
  * another model's rates (Claude Haiku 5.5 at Claude Opus 5.5 rates, measured at about 36 times
- * list price), and it does not say when it did. Omen Flow itself never shows a cost.
+ * list price), and it does not say when it did. Bureau itself never shows a cost.
  */
 
 /** When the table below was taken from the source. */

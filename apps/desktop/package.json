@@ -1,5 +1,5 @@
 {
-  "name": "@omenflow/desktop",
+  "name": "@bureau/desktop",
   "version": "0.2.4",
   "private": true,
   "scripts": {
@@ -11,13 +11,12 @@
     "make": "pnpm -w make"
   },
   "dependencies": {
-    "@omenflow/contracts": "workspace:*",
+    "@bureau/contracts": "workspace:*",
     "react-is": "18.3.1",
     "recharts": "3.10.1",
     "streamdown": "2.7.1"
   },
   "devDependencies": {
-    "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-tooltip": "^1.2.8",

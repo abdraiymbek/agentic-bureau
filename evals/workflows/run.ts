@@ -2,8 +2,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { CoreApp, nullHost } from '@omenflow/core';
-import type { Expectation } from '@omenflow/contracts';
+import { CoreApp, nullHost } from '@bureau/core';
+import type { Expectation } from '@bureau/contracts';
 import { runTask, type TaskResult, type RunOptions } from '../cad/harness.js';
 import type { Task } from '../cad/tasks.js';
 
@@ -140,7 +140,7 @@ const out = path.resolve(output);
 const runs = Number(arg('runs', '3'));
 const only = arg('tasks')?.split(',');
 const framing =
-  'You are working inside an Omen Flow engineering project with the omenflow MCP server connected. Use its tools to inspect and revise project artifacts. All dimensions are in millimetres unless explicitly stated otherwise.';
+  'You are working inside a Bureau engineering project with the bureau MCP server connected. Use its tools to inspect and revise project artifacts. All dimensions are in millimetres unless explicitly stated otherwise.';
 const budget = { seconds: 420, cadTools: 20 };
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(

@@ -4,11 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { createProject, openProject, writeRenameJournal, renameJournalPath } from './project.js';
 import { resolveMaterializationPath, sha256Hex, writeMaterializedFile } from './paths.js';
-import { SCHEMA_VERSION } from '@omenflow/contracts';
+import { SCHEMA_VERSION } from '@bureau/contracts';
 
 const roots: string[] = [];
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-safety-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-safety-'));
   roots.push(root);
   const project = path.join(root, 'project');
   return { root, project, handle: createProject(project, 'Safety', 'synthetic fixture') };
@@ -33,13 +33,13 @@ function bytes(root: string): Record<string, string> {
 describe('materialization boundaries and recovery', () => {
   it('rejects traversal, reserved aliases, and symlinks before replacing files', () => {
     const { root, project, handle } = fixture();
-    fs.symlinkSync(path.join(project, '.omenflow'), path.join(project, 'alias'));
+    fs.symlinkSync(path.join(project, '.bureau'), path.join(project, 'alias'));
     fs.symlinkSync(root, path.join(project, 'outside'));
     for (const rel of [
       '../outside.txt',
-      '.omenflow/state.sqlite',
-      'omenflow.project.json',
-      'a/../.omenflow/x',
+      '.bureau/state.sqlite',
+      'bureau.project.json',
+      'a/../.bureau/x',
       'alias/cache/attack',
       'outside/attack',
       '..\\attack',
@@ -61,7 +61,7 @@ describe('materialization boundaries and recovery', () => {
     fs.writeFileSync(handle.objects.absPath(corrupt), 'wrong bytes');
     const invalid = [
       handle.repo.addMaterialization('../outside.txt', good, null),
-      handle.repo.addMaterialization('.omenflow/cache/attack', good, null),
+      handle.repo.addMaterialization('.bureau/cache/attack', good, null),
       handle.repo.addMaterialization('artifacts/bad.txt', '../bad', null),
     ];
     const missing = handle.repo.addMaterialization('artifacts/missing.txt', 'f'.repeat(64), null);
@@ -80,7 +80,7 @@ describe('materialization boundaries and recovery', () => {
     expect(state(broken)).toBe('pending');
     expect(state(valid)).toBe('done');
     expect(fs.existsSync(path.join(root, 'outside.txt'))).toBe(false);
-    expect(fs.existsSync(path.join(project, '.omenflow/cache/attack'))).toBe(false);
+    expect(fs.existsSync(path.join(project, '.bureau/cache/attack'))).toBe(false);
     expect(fs.existsSync(path.join(project, 'artifacts/corrupt.txt'))).toBe(false);
     expect(
       reopened.repo.listEvents(100).filter((e) => e.type === 'project.recovery_error'),
@@ -109,7 +109,7 @@ describe('materialization boundaries and recovery', () => {
     handle.close();
     const reopened = openProject(project);
     expect(fs.readFileSync(path.join(project, rel), 'utf8')).toBe('external version');
-    expect(fs.readFileSync(path.join(project, `${rel}.omenflow-recovery-${id}`), 'utf8')).toBe(
+    expect(fs.readFileSync(path.join(project, `${rel}.bureau-recovery-${id}`), 'utf8')).toBe(
       'committed version',
     );
     expect(reopened.repo.pendingMaterializations().map((m) => m.id)).toContain(id);
@@ -129,7 +129,7 @@ describe('rename journal recovery', () => {
     const reopened = openProject(project);
     expect(reopened.project.name).toBe('Recovered');
     expect(
-      JSON.parse(fs.readFileSync(path.join(project, 'omenflow.project.json'), 'utf8')).name,
+      JSON.parse(fs.readFileSync(path.join(project, 'bureau.project.json'), 'utf8')).name,
     ).toBe('Recovered');
     expect(fs.existsSync(renameJournalPath(project))).toBe(false);
     reopened.close();
@@ -147,7 +147,7 @@ describe('unsupported projects are genuinely read-only', () => {
         handle.repo.db.prepare("UPDATE meta SET value='999' WHERE key='schema_version'").run();
       handle.close();
       if (kind === 'marker') {
-        const marker = path.join(project, 'omenflow.project.json');
+        const marker = path.join(project, 'bureau.project.json');
         const pf = JSON.parse(fs.readFileSync(marker, 'utf8'));
         pf.version = SCHEMA_VERSION + 100;
         fs.writeFileSync(marker, JSON.stringify(pf));

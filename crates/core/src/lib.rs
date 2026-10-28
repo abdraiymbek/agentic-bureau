@@ -40,13 +40,13 @@ mod search;
 use reads::artifact_view;
 
 use base64::Engine;
-use chrono::{SecondsFormat, Utc};
-use omenflow_contracts::{
+use bureau_contracts::{
     parse_agent_artifact_payload, parse_artifact_payload, parse_input, registry, ContractError,
 };
-use omenflow_storage::{
+use bureau_storage::{
     resolve_materialization_path, write_materialized_file, ProjectHandle, StorageError,
 };
+use chrono::{SecondsFormat, Utc};
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -193,7 +193,7 @@ impl CoreApp {
             }
             "project.open" => {
                 let path = required_str(&payload, "path")?;
-                let canonical = omenflow_storage::canonicalize(path).map_err(storage_error)?;
+                let canonical = bureau_storage::canonicalize(path).map_err(storage_error)?;
                 if let Some((id, handle)) = self.projects.iter().find(|(_, h)| h.root == canonical)
                 {
                     return Ok(
@@ -240,7 +240,7 @@ impl CoreApp {
                     .collect::<Vec<_>>();
                 let mut project_names = serde_json::Map::new();
                 for path in &projects {
-                    if let Ok(bytes) = fs::read(Path::new(path).join("omenflow.project.json")) {
+                    if let Ok(bytes) = bureau_storage::read_project_marker(Path::new(path)) {
                         if let Ok(marker) = serde_json::from_slice::<Value>(&bytes) {
                             if let Some(name) = marker["name"].as_str() {
                                 project_names.insert((**path).clone(), json!(name));
@@ -432,7 +432,7 @@ impl CoreApp {
         self.save_reservations(&table)?;
         // A crash can happen after the project files were committed and before
         // the app-level replay row. Recover the result from the durable marker.
-        let marker = Path::new(&path).join("omenflow.project.json");
+        let marker = Path::new(&path).join("bureau.project.json");
         let recovered = prior["state"] == "reserved" && marker.is_file();
         let result = if recovered {
             self.dispatch("project.open", json!({"path":path}), origin.clone(), None)
@@ -2372,7 +2372,7 @@ fn materialize_files(
 /// Writes the files of a committed revision into the working folder. The
 /// revision stands whatever happens here, so each problem comes back as a
 /// sentence for the operation result instead of an error: a file that could
-/// not be written, or one that was changed outside Omen Flow and was left
+/// not be written, or one that was changed outside Bureau and was left
 /// untouched with the revision's bytes written beside it.
 fn settle_files(handle: &ProjectHandle, files: &[Value], parent: Option<&Value>) -> Vec<String> {
     let objects = match handle.object_store() {
@@ -2389,7 +2389,7 @@ fn settle_files(handle: &ProjectHandle, files: &[Value], parent: Option<&Value>)
         match materialize_file(handle, &objects, file, parent) {
             Ok(None) => {}
             Ok(Some(conflict)) => warnings.push(format!(
-                "{path} was changed outside Omen Flow, so it was left as it is; the saved revision was written to {conflict}."
+                "{path} was changed outside Bureau, so it was left as it is; the saved revision was written to {conflict}."
             )),
             Err(error) => warnings.push(format!(
                 "The revision is saved, but {path} could not be written to the project folder: {}",
@@ -2405,7 +2405,7 @@ fn settle_files(handle: &ProjectHandle, files: &[Value], parent: Option<&Value>)
 /// conflict file beside it, whose path is returned.
 fn materialize_file(
     handle: &ProjectHandle,
-    objects: &omenflow_storage::ObjectStore,
+    objects: &bureau_storage::ObjectStore,
     file: &Value,
     parent: Option<&Value>,
 ) -> CoreResult<Option<String>> {
@@ -2417,7 +2417,7 @@ fn materialize_file(
     let bytes = objects.read(sha).map_err(storage_error)?;
     let overwrite = if dest.exists() {
         let current = fs::read(&dest).map_err(internal)?;
-        let current_hash = omenflow_storage::sha256_hex(&current);
+        let current_hash = bureau_storage::sha256_hex(&current);
         let parent_hash = parent
             .and_then(|revision| revision["files"].as_array())
             .and_then(|items| items.iter().find(|item| item["path"] == relative))
@@ -2431,7 +2431,7 @@ fn materialize_file(
         return Ok(None);
     }
     let conflict = format!(
-        "{relative}.omenflow-conflict-{}",
+        "{relative}.bureau-conflict-{}",
         Utc::now().timestamp_millis()
     );
     write_materialized_file(&handle.root, &conflict, &bytes).map_err(storage_error)?;
@@ -2525,7 +2525,7 @@ fn now() -> String {
 
 fn journal_path(root: &Path, key: &str) -> PathBuf {
     let digest = format!("{:x}", Sha256::digest(key.as_bytes()));
-    root.join(".omenflow/recovery/idempotency")
+    root.join(".bureau/recovery/idempotency")
         .join(format!("{digest}.json"))
 }
 
@@ -2602,7 +2602,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("project");
         ProjectHandle::create(&root, "Future", "test").unwrap();
-        let marker = root.join("omenflow.project.json");
+        let marker = root.join("bureau.project.json");
         let mut value: Value = serde_json::from_slice(&fs::read(&marker).unwrap()).unwrap();
         value["version"] = json!(999);
         fs::write(&marker, serde_json::to_vec_pretty(&value).unwrap()).unwrap();
@@ -2788,7 +2788,7 @@ mod tests {
             .dispatch("project.import_archive", copy_input, Origin::User, None)
             .unwrap();
         assert_ne!(copy["projectId"], project["projectId"]);
-        assert!(dest.join("omenflow.project.json").is_file());
+        assert!(dest.join("bureau.project.json").is_file());
     }
 
     #[test]

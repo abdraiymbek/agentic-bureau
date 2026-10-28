@@ -4,13 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_OPS, envKeys, newId } from '@omenflow/contracts';
-import { CoreApp } from '@omenflow/core';
-import { createProject } from '@omenflow/storage';
+import { AGENT_OPS, envKeys, newId } from '@bureau/contracts';
+import { CoreApp } from '@bureau/core';
+import { createProject } from '@bureau/storage';
 import { BridgeServer } from './server.js';
 import { FrameDecoder, encodeFrame } from './framing.js';
 
-const CLI = fileURLToPath(new URL('../../bin/omenflow.mjs', import.meta.url));
+const CLI = fileURLToPath(new URL('../../bin/bureau.mjs', import.meta.url));
 
 function runCli(
   args: string[],
@@ -30,7 +30,7 @@ function runCli(
   });
 }
 
-describe('omenflow CLI shim (bin/omenflow.mjs)', () => {
+describe('bureau CLI shim (bin/bureau.mjs)', () => {
   let dir: string;
   let app: CoreApp;
   let bridge: BridgeServer;
@@ -39,7 +39,7 @@ describe('omenflow CLI shim (bin/omenflow.mjs)', () => {
   let token: string;
 
   beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-cli-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-cli-'));
     app = new CoreApp(path.join(dir, 'app-data'));
     const ctx = app.register(createProject(path.join(dir, 'proj'), 'CLI Project', 'intent'));
     projectId = ctx.projectId;

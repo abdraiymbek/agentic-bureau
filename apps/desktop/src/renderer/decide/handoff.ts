@@ -83,7 +83,7 @@ const NEXT: Record<DecisionOutcome, string> = {
 
 export function handoffText(decisions: RecordedDecision[]): string {
   const lines = [
-    `Omen Flow: the person recorded ${decisions.length === 1 ? 'a review decision' : `${decisions.length} review decisions`}.`,
+    `Bureau: the person recorded ${decisions.length === 1 ? 'a review decision' : `${decisions.length} review decisions`}.`,
     '',
   ];
   decisions.forEach((d, i) => {

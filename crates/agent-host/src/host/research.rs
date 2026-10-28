@@ -3,8 +3,8 @@
 //! isolated webview; a host without one answers with a typed error.
 
 use super::CoreGate;
-use omenflow_contracts::ContractError;
-use omenflow_core::Origin;
+use bureau_contracts::ContractError;
+use bureau_core::Origin;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex, PoisonError};
 

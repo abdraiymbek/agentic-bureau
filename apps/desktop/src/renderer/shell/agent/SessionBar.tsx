@@ -21,7 +21,7 @@ import {
   Square,
   StopCircle,
   TerminalWindow,
-} from '@phosphor-icons/react';
+} from '../../ui/icons';
 import { useStore } from '../../store';
 import { errMsg } from '../../api';
 import { interruptAgent, restartAgent, stopAgent } from '../../lib/actions';

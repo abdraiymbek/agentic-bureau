@@ -1,13 +1,13 @@
-Install Omen Flow on macOS
+Install Bureau on macOS
 
-1. Drag Omen Flow.app onto Applications in this window.
-2. Eject the disk image, then open Omen Flow from Applications.
+1. Drag Bureau.app onto Applications in this window.
+2. Eject the disk image, then open Bureau from Applications.
 3. If macOS says Apple cannot verify the app, dismiss that message.
 4. Open System Settings > Privacy & Security. Find the message about
-   Omen Flow and click Open Anyway, then confirm Open. Your Mac may ask
+   Bureau and click Open Anyway, then confirm Open. Your Mac may ask
    for your password or Touch ID.
 
-Omen Flow is ad hoc signed to protect the app's contents against changes.
+Bureau is ad hoc signed to protect the app's contents against changes.
 It is not signed with an Apple Developer ID or notarized by Apple, so the
 first-launch approval is expected. macOS may ask again after an update.
 

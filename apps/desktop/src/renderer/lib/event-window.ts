@@ -5,7 +5,7 @@
  * dropped without moving `from`, so a cap is never silent. Until the record has been read once
  * (`unread`) the slice holds only live events and says nothing about where the record starts.
  */
-import type { ProjectEvent } from '@omenflow/contracts';
+import type { ProjectEvent } from '@bureau/contracts';
 
 export interface EventWindow {
   events: ProjectEvent[];

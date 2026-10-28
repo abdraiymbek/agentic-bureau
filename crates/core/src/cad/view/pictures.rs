@@ -2,14 +2,14 @@
 //! and how a host reads one back to send it.
 //!
 //! A picture is a regenerable PNG file named by the SHA-256 of its bytes
-//! under `.omenflow/cache/views-v1/`. It is never read back as a cache: every call
+//! under `.bureau/cache/views-v1/`. It is never read back as a cache: every call
 //! draws its picture again. The folder is pruned to the newest files.
 use super::*;
 use std::io::Read;
 use std::time::SystemTime;
 
 /// Project-relative folder of the pictures.
-pub const DIR: &str = ".omenflow/cache/views-v1";
+pub const DIR: &str = ".bureau/cache/views-v1";
 /// Largest picture, in bytes. Larger drawings are drawn again smaller.
 pub const PICTURE_BYTES: usize = 1024 * 1024;
 /// Largest total of the pictures sent with one reply.
@@ -58,7 +58,7 @@ fn hash_file(path: &Path, limit: usize) -> Option<String> {
         .take(limit as u64 + 1)
         .read_to_end(&mut bytes)
         .ok()?;
-    (bytes.len() <= limit).then(|| omenflow_storage::sha256_hex(&bytes))
+    (bytes.len() <= limit).then(|| bureau_storage::sha256_hex(&bytes))
 }
 
 /// Write `bytes` as `<sha256>.png` and prune the folder. A file already
@@ -68,11 +68,11 @@ pub(crate) fn store(root: &Path, bytes: &[u8]) -> CoreResult<Stored> {
 }
 
 pub(crate) fn store_keeping(root: &Path, bytes: &[u8], keep: Keep) -> CoreResult<Stored> {
-    let dir = omenflow_storage::resolve_project_path(root, DIR).map_err(storage_error)?;
+    let dir = bureau_storage::resolve_project_path(root, DIR).map_err(storage_error)?;
     fs::create_dir_all(&dir).map_err(internal)?;
     // The folder must still be inside the project once it exists.
-    omenflow_storage::resolve_project_path(root, DIR).map_err(storage_error)?;
-    let sha256 = omenflow_storage::sha256_hex(bytes);
+    bureau_storage::resolve_project_path(root, DIR).map_err(storage_error)?;
+    let sha256 = bureau_storage::sha256_hex(bytes);
     let name = format!("{sha256}{EXTENSION}");
     let path = dir.join(&name);
     let same = || {
@@ -195,7 +195,7 @@ pub fn read_back(root: &Path, entry: &Value) -> Result<Picture, &'static str> {
     if bytes.len() > PICTURE_BYTES {
         return Err("it is larger than a picture may be");
     }
-    if omenflow_storage::sha256_hex(&bytes) != stem {
+    if bureau_storage::sha256_hex(&bytes) != stem {
         return Err("it changed on disk");
     }
     Ok(Picture {
@@ -356,7 +356,7 @@ mod tests {
             let outside = tempfile::tempdir().unwrap();
             let target = outside.path().join("secret.png");
             fs::write(&target, b"secret").unwrap();
-            let sha = omenflow_storage::sha256_hex(b"secret");
+            let sha = bureau_storage::sha256_hex(b"secret");
             std::os::unix::fs::symlink(&target, root.join(DIR).join(format!("{sha}.png"))).unwrap();
             assert_eq!(
                 read_back(root, &entry(&format!("{DIR}/{sha}.png"), &sha, "image/png")).err(),

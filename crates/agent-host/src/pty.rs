@@ -9,8 +9,8 @@ use crate::adapters::{
 use crate::profile::{resolve_profile, ResolvedProfile};
 use crate::session::{self, plan_launch, LaunchMode, LaunchPlan, LaunchRequest};
 use crate::{guide, now, BridgeServer, Grant, SessionActivity};
-use omenflow_contracts::ContractError;
-use omenflow_core::{CoreApp, Origin};
+use bureau_contracts::ContractError;
+use bureau_core::{CoreApp, Origin};
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -90,7 +90,7 @@ pub struct PtyHost {
     sizes: Mutex<HashMap<String, (u16, u16)>>,
     lifecycle: Mutex<()>,
     notify: Notify,
-    /// How the person routes a CLI's models outside Omen Flow; tests replace it so the
+    /// How the person routes a CLI's models outside Bureau; tests replace it so the
     /// developer's own configuration never changes their results.
     routing: RwLock<RoutingLookup>,
 }
@@ -372,12 +372,9 @@ impl PtyHost {
         if !self.cli_path.is_file() {
             return Err(ContractError::new(
                 "TOOL_MISSING",
-                format!(
-                    "Omen Flow bridge helper missing: {}",
-                    self.cli_path.display()
-                ),
+                format!("Bureau bridge helper missing: {}", self.cli_path.display()),
             )
-            .with_repair("Reinstall Omen Flow; without the helper an agent has no tools."));
+            .with_repair("Reinstall Bureau; without the helper an agent has no tools."));
         }
         let search = SearchPath::system();
         let executable = search
@@ -653,10 +650,7 @@ impl PtyHost {
             steps.push(step(
                 "helper",
                 false,
-                format!(
-                    "Omen Flow bridge helper missing: {}",
-                    self.cli_path.display()
-                ),
+                format!("Bureau bridge helper missing: {}", self.cli_path.display()),
             ));
             return steps;
         }
@@ -680,10 +674,10 @@ impl PtyHost {
             continues: Vec::new(),
         });
         let env = [
-            ("OMENFLOW_BRIDGE_SOCK", self.bridge.socket_path()),
-            ("OMENFLOW_BRIDGE_TOKEN", token.as_str()),
-            ("OMENFLOW_PROJECT_ID", project_id),
-            ("OMENFLOW_SESSION_ID", session_id.as_str()),
+            ("BUREAU_BRIDGE_SOCK", self.bridge.socket_path()),
+            ("BUREAU_BRIDGE_TOKEN", token.as_str()),
+            ("BUREAU_PROJECT_ID", project_id),
+            ("BUREAU_SESSION_ID", session_id.as_str()),
         ];
         // The helper runs where a session's CLI runs: in the project folder.
         let root = match self.core.lock() {
@@ -699,7 +693,7 @@ impl PtyHost {
             helper_call(&self.cli_path, &root, "project_summary", &env).and_then(|summary| {
                 summary["project"]["name"]
                     .as_str()
-                    .map(|name| format!("omenflow call reached project \"{name}\""))
+                    .map(|name| format!("bureau call reached project \"{name}\""))
                     .ok_or_else(|| "The helper did not return a project summary".to_owned())
             });
         let reached = call.is_ok();
@@ -707,7 +701,7 @@ impl PtyHost {
         if reached {
             let listed = helper_mcp_tool_count(&self.cli_path, &root, &env).map(|tools| {
                 format!(
-                    "omenflow mcp listed {tools} tools for the {} profile",
+                    "bureau mcp listed {tools} tools for the {} profile",
                     resolved.profile
                 )
             });
@@ -839,7 +833,7 @@ impl PtyHost {
 
     /// Start again with what the last session was started with. When the CLI
     /// can resume a conversation by id and the last session actually talked
-    /// to Omen Flow, the conversation continues; otherwise it starts fresh.
+    /// to Bureau, the conversation continues; otherwise it starts fresh.
     pub fn restart(&self, project_id: &str) -> Result<Value, ContractError> {
         let _lifecycle = self
             .lifecycle
@@ -851,7 +845,7 @@ impl PtyHost {
                 .ok_or_else(|| ContractError::validation("No session to restart"))?;
             let state = session.lock().map_err(|_| failure("Session unavailable"))?;
             // The ledger, not the last state event, says whether the agent
-            // ever reached Omen Flow, and so whether a conversation exists.
+            // ever reached Bureau, and so whether a conversation exists.
             let resumable = state.info["id"]
                 .as_str()
                 .is_some_and(|id| self.bridge.session_activity(id).calls > 0);
@@ -1422,7 +1416,7 @@ fn helper_failure(reported: &str) -> String {
     }
 }
 
-/// `omenflow call <tool>`: one request, one result on standard output.
+/// `bureau call <tool>`: one request, one result on standard output.
 fn helper_call(
     helper: &Path,
     cwd: &Path,
@@ -1443,12 +1437,12 @@ fn helper_call(
     }
 }
 
-/// `omenflow mcp`: initialise and list the tools, as an agent CLI would.
+/// `bureau mcp`: initialise and list the tools, as an agent CLI would.
 /// The helper stops when its input closes, so the input stays open until
 /// the listing has arrived.
 fn helper_mcp_tool_count(helper: &Path, cwd: &Path, env: &[(&str, &str)]) -> Result<usize, String> {
     let requests = concat!(
-        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"omenflow-connection-test","version":"1"}}}"#,
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"bureau-connection-test","version":"1"}}}"#,
         "\n",
         r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
         "\n",
@@ -1669,7 +1663,7 @@ mod tests {
             );
         }
         // An operating-system command (a window title) is skipped whole.
-        let title = "\u{1b}]0;Omen Flow\u{7}after";
+        let title = "\u{1b}]0;Bureau\u{7}after";
         assert_eq!(&title[safe_cut(title, 5)..], "after");
         let st = "\u{1b}]8;;https://example.com\u{1b}\\link";
         assert_eq!(&st[safe_cut(st, 9)..], "link");
@@ -2020,10 +2014,7 @@ mod tests {
     #[test]
     fn calls_and_review_state_reach_the_session_live() {
         let mut terminal = Terminal::new("Live session");
-        let session = terminal.shell(
-            "echo \"TOKEN=$OMENFLOW_BRIDGE_TOKEN.\"; sleep 60",
-            json!({}),
-        );
+        let session = terminal.shell("echo \"TOKEN=$BUREAU_BRIDGE_TOKEN.\"; sleep 60", json!({}));
         terminal.wait_output(".");
         let token = terminal
             .output
@@ -2119,7 +2110,7 @@ mod tests {
         let args = terminal.output.clone();
         for expected in [
             format!("--mcp-config {}", mcp.display()),
-            "--allowedTools mcp__omenflow".to_owned(),
+            "--allowedTools mcp__bureau".to_owned(),
             format!("--append-system-prompt-file {}", guide_file.display()),
             "--model claude-haiku-5-5".to_owned(),
             format!("--session-id {id}"),
@@ -2131,19 +2122,19 @@ mod tests {
             assert_eq!(mode, 0o600, "{}", file.display());
         }
         let config: Value = serde_json::from_slice(&fs::read(&mcp).unwrap()).unwrap();
-        let server = &config["mcpServers"]["omenflow"];
+        let server = &config["mcpServers"]["bureau"];
         assert_eq!(server["command"], "/bin/echo");
         assert_eq!(
             (&server["timeout"], &server["alwaysLoad"]),
             (&json!(600_000), &json!(true))
         );
-        let token = server["env"]["OMENFLOW_BRIDGE_TOKEN"]
+        let token = server["env"]["BUREAU_BRIDGE_TOKEN"]
             .as_str()
             .unwrap()
             .to_owned();
-        assert_eq!(server["env"]["OMENFLOW_SESSION_ID"], id);
+        assert_eq!(server["env"]["BUREAU_SESSION_ID"], id);
         let brief = fs::read_to_string(&guide_file).unwrap();
-        assert!(brief.starts_with("# Omen Flow session\n\nProject: Claude files\n"));
+        assert!(brief.starts_with("# Bureau session\n\nProject: Claude files\n"));
         // What the project held at launch, read by the host for the brief.
         assert!(
             brief.contains("\n\n## Project at launch\n\nWhen this session started the project was empty: no artifacts and no proposals.\nProject intent: \"test\"\n"),
@@ -2282,7 +2273,7 @@ mod tests {
         );
 
         // The person can switch it off for that adapter.
-        terminal.configure("custom", json!({"env": {"OMENFLOW_AGENTS_MD": "off"}}));
+        terminal.configure("custom", json!({"env": {"BUREAU_AGENTS_MD": "off"}}));
         terminal
             .host
             .start(&project, &json!({"adapterId": "custom"}))
@@ -2321,11 +2312,11 @@ mod tests {
         terminal.wait_output(&format!("--session-id {second_id}."));
         assert!(!terminal.output.contains("--resume"));
 
-        // The agent talked to Omen Flow: the conversation is resumed by id.
+        // The agent talked to Bureau: the conversation is resumed by id.
         let config: Value =
             serde_json::from_slice(&fs::read(terminal.work_file(&second, "mcp.json")).unwrap())
                 .unwrap();
-        let token = config["mcpServers"]["omenflow"]["env"]["OMENFLOW_BRIDGE_TOKEN"]
+        let token = config["mcpServers"]["bureau"]["env"]["BUREAU_BRIDGE_TOKEN"]
             .as_str()
             .unwrap()
             .to_owned();
@@ -2335,7 +2326,7 @@ mod tests {
         let third = terminal.host.restart(&project).unwrap();
         terminal.wait_output(&format!("--resume {second_id}."));
         assert!(!terminal.output.contains("--session-id"));
-        assert_ne!(third["id"], second["id"], "the Omen Flow session is new");
+        assert_ne!(third["id"], second["id"], "the Bureau session is new");
         assert!(terminal.work_file(&third, "mcp.json").exists());
 
         // The resumed session did nothing: the next start is fresh again.
@@ -2404,14 +2395,14 @@ mod tests {
         terminal.host.write(&project, "still here\n").unwrap();
         terminal.wait_output("still here");
         // No grant or file of the failed attempts is left behind.
-        let work = terminal.workspace.root().join(".omenflow/work");
+        let work = terminal.workspace.root().join(".bureau/work");
         let folders = fs::read_dir(&work)
             .map(|entries| entries.count())
             .unwrap_or(0);
         assert!(folders <= 1, "{folders} session folders");
 
         // Without the helper an agent would have no tools: refuse to start.
-        let helperless = Terminal::with_helper("No helper", PathBuf::from("/nowhere/omenflow"));
+        let helperless = Terminal::with_helper("No helper", PathBuf::from("/nowhere/bureau"));
         helperless.configure("custom", json!({"executablePath": "/bin/cat"}));
         let error = helperless
             .host
@@ -2420,7 +2411,7 @@ mod tests {
         assert_eq!(error.code, "TOOL_MISSING");
         assert_eq!(
             error.message,
-            "Omen Flow bridge helper missing: /nowhere/omenflow"
+            "Bureau bridge helper missing: /nowhere/bureau"
         );
     }
 
@@ -2523,7 +2514,7 @@ esac"#;
     #[test]
     fn a_connection_test_runs_the_cli_and_reports_each_step() {
         let terminal = Terminal::new("Connection test");
-        let helper = terminal.script("omenflow", STAND_IN_HELPER);
+        let helper = terminal.script("bureau", STAND_IN_HELPER);
         let terminal = Terminal {
             host: PtyHost::new(
                 Arc::clone(&terminal.workspace.core),
@@ -2547,8 +2538,8 @@ esac"#;
                 {"step": "executable", "ok": true, "detail": codex},
                 {"step": "version", "ok": true, "detail": "codex-cli 0.156.1"},
                 {"step": "helper", "ok": true, "detail": helper},
-                {"step": "bridge", "ok": true, "detail": "omenflow call reached project \"Stand-in\""},
-                {"step": "mcp", "ok": true, "detail": "omenflow mcp listed 2 tools for the standard profile"}
+                {"step": "bridge", "ok": true, "detail": "bureau call reached project \"Stand-in\""},
+                {"step": "mcp", "ok": true, "detail": "bureau mcp listed 2 tools for the standard profile"}
             ])
         );
         assert!(passed["detail"]
@@ -2607,7 +2598,7 @@ esac"#;
         assert_eq!(custom["ok"], true, "{custom}");
         assert_eq!(
             custom["steps"][4]["detail"],
-            "omenflow mcp listed 2 tools for the compact profile"
+            "bureau mcp listed 2 tools for the compact profile"
         );
         let unknown = terminal
             .host
@@ -2671,7 +2662,7 @@ esac"#;
         let root = fs::canonicalize(located.workspace.root()).unwrap();
         assert_eq!(
             result["steps"][3]["detail"],
-            format!("omenflow call reached project \"{}\"", root.display()),
+            format!("bureau call reached project \"{}\"", root.display()),
             "{result}"
         );
     }
@@ -2679,10 +2670,10 @@ esac"#;
     /// Needs `pnpm build:bridge` first, so it is not part of the default run:
     /// the workspace build does not produce the helper.
     #[test]
-    #[ignore = "needs the built omenflow helper (pnpm build:bridge)"]
+    #[ignore = "needs the built bureau helper (pnpm build:bridge)"]
     fn the_built_helper_reaches_the_bridge_both_ways() {
         let helper = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../native/omenflow-bridge/target/release/omenflow");
+            .join("../../native/bureau-bridge/target/release/bureau");
         assert!(
             helper.is_file(),
             "build the helper first: {}",
@@ -2698,14 +2689,14 @@ esac"#;
         assert_eq!(result["ok"], true, "{result}");
         assert_eq!(
             result["steps"][3]["detail"],
-            "omenflow call reached project \"Real helper\""
+            "bureau call reached project \"Real helper\""
         );
         assert_eq!(
             result["steps"][4]["detail"],
             format!(
-                "omenflow mcp listed {} tools for the standard profile",
-                omenflow_contracts::registry()
-                    .tools_for(omenflow_contracts::Profile::Standard)
+                "bureau mcp listed {} tools for the standard profile",
+                bureau_contracts::registry()
+                    .tools_for(bureau_contracts::Profile::Standard)
                     .count()
             )
         );

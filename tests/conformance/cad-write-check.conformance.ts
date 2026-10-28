@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { AgentActivity } from '@omenflow/contracts';
+import type { AgentActivity } from '@bureau/contracts';
 import { CoreError, RustCore } from './rust-core';
 
 const USER = { kind: 'user' as const };
@@ -23,7 +23,7 @@ const agent = (op: string, payload: unknown = {}) =>
   app.dispatch(op, payload, AGENT, projectId) as Promise<any>;
 
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-write-check-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-write-check-'));
   app = await RustCore.start(path.join(root, 'app'));
   const created = (await app.dispatch(
     'project.create',

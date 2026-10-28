@@ -324,7 +324,7 @@
 .chat-user-message.is-continuation > div {
   font-size: var(--text-md);
 }
-/* Sent by Omen Flow, not by the person: outlined, not filled. */
+/* Sent by Bureau, not by the person: outlined, not filled. */
 .chat-user-message.is-automatic > div {
   background: transparent;
   border: 1px dashed var(--line-strong);

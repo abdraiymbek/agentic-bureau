@@ -121,7 +121,7 @@ fn undelivered(db: &Connection, project_id: &str, after: i64) -> CoreResult<Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omenflow_storage::ProjectHandle;
+    use bureau_storage::ProjectHandle;
 
     fn project() -> (tempfile::TempDir, ProjectHandle) {
         let temp = tempfile::tempdir().unwrap();

@@ -1,9 +1,9 @@
-import type { NativeShutdownRequest, OmenflowApi } from '../api';
+import type { NativeShutdownRequest, BureauApi } from '../api';
 import { confirmLeave } from './dirty';
 import { unsavedEdits } from './unsaved-edits';
 
 /** Keep the work registered until native shutdown actually happens: agent consent may cancel it. */
-export function installNativeShutdownGuard(api: OmenflowApi): () => void {
+export function installNativeShutdownGuard(api: BureauApi): () => void {
   if (!api.onShutdownRequest || !api.replyToShutdown) return () => {};
   const reply = api.replyToShutdown.bind(api);
   let active = true;
@@ -16,7 +16,7 @@ export function installNativeShutdownGuard(api: OmenflowApi): () => void {
       await reply(request.requestId, 'received');
       if (!active) return;
       const discard = await confirmLeave(
-        request.action === 'quit' ? 'quit Omen Flow' : 'close the window',
+        request.action === 'quit' ? 'quit Bureau' : 'close the window',
         {
           keep: true,
           extraLabels: unsavedEdits

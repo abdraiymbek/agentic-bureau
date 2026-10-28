@@ -5,7 +5,7 @@
 
 use crate::present::chars;
 use crate::test_support::{McpClient, Workspace};
-use omenflow_contracts::{registry, Profile};
+use bureau_contracts::{registry, Profile};
 use serde_json::{json, Value};
 
 const MISSING: &str = "00000000-0000-4000-8000-00000000dead";
@@ -80,8 +80,8 @@ fn dotted_prefixed_and_miscased_names_are_accepted_and_reported() {
             Some("read tool name \"artifact.list\" as artifact_list"),
         ),
         (
-            "mcp__omenflow__artifact_list",
-            Some("read tool name \"mcp__omenflow__artifact_list\" as artifact_list"),
+            "mcp__bureau__artifact_list",
+            Some("read tool name \"mcp__bureau__artifact_list\" as artifact_list"),
         ),
         (
             "Artifact_List",
@@ -602,8 +602,8 @@ fn each_profile_gets_its_instructions_and_its_tool_list() {
         );
         let result = &initialized["result"];
         assert_eq!(result["protocolVersion"], "2025-06-18");
-        assert_eq!(result["serverInfo"]["name"], "omenflow");
-        assert_eq!(result["serverInfo"]["title"], "Omen Flow");
+        assert_eq!(result["serverInfo"]["name"], "bureau");
+        assert_eq!(result["serverInfo"]["title"], "Bureau");
         assert_eq!(result["capabilities"]["tools"]["listChanged"], false);
         let instructions = result["instructions"].as_str().unwrap();
         assert_eq!(instructions, crate::guide::instructions(profile));
@@ -709,7 +709,7 @@ fn the_protocol_edges_do_not_strand_a_client() {
 }
 
 #[test]
-fn omenflow_call_takes_either_name_form_and_returns_structured_errors() {
+fn bureau_call_takes_either_name_form_and_returns_structured_errors() {
     let workspace = Workspace::new("Call mode");
     note(&workspace, "Plate", 3);
     let (token, _) = workspace.grant(Profile::Compact);
@@ -777,7 +777,7 @@ fn live_calls_reach_the_host_hook_and_the_session_counters() {
     // The same records are on disk, one line each, without arguments.
     let file = workspace
         .root()
-        .join(".omenflow/work")
+        .join(".bureau/work")
         .join(&client.session_id)
         .join("calls.jsonl");
     let lines = std::fs::read_to_string(file).unwrap();
@@ -889,7 +889,7 @@ fn drawing(workspace: &Workspace) -> Vec<u8> {
 const ROUTE: &str = "Open images[0].path (relative to the project folder) with your image viewer (Codex: view_image).";
 
 #[test]
-fn image_view_sends_a_picture_over_mcp_and_a_path_over_omenflow_call() {
+fn image_view_sends_a_picture_over_mcp_and_a_path_over_bureau_call() {
     let workspace = Workspace::new("Pictures");
     drawing(&workspace);
     // Claude Code shows the picture with structured content; Codex only
@@ -953,7 +953,7 @@ fn image_view_sends_a_picture_over_mcp_and_a_path_over_omenflow_call() {
         "pictures can be looked at in plan mode"
     );
 
-    // omenflow call: the path and hash, never the bytes.
+    // bureau call: the path and hash, never the bytes.
     let (token, _) = workspace.grant(Profile::Standard);
     let mut call = McpClient::connect(&workspace.bridge, &token, "call");
     let response = call.call_op("image_view", json!({"path": "inputs/drawing.png"}));
@@ -961,7 +961,7 @@ fn image_view_sends_a_picture_over_mcp_and_a_path_over_omenflow_call() {
     let result = &response["result"];
     let entry = &result["images"][0];
     let path = entry["path"].as_str().unwrap();
-    assert!(path.starts_with(".omenflow/cache/views-v1/"));
+    assert!(path.starts_with(".bureau/cache/views-v1/"));
     assert!(entry.get("attached").is_none());
     assert!(entry.get("data").is_none());
     assert!(workspace.root().join(path).is_file());

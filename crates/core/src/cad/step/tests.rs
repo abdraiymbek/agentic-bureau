@@ -804,7 +804,7 @@ fn fake_python(dir: &Path, name: &str, body: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(name);
     let script = format!(
-        "#!/bin/sh\nif [ \"$1\" = \"-c\" ] || [ \"$2\" = \"-c\" ]; then echo 'OMENFLOW-OCP 7.9.3.1 3.12.14'; exit 0; fi\n[ \"$1\" = \"-E\" ] && [ \"$2\" = \"csg_to_step.py\" ] && [ -f csg_to_step.py ] && [ -f request.json ] || {{ echo 'run wrongly' >&2; exit 9; }}\n{body}\n"
+        "#!/bin/sh\nif [ \"$1\" = \"-c\" ] || [ \"$2\" = \"-c\" ]; then echo 'BUREAU-OCP 7.9.3.1 3.12.14'; exit 0; fi\n[ \"$1\" = \"-E\" ] && [ \"$2\" = \"csg_to_step.py\" ] && [ -f csg_to_step.py ] && [ -f request.json ] || {{ echo 'run wrongly' >&2; exit 9; }}\n{body}\n"
     );
     fs::write(&path, script).unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
@@ -943,7 +943,7 @@ fn the_conversion_runs_off_the_lock_and_an_agreeing_answer_is_exact() {
     assert_eq!(job["inputs"]["destPath"], "plate.step");
     assert_eq!(
         job["outputHashes"]["step"],
-        omenflow_storage::sha256_hex(STEP_TEXT.as_bytes())
+        bureau_storage::sha256_hex(STEP_TEXT.as_bytes())
     );
     assert!(job["log"]
         .as_str()
@@ -1005,7 +1005,7 @@ fn a_python_that_lost_ocp_is_checked_again_by_the_next_export() {
     fs::write(
         &python,
         format!(
-            "#!/bin/sh\nif [ \"$2\" = \"-c\" ]; then echo x >> '{}'; echo 'OMENFLOW-OCP 7.9.3.1 3.12.14'; exit 0; fi\necho '{{\"protocol\": 1, \"ok\": false, \"stage\": \"import\", \"reason\": \"ModuleNotFoundError: No module named OCP\", \"python\": \"3.12.14\"}}' > answer.json\n",
+            "#!/bin/sh\nif [ \"$2\" = \"-c\" ]; then echo x >> '{}'; echo 'BUREAU-OCP 7.9.3.1 3.12.14'; exit 0; fi\necho '{{\"protocol\": 1, \"ok\": false, \"stage\": \"import\", \"reason\": \"ModuleNotFoundError: No module named OCP\", \"python\": \"3.12.14\"}}' > answer.json\n",
             checks.display()
         ),
     )
@@ -1200,7 +1200,7 @@ fn an_archive_carries_no_machine_path_from_a_step_export_job() {
     let engine = StandIn::new(dir.path());
     engine.release();
     let sandbox = Sandbox::with_engine(&engine.executable);
-    set_python(&sandbox, Path::new("/opt/omenflow-nowhere/bin/python3"));
+    set_python(&sandbox, Path::new("/opt/bureau-nowhere/bin/python3"));
     let part = stand_in_part(&sandbox);
     sandbox
         .call(
@@ -1211,14 +1211,14 @@ fn an_archive_carries_no_machine_path_from_a_step_export_job() {
     let error = sandbox
         .call(
             "cad.export",
-            json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"], "format": "step", "method": "faceted", "destPath": "/dev/null/omen flow/p.step"}),
+            json!({"artifactId": part["artifactId"], "revisionId": part["revisionId"], "format": "step", "method": "faceted", "destPath": "/dev/null/bureau/p.step"}),
         )
         .unwrap_err();
     // The person is told where; the job names the file only, as its inputs do.
     assert!(
         error
             .message
-            .starts_with("Could not write /dev/null/omen flow/p.step: "),
+            .starts_with("Could not write /dev/null/bureau/p.step: "),
         "{}",
         error.message
     );
@@ -1237,16 +1237,16 @@ fn an_archive_carries_no_machine_path_from_a_step_export_job() {
     assert!(jobs.iter().any(|job| job["log"]
         .as_str()
         .unwrap_or("")
-        .contains("Python /opt/omenflow-nowhere/bin/python3: not an executable file")));
+        .contains("Python /opt/bureau-nowhere/bin/python3: not an executable file")));
     let archive = dir.path().join("a.zip");
     sandbox
         .call("project.export_archive", json!({"destPath": archive}))
         .unwrap();
     let mut zip = zip::ZipArchive::new(fs::File::open(&archive).unwrap()).unwrap();
-    for name in ["snapshot.json", ".omenflow/state.sqlite"] {
+    for name in ["snapshot.json", ".bureau/state.sqlite"] {
         let mut bytes = Vec::new();
         std::io::Read::read_to_end(&mut zip.by_name(name).unwrap(), &mut bytes).unwrap();
-        for leaked in ["/opt/omenflow-nowhere", "omen flow"] {
+        for leaked in ["/opt/bureau-nowhere", "bureau"] {
             assert!(
                 !bytes
                     .windows(leaked.len())
@@ -1298,7 +1298,7 @@ fn an_agent_exports_only_under_exports_and_never_over_other_files() {
         "./artifacts/x.step",
         "exports/../artifacts/x.step",
         "../x.step",
-        ".omenflow/x.step",
+        ".bureau/x.step",
     ] {
         assert_eq!(
             export(agent(), json!(dest), "step").err().unwrap().code,
@@ -1633,7 +1633,7 @@ fn a_part_exports_as_a_faceted_step_with_its_event_and_job() {
     assert_eq!(job["status"], "succeeded");
     assert_eq!(
         job["outputHashes"]["step"],
-        omenflow_storage::sha256_hex(&bytes)
+        bureau_storage::sha256_hex(&bytes)
     );
     assert_eq!(
         job["inputHashes"]["stl"],
@@ -1653,15 +1653,15 @@ fn a_part_exports_as_a_faceted_step_with_its_event_and_job() {
 /* Opt-in: the real converter                                           */
 /* ------------------------------------------------------------------ */
 
-const INSTALL: &str = "uv venv --python 3.12 ~/.omenflow-step && uv pip install --python ~/.omenflow-step/bin/python cadquery-ocp-novtk==7.9.3.1.1, then OMENFLOW_PYTHON=~/.omenflow-step/bin/python";
+const INSTALL: &str = "uv venv --python 3.12 ~/.bureau-step && uv pip install --python ~/.bureau-step/bin/python cadquery-ocp-novtk==7.9.3.1.1, then BUREAU_PYTHON=~/.bureau-step/bin/python";
 
 /// The Python with OCP an opt-in test uses, or `None` when the test is not asked for.
 fn converter_python(variable: &str) -> Option<python::Python> {
     if std::env::var_os(variable).is_none() {
-        eprintln!("SKIPPED: set {variable} (and OMENFLOW_PYTHON) to run the real STEP converter");
+        eprintln!("SKIPPED: set {variable} (and BUREAU_PYTHON) to run the real STEP converter");
         return None;
     }
-    let path = std::env::var_os("OMENFLOW_PYTHON")
+    let path = std::env::var_os("BUREAU_PYTHON")
         .map(PathBuf::from)
         .unwrap_or_else(|| panic!("{variable} needs a Python with OCP: {INSTALL}"));
     let found = python::find(Some(&path), &|| false, None, true)
@@ -1796,10 +1796,10 @@ fn seeded_trees_lose_a_cutter_and_nothing_else() {
     assert!(without_last_cutter("cube(size = [1, 1, 1], center = false);\n").is_none());
 }
 
-/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`.
+/// `BUREAU_STEP_E2E=1 BUREAU_PYTHON=<python with OCP>`.
 #[test]
 fn exact_step_of_the_plate_end_to_end() {
-    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+    let Some(python) = converter_python("BUREAU_STEP_E2E") else {
         return;
     };
     if !engine_available() {
@@ -1864,12 +1864,12 @@ fn rendered_mesh(sandbox: &Sandbox, source: &str) -> Arc<mesh::Mesh> {
     })
 }
 
-/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: small holes that a large
+/// `BUREAU_STEP_E2E=1 BUREAU_PYTHON=<python with OCP>`: small holes that a large
 /// transform or a revolution elsewhere in the tree once hid from the probes, and empty
 /// operands, which OpenSCAD keeps as operands.
 #[test]
 fn exact_rebuilds_follow_openscad_and_a_lost_small_hole_is_refused() {
-    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+    let Some(python) = converter_python("BUREAU_STEP_E2E") else {
         return;
     };
     if !engine_available() {
@@ -1924,13 +1924,13 @@ fn exact_rebuilds_follow_openscad_and_a_lost_small_hole_is_refused() {
     }
 }
 
-/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: a shallow dimple meets the plate
+/// `BUREAU_STEP_E2E=1 BUREAU_PYTHON=<python with OCP>`: a shallow dimple meets the plate
 /// at about 11°, so it shares the top's probe pairs and gets one or two. A tree that lost it
 /// beside a deep one it kept (both trees give the probes the same facet bound) is refused;
 /// volume, box and the points through the box cannot tell.
 #[test]
 fn a_lost_shallow_dimple_is_refused() {
-    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+    let Some(python) = converter_python("BUREAU_STEP_E2E") else {
         return;
     };
     if !engine_available() {
@@ -1959,7 +1959,7 @@ fn a_lost_shallow_dimple_is_refused() {
     }
 }
 
-/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: a tree of flat faces (a hexagonal
+/// `BUREAU_STEP_E2E=1 BUREAU_PYTHON=<python with OCP>`: a tree of flat faces (a hexagonal
 /// pyramid 1.5 to 3 mm in radius cut 0.2 to 0.3 mm into a plate, meeting it at 5° to 10°),
 /// whose facets are its exact faces, so the facet bound is 0 and every pair sits at the
 /// smallest offset. A tree that lost the pyramid, or one that adds it as a bump the render has
@@ -1967,7 +1967,7 @@ fn a_lost_shallow_dimple_is_refused() {
 /// through the box cannot tell.
 #[test]
 fn a_lost_or_added_flat_dimple_is_refused() {
-    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+    let Some(python) = converter_python("BUREAU_STEP_E2E") else {
         return;
     };
     if !engine_available() {
@@ -2008,13 +2008,13 @@ fn a_lost_or_added_flat_dimple_is_refused() {
     }
 }
 
-/// `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=<python with OCP>`: correct rebuilds of trees of flat
+/// `BUREAU_STEP_E2E=1 BUREAU_PYTHON=<python with OCP>`: correct rebuilds of trees of flat
 /// faces, where only rounding may explain a disagreement, agree at every pair and point: rotated
 /// and scaled cubes, polygons, a polyhedron, 3- to 8-facet holes, 0.5 mm walls, a 0.001 mm
 /// step, a 2 m plate and a plate 2.2 m from the origin.
 #[test]
 fn exact_rebuilds_of_flat_trees_agree_everywhere() {
-    let Some(python) = converter_python("OMENFLOW_STEP_E2E") else {
+    let Some(python) = converter_python("BUREAU_STEP_E2E") else {
         return;
     };
     if !engine_available() {
@@ -2063,32 +2063,32 @@ fn copy_tree(from: &Path, to: &Path) {
 }
 
 /// The exporter over recorded projects, each `<id>/project` under
-/// `OMENFLOW_STEP_CORPUS` (copied first; the originals are never opened).
+/// `BUREAU_STEP_CORPUS` (copied first; the originals are never opened).
 /// Prints one JSON line per part: the product export, and whether a copy of
 /// its CSG tree missing the last cutter of its first `difference()` is
-/// refused. `OMENFLOW_STEP_CORPUS_OUT` keeps the STEP files and the lines;
-/// `OMENFLOW_STEP_CORPUS_FACETED=1` also writes every part faceted.
+/// refused. `BUREAU_STEP_CORPUS_OUT` keeps the STEP files and the lines;
+/// `BUREAU_STEP_CORPUS_FACETED=1` also writes every part faceted.
 #[test]
 fn step_corpus_parity() {
-    let Some(python) = converter_python("OMENFLOW_STEP_CORPUS") else {
+    let Some(python) = converter_python("BUREAU_STEP_CORPUS") else {
         return;
     };
     if !engine_available() {
         return;
     }
-    let corpus = PathBuf::from(std::env::var_os("OMENFLOW_STEP_CORPUS").unwrap());
-    let out = std::env::var_os("OMENFLOW_STEP_CORPUS_OUT").map(PathBuf::from);
+    let corpus = PathBuf::from(std::env::var_os("BUREAU_STEP_CORPUS").unwrap());
+    let out = std::env::var_os("BUREAU_STEP_CORPUS_OUT").map(PathBuf::from);
     let scratch = tempfile::tempdir().unwrap();
     let out = out.unwrap_or_else(|| scratch.path().join("out"));
     fs::create_dir_all(&out).unwrap();
     let mut ids = fs::read_dir(&corpus)
         .unwrap()
         .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.path().join("project/omenflow.project.json").is_file())
+        .filter(|entry| entry.path().join("project/bureau.project.json").is_file())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect::<Vec<_>>();
     ids.sort();
-    if let Some(only) = std::env::var_os("OMENFLOW_STEP_CORPUS_ONLY") {
+    if let Some(only) = std::env::var_os("BUREAU_STEP_CORPUS_ONLY") {
         let only = only
             .to_string_lossy()
             .split(',')
@@ -2151,7 +2151,7 @@ fn step_corpus_parity() {
                 "approximations": result["approximations"], "seconds": seconds}),
             Err(error) => json!({"id": id, "error": error, "seconds": seconds}),
         };
-        if std::env::var_os("OMENFLOW_STEP_CORPUS_FACETED").is_some() {
+        if std::env::var_os("BUREAU_STEP_CORPUS_FACETED").is_some() {
             let faceted = app.dispatch(
                 "cad.export",
                 json!({"artifactId": artifact_id, "revisionId": revision_id, "format": "step", "method": "faceted", "destPath": out.join(format!("{id}-faceted.step"))}),

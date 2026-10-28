@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { newId, type Artifact, type MechanicalPayload, type Revision } from '@omenflow/contracts';
+import { newId, type Artifact, type MechanicalPayload, type Revision } from '@bureau/contracts';
 import {
   CoreApp,
   nullHost,
@@ -11,7 +11,7 @@ import {
   createCadVerificationEvidence,
   type ProjectContext,
   type TriangleBuffer,
-} from '@omenflow/core';
+} from '@bureau/core';
 import { renderFingerprint } from '../packages/core/src/cad-input.js';
 import {
   evaluateProject,
@@ -21,7 +21,7 @@ import {
   type CodexRun,
 } from '../evals/cad/harness.js';
 import type { Task } from '../evals/cad/tasks.js';
-import { createEngineTools } from '@omenflow/engineering';
+import { createEngineTools } from '@bureau/engineering';
 
 const vertices = [
   [0, 0, 0],
@@ -65,7 +65,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 async function setup() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-evaluator-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-evaluator-'));
   roots.push(root);
   const out = path.join(root, 'out');
   fs.mkdirSync(out);
@@ -182,7 +182,7 @@ const successfulRun: CodexRun = {
 };
 
 describe('CAD evaluator release gates', () => {
-  it.skipIf(!process.env.OMENFLOW_OPENSCAD_E2E)(
+  it.skipIf(!process.env.BUREAU_OPENSCAD_E2E)(
     'evaluates a real rendered and checked final revision end to end',
     async () => {
       const env = await setup();
@@ -391,7 +391,7 @@ describe('CAD evaluator release gates', () => {
         `#!${process.execPath}\nimport fs from 'node:fs';\nconst out=process.argv[process.argv.indexOf('-o')+1];\nfs.writeFileSync(out,Buffer.from('${stl}','base64'));\nprocess.stderr.write('WARNING: ignored variable\\n');\nprocess.stdout.write('stdout is not diagnostics');\n`,
       );
       fs.chmodSync(script, 0o755);
-      vi.stubEnv('OMENFLOW_EVAL_OPENSCAD', script);
+      vi.stubEnv('BUREAU_EVAL_OPENSCAD', script);
       const rendered = renderScad('cube(1);', env.out, 'test');
       expect('tris' in rendered).toBe(true);
       expect(rendered.stderr).toContain('WARNING: ignored variable');

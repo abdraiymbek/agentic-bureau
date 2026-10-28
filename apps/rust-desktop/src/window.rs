@@ -1,6 +1,6 @@
 //! The main window: where it may navigate, and where it was last left.
 
-use omenflow_agent_host::Host;
+use bureau_agent_host::Host;
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};

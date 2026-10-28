@@ -2,7 +2,7 @@
  * What the calculation stage says about a recorded calculation: where each input is pinned, and
  * what a re-run actually recorded. Kept apart from the component so it is tested as words.
  */
-import type { ArtifactView, CalculationPayload } from '@omenflow/contracts';
+import type { ArtifactView, CalculationPayload } from '@bureau/contracts';
 
 type Input = CalculationPayload['inputs'][number];
 

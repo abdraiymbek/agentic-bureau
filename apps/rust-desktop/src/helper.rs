@@ -1,4 +1,4 @@
-//! The `omenflow` helper an agent CLI runs for every Omen Flow tool call.
+//! The `bureau` helper an agent CLI runs for every Bureau tool call.
 //!
 //! A bundle downloaded without notarization keeps macOS's quarantine flag on
 //! every file inside it. Once the person has opened the app (Open Anyway), the
@@ -19,7 +19,7 @@ pub fn usable(bundled: &Path, app_data_dir: &Path) -> PathBuf {
         return bundled.to_path_buf();
     }
     refresh_copy(bundled, &app_data_dir.join("bin")).unwrap_or_else(|error| {
-        eprintln!("omenflow: could not prepare the agent helper: {error}");
+        eprintln!("bureau: could not prepare the agent helper: {error}");
         bundled.to_path_buf()
     })
 }
@@ -28,12 +28,12 @@ pub fn usable(bundled: &Path, app_data_dir: &Path) -> PathBuf {
 /// earlier copy is replaced only when the bundled helper changed.
 fn refresh_copy(bundled: &Path, dir: &Path) -> io::Result<PathBuf> {
     let bytes = fs::read(bundled)?;
-    let copy = dir.join(bundled.file_name().unwrap_or("omenflow".as_ref()));
+    let copy = dir.join(bundled.file_name().unwrap_or("bureau".as_ref()));
     if fs::read(&copy).is_ok_and(|current| current == bytes) && !quarantined(&copy) {
         return Ok(copy);
     }
     fs::create_dir_all(dir)?;
-    let temp = dir.join(format!(".omenflow-{}.partial", std::process::id()));
+    let temp = dir.join(format!(".bureau-{}.partial", std::process::id()));
     fs::write(&temp, &bytes)?;
     #[cfg(unix)]
     {
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn a_helper_without_quarantine_is_used_where_it_is() {
         let temp = tempfile::tempdir().unwrap();
-        let bundled = temp.path().join("omenflow");
+        let bundled = temp.path().join("bureau");
         fs::write(&bundled, b"helper").unwrap();
         assert_eq!(usable(&bundled, &temp.path().join("data")), bundled);
         assert!(!temp.path().join("data").exists());
@@ -107,13 +107,13 @@ mod tests {
     #[test]
     fn a_quarantined_helper_is_handed_out_as_a_clean_executable_copy() {
         let temp = tempfile::tempdir().unwrap();
-        let bundled = temp.path().join("omenflow");
+        let bundled = temp.path().join("bureau");
         fs::write(&bundled, b"helper v1").unwrap();
         quarantine(&bundled);
         let data = temp.path().join("data");
 
         let copy = usable(&bundled, &data);
-        assert_eq!(copy, data.join("bin/omenflow"));
+        assert_eq!(copy, data.join("bin/bureau"));
         assert_eq!(fs::read(&copy).unwrap(), b"helper v1");
         assert!(!quarantined(&copy), "the copy carries no quarantine");
         assert!(quarantined(&bundled), "the bundle is left untouched");

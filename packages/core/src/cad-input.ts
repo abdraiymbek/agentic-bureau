@@ -3,11 +3,11 @@ import {
   convert,
   dimOf,
   ErrorCodes,
-  OmenflowError,
+  BureauError,
   type FileRef,
   type MechanicalPayload,
   type Revision,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { parseScadParameters } from './scad-params.js';
 
 export type ScadValue = number | string | boolean;
@@ -48,18 +48,18 @@ export function effectiveCadParams(
   modelUnit = 'mm',
 ): Record<string, ScadValue> {
   if (modelUnit !== 'mm')
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.INVALID_UNITS,
       `CAD modelUnit ${modelUnit} is unsupported; V0.1 model coordinates must be millimetres. Convert inputs explicitly before rendering.`,
     );
   const out: Record<string, ScadValue> = {};
   for (const [name, v] of Object.entries(params ?? {})) {
     if (!/^[A-Za-z_$][A-Za-z0-9_]*$/.test(name))
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Invalid CAD parameter name: ${name}`);
+      throw new BureauError(ErrorCodes.VALIDATION, `Invalid CAD parameter name: ${name}`);
     if (v && typeof v === 'object' && 'value' in v && 'unit' in v) {
       const q = v as { value: number; unit: string };
       if (!Number.isFinite(q.value))
-        throw new OmenflowError(ErrorCodes.VALIDATION, `Non-finite parameter ${name}`);
+        throw new BureauError(ErrorCodes.VALIDATION, `Non-finite parameter ${name}`);
       const dimension = dimOf(q);
       const unit =
         dimension === 'length'
@@ -70,7 +70,7 @@ export function effectiveCadParams(
               ? '1'
               : null;
       if (!unit)
-        throw new OmenflowError(
+        throw new BureauError(
           ErrorCodes.INVALID_UNITS,
           `CAD parameter ${name} has unsupported ${dimension} unit ${q.unit}`,
         );
@@ -81,8 +81,7 @@ export function effectiveCadParams(
       typeof v === 'boolean'
     ) {
       out[name] = v as ScadValue;
-    } else
-      throw new OmenflowError(ErrorCodes.VALIDATION, `Unsupported CAD parameter value: ${name}`);
+    } else throw new BureauError(ErrorCodes.VALIDATION, `Unsupported CAD parameter value: ${name}`);
   }
   return out;
 }
@@ -172,7 +171,7 @@ export function renderFingerprint(
 export function assertSelfContainedScad(source: string): void {
   const code = source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
   if (/\b(?:include|use)\s*</.test(code) || /\b(?:import|surface|text|rands)\s*\(/.test(code)) {
-    throw new OmenflowError(
+    throw new BureauError(
       ErrorCodes.VALIDATION,
       'V0.1 CAD source must be self-contained; include/use/import/surface, host-font text() and random rands() dependencies are not yet reproducibly pinned.',
       {

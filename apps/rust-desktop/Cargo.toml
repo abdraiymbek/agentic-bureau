@@ -1,13 +1,13 @@
 [package]
-name = "omenflow-rust-desktop"
+name = "bureau-rust-desktop"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 build = "build.rs"
 
 [dependencies]
-omenflow-contracts = { path = "../../crates/contracts" }
-omenflow-agent-host = { path = "../../crates/agent-host" }
+bureau-contracts = { path = "../../crates/contracts" }
+bureau-agent-host = { path = "../../crates/agent-host" }
 serde_json.workspace = true
 tauri = { version = "2.11.6", features = [] }
 tauri-plugin-dialog = "2"

@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AdapterStatus, SessionInfo } from '@omenflow/contracts';
-import type { ProjectContext } from '@omenflow/core';
+import type { AdapterStatus, SessionInfo } from '@bureau/contracts';
+import type { ProjectContext } from '@bureau/core';
 import { GUIDE_MARKER, agentGuide } from './guide.js';
 
 /** Per-adapter persisted config (CoreApp settings.adapters[adapterId]). */
@@ -30,9 +30,9 @@ export interface LaunchRequest {
   sessionId: string;
   /** Effective config for this launch: persisted config + start() overrides. */
   config: AdapterConfig;
-  /** Per-session bridge credentials (OMENFLOW_BRIDGE_*). */
+  /** Per-session bridge credentials (BUREAU_BRIDGE_*). */
   bridgeEnv: Record<string, string>;
-  /** Absolute path of the generated bootstrap brief (`.omenflow/work/<session>/bootstrap.md`). */
+  /** Absolute path of the generated bootstrap brief (`.bureau/work/<session>/bootstrap.md`). */
   bootstrapPath: string;
 }
 
@@ -203,7 +203,7 @@ const BRIEF_ARTIFACT_CAP = 50;
 
 /**
  * Markdown bootstrap context delivered to the agent at session start.
- * Written to `.omenflow/work/<sessionId>/bootstrap.md`; returns the path.
+ * Written to `.bureau/work/<sessionId>/bootstrap.md`; returns the path.
  */
 export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): string {
   const project = ctx.handle.project;
@@ -223,7 +223,7 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
   const bounded = artifacts.slice(0, BRIEF_ARTIFACT_CAP);
 
   const lines = [
-    `# Omen Flow session bootstrap`,
+    `# Bureau session bootstrap`,
     ``,
     `**Project:** ${project.name} (\`${project.id}\`)`,
     `**Session:** \`${sessionId}\``,
@@ -254,19 +254,19 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
     ``,
     `## Tools`,
     ``,
-    'Prefer the omenflow MCP tools (tool names use `_` for `.`, e.g. `cad.check` →',
-    '`cad_check`). Without MCP: session credentials are in env (`OMENFLOW_BRIDGE_SOCK`,',
-    '`OMENFLOW_BRIDGE_TOKEN`, `OMENFLOW_PROJECT_ID`, `OMENFLOW_SESSION_ID`) and the `omenflow`',
+    'Prefer the bureau MCP tools (tool names use `_` for `.`, e.g. `cad.check` →',
+    '`cad_check`). Without MCP: session credentials are in env (`BUREAU_BRIDGE_SOCK`,',
+    '`BUREAU_BRIDGE_TOKEN`, `BUREAU_PROJECT_ID`, `BUREAU_SESSION_ID`) and the `bureau`',
     'helper reads them:',
     ``,
-    '- `omenflow call <op> --help` — purpose and input JSON schema of one op.',
-    '- `omenflow call <op> --input <file|->` — call one op; payload is JSON.',
-    '- `omenflow mcp` — MCP stdio server exposing the agent tool set.',
+    '- `bureau call <op> --help` — purpose and input JSON schema of one op.',
+    '- `bureau call <op> --input <file|->` — call one op; payload is JSON.',
+    '- `bureau mcp` — MCP stdio server exposing the agent tool set.',
     ``,
     `## Rules`,
     ``,
     `- Accepted engineering changes go through **proposals** (`,
-    '  `omenflow call proposal.submit --input changes.json`); drafts are free.',
+    '  `bureau call proposal.submit --input changes.json`); drafts are free.',
     `- Direct baseline edits return APPROVAL_REQUIRED — propose instead.`,
     `- Use \`project.summary\` for a fresh bounded summary any time.`,
     ``,
@@ -280,7 +280,7 @@ export function writeBootstrapBrief(ctx: ProjectContext, sessionId: string): str
 }
 
 /**
- * Keep `<project>/AGENTS.md` current with the Omen Flow agent guide. Agent
+ * Keep `<project>/AGENTS.md` current with the Bureau agent guide. Agent
  * CLIs (Codex and others) read this file from the working directory on their
  * own — it is the one channel that reliably reaches the model without the
  * user having to paste anything. A user-authored AGENTS.md (no marker) is

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import * as contracts from '@omenflow/contracts';
+import * as contracts from '@bureau/contracts';
 import { compatible, convert, toBase, unitDef } from '../../apps/desktop/src/renderer/ui/units';
 
 // Every unit name the shipped core knows (the contract units plus its SI additions). The

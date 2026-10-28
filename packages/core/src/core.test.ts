@@ -2,8 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ErrorCodes, Origin, OmenflowError, qty } from '@omenflow/contracts';
-import { openProject } from '@omenflow/storage';
+import { ErrorCodes, Origin, BureauError, qty } from '@bureau/contracts';
+import { openProject } from '@bureau/storage';
 import { CoreApp, nullHost, writeBinaryStl, parseStlTriangles, analyzeMesh } from './index.js';
 import { dispatch } from './dispatch.js';
 import type { ProjectContext } from './context.js';
@@ -13,7 +13,7 @@ const USER: Origin = { kind: 'user' };
 const AGENT: Origin = { kind: 'agent', sessionId: '00000000-0000-4000-8000-000000000001' };
 
 function tmpdir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-core-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-core-'));
 }
 
 /** Trivial calc engine for tests: sums input values, unit of first input. */

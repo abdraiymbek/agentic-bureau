@@ -3,10 +3,10 @@
 //! how it ended and which artifacts it named; arguments are never stored.
 //!
 //! Each project keeps its recent records in memory and appends every record
-//! to `.omenflow/work/<sessionId>/calls.jsonl`, so the history survives a
+//! to `.bureau/work/<sessionId>/calls.jsonl`, so the history survives a
 //! restart of the app.
 
-use omenflow_contracts::Profile;
+use bureau_contracts::Profile;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
@@ -32,7 +32,7 @@ pub const MAX_ACTIVITY_LIMIT: usize = 500;
 pub enum Via {
     /// A `tools/call` over MCP.
     Mcp,
-    /// `omenflow call` from the agent's shell.
+    /// `bureau call` from the agent's shell.
     Call,
 }
 
@@ -399,7 +399,7 @@ fn session_dir(root: &Path, session_id: &str) -> Option<PathBuf> {
             .all(|character| character.is_ascii_alphanumeric() || character == '-');
     // A project that is no longer at `root` (moved, deleted) gets no new
     // folders there: the write is skipped instead of re-creating the tree.
-    (safe && root.join(".omenflow").is_dir()).then(|| root.join(".omenflow/work").join(session_id))
+    (safe && root.join(".bureau").is_dir()).then(|| root.join(".bureau/work").join(session_id))
 }
 
 /// Append one JSON line to a session's sidecar. The ledger never fails a
@@ -438,11 +438,11 @@ fn write_session(root: &Path, session: &AgentSessionSummary) {
     }
 }
 
-/// Records and sessions earlier runs left under `.omenflow/work`, oldest
+/// Records and sessions earlier runs left under `.bureau/work`, oldest
 /// first. Lines that do not parse, or that belong to another project, are
 /// skipped.
 fn load_history(root: &Path, project_id: &str) -> (Vec<AgentCallRecord>, Vec<AgentSessionSummary>) {
-    let Ok(entries) = fs::read_dir(root.join(".omenflow/work")) else {
+    let Ok(entries) = fs::read_dir(root.join(".bureau/work")) else {
         return (Vec::new(), Vec::new());
     };
     let mut folders = entries
@@ -553,7 +553,7 @@ fn push_id(value: Option<&Value>, ids: &mut Vec<String>) {
 /// The message a record keeps of an error: the error's own message without
 /// the values the call sent. A validation error quotes what it received;
 /// that is an argument, and arguments are never stored.
-pub fn stored_message(error: &omenflow_contracts::ContractError) -> String {
+pub fn stored_message(error: &bureau_contracts::ContractError) -> String {
     let mut message = error.message.clone();
     let issues = error
         .details
@@ -580,7 +580,7 @@ mod tests {
     /// A folder that holds a project, as the ledger writes into.
     fn project() -> tempfile::TempDir {
         let temp = tempfile::tempdir().unwrap();
-        fs::create_dir(temp.path().join(".omenflow")).unwrap();
+        fs::create_dir(temp.path().join(".bureau")).unwrap();
         temp
     }
 
@@ -769,7 +769,7 @@ mod tests {
         }
         let file = temp
             .path()
-            .join(".omenflow/work")
+            .join(".bureau/work")
             .join(session)
             .join("calls.jsonl");
         let lines = fs::read_to_string(&file).unwrap();
@@ -837,7 +837,7 @@ mod tests {
         assert_eq!(seqs, [1, 4]);
         let written = fs::read_to_string(
             temp.path()
-                .join(".omenflow/work")
+                .join(".bureau/work")
                 .join(new)
                 .join("calls.jsonl"),
         )
@@ -855,8 +855,8 @@ mod tests {
         ledger.attach_project("p", temp.path());
         ledger.begin_session("p", "../escape", "custom", None, Profile::Compact);
         ledger.record(outcome("p", "../escape", "project_summary", true));
-        assert!(!temp.path().join(".omenflow/escape").exists());
-        assert!(!temp.path().join(".omenflow/work").exists());
+        assert!(!temp.path().join(".bureau/escape").exists());
+        assert!(!temp.path().join(".bureau/work").exists());
         assert_eq!(ledger.counters("../escape"), (1, 0));
     }
 
@@ -894,7 +894,7 @@ mod tests {
 
     #[test]
     fn a_stored_message_never_quotes_what_the_call_sent() {
-        let error = omenflow_contracts::ContractError::validation(
+        let error = bureau_contracts::ContractError::validation(
             "Invalid input: artifactId: expected string (uuid), received \"my-secret-api-key-123\"",
         )
         .with_details(json!({"issues": [{"path": "artifactId", "kind": "format",
@@ -902,13 +902,13 @@ mod tests {
             "expected": "string (uuid)", "received": "\"my-secret-api-key-123\""}]}));
         let stored = stored_message(&error);
         assert_eq!(stored, "Invalid input: artifactId: expected string (uuid)");
-        let unit = omenflow_contracts::ContractError::new(
+        let unit = bureau_contracts::ContractError::new(
             "INVALID_UNITS",
             "Unknown unit 'hunter2' at payload.target.unit",
         )
         .with_details(json!({"issues": [{"path": "payload.target.unit", "received": "hunter2"}]}));
         assert!(!stored_message(&unit).contains("hunter2"));
-        let plain = omenflow_contracts::ContractError::new("NOT_FOUND", "Proposal not found");
+        let plain = bureau_contracts::ContractError::new("NOT_FOUND", "Proposal not found");
         assert_eq!(stored_message(&plain), "Proposal not found");
     }
 
@@ -919,7 +919,7 @@ mod tests {
     fn a_moved_project_keeps_its_history_where_it_is_now() {
         let parent = tempfile::tempdir().unwrap();
         let (before, after) = (parent.path().join("proj"), parent.path().join("proj-moved"));
-        fs::create_dir_all(before.join(".omenflow")).unwrap();
+        fs::create_dir_all(before.join(".bureau")).unwrap();
         let first = "11111111-1111-4111-8111-111111111111";
         let ledger = Ledger::default();
         ledger.attach_project("p", &before);
@@ -938,20 +938,15 @@ mod tests {
         ledger.record(outcome("p", second, "work_status", true));
         assert!(!before.exists());
         let calls = |session: &str| {
-            fs::read_to_string(
-                after
-                    .join(".omenflow/work")
-                    .join(session)
-                    .join("calls.jsonl"),
-            )
-            .unwrap()
-            .lines()
-            .count()
+            fs::read_to_string(after.join(".bureau/work").join(session).join("calls.jsonl"))
+                .unwrap()
+                .lines()
+                .count()
         };
         assert_eq!(calls(first), 1);
         assert_eq!(calls(second), 2);
         assert!(after
-            .join(".omenflow/work")
+            .join(".bureau/work")
             .join(second)
             .join("session.json")
             .is_file());

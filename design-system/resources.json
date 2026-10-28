@@ -1,47 +1,64 @@
 {
-  "name": "Omen Flow",
+  "name": "Bureau",
   "system": "Lens",
-  "version": "2.2.0",
-  "updated": "2026-10-13",
+  "version": "3.0.0",
+  "updated": "2026-10-27",
   "direction": "See the whole. Focus on one. Decide.",
   "specification": "design.md",
   "tokens": "tokens.css",
-  "themes": ["Graphite (dark, default)", "Paper (light)"],
+  "themes": ["Dark (default)", "Light"],
   "brand": {
-    "mark": "brand/omen-mark.svg",
-    "markBlack": ["brand/omen-mark-black.svg", "brand/omen-mark-black.png"],
-    "markWhite": ["brand/omen-mark-white.svg", "brand/omen-mark-white.png"],
+    "name": "Agentic Bureau (official: licence, terms, website, store listings, social); Bureau (the app, CLI, docs, window and conversation)",
+    "mark": "brand/bureau-mark.svg",
+    "markLight": "brand/bureau-mark-light.svg",
+    "markBlack": ["brand/bureau-mark-black.svg", "brand/bureau-mark-black.png"],
+    "markWhite": ["brand/bureau-mark-white.svg", "brand/bureau-mark-white.png"],
     "appIcon": ["brand/app-icon.svg", "brand/app-icon.png"],
-    "sourceArtwork": ["brand/source-mark-black.png", "brand/source-mark-white.png"],
-    "provenance": "Mark supplied by the product owner as raster artwork; vectorised by hand from measured geometry (about 2 % edge deviation at 500 px)",
-    "usage": "Monochrome only, currentColor in the renderer; never tinted with the signal colour",
-    "desktopIcons": "apps/rust-desktop/icons/ generated with `tauri icon design-system/brand/app-icon.png`"
+    "appIconLight": "brand/app-icon-light.svg",
+    "favicon": "brand/favicon.svg",
+    "geometry": "Two rows of a checker: 10 squares on a 5 × 5 grid at a 20-unit pitch (the favicon on a 16 grid)",
+    "colours": "Signal cyan #4FC8F0 and ice #C6F1FF on the #0A0E12 tile; the light mark keeps the cyan and turns ice to ink",
+    "provenance": "Supplied by the product owner as vector artwork",
+    "usage": "Two-tone in the renderer (var(--signal) and var(--ice)); one-colour exports for print and single-ink use",
+    "desktopIcons": "apps/rust-desktop/icons/ generated with `tauri icon design-system/brand/app-icon.png`",
+    "social": {
+      "avatars": [
+        "brand/social/agentic-bureau-avatar-dark.svg",
+        "brand/social/agentic-bureau-avatar-dark.png",
+        "brand/social/agentic-bureau-avatar-light.svg",
+        "brand/social/agentic-bureau-avatar-light.png"
+      ],
+      "posts": [
+        "brand/social/agentic-bureau-post-landscape.jpg",
+        "brand/social/agentic-bureau-post-square.jpg"
+      ],
+      "note": "Avatars are 1024 px with the mark inside a circular crop; posts (3200 × 1800 and 2160 × 2160) show the real renderer on the rover fixture"
+    }
   },
   "fonts": [
     {
-      "family": "Geist",
+      "family": "Mona Sans",
       "weights": [400, 500, 600],
       "format": "woff2",
-      "source": "@fontsource/geist",
+      "source": "@fontsource/mona-sans",
       "role": "Interface",
-      "license": "fonts/geist-LICENSE.txt"
+      "license": "fonts/mona-sans-LICENSE.txt"
     },
     {
-      "family": "IBM Plex Mono",
+      "family": "JetBrains Mono",
       "weights": [400, 500],
       "format": "woff2",
-      "source": "@fontsource/ibm-plex-mono",
+      "source": "@fontsource/jetbrains-mono",
       "role": "Values, identifiers, parameters, source, terminal",
-      "license": "fonts/ibm-plex-mono-LICENSE.txt"
+      "license": "fonts/jetbrains-mono-LICENSE.txt"
     }
   ],
-  "fontStylesheet": "fonts/fonts.css",
+  "fontStylesheet": "fonts/bureau.css",
   "icons": {
-    "package": "@phosphor-icons/react",
-    "weight": "regular",
-    "sizes": [12, 13, 14, 15],
-    "license": "MIT",
-    "versions": "../pnpm-lock.yaml"
+    "source": "apps/desktop/src/renderer/ui/icons.tsx",
+    "grid": "16 × 16, 1.5 stroke, square caps and joins",
+    "sizes": [12, 13, 14, 16],
+    "note": "Drawn for Bureau; names follow the Phosphor names they replace so call sites read the same"
   },
   "libraries": [
     {
@@ -82,25 +99,33 @@
     "meshStatus": "Illustrative only; not a verified OpenSCAD render or manufacturing model",
     "agentExecution": "Disabled in browser preview; the desktop app runs the real adapter"
   },
-  "rasterAssets": "Captured application screenshots and the supplied brand artwork only",
+  "rasterAssets": "Captured application screenshots and the brand PNG exports only",
   "retired": [
-    "Omen symbol (two arcs) and the v1 “Precision in flow” system",
-    "Sidebar navigation, overview dashboard, inspector side panel, status bar",
+    "Omen Flow name and the two-arc mark",
+    "Geist and IBM Plex Mono in the interface, Phosphor icons",
+    "The icon activity bar and the separate title bar",
+    "Overview dashboard, inspector side panel, status bar",
     "Michroma lettering, aircraft artwork, ASCII aircraft"
   ],
   "legacyCompatibility": [
-    "@omenflow package namespace",
-    ".omenflow project storage",
-    "omenflow bridge and CLI identifiers"
+    ".omenflow project storage and omenflow.project.json, renamed to .bureau and bureau.project.json when a project is opened",
+    "Omen Flow settings folders, carried over on first launch",
+    "omenflow:guide blocks in a project AGENTS.md, taken over by the Bureau guide",
+    "omenflow-* format and provenance identifiers (archives, snapshots, build packages, STEP and mesh checks), kept as written"
   ],
   "catalogue": {
     "view": "apps/desktop/src/renderer/system/DesignSystemView.tsx",
     "preview": "http://127.0.0.1:5173/?design-preview&screen=system",
-    "method": "Real components rendered in Graphite and Paper side by side; contrast measured from the tokens in force"
+    "method": "Real components rendered in Dark and Light side by side; contrast measured from the tokens in force"
   },
   "accessibility": {
     "contrast": "Text, supporting and metadata text and state words meet WCAG AA (4.5:1) on every surface in both themes; signal strokes, focus rings and separators meet 3:1",
     "guard": "tests/frontend/ui-tokens.test.ts"
   },
-  "screenshots": "screenshots/ holds captures from before the activity bar, kept as history"
+  "screenshots": "screenshots/ holds captures of the Omen Flow interface, kept as history",
+  "filmFonts": {
+    "stylesheet": "fonts/fonts.css",
+    "families": ["Geist", "IBM Plex Mono"],
+    "note": "Kept for the launch film and trailer until they are re-cut"
+  }
 }

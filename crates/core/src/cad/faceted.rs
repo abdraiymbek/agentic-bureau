@@ -510,7 +510,7 @@ impl Built {
         );
         let _ = writeln!(
             text,
-            "FILE_NAME('{}','{}',(''),(''),'Omen Flow faceted STEP writer 1','Omen Flow','');",
+            "FILE_NAME('{}','{}',(''),(''),'Bureau faceted STEP writer 1','Bureau','');",
             step_string(header.file_name),
             step_string(header.timestamp)
         );

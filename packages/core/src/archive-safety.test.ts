@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
-import { createProject, openProject, updateProjectFile } from '@omenflow/storage';
+import { createProject, openProject, updateProjectFile } from '@bureau/storage';
 import { ARCHIVE_LIMITS, expandArchive, exportArchive, verifyArchive } from './build.js';
 import { ProjectContext, nullHost } from './context.js';
 import {
@@ -19,7 +19,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omenflow-archive-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-archive-test-'));
   roots.push(root);
   const handle = createProject(path.join(root, 'source'), 'Archive', 'portable fixture');
   handles.push(handle);
@@ -81,7 +81,7 @@ describe('private and portable archives', () => {
     const imported = openProject(empty);
     handles.push(imported);
     expect(imported.project.id).toBe(id);
-    expect(fs.readdirSync(root).some((name) => name.startsWith('.omenflow-import-'))).toBe(false);
+    expect(fs.readdirSync(root).some((name) => name.startsWith('.bureau-import-'))).toBe(false);
   });
 
   it.each([
@@ -100,21 +100,21 @@ describe('private and portable archives', () => {
     exportIt();
     mutate((entries) => {
       if (variant === 'traversal') entries['../outside.txt'] = strToU8('bad');
-      if (variant === 'reserved') entries['.omenflow/work/stolen.txt'] = strToU8('bad');
+      if (variant === 'reserved') entries['.bureau/work/stolen.txt'] = strToU8('bad');
       if (variant === 'bad-object')
-        entries[`.omenflow/objects/aa/${'a'.repeat(64)}`] = strToU8('bad');
-      if (variant === 'bad-database') entries['.omenflow/state.sqlite'] = strToU8('not sqlite');
+        entries[`.bureau/objects/aa/${'a'.repeat(64)}`] = strToU8('bad');
+      if (variant === 'bad-database') entries['.bureau/state.sqlite'] = strToU8('not sqlite');
       if (variant === 'newer-marker') {
-        const marker = JSON.parse(Buffer.from(entries['omenflow.project.json']!).toString());
+        const marker = JSON.parse(Buffer.from(entries['bureau.project.json']!).toString());
         marker.version = 999;
-        entries['omenflow.project.json'] = strToU8(JSON.stringify(marker));
+        entries['bureau.project.json'] = strToU8(JSON.stringify(marker));
       }
     });
     const dest = path.join(root, 'rejected');
     expect(() => expandArchive(archive, dest)).toThrow();
     expect(fs.existsSync(dest)).toBe(false);
     expect(fs.existsSync(path.join(root, 'outside.txt'))).toBe(false);
-    expect(fs.readdirSync(root).some((name) => name.startsWith('.omenflow-import-'))).toBe(false);
+    expect(fs.readdirSync(root).some((name) => name.startsWith('.bureau-import-'))).toBe(false);
   });
 
   it('checks CRC and size limits before trusting compressed entries', () => {

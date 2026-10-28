@@ -1,9 +1,9 @@
 /**
  * Disposable, loopback-only preview: the real renderer on the real Rust host.
  *
- * Builds `omenflow-host`, starts it on a scratch directory, builds the fixture
+ * Builds `bureau-host`, starts it on a scratch directory, builds the fixture
  * projects through it, and serves the renderer with Vite. The page talks only
- * to this server's `/__omen_preview` endpoints; they forward to the host, which
+ * to this server's `/__bureau_preview` endpoints; they forward to the host, which
  * never sees the page and whose token never leaves this process.
  *
  * The endpoints act as the person, so they answer only a browser that opened
@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createServer } from 'vite';
-import type { Revision } from '@omenflow/contracts';
+import type { Revision } from '@bureau/contracts';
 import { buildRoverProject } from '../fixtures/rover/rover.fixture';
 import { buildDroneProject } from '../fixtures/drone-dependencies/drone.fixture';
 import { makePreviewMesh } from '../design-system/fixtures/preview-mesh';
@@ -29,11 +29,11 @@ import { buildHost, RustCore, type Envelope } from '../tests/conformance/rust-co
 const MAX_REQUEST_CHARS = 8_000_000;
 /**
  * Terminals, conversation sends and adapter settings start processes, so the
- * preview offers them only when it was started with OMEN_PREVIEW_AGENTS=1: an
+ * preview offers them only when it was started with BUREAU_PREVIEW_AGENTS=1: an
  * agent CLI runs models and may update itself, and a Custom CLI runs any
  * executable.
  */
-const AGENTS_ENABLED = process.env.OMEN_PREVIEW_AGENTS === '1';
+const AGENTS_ENABLED = process.env.BUREAU_PREVIEW_AGENTS === '1';
 /** Operations that start or configure a process; reading state stays open. */
 const PROCESS_OPS = new Set([
   'chat.send',
@@ -58,22 +58,22 @@ class Refused extends Error {
  * way `pnpm build:bridge` builds it, so a terminal here runs the current one.
  */
 function bridgeHelper(): string {
-  const manifest = path.resolve('native/omenflow-bridge/Cargo.toml');
+  const manifest = path.resolve('native/bureau-bridge/Cargo.toml');
   const build = spawnSync(
     'cargo',
     ['build', '--release', '--locked', '--manifest-path', manifest],
     // The helper is its own workspace with its own target directory.
     { stdio: 'inherit', env: { ...process.env, CARGO_TARGET_DIR: undefined } },
   );
-  if (build.status !== 0) throw new Error('Could not build the omenflow bridge helper');
+  if (build.status !== 0) throw new Error('Could not build the bureau bridge helper');
   return path.resolve(
-    'native/omenflow-bridge/target/release',
-    process.platform === 'win32' ? 'omenflow.exe' : 'omenflow',
+    'native/bureau-bridge/target/release',
+    process.platform === 'win32' ? 'bureau.exe' : 'bureau',
   );
 }
 
 async function main() {
-  const previewRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'omen-design-')));
+  const previewRoot = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-design-')));
   // Removed however the process ends: a stop, Vite's own SIGTERM handler
   // (which exits once Vite has closed) or a failure while starting.
   process.on('exit', () => {
@@ -152,7 +152,7 @@ async function main() {
   /** Printed on this terminal only; the page trades it for the cookie. */
   const key = randomUUID();
   // Parallel previews (one per working copy) each need their own port.
-  const port = Number(process.env.OMEN_PREVIEW_PORT ?? 5173);
+  const port = Number(process.env.BUREAU_PREVIEW_PORT ?? 5173);
   const origins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
   const inside = (candidate: string) => candidate.startsWith(previewRoot + path.sep);
   /** Whether an existing path, with links followed, is inside the preview directory. */
@@ -165,7 +165,7 @@ async function main() {
   };
 
   // Cookies are scoped by host, not port, so each preview names its own.
-  const cookieName = `omen_preview_${port}`;
+  const cookieName = `bureau_preview_${port}`;
   const hasCookie = (req: IncomingMessage) =>
     (req.headers.cookie ?? '').split(';').some((part) => part.trim() === `${cookieName}=${token}`);
   /**
@@ -201,8 +201,8 @@ async function main() {
       throw new Refused('Open project archives in the desktop app.');
     if (PROCESS_OPS.has(op) && !AGENTS_ENABLED)
       throw new Refused(
-        'Agents are off in the design preview unless it was started with OMEN_PREVIEW_AGENTS=1: terminals, conversation sends and agent settings.',
-        'Restart the preview with OMEN_PREVIEW_AGENTS=1 to run an agent here, or use the desktop app.',
+        'Agents are off in the design preview unless it was started with BUREAU_PREVIEW_AGENTS=1: terminals, conversation sends and agent settings.',
+        'Restart the preview with BUREAU_PREVIEW_AGENTS=1 to run an agent here, or use the desktop app.',
       );
     if (op === 'project.export_archive' || op === 'build.export') {
       fs.mkdirSync(path.join(previewRoot, 'exports'), { recursive: true });
@@ -248,7 +248,7 @@ async function main() {
     server: { host: '127.0.0.1', port, strictPort: true, fs: { allow: [path.resolve('.')] } },
     plugins: [
       {
-        name: 'omen-design-preview',
+        name: 'bureau-design-preview',
         configureServer(vite) {
           // The printed address carries the key once; the browser keeps a
           // cookie instead and the address bar loses the key.
@@ -295,7 +295,7 @@ async function main() {
               res.end('Not found');
             }
           });
-          vite.middlewares.use('/__omen_preview', async (req, res) => {
+          vite.middlewares.use('/__bureau_preview', async (req, res) => {
             const url = new URL(req.url ?? '/', 'http://127.0.0.1');
             const refuse = () => {
               res.statusCode = 403;
@@ -324,7 +324,7 @@ async function main() {
             if (
               url.pathname !== '/command' ||
               req.method !== 'POST' ||
-              req.headers['x-omen-preview'] !== token
+              req.headers['x-bureau-preview'] !== token
             )
               return refuse();
             let envelope: Envelope;
@@ -352,15 +352,15 @@ async function main() {
     ],
   });
   await server.listen();
-  console.log(`Omen Flow design preview: http://127.0.0.1:${port}/?design-preview&key=${key}`);
+  console.log(`Bureau design preview: http://127.0.0.1:${port}/?design-preview&key=${key}`);
   console.log(`Launcher: http://127.0.0.1:${port}/?design-preview&screen=launcher&key=${key}`);
   console.log(`Introduction: http://127.0.0.1:${port}/?design-preview&screen=intro&key=${key}`);
   console.log('Open one of these addresses; the key lets only that browser use the preview.');
   console.log(`Disposable project data (removed when the preview stops): ${previewRoot}`);
   console.log(
     AGENTS_ENABLED
-      ? 'Agents run for real from the Agent tab, terminal and conversation (OMEN_PREVIEW_AGENTS=1).'
-      : 'Agents are off. Set OMEN_PREVIEW_AGENTS=1 to run a Custom CLI, Codex or Claude Code.',
+      ? 'Agents run for real from the Agent tab, terminal and conversation (BUREAU_PREVIEW_AGENTS=1).'
+      : 'Agents are off. Set BUREAU_PREVIEW_AGENTS=1 to run a Custom CLI, Codex or Claude Code.',
   );
   const stop = async () => {
     for (const stream of streams) stream.destroy();

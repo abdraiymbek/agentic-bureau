@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ArtifactView } from '@omenflow/contracts';
+import type { ArtifactView } from '@bureau/contracts';
 import { ErrorBoundary } from '../../ui/ErrorBoundary';
 import { typeMeta } from '../../ui/kit';
 import { MechanicalStage } from '../MechanicalStage';

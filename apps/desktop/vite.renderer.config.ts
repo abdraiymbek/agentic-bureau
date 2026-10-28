@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@omenflow/contracts/format': path.join(
+      '@bureau/contracts/format': path.join(
         root,
         '..',
         '..',
@@ -18,7 +18,7 @@ export default defineConfig({
         'src',
         'format.ts',
       ),
-      '@omenflow/contracts/chat': path.join(
+      '@bureau/contracts/chat': path.join(
         root,
         '..',
         '..',
@@ -27,15 +27,7 @@ export default defineConfig({
         'src',
         'chat.ts',
       ),
-      '@omenflow/contracts': path.join(
-        root,
-        '..',
-        '..',
-        'packages',
-        'contracts',
-        'src',
-        'index.ts',
-      ),
+      '@bureau/contracts': path.join(root, '..', '..', 'packages', 'contracts', 'src', 'index.ts'),
     },
   },
   build: {

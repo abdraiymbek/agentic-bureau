@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ArtifactView, Revision } from '@omenflow/contracts';
+import type { ArtifactView, Revision } from '@bureau/contracts';
 import { CommandError, errMsg } from '../api';
 import { useStore } from '../store';
 import { newestActiveRevision } from '../lib/mechanical-revisions';

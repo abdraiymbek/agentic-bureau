@@ -5,7 +5,7 @@
  * bottom is the progress; → and ← move, Esc skips; everything is remembered as seen.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, WarningCircle, X } from '@phosphor-icons/react';
+import { ArrowLeft, WarningCircle, X } from '../ui/icons';
 import { useStore } from '../store';
 import { focusKind, openLayer, topmostLayer } from '../lib/layers';
 import { isMacPlatform } from '../ui/shortcuts';
@@ -71,12 +71,12 @@ function Arrival({ ready }: { ready: boolean }) {
       <div className="intro-ring" aria-hidden="true" />
       <div className="intro-lockup">
         <Mark size={40} className="intro-lockup-mark" />
-        <div className="intro-wordmark" role="heading" aria-level={1} aria-label="Omen Flow">
-          <span className="intro-wordmark-omen" aria-hidden="true">
-            {letters('Omen')}
+        <div className="intro-wordmark" role="heading" aria-level={1} aria-label="Agentic Bureau">
+          <span className="intro-wordmark-lead" aria-hidden="true">
+            {letters('Agentic')}
           </span>
-          <span className="intro-wordmark-flow" aria-hidden="true">
-            {letters('Flow', 4)}
+          <span className="intro-wordmark-name" aria-hidden="true">
+            {letters('Bureau', 7)}
           </span>
         </div>
         <p className="intro-tagline">{words('See the whole. Focus on one. Decide.')}</p>
@@ -283,7 +283,7 @@ export function Intro() {
       className="intro"
       tabIndex={-1}
       role="region"
-      aria-label="Introduction to Omen Flow"
+      aria-label="Introduction to Bureau"
       data-scene={scene}
       data-kind={def.kind}
       data-leaving={leaving ? '' : undefined}
@@ -294,10 +294,8 @@ export function Intro() {
           data-on={scene !== 'arrive' ? '' : undefined}
           aria-hidden="true"
         >
-          <Mark size={17} />
-          <span>
-            Omen <span>Flow</span>
-          </span>
+          <Mark size={16} />
+          <span>Bureau</span>
         </span>
         <Button variant="ghost" size="sm" icon={<X size={13} />} shortcut="esc" onClick={finish}>
           Skip introduction
@@ -367,7 +365,6 @@ export function Intro() {
           ) : (
             <Button
               variant="primary"
-              trailing={<ArrowRight size={13} />}
               shortcut={last ? '↵' : '→'}
               disabled={!canContinue}
               onClick={next}

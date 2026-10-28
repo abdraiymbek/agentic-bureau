@@ -5,7 +5,7 @@
  *   node scripts/linux-package.mjs [--skip-tests] [--skip-build] [--skip-verify]
  *                                  [--keep-going] [--keep]
  *
- * 1. Builds the `omenflow-linux-build` image from scripts/linux/Dockerfile: Ubuntu 22.04
+ * 1. Builds the `bureau-linux-build` image from scripts/linux/Dockerfile: Ubuntu 22.04
  *    (glibc 2.35, the compatibility floor) with Tauri's libraries, Node, pnpm, Rust (the
  *    channel in rust-toolchain.toml), Ubuntu's OpenSCAD 2021.01 (the Rust engine tests
  *    require it), Xvfb and xdotool.
@@ -28,7 +28,7 @@
  *    must quit with status 0 and end the agent's process group).
  *
  * --skip-build verifies the packages already in the output folder. --keep-going runs
- * every test and smoke step and fails at the end. Containers are named omenflow-linux-*
+ * every test and smoke step and fails at the end. Containers are named bureau-linux-*
  * and are removed at the end, also when a step fails, unless --keep. The image is kept.
  * DOCKER_CONTEXT selects the Docker daemon (for example colima-omenflow).
  */
@@ -52,13 +52,13 @@ for (const option of options)
   if (!['--skip-tests', '--skip-build', '--skip-verify', '--keep-going', '--keep'].includes(option))
     throw new Error(`Unknown option ${option}`);
 
-const IMAGE = 'omenflow-linux-build';
+const IMAGE = 'bureau-linux-build';
 /** The oldest supported system first: the build base itself. */
 const DEB_SYSTEMS = ['ubuntu:22.04', 'ubuntu:24.04', 'debian:12'];
 const APPIMAGE_SYSTEMS = ['ubuntu:22.04'];
 const RPM_SYSTEMS = ['fedora:42'];
-const BUILD_CONTAINER = 'omenflow-linux-build-run';
-const SOURCE = '/home/builder/omen-flow';
+const BUILD_CONTAINER = 'bureau-linux-build-run';
+const SOURCE = '/home/builder/agentic-bureau';
 const SCREEN = '-screen 0 1920x1080x24';
 const results = [];
 const started = new Set();
@@ -109,8 +109,8 @@ function fresh(name, image) {
   started.add(name);
 }
 
-/** A container name for a package on a system: omenflow-linux-deb-ubuntu-22.04. */
-const containerFor = (kind, system) => `omenflow-linux-${kind}-${system.replace(/[:/]/g, '-')}`;
+/** A container name for a package on a system: bureau-linux-deb-ubuntu-22.04. */
+const containerFor = (kind, system) => `bureau-linux-${kind}-${system.replace(/[:/]/g, '-')}`;
 
 /** The files git tracks or would track: no node_modules, target/, .git or other ignored output. */
 function sourceFiles() {
@@ -174,7 +174,7 @@ fail() { echo "declared floors: $*" >&2; exit 1; }
 newest() { grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -n 1; }
 minimum() { printf '%s' "$1" | tr ',' '\n' | sed -n "s/^ *$2 (>= \([^)]*\)).*/\1/p" | head -n 1; }
 dpkg-deb -x "$deb" "$work/deb"
-app="$work/deb/usr/bin/omen-flow"; helper="$work/deb/usr/lib/Omen Flow/omenflow"
+app="$work/deb/usr/bin/agentic-bureau"; helper="$work/deb/usr/lib/Bureau/bureau"
 app_glibc=$(objdump -T "$app" | newest); helper_glibc=$(objdump -T "$helper" | newest)
 need=$(printf '%s\n%s\n' "$app_glibc" "$helper_glibc" | sort -V | tail -n 1)
 (cd "$work" && env -u APPIMAGE_EXTRACT_AND_RUN "$appimage" --appimage-extract > /dev/null)
@@ -184,7 +184,7 @@ declared=$(dpkg-deb --field "$deb" Depends)
 deb_glibc=$(minimum "$declared" libc6)
 rpm_glibc=$(rpm -qp --requires "$rpm" | sed -n 's/^libc\.so\.6(GLIBC_\([0-9.]*\))(64bit) *$/\1/p' | sort -V | tail -n 1)
 mkdir -p "$work/source/debian"
-printf 'Source: omen-flow\n\nPackage: omen-flow\nArchitecture: any\n' > "$work/source/debian/control"
+printf 'Source: bureau\n\nPackage: bureau\nArchitecture: any\n' > "$work/source/debian/control"
 derived=$(cd "$work/source" && dpkg-shlibdeps -O "$app" "$helper" 2> /dev/null | sed -n 's/^shlibs:Depends=//p')
 echo "newest glibc symbol used: app GLIBC_$app_glibc, helper GLIBC_$helper_glibc, anything in the AppImage GLIBC_$bundled; build base glibc $base"
 echo ".deb Depends: $declared"
@@ -225,8 +225,8 @@ async function build(outDir) {
       ['Contracts registry', 'pnpm contracts:check'],
       ['Helper (release)', 'pnpm build:bridge'],
       ['Rust workspace tests', 'cargo test --workspace --locked --no-fail-fast'],
-      ['Helper tests', 'cargo test --locked --manifest-path native/omenflow-bridge/Cargo.toml'],
-      ['Real-helper round trip', 'cargo test -p omenflow-agent-host --locked -- --ignored'],
+      ['Helper tests', 'cargo test --locked --manifest-path native/bureau-bridge/Cargo.toml'],
+      ['Real-helper round trip', 'cargo test -p bureau-agent-host --locked -- --ignored'],
       ['Conformance suite', 'pnpm test:conformance'],
       ['Headless smoke', 'pnpm smoke:headless'],
     ];
@@ -276,7 +276,7 @@ function packageIn(outDir, suffix) {
  * nodejs is version 12, too old for the script. Its official binary needs glibc 2.28.
  */
 function smokeNode(dir) {
-  const name = 'omenflow-linux-node';
+  const name = 'bureau-linux-node';
   remove(name);
   docker(['create', '--name', name, IMAGE], { capture: true });
   started.add(name);
@@ -345,7 +345,7 @@ function verifyDeb(outDir, system, node) {
   step(
     container,
     `Installed files and linked libraries (.deb, ${system})`,
-    `dpkg -L ${name}; dpkg -s ${name}; ` + LINKED(`${executable} "/usr/lib/Omen Flow/omenflow"`),
+    `dpkg -L ${name}; dpkg -s ${name}; ` + LINKED(`${executable} "/usr/lib/Bureau/bureau"`),
   );
   step(container, 'Display tools for the smoke', `${APT} ${DISPLAY_TOOLS}`);
   smoke(container, `Packaged smoke (installed .deb, ${system})`, executable, tag);
@@ -403,7 +403,7 @@ function verifyRpm(outDir, system, node) {
   step(
     container,
     `Installed files and linked libraries (.rpm, ${system})`,
-    `rpm -qi ${name}; rpm -ql ${name}; ` + LINKED(`${executable} "/usr/lib/Omen Flow/omenflow"`),
+    `rpm -qi ${name}; rpm -ql ${name}; ` + LINKED(`${executable} "/usr/lib/Bureau/bureau"`),
   );
   step(
     container,
@@ -416,7 +416,7 @@ function verifyRpm(outDir, system, node) {
 }
 
 const begun = Date.now();
-const scratch = mkdtempSync(path.join(tmpdir(), 'omenflow-linux-'));
+const scratch = mkdtempSync(path.join(tmpdir(), 'bureau-linux-'));
 try {
   docker([
     'build',

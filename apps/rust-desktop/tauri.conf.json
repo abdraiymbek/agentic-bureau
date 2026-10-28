@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Omen Flow",
+  "productName": "Bureau",
   "version": "0.2.4",
-  "identifier": "app.omenflow.desktop",
+  "identifier": "app.agenticbureau.desktop",
   "build": {
-    "beforeDevCommand": "pnpm --filter @omenflow/desktop dev:rust-ui",
+    "beforeDevCommand": "pnpm --filter @bureau/desktop dev:rust-ui",
     "devUrl": "http://127.0.0.1:5174",
     "frontendDist": "../desktop/rust-dist"
   },
@@ -13,7 +13,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "Omen Flow",
+        "title": "Bureau",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
@@ -43,7 +43,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../native/omenflow-bridge/target/release/omenflow": "omenflow",
+      "../../native/bureau-bridge/target/release/bureau": "bureau",
       "../../LICENSE": "LICENSE",
       "../../NOTICE": "NOTICE",
       "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
@@ -57,24 +57,24 @@
         "section": "devel",
         "depends": ["libc6 (>= 2.35)", "libwebkit2gtk-4.1-0 (>= 2.41.90)", "libdbus-1-3"],
         "files": {
-          "/usr/share/doc/omen-flow/copyright": "../../LICENSE",
-          "/usr/share/doc/omen-flow/NOTICE": "../../NOTICE",
-          "/usr/share/doc/omen-flow/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
+          "/usr/share/doc/bureau/copyright": "../../LICENSE",
+          "/usr/share/doc/bureau/NOTICE": "../../NOTICE",
+          "/usr/share/doc/bureau/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
         }
       },
       "rpm": {
         "depends": ["libc.so.6(GLIBC_2.35)(64bit)", "libdbus-1.so.3()(64bit)"],
         "files": {
-          "/usr/share/licenses/omen-flow/LICENSE": "../../LICENSE",
-          "/usr/share/licenses/omen-flow/NOTICE": "../../NOTICE",
-          "/usr/share/licenses/omen-flow/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
+          "/usr/share/licenses/bureau/LICENSE": "../../LICENSE",
+          "/usr/share/licenses/bureau/NOTICE": "../../NOTICE",
+          "/usr/share/licenses/bureau/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
         }
       },
       "appimage": {
         "files": {
-          "/usr/share/doc/omen-flow/LICENSE": "../../LICENSE",
-          "/usr/share/doc/omen-flow/NOTICE": "../../NOTICE",
-          "/usr/share/doc/omen-flow/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
+          "/usr/share/doc/bureau/LICENSE": "../../LICENSE",
+          "/usr/share/doc/bureau/NOTICE": "../../NOTICE",
+          "/usr/share/doc/bureau/THIRD_PARTY_NOTICES.md": "../../THIRD_PARTY_NOTICES.md"
         }
       }
     }

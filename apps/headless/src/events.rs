@@ -6,7 +6,7 @@
 //! opens with a `resync` event so the reader knows to fetch state again
 //! instead of trusting a stream with a hole in it.
 
-use omenflow_agent_host::{EventSink, HostEvent};
+use bureau_agent_host::{EventSink, HostEvent};
 use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};

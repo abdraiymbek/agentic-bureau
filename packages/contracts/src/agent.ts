@@ -14,7 +14,7 @@ import type { MaybeQuantity } from './units.js';
 
 /**
  * One recorded agent call. Arguments are never stored. Also the payload of
- * the live `omenflow:agent:call` host channel.
+ * the live `bureau:agent:call` host channel.
  */
 export interface AgentCallRecord {
   /** Monotonic per project. */
@@ -23,7 +23,7 @@ export interface AgentCallRecord {
   at: string;
   projectId: string;
   sessionId: string;
-  /** Underscore tool name as called, or the op for `omenflow call`. */
+  /** Underscore tool name as called, or the op for `bureau call`. */
   tool: string;
   /** Dotted op actually dispatched. */
   op: string;

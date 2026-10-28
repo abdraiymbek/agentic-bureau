@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, MagnifyingGlass, Sparkle, X } from '@phosphor-icons/react';
-import type { CoverageEvidence, CoverageReport, CoverageRequirement } from '@omenflow/contracts';
+import { ArrowRight, MagnifyingGlass, Sparkle, X } from '../ui/icons';
+import type { CoverageEvidence, CoverageReport, CoverageRequirement } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { useStore } from '../store';
 import { useViewState } from '../lib/view-memory';

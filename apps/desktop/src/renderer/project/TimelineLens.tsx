@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CaretRight } from '@phosphor-icons/react';
-import type { AgentCallRecord, ArtifactView, ProjectEvent, Proposal } from '@omenflow/contracts';
+import { CaretRight } from '../ui/icons';
+import type { AgentCallRecord, ArtifactView, ProjectEvent, Proposal } from '@bureau/contracts';
 import { errMsg } from '../api';
 import { useStore } from '../store';
 import { Button, Checkbox, Empty, Segmented, TypeGlyph, stateLabel, typeMeta } from '../ui/kit';
@@ -195,7 +195,7 @@ function openers() {
     decision: (id: string) => s.decide(id),
     lens: (lens: 'parts' | 'flow') => s.go({ level: 'project', lens }),
     reveal: (path: string) =>
-      void window.omenflow.revealPath(path).catch((e) => s.toast('error', errMsg(e))),
+      void window.bureau.revealPath(path).catch((e) => s.toast('error', errMsg(e))),
   };
 }
 

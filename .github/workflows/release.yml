@@ -37,9 +37,9 @@ jobs:
           version="${TAG#v}"
           cd target/release/bundle/linux-amd64
           mkdir -p ../release
-          mv ./*.deb "../release/omen-flow_${version}_amd64.deb"
-          mv ./*.rpm "../release/omen-flow-${version}-1.x86_64.rpm"
-          mv ./*.AppImage "../release/Omen-Flow-${version}-x86_64.AppImage"
+          mv ./*.deb "../release/bureau_${version}_amd64.deb"
+          mv ./*.rpm "../release/bureau-${version}-1.x86_64.rpm"
+          mv ./*.AppImage "../release/Bureau-${version}-x86_64.AppImage"
           ls -l ../release
       - name: Attach to the release and extend SHA256SUMS
         working-directory: target/release/bundle/release

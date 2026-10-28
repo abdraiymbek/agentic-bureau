@@ -26,7 +26,7 @@ async function start(root: string): Promise<RustCore> {
 }
 
 async function withProject() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-host-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-host-'));
   roots.push(root);
   const app = await start(root);
   const created = (await app.dispatch(

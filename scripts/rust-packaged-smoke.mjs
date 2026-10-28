@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * Prove a build end to end through the `omenflow` helper an agent CLI uses.
+ * Prove a build end to end through the `bureau` helper an agent CLI uses.
  *
- *   node scripts/rust-packaged-smoke.mjs [path/to/Omen Flow.app]
+ *   node scripts/rust-packaged-smoke.mjs [path/to/Bureau.app]
  *     Launches the bundle with disposable state. The app is asked (through
- *     OMENFLOW_SMOKE_PROJECT, honoured only with OMENFLOW_APP_DATA_DIR) to
+ *     BUREAU_SMOKE_PROJECT, honoured only with BUREAU_APP_DATA_DIR) to
  *     create a project and hand over the agent grant a terminal session
  *     would receive.
  *   node scripts/rust-packaged-smoke.mjs --linux <executable> [--screenshot <file.png>]
  *     The same on Linux, against an installed package's executable
- *     (`/usr/bin/omen-flow` after `apt install ./omen-flow_*.deb`) or an
+ *     (`/usr/bin/agentic-bureau` after `apt install ./bureau_*.deb`) or an
  *     AppImage, on an X display (run it under `xvfb-run`). The helper is the
  *     one the app itself resolved and would put on an agent's PATH, so this
  *     also proves where the package keeps it. It then requires a visible
- *     top-level "Omen Flow" window of at least the minimum size (xdotool,
+ *     top-level "Bureau" window of at least the minimum size (xdotool,
  *     xwininfo) and that the app is still running afterwards. The app also
  *     starts a stand-in agent CLI in the Agent tab (a real PTY in its own
  *     process group, which must reach the bridge through the helper on its
@@ -24,7 +24,7 @@
  *     With --screenshot it also saves the X screen (xwd) and the page picture
  *     (`<file>-webview.png`) as PNGs.
  *   node scripts/rust-packaged-smoke.mjs --headless
- *     The same checks against the development `omenflow-host` and helper,
+ *     The same checks against the development `bureau-host` and helper,
  *     with no bundle and no window.
  *
  * All check that the helper prints its usage, that the bridge refuses an
@@ -63,9 +63,9 @@ function checkUsage(helper) {
   const usage = spawnSync(helper, [], { encoding: 'utf8' });
   check(
     usage.status === 3 &&
-      usage.stderr.includes('omenflow call') &&
-      usage.stderr.includes('omenflow mcp'),
-    'The omenflow helper does not print its usage',
+      usage.stderr.includes('bureau call') &&
+      usage.stderr.includes('bureau mcp'),
+    'The bureau helper does not print its usage',
   );
 }
 
@@ -94,17 +94,17 @@ function helloWithInvalidToken(socket) {
   });
 }
 
-/** Run `omenflow call <op>` with the session's environment. */
+/** Run `bureau call <op>` with the session's environment. */
 function helperCall(helper, grant, op, payload) {
   const run = spawnSync(helper, ['call', op, '--input', '-'], {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     env: {
       ...process.env,
-      OMENFLOW_BRIDGE_SOCK: grant.socketPath,
-      OMENFLOW_BRIDGE_TOKEN: grant.token,
-      OMENFLOW_PROJECT_ID: grant.projectId,
-      OMENFLOW_SESSION_ID: grant.sessionId,
+      BUREAU_BRIDGE_SOCK: grant.socketPath,
+      BUREAU_BRIDGE_TOKEN: grant.token,
+      BUREAU_PROJECT_ID: grant.projectId,
+      BUREAU_SESSION_ID: grant.sessionId,
     },
   });
   if (run.status === 0) return { ok: true, result: JSON.parse(run.stdout) };
@@ -131,7 +131,7 @@ async function agentRoundTrip(helper, grant) {
   const draft = helperCall(helper, grant, 'artifact.create_draft', {
     type: 'note',
     title: 'Smoke note',
-    payload: { markdown: 'Written by the smoke test through the omenflow helper.' },
+    payload: { markdown: 'Written by the smoke test through the bureau helper.' },
   });
   check(draft.ok, `artifact.create_draft failed: ${JSON.stringify(draft.error)}`);
   check(
@@ -167,8 +167,8 @@ async function stop(process_) {
 }
 
 async function smokeBundle(app) {
-  const executable = path.join(app, 'Contents/MacOS/omenflow-rust-desktop');
-  const helper = path.join(app, 'Contents/Resources/omenflow');
+  const executable = path.join(app, 'Contents/MacOS/bureau-rust-desktop');
+  const helper = path.join(app, 'Contents/Resources/bureau');
   if (!existsSync(executable) || !existsSync(helper))
     throw new Error(`Incomplete Rust bundle: ${app}`);
   // Short: the bridge socket lives inside, and socket paths have a length limit.
@@ -179,8 +179,8 @@ async function smokeBundle(app) {
   const process_ = spawn(executable, [], {
     env: {
       ...process.env,
-      OMENFLOW_APP_DATA_DIR: appData,
-      OMENFLOW_SMOKE_PROJECT: path.join(scratch, 'project'),
+      BUREAU_APP_DATA_DIR: appData,
+      BUREAU_SMOKE_PROJECT: path.join(scratch, 'project'),
     },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
@@ -198,7 +198,7 @@ async function smokeBundle(app) {
     // the bundled one carries the quarantine flag of an unnotarized download (src/helper.rs).
     const agentHelper = grant.cliPath ?? helper;
     check(
-      agentHelper === helper || agentHelper === path.join(appData, 'bin/omenflow'),
+      agentHelper === helper || agentHelper === path.join(appData, 'bin/bureau'),
       `The app hands agents an unexpected helper: ${agentHelper}`,
     );
     if (agentHelper !== helper) console.log(`rust-packaged-smoke: agents use ${agentHelper}`);
@@ -213,7 +213,7 @@ async function smokeBundle(app) {
 }
 
 /** `productName` in tauri.conf.json: the package keeps its resources in `lib/<productName>/`. */
-const PRODUCT_NAME = 'Omen Flow';
+const PRODUCT_NAME = 'Bureau';
 /** The main window's minimum size in tauri.conf.json. */
 const MIN_WINDOW = { width: 1024, height: 700 };
 
@@ -223,7 +223,7 @@ function tool(name, args) {
   return run;
 }
 
-/** Visible top-level windows titled "Omen Flow", with their geometry. */
+/** Visible top-level windows titled "Bureau", with their geometry. */
 function appWindows() {
   const search = tool('xdotool', ['search', '--onlyvisible', '--name', `^${PRODUCT_NAME}$`]);
   return search.stdout
@@ -324,7 +324,7 @@ function groupOf(pid) {
 
 /**
  * The stand-in agent CLI the app starts in the Agent tab. Like a real one it
- * finds `omenflow` on the PATH its session gets, calls the bridge with the
+ * finds `bureau` on the PATH its session gets, calls the bridge with the
  * session's credentials, and then waits, here with a child of its own so the
  * whole process group has to end.
  */
@@ -336,8 +336,8 @@ function writeStandInAgent(file, out) {
       `out='${out}'`,
       '{',
       '  echo "pid $$"',
-      '  echo "helper $(command -v omenflow)"',
-      '  printf "{}" | omenflow call project.summary --input - > "$out.summary" 2>&1',
+      '  echo "helper $(command -v bureau)"',
+      '  printf "{}" | bureau call project.summary --input - > "$out.summary" 2>&1',
       '  echo "status $?"',
       '} > "$out.partial" && mv "$out.partial" "$out"',
       'sleep 600 &',
@@ -459,10 +459,10 @@ async function smokeLinux(executable, screenshot) {
   const process_ = spawn(executable, [], {
     env: {
       ...process.env,
-      OMENFLOW_APP_DATA_DIR: appData,
-      OMENFLOW_SMOKE_PROJECT: path.join(scratch, 'project'),
-      OMENFLOW_SMOKE_AGENT: agent,
-      OMENFLOW_SMOKE_SNAPSHOT: '1',
+      BUREAU_APP_DATA_DIR: appData,
+      BUREAU_SMOKE_PROJECT: path.join(scratch, 'project'),
+      BUREAU_SMOKE_AGENT: agent,
+      BUREAU_SMOKE_SNAPSHOT: '1',
       SHELL: shell,
       OMF_SMOKE_CHILD_ENV: childEnv,
     },
@@ -485,15 +485,15 @@ async function smokeLinux(executable, screenshot) {
     console.log(`rust-packaged-smoke: helper the app resolved: ${helper}`);
     check(
       typeof helper === 'string' &&
-        helper.endsWith(`/lib/${PRODUCT_NAME}/omenflow`) &&
+        helper.endsWith(`/lib/${PRODUCT_NAME}/bureau`) &&
         existsSync(helper) &&
-        !helper.includes('/native/omenflow-bridge/'),
+        !helper.includes('/native/bureau-bridge/'),
       `The app did not resolve the packaged helper: ${helper}`,
     );
     if (!executable.endsWith('.AppImage')) {
       const installed = path.resolve(
         path.dirname(realpathSync(executable)),
-        `../lib/${PRODUCT_NAME}/omenflow`,
+        `../lib/${PRODUCT_NAME}/bureau`,
       );
       check(
         realpathSync(helper) === realpathSync(installed),
@@ -659,12 +659,12 @@ function post(port, token, route, body) {
 }
 
 async function smokeHeadless() {
-  cargo(['build', '--locked', '-p', 'omenflow-headless'], { stdio: 'inherit' });
+  cargo(['build', '--locked', '-p', 'bureau-headless'], { stdio: 'inherit' });
   const target = JSON.parse(
     cargo(['metadata', '--no-deps', '--format-version', '1']),
   ).target_directory;
-  const host = path.join(target, 'debug', exe('omenflow-host'));
-  const helper = path.join(root, 'native/omenflow-bridge/target/release', exe('omenflow'));
+  const host = path.join(target, 'debug', exe('bureau-host'));
+  const helper = path.join(root, 'native/bureau-bridge/target/release', exe('bureau'));
   if (!existsSync(helper)) throw new Error(`Build the helper first (pnpm build:bridge): ${helper}`);
   checkUsage(helper);
   const scratch = mkdtempSync(path.join(tmpdir(), 'omf-smoke-'));
@@ -674,7 +674,7 @@ async function smokeHeadless() {
   try {
     const announced = await new Promise((resolve, reject) => {
       let text = '';
-      process_.once('exit', (code) => reject(new Error(`omenflow-host exited with code ${code}`)));
+      process_.once('exit', (code) => reject(new Error(`bureau-host exited with code ${code}`)));
       process_.stdout.setEncoding('utf8');
       process_.stdout.on('data', (chunk) => {
         text += chunk;
@@ -693,7 +693,7 @@ async function smokeHeadless() {
     await agentRoundTrip(helper, session.result);
     await post(announced.port, announced.token, '/api/shutdown', {});
     await Promise.race([new Promise((resolve) => process_.once('exit', resolve)), sleep(5000)]);
-    check(process_.exitCode === 0, `omenflow-host did not stop cleanly: ${process_.exitCode}`);
+    check(process_.exitCode === 0, `bureau-host did not stop cleanly: ${process_.exitCode}`);
     console.log('Headless smoke passed');
   } finally {
     await stop(process_);
@@ -709,5 +709,4 @@ else if (process.argv[2] === '--linux') {
       'Usage: rust-packaged-smoke.mjs --linux <installed executable or AppImage> [--screenshot <file.png>]',
     );
   await smokeLinux(path.resolve(executable), screenshot && path.resolve(screenshot));
-} else
-  await smokeBundle(path.resolve(process.argv[2] ?? 'target/release/bundle/macos/Omen Flow.app'));
+} else await smokeBundle(path.resolve(process.argv[2] ?? 'target/release/bundle/macos/Bureau.app'));

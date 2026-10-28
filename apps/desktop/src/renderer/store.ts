@@ -9,7 +9,7 @@ import type {
   Proposal,
   SessionInfo,
   StaleRecord,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { cmd, errMsg, type RecoverableCommandError } from './api';
 import { askAgent, showAgent } from './lib/actions';
 import { lensDef, type Lens } from './project/lenses';
@@ -75,7 +75,7 @@ export type { Lens };
 export type { LoadStatus, ResourceLoad, SyncResource } from './lib/sync';
 
 /**
- * Where the engineer is. Omen Flow has three zoom levels instead of pages:
+ * Where the engineer is. Bureau has three zoom levels instead of pages:
  * the whole project (seen through a lens), one object in focus, and one decision.
  * The agent is its own tab on the activity bar, beside the zoom levels.
  */
@@ -168,9 +168,9 @@ interface State {
   /** The introduction is on screen: once on first launch, and whenever it is played again. */
   introOpen: boolean;
   theme: 'dark' | 'light';
-  /** Folded object rails; persisted as `omen.rails`. */
+  /** Folded object rails; persisted as `bureau.rails`. */
   rails: RailPrefs;
-  /** The adapter the user picked in Settings; persisted as `omen.agent`. */
+  /** The adapter the user picked in Settings; persisted as `bureau.agent`. */
   agentId: string | null;
   toasts: Toast[];
 
@@ -563,7 +563,7 @@ export const useStore = create<State>((set, get) => {
           ? parseRecents(readRaw(PREF_KEYS.recent(projectId)), RECENT_LIMIT)
           : [],
       });
-      void window.omenflow.setActiveProject(projectId);
+      void window.bureau.setActiveProject(projectId);
     },
     go: (view) => {
       if (sameView(view, get().view)) return;

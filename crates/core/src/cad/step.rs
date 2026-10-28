@@ -196,8 +196,8 @@ fn destination(
 
 /// A path inside the project as the project names it, after links.
 fn project_relative(handle: &ProjectHandle, path: &Path) -> Option<String> {
-    let root = omenflow_storage::canonicalize(&handle.root).ok()?;
-    let actual = omenflow_storage::canonicalize(path).ok()?;
+    let root = bureau_storage::canonicalize(&handle.root).ok()?;
+    let actual = bureau_storage::canonicalize(path).ok()?;
     let relative = actual.strip_prefix(&root).ok()?;
     Some(
         relative
@@ -265,7 +265,7 @@ fn write_destination(
                 .filter(|parent| !parent.as_os_str().is_empty())
                 .ok_or_else(|| ContractError::validation("Destination has no parent folder"))?;
             fs::create_dir_all(parent).map_err(|error| failed(dest, &error))?;
-            let temp = dest.with_extension(format!("omenflow-{}.tmp", uuid::Uuid::new_v4()));
+            let temp = dest.with_extension(format!("bureau-{}.tmp", uuid::Uuid::new_v4()));
             let written = fs::write(&temp, bytes).and_then(|()| fs::rename(&temp, dest));
             if let Err(error) = written {
                 let _ = fs::remove_file(&temp);
@@ -1807,7 +1807,7 @@ impl ExportPipeline {
             event["projectPath"] = json!(relative);
         }
         emit(handle, "cad.exported", origin, event)?;
-        let digest = omenflow_storage::sha256_hex(&exported.bytes);
+        let digest = bureau_storage::sha256_hex(&exported.bytes);
         jobs::finish(
             handle,
             &plan.job_id,

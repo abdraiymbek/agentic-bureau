@@ -1,8 +1,8 @@
 {
-  "name": "omenflow",
+  "name": "bureau",
   "version": "0.2.4",
   "private": true,
-  "description": "Omen Flow — local desktop engineering workspace for bring-your-own agent CLIs",
+  "description": "Bureau — local desktop engineering workspace for bring-your-own agent CLIs",
   "license": "Apache-2.0",
   "homepage": "https://github.com/abdraiymbek/omen-flow",
   "repository": {
@@ -15,7 +15,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build:bridge": "cargo build --release --locked --manifest-path native/omenflow-bridge/Cargo.toml",
+    "build:bridge": "cargo build --release --locked --manifest-path native/bureau-bridge/Cargo.toml",
     "build:rust": "node scripts/rust-app.mjs build",
     "dev": "node scripts/rust-app.mjs dev",
     "typecheck": "pnpm -r run typecheck && tsc -p evals/tsconfig.json",
@@ -45,12 +45,12 @@
     "eval:workflows": "tsx evals/workflows/run.ts"
   },
   "devDependencies": {
-    "@omenflow/agent-host": "workspace:^",
-    "@omenflow/contracts": "workspace:^",
-    "@omenflow/core": "workspace:^",
-    "@omenflow/engineering": "workspace:^",
-    "@omenflow/mcp-server": "workspace:^",
-    "@omenflow/storage": "workspace:^",
+    "@bureau/agent-host": "workspace:^",
+    "@bureau/contracts": "workspace:^",
+    "@bureau/core": "workspace:^",
+    "@bureau/engineering": "workspace:^",
+    "@bureau/mcp-server": "workspace:^",
+    "@bureau/storage": "workspace:^",
     "@tauri-apps/cli": "^2",
     "@types/node": "^22.10.0",
     "@typescript-eslint/eslint-plugin": "^8.18.0",

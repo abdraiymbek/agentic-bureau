@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Export, X } from '@phosphor-icons/react';
-import type { FileRef, Job, MechanicalPayload } from '@omenflow/contracts';
+import { Export, X } from '../../ui/icons';
+import type { FileRef, Job, MechanicalPayload } from '@bureau/contracts';
 import { CommandError, cmd, errMsg } from '../../api';
 import { useStore } from '../../store';
 import { Button, Checkbox, IconButton, Notice, Spinner } from '../../ui/kit';
@@ -158,7 +158,7 @@ export function MechanicalStage({ view }: StageProps) {
   // Success is reported only from the core's answer, never from the request.
   const exportStep = async () => {
     if (!projectId || !rev) return;
-    const dest = await window.omenflow.saveFile({
+    const dest = await window.bureau.saveFile({
       defaultPath: stepFileName(view.artifact.title, rev.seq),
       filters: [{ name: 'STEP', extensions: ['step', 'stp'] }],
     });
@@ -550,7 +550,7 @@ function StepExportOutcome({
   const { result } = outcome;
   const view = stepOutcomeView(result);
   const reveal = () =>
-    void window.omenflow
+    void window.bureau
       .revealPath(result.path)
       .catch((e) => useStore.getState().toast('error', errMsg(e)));
   return (

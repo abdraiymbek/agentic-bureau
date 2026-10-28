@@ -5,7 +5,7 @@
 - Node 24 (`.nvmrc`; `package.json` accepts 20 and later) and pnpm 9.15.9 (`packageManager`).
 - The stable Rust toolchain with rustfmt and clippy (`rust-toolchain.toml`).
 - OpenSCAD for the CAD engine. `cargo test --workspace` runs real renders and **fails** when
-  OpenSCAD is missing, unless `OMENFLOW_ALLOW_MISSING_OPENSCAD=1` says to skip those tests.
+  OpenSCAD is missing, unless `BUREAU_ALLOW_MISSING_OPENSCAD=1` says to skip those tests.
   `OPENSCAD_PATH` names a specific executable. On macOS use the snapshot cask
   (`brew install --cask openscad@snapshot`); the Rust engine tests have been run with 2026.09.18
   only.
@@ -19,7 +19,7 @@
   one on their own). Offline from the uv cache, for example:
   `uv venv --offline --python 3.12 /tmp/step-venv && uv pip install --offline --python /tmp/step-venv/bin/python cadquery-ocp-novtk==7.9.3.1.1`,
   then
-  `OMENFLOW_STEP_E2E=1 OMENFLOW_PYTHON=/tmp/step-venv/bin/python cargo test -p omenflow-core --lib --locked cad::step -- --nocapture`.
+  `BUREAU_STEP_E2E=1 BUREAU_PYTHON=/tmp/step-venv/bin/python cargo test -p bureau-core --lib --locked cad::step -- --nocapture`.
 
 After a clean install on macOS run `pnpm rebuild:node`: node-pty's prebuilt `spawn-helper` is
 unpacked without its executable bit, and the legacy PTY tests fail with `posix_spawnp failed`
@@ -27,29 +27,29 @@ until it is built from source.
 
 ## Commands
 
-| Command                                                                                        | What it does                                                                                                                                     |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm install --frozen-lockfile`                                                               | Installs the workspace (hoisted linker)                                                                                                          |
-| `pnpm rebuild:node`                                                                            | Rebuilds node-pty from source (`scripts/rebuild-natives.mjs`)                                                                                    |
-| `pnpm contracts:check`                                                                         | Fails when `crates/contracts/registry.json` differs from what `packages/contracts` exports                                                       |
-| `pnpm contracts:export`                                                                        | Rewrites the registry and prints the compact, standard and full tool-listing sizes                                                               |
-| `cargo test --workspace`                                                                       | Rust tests for contracts, storage, core, agent host, headless host and the desktop shell                                                         |
-| `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo fmt --all -- --check` | Rust lint and format, as CI runs them                                                                                                            |
-| `pnpm build:bridge`                                                                            | Release build of the `omenflow` helper (`native/omenflow-bridge`, its own Cargo workspace)                                                       |
-| `cargo test -p omenflow-agent-host -- --ignored`                                               | The real-helper round trip (needs `pnpm build:bridge` first)                                                                                     |
-| `pnpm test`                                                                                    | Vitest: the legacy TypeScript oracle (`packages/*`), `tests/*.test.ts`, the renderer tests in `tests/frontend/`, fixtures                        |
-| `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts`                           | Only the renderer tests                                                                                                                          |
-| `pnpm test:conformance`                                                                        | Type-checks `tests/conformance/`, builds `omenflow-host`, and runs the corpus against it                                                         |
-| `pnpm typecheck`                                                                               | Every workspace package (renderer included) and `evals/`                                                                                         |
-| `pnpm lint`, `pnpm format:check`                                                               | ESLint and Prettier over the repository                                                                                                          |
-| `pnpm --filter @omenflow/desktop build:rust-ui`                                                | The static renderer the Tauri bundle embeds (`apps/desktop/rust-dist/`)                                                                          |
-| `pnpm smoke:headless`                                                                          | Starts `omenflow-host`, then drives the helper with a real grant: usage, a refused token, a read, an agent draft, a refused approval, clean exit |
-| `pnpm design:preview`                                                                          | The renderer on the Rust headless host with disposable fixture projects (below)                                                                  |
-| `pnpm fixture:rover <dir>`, `pnpm fixture:drone <dir>`                                         | Builds a reference project into an empty or new folder through the Rust host                                                                     |
-| `pnpm dev`                                                                                     | `pnpm build:bridge`, then `tauri dev` (which starts the renderer's Vite server on 127.0.0.1:5174)                                                |
-| `pnpm make`, `pnpm package`                                                                    | `pnpm build:bridge`, `build:rust-ui`, then `tauri build --no-sign`                                                                               |
-| `pnpm smoke:packaged`                                                                          | Launches the built bundle with disposable state and runs the same helper checks against it                                                       |
-| `pnpm release:macos`                                                                           | Signs, notarizes and staples the app and DMG; refuses without Apple credentials ([release](release.md))                                          |
+| Command                                                                                        | What it does                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install --frozen-lockfile`                                                               | Installs the workspace (hoisted linker)                                                                                                        |
+| `pnpm rebuild:node`                                                                            | Rebuilds node-pty from source (`scripts/rebuild-natives.mjs`)                                                                                  |
+| `pnpm contracts:check`                                                                         | Fails when `crates/contracts/registry.json` differs from what `packages/contracts` exports                                                     |
+| `pnpm contracts:export`                                                                        | Rewrites the registry and prints the compact, standard and full tool-listing sizes                                                             |
+| `cargo test --workspace`                                                                       | Rust tests for contracts, storage, core, agent host, headless host and the desktop shell                                                       |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings`, `cargo fmt --all -- --check` | Rust lint and format, as CI runs them                                                                                                          |
+| `pnpm build:bridge`                                                                            | Release build of the `bureau` helper (`native/bureau-bridge`, its own Cargo workspace)                                                         |
+| `cargo test -p bureau-agent-host -- --ignored`                                                 | The real-helper round trip (needs `pnpm build:bridge` first)                                                                                   |
+| `pnpm test`                                                                                    | Vitest: the legacy TypeScript oracle (`packages/*`), `tests/*.test.ts`, the renderer tests in `tests/frontend/`, fixtures                      |
+| `pnpm exec vitest run tests/frontend tests/terminal-restore.test.ts`                           | Only the renderer tests                                                                                                                        |
+| `pnpm test:conformance`                                                                        | Type-checks `tests/conformance/`, builds `bureau-host`, and runs the corpus against it                                                         |
+| `pnpm typecheck`                                                                               | Every workspace package (renderer included) and `evals/`                                                                                       |
+| `pnpm lint`, `pnpm format:check`                                                               | ESLint and Prettier over the repository                                                                                                        |
+| `pnpm --filter @bureau/desktop build:rust-ui`                                                  | The static renderer the Tauri bundle embeds (`apps/desktop/rust-dist/`)                                                                        |
+| `pnpm smoke:headless`                                                                          | Starts `bureau-host`, then drives the helper with a real grant: usage, a refused token, a read, an agent draft, a refused approval, clean exit |
+| `pnpm design:preview`                                                                          | The renderer on the Rust headless host with disposable fixture projects (below)                                                                |
+| `pnpm fixture:rover <dir>`, `pnpm fixture:drone <dir>`                                         | Builds a reference project into an empty or new folder through the Rust host                                                                   |
+| `pnpm dev`                                                                                     | `pnpm build:bridge`, then `tauri dev` (which starts the renderer's Vite server on 127.0.0.1:5174)                                              |
+| `pnpm make`, `pnpm package`                                                                    | `pnpm build:bridge`, `build:rust-ui`, then `tauri build --no-sign`                                                                             |
+| `pnpm smoke:packaged`                                                                          | Launches the built bundle with disposable state and runs the same helper checks against it                                                     |
+| `pnpm release:macos`                                                                           | Signs, notarizes and staples the app and DMG; refuses without Apple credentials ([release](release.md))                                        |
 
 `pnpm dev`, `pnpm make` and `pnpm smoke:packaged` open or build the native app; everything else
 runs without a window.
@@ -57,7 +57,7 @@ runs without a window.
 ## Running the headless host
 
 ```sh
-cargo run -p omenflow-headless --bin omenflow-host -- --app-data "$(mktemp -d)"
+cargo run -p bureau-headless --bin bureau-host -- --app-data "$(mktemp -d)"
 ```
 
 It prints one line, `{"port", "token", "socketPath"}`, and serves until SIGINT, SIGTERM,
@@ -69,7 +69,7 @@ helper (by default the one beside the binary, else the repository's release buil
 The bridge socket is `<app-data>/run/bridge.sock`, and a socket path has a system length limit
 of about 104 bytes, so keep the app-data path short (the system temporary folder works; a deep
 scratch folder may not). The conformance client `tests/conformance/rust-core.ts` is the
-reference for driving the host from TypeScript (`OMENFLOW_HOST_BIN` overrides the binary it
+reference for driving the host from TypeScript (`BUREAU_HOST_BIN` overrides the binary it
 starts).
 
 ## Design preview
@@ -85,7 +85,7 @@ host's token never reaches the page. Ctrl-C or SIGTERM stops the host and its te
 the data folder is removed when the preview process exits, including after a failed start (a
 process killed with SIGKILL cannot clean up).
 
-- `OMEN_PREVIEW_PORT` picks another port (useful when several previews run; each has its own
+- `BUREAU_PREVIEW_PORT` picks another port (useful when several previews run; each has its own
   cookie).
 - Parameters: `screen=launcher|flow|parts|timeline|files|evidence|decide|agent|system`,
   `object=<artifact type>`, `theme=light|dark`, `console=open` (the agent window).
@@ -94,7 +94,7 @@ process killed with SIGKILL cannot clean up).
 - Terminals and agent settings are off by default: `terminal.start`, `terminal.restart`,
   `connection.configure` and `connection.test` are refused with `PREVIEW`, because a Custom
   CLI runs any executable and Codex CLI and Claude Code spend model credits and may update
-  themselves on first start. Start the preview with `OMEN_PREVIEW_AGENTS=1` to run any of them
+  themselves on first start. Start the preview with `BUREAU_PREVIEW_AGENTS=1` to run any of them
   in a real PTY from the Agent tab.
 - Research browsing is not available (the headless host has no webview).
 
@@ -122,18 +122,18 @@ the Rust code (`#[cfg(test)]` modules, `crates/*/tests`, `apps/headless/tests`),
 
 ## Environment variables
 
-| Variable                                   | Effect                                                                                            |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `OMENFLOW_APP_DATA_DIR`                    | The desktop app uses this data folder instead of the system one (isolated run, own instance lock) |
-| `OMENFLOW_SMOKE_PROJECT`                   | With `OMENFLOW_APP_DATA_DIR`: create this project and write the agent grant for the smoke test    |
-| `OMENFLOW_SMOKE_AGENT`                     | With `OMENFLOW_SMOKE_PROJECT`: start this executable as a Custom CLI session for the smoke test   |
-| `OMENFLOW_SMOKE_SNAPSHOT`                  | With `OMENFLOW_SMOKE_PROJECT`: write a picture of the page when the smoke asks for one            |
-| `OMENFLOW_ALLOW_MISSING_OPENSCAD=1`        | Rust engine tests skip instead of failing when OpenSCAD is absent                                 |
-| `OPENSCAD_PATH`                            | The OpenSCAD executable to use when none is configured in Settings                                |
-| `OMENFLOW_PYTHON`                          | The Python with OCP for exact STEP export when none is configured in Settings                     |
-| `OMENFLOW_STEP_E2E=1`                      | With `OMENFLOW_PYTHON`: runs the Rust test of a real exact STEP export (fails without the Python) |
-| `OMENFLOW_STEP_CORPUS`                     | A folder of `<id>/project` folders: exports each part as STEP and prints one JSON line per part   |
-| `OMENFLOW_OPENSCAD_E2E=1`                  | Runs the legacy TypeScript real-engine tests (`pnpm test`)                                        |
-| `OMENFLOW_HOST_BIN`                        | The `omenflow-host` binary the conformance client and fixtures start                              |
-| `OMEN_PREVIEW_PORT`, `OMEN_PREVIEW_AGENTS` | Design preview port; `1` allows terminals and agent settings (any CLI) in it                      |
-| `OMENFLOW_AGENTS_MD=off`                   | In a Custom CLI's environment: no Omen Flow block in the project's `AGENTS.md`                    |
+| Variable                                       | Effect                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `BUREAU_APP_DATA_DIR`                          | The desktop app uses this data folder instead of the system one (isolated run, own instance lock) |
+| `BUREAU_SMOKE_PROJECT`                         | With `BUREAU_APP_DATA_DIR`: create this project and write the agent grant for the smoke test      |
+| `BUREAU_SMOKE_AGENT`                           | With `BUREAU_SMOKE_PROJECT`: start this executable as a Custom CLI session for the smoke test     |
+| `BUREAU_SMOKE_SNAPSHOT`                        | With `BUREAU_SMOKE_PROJECT`: write a picture of the page when the smoke asks for one              |
+| `BUREAU_ALLOW_MISSING_OPENSCAD=1`              | Rust engine tests skip instead of failing when OpenSCAD is absent                                 |
+| `OPENSCAD_PATH`                                | The OpenSCAD executable to use when none is configured in Settings                                |
+| `BUREAU_PYTHON`                                | The Python with OCP for exact STEP export when none is configured in Settings                     |
+| `BUREAU_STEP_E2E=1`                            | With `BUREAU_PYTHON`: runs the Rust test of a real exact STEP export (fails without the Python)   |
+| `BUREAU_STEP_CORPUS`                           | A folder of `<id>/project` folders: exports each part as STEP and prints one JSON line per part   |
+| `BUREAU_OPENSCAD_E2E=1`                        | Runs the legacy TypeScript real-engine tests (`pnpm test`)                                        |
+| `BUREAU_HOST_BIN`                              | The `bureau-host` binary the conformance client and fixtures start                                |
+| `BUREAU_PREVIEW_PORT`, `BUREAU_PREVIEW_AGENTS` | Design preview port; `1` allows terminals and agent settings (any CLI) in it                      |
+| `BUREAU_AGENTS_MD=off`                         | In a Custom CLI's environment: no Bureau block in the project's `AGENTS.md`                       |

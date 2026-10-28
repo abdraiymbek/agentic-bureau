@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { ChatGate, ChatTurn } from '@omenflow/contracts';
-import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
+import type { ChatGate, ChatTurn } from '@bureau/contracts';
+import { CHAT_CONTINUE_TEXT } from '@bureau/contracts/chat';
 import {
   ContinuationMessage,
   NoToolCalls,
@@ -12,7 +12,7 @@ import {
 } from '../../apps/desktop/src/renderer/chat/InlineGate';
 import { modelKey, modelMismatch, turnModel } from '../../apps/desktop/src/renderer/chat/model';
 import { RecordedCall } from '../../apps/desktop/src/renderer/chat/RecordedCall';
-import type { AgentCallRecord } from '@omenflow/contracts';
+import type { AgentCallRecord } from '@bureau/contracts';
 
 const gate = (change: Partial<ChatGate> = {}): ChatGate => ({
   ready: false,
@@ -74,7 +74,7 @@ const continueButton = /<button[^>]*>(?:(?!<\/button>).)*Continue<\/span><\/butt
 describe('the completion gate record on a turn', () => {
   it('names the host as its author and shows the summary, labelled items and their tools', () => {
     const html = card();
-    expect(html).toContain('Completion gate · work_status, recorded by Omen Flow');
+    expect(html).toContain('Completion gate · work_status, recorded by Bureau');
     expect(html).toContain('Work not finished');
     expect(html).toContain('2 blockers');
     expect(html).toContain('1 draft is empty. 1 component has no source.');
@@ -109,21 +109,21 @@ describe('the completion gate record on a turn', () => {
         latest: false,
         continuedBy: turn({ requestId: 'r2', continues: { requestId: 'r1', automatic } }),
       });
-    expect(continued(true)).toContain('Omen Flow continued once, automatically, below.');
+    expect(continued(true)).toContain('Bureau continued once, automatically, below.');
     expect(continued(false)).toContain('You continued this below.');
     for (const html of [continued(true), continued(false)]) {
       expect(html).not.toMatch(continueButton);
       expect(html).toContain('Work not finished when this response ended');
     }
     expect(continuedCaption(turn({ continues: { requestId: 'r1', automatic: true } }))).toBe(
-      'Omen Flow continued once, automatically, below.',
+      'Bureau continued once, automatically, below.',
     );
     expect(continuedCaption(turn({ continues: { requestId: 'r1', automatic: false } }))).toBe(
       'You continued this below.',
     );
   });
 
-  it('says what Omen Flow did about the unfinished work', () => {
+  it('says what Bureau did about the unfinished work', () => {
     const skipped = (reason: string, detail?: string) =>
       gate({
         auto: { state: 'skipped', reason, ...(detail ? { detail } : {}) } as ChatGate['auto'],
@@ -131,7 +131,7 @@ describe('the completion gate record on a turn', () => {
     expect(autoCaption(gate())).toBeNull();
     for (const [reason, words] of [
       ['needs_person', 'need you or facts from outside the project'],
-      ['already_continued', 'Omen Flow already continued once after your message'],
+      ['already_continued', 'Bureau already continued once after your message'],
       ['jobs_running', 'a job was still running'],
       ['busy', 'another agent was working in this project'],
       ['prompt_limit', 'this conversation is too long'],
@@ -158,8 +158,8 @@ describe('the completion gate record on a turn', () => {
     const note = renderToStaticMarkup(
       React.createElement(NoToolCalls, { latest: true, blocked: false, onContinue: () => {} }),
     );
-    expect(note).toContain('Recorded by Omen Flow');
-    expect(note).toContain('No Omen Flow tools were called in this response.');
+    expect(note).toContain('Recorded by Bureau');
+    expect(note).toContain('No Bureau tools were called in this response.');
     expect(note).toMatch(continueButton);
     expect(
       renderToStaticMarkup(
@@ -169,9 +169,9 @@ describe('the completion gate record on a turn', () => {
     const automatic = renderToStaticMarkup(
       React.createElement(ContinuationMessage, { text: CHAT_CONTINUE_TEXT, automatic: true }),
     );
-    expect(automatic).toContain('aria-label="Sent by Omen Flow"');
+    expect(automatic).toContain('aria-label="Sent by Bureau"');
     expect(automatic).toContain(
-      'Sent by Omen Flow, once, because work_status reported unfinished work',
+      'Sent by Bureau, once, because work_status reported unfinished work',
     );
     expect(automatic).toContain('is-automatic');
     const yours = renderToStaticMarkup(
@@ -286,7 +286,7 @@ describe("a turn's recorded activity", () => {
 });
 
 describe('the model a turn ran', () => {
-  it('prefers what the CLI reported over what Omen Flow passed', () => {
+  it('prefers what the CLI reported over what Bureau passed', () => {
     expect(turnModel(turn())).toBeNull();
     expect(turnModel(turn({ model: 'claude-haiku-5-5' }))).toBe('claude-haiku-5-5');
     expect(

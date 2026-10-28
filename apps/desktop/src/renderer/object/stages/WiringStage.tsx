@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { WiringPayload } from '@omenflow/contracts';
+import type { WiringPayload } from '@bureau/contracts';
 import { recordedQuantityText } from '../../lib/diff';
 import { cmd, errMsg } from '../../api';
 import { useStore } from '../../store';

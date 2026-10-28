@@ -7,8 +7,8 @@ import type {
   CoverageReport,
   CoverageRequirement,
   MaybeQuantity,
-} from '@omenflow/contracts';
-import { isUnknown } from '@omenflow/contracts/format';
+} from '@bureau/contracts';
+import { isUnknown } from '@bureau/contracts/format';
 import { quantityText, type KnownQuantity } from '../lib/diff';
 import type { Tone } from '../ui/kit';
 

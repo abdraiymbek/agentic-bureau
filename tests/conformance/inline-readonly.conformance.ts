@@ -14,7 +14,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 it('keeps the read-only host gate while primary inline inspection reads actual source data ephemerally', async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-inline-readonly-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-inline-readonly-'));
   app = await RustCore.start(path.join(root, 'app'), { cli: process.execPath });
   const projectPath = path.join(root, 'project');
   const { projectId } = (await app.dispatch(
@@ -33,7 +33,7 @@ it('keeps the read-only host gate while primary inline inspection reads actual s
     projectId,
   )) as { artifact: { id: string }; revision: { id: string } };
   await app.dispatch('project.close', {}, user, projectId);
-  const marker = path.join(projectPath, 'omenflow.project.json');
+  const marker = path.join(projectPath, 'bureau.project.json');
   fs.writeFileSync(
     marker,
     JSON.stringify({ ...JSON.parse(fs.readFileSync(marker, 'utf8')), version: 999 }),
@@ -44,7 +44,7 @@ it('keeps the read-only host gate while primary inline inspection reads actual s
   expect(opened.readOnly).toBe(true);
   vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
   vi.stubGlobal('window', {
-    omenflow: {
+    bureau: {
       command: async (op: string, payload: unknown) => {
         try {
           return { ok: true, result: await app!.dispatch(op, payload, user, projectId) };
@@ -82,5 +82,5 @@ it('keeps the read-only host gate while primary inline inspection reads actual s
       projectId,
     ),
   ).rejects.toMatchObject({ code: 'READ_ONLY' });
-  expect(fs.existsSync(path.join(projectPath, '.omenflow/chat/conversations.json'))).toBe(false);
+  expect(fs.existsSync(path.join(projectPath, '.bureau/chat/conversations.json'))).toBe(false);
 });

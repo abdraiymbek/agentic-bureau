@@ -3,7 +3,7 @@
 //! to a CLI through its system-prompt channel, and the bounded block written
 //! to a project's `AGENTS.md` for CLIs that have no other channel.
 
-use omenflow_contracts::{nearest_match, registry, ContractError, Profile};
+use bureau_contracts::{nearest_match, registry, ContractError, Profile};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::fs;
@@ -158,7 +158,7 @@ pub fn instructions(profile: Profile) -> String {
         }
     };
     [
-        "Omen Flow is the engineering workspace for this project. These tools are the only way to read and change it: files under artifacts/ are read-only mirrors; do not explore the filesystem or run git. You author drafts; only the human approves them.",
+        "Bureau is the engineering workspace for this project. These tools are the only way to read and change it: files under artifacts/ are read-only mirrors; do not explore the filesystem or run git. You author drafts; only the human approves them.",
         "",
         "1. Call project_summary first, unless your session brief says to skip it.",
         "2. A part to model (OpenSCAD): follow \"Model a part in OpenSCAD\" in your session brief, or guide_read cad. Other work: first call guide_read for a playbook: requirements, components, wiring, calculation, tests, review.",
@@ -184,7 +184,7 @@ pub fn launch_guidance(
     snapshot: Option<&Snapshot>,
 ) -> String {
     let mut text = format!(
-        "# Omen Flow session\n\nProject: {project_name}\nFolder: {}\nProfile: {profile} ({} tools listed)\n\n{}",
+        "# Bureau session\n\nProject: {project_name}\nFolder: {}\nProfile: {profile} ({} tools listed)\n\n{}",
         project_root.display(),
         tool_count(profile),
         instructions(profile),
@@ -193,7 +193,7 @@ pub fn launch_guidance(
         text.push_str("\n\n");
         text.push_str(&snapshot.text());
     }
-    text.push_str("\n\nIf the omenflow tools are missing from your tool list, use the shell instead: `omenflow guide [topic]`, `omenflow status`, `omenflow call <tool> --input <file|->` and `omenflow call <tool> --help`.");
+    text.push_str("\n\nIf the bureau tools are missing from your tool list, use the shell instead: `bureau guide [topic]`, `bureau status`, `bureau call <tool> --input <file|->` and `bureau call <tool> --help`.");
     let included: &[&str] = match profile {
         Profile::Compact | Profile::Standard => &["cad"],
         Profile::Full => &["cad", "cad-verify"],
@@ -383,7 +383,8 @@ fn clipped(text: &str, (chars, bytes): (usize, usize)) -> String {
     flat
 }
 
-/// Marker the unbounded guide of earlier builds started with.
+/// Marker the unbounded guide of earlier builds started with, from before the
+/// app was called Bureau.
 const LEGACY_MARKER: &str = "<!-- omenflow:agent-guide -->";
 /// First heading of every version of that guide.
 const LEGACY_HEADING: &str = "# Working in this Omen Flow project";
@@ -391,24 +392,27 @@ const LEGACY_HEADING: &str = "# Working in this Omen Flow project";
 const LEGACY_LAST_SECTION: &str = "## Efficiency";
 const LEGACY_LAST_SENTENCE: &str = "request review unless asked.";
 
-const BLOCK_BEGIN: &str = "<!-- omenflow:guide:begin";
-const BLOCK_END: &str = "<!-- omenflow:guide:end -->";
+const BLOCK_BEGIN: &str = "<!-- bureau:guide:begin";
+const BLOCK_END: &str = "<!-- bureau:guide:end -->";
+/// The same block's markers as builds before the rename wrote them.
+const PRE_RENAME_BEGIN: &str = "<!-- omenflow:guide:begin";
+const PRE_RENAME_END: &str = "<!-- omenflow:guide:end -->";
 
 /// The block for a CLI whose only guidance channel is the project's
-/// `AGENTS.md`. It scopes itself to an Omen Flow session, because the file is
+/// `AGENTS.md`. It scopes itself to a Bureau session, because the file is
 /// also read by agents started outside one.
 pub fn agents_block() -> String {
     format!(
-        "{BLOCK_BEGIN} (maintained by Omen Flow; text between the markers is replaced) -->\n\
-## Omen Flow agent session\n\
+        "{BLOCK_BEGIN} (maintained by Bureau; text between the markers is replaced) -->\n\
+## Bureau agent session\n\
 \n\
-This section applies only inside an Omen Flow agent session, where the environment variable OMENFLOW_SESSION_ID is set. Outside one, ignore it.\n\
+This section applies only inside a Bureau agent session, where the environment variable BUREAU_SESSION_ID is set. Outside one, ignore it.\n\
 \n\
-- This folder is an Omen Flow engineering project. Read and change it only through the `omenflow` command or its MCP tools (`omenflow mcp`). Files under `artifacts/` are read-only mirrors.\n\
-- Start with `omenflow guide`, then `omenflow call project_summary`.\n\
-- Call a tool with `omenflow call <tool> --input <file|->`; `omenflow call <tool> --help` prints its arguments.\n\
+- This folder is a Bureau engineering project. Read and change it only through the `bureau` command or its MCP tools (`bureau mcp`). Files under `artifacts/` are read-only mirrors.\n\
+- Start with `bureau guide`, then `bureau call project_summary`.\n\
+- Call a tool with `bureau call <tool> --input <file|->`; `bureau call <tool> --help` prints its arguments.\n\
 - You author drafts. Only the human approves them.\n\
-- Before you say the work is done, run `omenflow status` and resolve or name every blocker.\n\
+- Before you say the work is done, run `bureau status` and resolve or name every blocker.\n\
 {BLOCK_END}"
     )
 }
@@ -417,11 +421,19 @@ This section applies only inside an Omen Flow agent session, where the environme
 /// already right. With `wanted` the bounded block is present exactly once;
 /// without it the block is absent. The unbounded guide earlier builds wrote
 /// is removed either way. Text the person wrote is never touched: when the
-/// extent of Omen Flow's own text cannot be established, it is left alone.
+/// extent of Bureau's own text cannot be established, it is left alone.
 pub fn agents_md_next(existing: &str, wanted: bool) -> Option<String> {
     let mut text = existing.to_owned();
     if let Some(span) = legacy_guide_span(&text) {
         text = without(&text, span);
+    }
+    // A block written before the rename is taken over: its markers are
+    // renamed, then it is refreshed or removed like a current one.
+    if let Some(begin) = text.find(PRE_RENAME_BEGIN) {
+        if let Some(end) = text[begin..].find(PRE_RENAME_END).map(|end| begin + end) {
+            text.replace_range(end..end + PRE_RENAME_END.len(), BLOCK_END);
+            text.replace_range(begin..begin + PRE_RENAME_BEGIN.len(), BLOCK_BEGIN);
+        }
     }
     let begin = text.find(BLOCK_BEGIN);
     let block = begin.and_then(|begin| {
@@ -477,7 +489,7 @@ fn without(text: &str, span: Range<usize>) -> String {
 
 /// Bring `<project>/AGENTS.md` in line with what the session's adapter needs.
 /// A file that cannot be read as text is left untouched; a file that held
-/// only Omen Flow's text and now holds nothing is removed.
+/// only Bureau's text and now holds nothing is removed.
 pub fn sync_agents_md(project_root: &Path, wanted: bool) -> io::Result<()> {
     let path = project_root.join("AGENTS.md");
     let existing = match fs::read(&path) {
@@ -738,10 +750,10 @@ mod tests {
         let empty = Snapshot::default();
         let compact = launch_guidance(Profile::Compact, "Sable rover", root, Some(&empty));
         assert!(compact.starts_with(
-            "# Omen Flow session\n\nProject: Sable rover\nFolder: /projects/rover\nProfile: compact (15 tools listed)\n\n"
+            "# Bureau session\n\nProject: Sable rover\nFolder: /projects/rover\nProfile: compact (15 tools listed)\n\n"
         ));
         assert!(compact.contains(&instructions(Profile::Compact)));
-        assert!(compact.contains("`omenflow status`"));
+        assert!(compact.contains("`bureau status`"));
         assert!(compact.contains("\n\n## Project at launch\n\n"));
         for profile in Profile::ALL {
             let text = launch_guidance(profile, "Sable rover", root, Some(&empty));
@@ -962,6 +974,18 @@ mod tests {
     }
 
     #[test]
+    fn a_block_written_before_the_rename_is_taken_over() {
+        let old = format!(
+            "Above.\n\n{PRE_RENAME_BEGIN} (maintained by Omen Flow) -->\nold text\n{PRE_RENAME_END}\n\nBelow.\n"
+        );
+        assert_eq!(
+            agents_md_next(&old, true).unwrap(),
+            format!("Above.\n\n{}\n\nBelow.\n", agents_block())
+        );
+        assert_eq!(agents_md_next(&old, false).unwrap(), "Above.\n\nBelow.\n");
+    }
+
+    #[test]
     fn a_begin_marker_without_an_end_marker_is_left_alone() {
         let broken = format!("Notes.\n\n{BLOCK_BEGIN} -->\nhalf a block\n\nMore notes.\n");
         assert_eq!(agents_md_next(&broken, true), None);
@@ -970,7 +994,7 @@ mod tests {
 
     #[test]
     fn the_unbounded_guide_of_earlier_builds_is_removed_and_nothing_else() {
-        // A file Omen Flow created: only the guide.
+        // A file Bureau created: only the guide.
         assert_eq!(agents_md_next(LEGACY_GUIDE, false).unwrap(), "");
         assert_eq!(
             agents_md_next(LEGACY_GUIDE, true).unwrap(),

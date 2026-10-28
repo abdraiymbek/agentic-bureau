@@ -399,6 +399,108 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bureau-agent-host"
+version = "0.2.4"
+dependencies = [
+ "base64 0.22.1",
+ "bureau-contracts",
+ "bureau-core",
+ "chrono",
+ "interprocess",
+ "libc",
+ "png 0.18.1",
+ "portable-pty",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "bureau-contracts"
+version = "0.2.4"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "bureau-core"
+version = "0.2.4"
+dependencies = [
+ "base64 0.22.1",
+ "bureau-contracts",
+ "bureau-storage",
+ "chrono",
+ "image",
+ "libc",
+ "png 0.18.1",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "stl_io",
+ "tempfile",
+ "thiserror 2.0.20",
+ "uuid",
+ "zip",
+]
+
+[[package]]
+name = "bureau-headless"
+version = "0.2.4"
+dependencies = [
+ "bureau-agent-host",
+ "bureau-contracts",
+ "libc",
+ "serde_json",
+ "tempfile",
+ "uuid",
+]
+
+[[package]]
+name = "bureau-rust-desktop"
+version = "0.2.4"
+dependencies = [
+ "base64 0.22.1",
+ "bureau-agent-host",
+ "bureau-contracts",
+ "cairo-rs",
+ "image",
+ "libc",
+ "serde_json",
+ "signal-hook",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tempfile",
+ "uuid",
+ "webkit2gtk",
+ "xcap",
+]
+
+[[package]]
+name = "bureau-storage"
+version = "0.2.4"
+dependencies = [
+ "bureau-contracts",
+ "chrono",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.20",
+ "uuid",
+]
+
+[[package]]
 name = "bytecount"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3197,108 +3299,6 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-foundation",
-]
-
-[[package]]
-name = "omenflow-agent-host"
-version = "0.2.4"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "interprocess",
- "libc",
- "omenflow-contracts",
- "omenflow-core",
- "png 0.18.1",
- "portable-pty",
- "rand 0.9.5",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "uuid",
-]
-
-[[package]]
-name = "omenflow-contracts"
-version = "0.2.4"
-dependencies = [
- "jsonschema",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "omenflow-core"
-version = "0.2.4"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "image",
- "libc",
- "omenflow-contracts",
- "omenflow-storage",
- "png 0.18.1",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "stl_io",
- "tempfile",
- "thiserror 2.0.20",
- "uuid",
- "zip",
-]
-
-[[package]]
-name = "omenflow-headless"
-version = "0.2.4"
-dependencies = [
- "libc",
- "omenflow-agent-host",
- "omenflow-contracts",
- "serde_json",
- "tempfile",
- "uuid",
-]
-
-[[package]]
-name = "omenflow-rust-desktop"
-version = "0.2.4"
-dependencies = [
- "base64 0.22.1",
- "cairo-rs",
- "image",
- "libc",
- "omenflow-agent-host",
- "omenflow-contracts",
- "serde_json",
- "signal-hook",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tempfile",
- "uuid",
- "webkit2gtk",
- "xcap",
-]
-
-[[package]]
-name = "omenflow-storage"
-version = "0.2.4"
-dependencies = [
- "chrono",
- "omenflow-contracts",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror 2.0.20",
- "uuid",
 ]
 
 [[package]]

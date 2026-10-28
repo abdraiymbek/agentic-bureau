@@ -4,21 +4,21 @@ use super::*;
 use std::sync::Mutex;
 
 /// Is OpenSCAD available? An engine test must not pass by doing nothing:
-/// without the engine it fails, unless `OMENFLOW_ALLOW_MISSING_OPENSCAD=1`
+/// without the engine it fails, unless `BUREAU_ALLOW_MISSING_OPENSCAD=1`
 /// states that this machine is known not to have one.
 pub(crate) fn engine_available() -> bool {
     match engine::engine(None) {
         Ok(_) => true,
         Err(error) => {
-            let allowed = std::env::var_os("OMENFLOW_ALLOW_MISSING_OPENSCAD")
-                .is_some_and(|value| value == "1");
+            let allowed =
+                std::env::var_os("BUREAU_ALLOW_MISSING_OPENSCAD").is_some_and(|value| value == "1");
             assert!(
                 allowed,
-                "OpenSCAD is required for this test ({}). Install it, set OPENSCAD_PATH, or set OMENFLOW_ALLOW_MISSING_OPENSCAD=1 to skip engine tests explicitly.",
+                "OpenSCAD is required for this test ({}). Install it, set OPENSCAD_PATH, or set BUREAU_ALLOW_MISSING_OPENSCAD=1 to skip engine tests explicitly.",
                 error.message
             );
             eprintln!(
-                "SKIPPED engine test: OpenSCAD is not available and OMENFLOW_ALLOW_MISSING_OPENSCAD=1 is set"
+                "SKIPPED engine test: OpenSCAD is not available and BUREAU_ALLOW_MISSING_OPENSCAD=1 is set"
             );
             false
         }

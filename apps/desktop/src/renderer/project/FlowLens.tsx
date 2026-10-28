@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { ArrowRight, Play } from '@phosphor-icons/react';
+import { ArrowRight, Play } from '../ui/icons';
 import { useStore } from '../store';
 import { useAgentUi } from '../shell/agent/agent-store';
 import { Button, TypeGlyph } from '../ui/kit';

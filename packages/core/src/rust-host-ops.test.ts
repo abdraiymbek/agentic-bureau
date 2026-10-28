@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ErrorCodes, RUST_HOST_OPS } from '@omenflow/contracts';
+import { ErrorCodes, RUST_HOST_OPS } from '@bureau/contracts';
 import { CoreApp, nullHost } from './index.js';
 
 let root: string;
@@ -11,7 +11,7 @@ let projectId: string;
 const user = { kind: 'user' as const };
 const agent = { kind: 'agent' as const, sessionId: '00000000-0000-4000-8000-000000000011' };
 beforeEach(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-rust-host-ops-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-rust-host-ops-'));
   app = new CoreApp(path.join(root, 'app'), nullHost);
   const created = (await app.dispatch(
     'project.create',

@@ -1,5 +1,5 @@
 [package]
-name = "omenflow-contracts"
+name = "bureau-contracts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

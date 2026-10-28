@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useContext, useEffect, useState } from 'react';
-import { ArrowRight, SlidersHorizontal, ShieldCheck } from '@phosphor-icons/react';
+import { ArrowRight, SlidersHorizontal, ShieldCheck } from '../ui/icons';
 
 import type {
   ArtifactView,
@@ -8,7 +8,7 @@ import type {
   ChatPart,
   MechanicalPayload,
   Revision,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { Button, Checkbox, ConfirmButton, Notice, Spinner, State, TypeGlyph } from '../ui/kit';
 import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { cmd, errMsg } from '../api';
@@ -149,7 +149,7 @@ function InlineCard({
                 key={o.label}
                 onClick={() => {
                   useChat.getState().offer(projectId, o.prompt);
-                  window.dispatchEvent(new Event('omenflow:focus-composer'));
+                  window.dispatchEvent(new Event('bureau:focus-composer'));
                 }}
               >
                 {o.label}
@@ -440,7 +440,7 @@ function MechanicalCard({
 }
 function readSaved<T>(key: string, fallback: T): T {
   try {
-    return (JSON.parse(localStorage.getItem(`omen.inline.v1/${key}`) || 'null') as T) || fallback;
+    return (JSON.parse(localStorage.getItem(`bureau.inline.v1/${key}`) || 'null') as T) || fallback;
   } catch {
     return fallback;
   }
@@ -452,7 +452,7 @@ function useSaved<T>(key: string, initial: T): [T, (next: T) => void] {
     (next) => {
       set(next);
       try {
-        localStorage.setItem(`omen.inline.v1/${key}`, JSON.stringify(next));
+        localStorage.setItem(`bureau.inline.v1/${key}`, JSON.stringify(next));
       } catch {
         useStore.getState().toast('error', 'This card draft could not be saved on this device.');
       }

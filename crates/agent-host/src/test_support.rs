@@ -3,9 +3,9 @@
 
 use crate::{socket_name, BridgeServer, Grant};
 use base64::Engine;
+use bureau_contracts::{read_frame, write_frame, Profile};
+use bureau_core::{CoreApp, Origin};
 use interprocess::local_socket::{prelude::*, Stream};
-use omenflow_contracts::{read_frame, write_frame, Profile};
-use omenflow_core::{CoreApp, Origin};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -215,7 +215,7 @@ pub(crate) struct McpClient {
 }
 
 impl McpClient {
-    /// Connect the way the `omenflow` helper does and complete the bridge
+    /// Connect the way the `bureau` helper does and complete the bridge
     /// handshake. `mode` is `mcp` or `call`.
     pub fn connect(bridge: &BridgeServer, token: &str, mode: &str) -> Self {
         let (stream, welcome) = Self::hello(bridge, token, mode);
@@ -311,7 +311,7 @@ impl McpClient {
         }
     }
 
-    /// One `omenflow call` request; returns the response envelope.
+    /// One `bureau call` request; returns the response envelope.
     pub fn call_op(&mut self, op: &str, payload: Value) -> Value {
         self.next_id += 1;
         let id = format!("r{}", self.next_id);

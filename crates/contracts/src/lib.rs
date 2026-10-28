@@ -1,4 +1,4 @@
-//! Stable external contracts for the Rust implementation of Omen Flow.
+//! Stable external contracts for the Rust implementation of Bureau.
 //! `registry.json` is the export of the TypeScript operation registry
 //! (`scripts/export-rust-contracts.ts`).
 

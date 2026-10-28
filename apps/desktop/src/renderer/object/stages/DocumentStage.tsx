@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { ConceptPayload, Revision, SoftwarePayload } from '@omenflow/contracts';
+import type { ConceptPayload, Revision, SoftwarePayload } from '@bureau/contracts';
 import { cmd } from '../../api';
 import { useStore } from '../../store';
 import { Block, Button, Facts } from '../../ui/kit';

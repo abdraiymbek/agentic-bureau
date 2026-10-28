@@ -6,8 +6,8 @@
 //! process in the process, and other host tests stop theirs.
 #![cfg(unix)]
 
-use omenflow_agent_host::{EventSink, Host, HostEvent, HostPaths, ResearchSurface, Shell};
-use omenflow_contracts::{read_frame, write_frame, ContractError, ResponseEnvelope};
+use bureau_agent_host::{EventSink, Host, HostEvent, HostPaths, ResearchSurface, Shell};
+use bureau_contracts::{read_frame, write_frame, ContractError, ResponseEnvelope};
 use serde_json::{json, Value};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -148,7 +148,7 @@ fn ok(envelope: ResponseEnvelope) -> Value {
     envelope.result.unwrap()
 }
 
-/// One agent session on the bridge in call mode, as the `omenflow` helper
+/// One agent session on the bridge in call mode, as the `bureau` helper
 /// connects.
 struct Agent(UnixStream);
 

@@ -15,7 +15,7 @@ import type {
   SourcePayload,
   TestPayload,
   WiringPayload,
-} from '@omenflow/contracts';
+} from '@bureau/contracts';
 import { describe, flatten, quantityText } from '../lib/diff';
 import { State } from '../ui/kit';
 import { ExternalLink } from '../ui/ExternalLink';
@@ -76,7 +76,7 @@ function openLink(e: React.MouseEvent) {
   e.preventDefault();
   const url = linkDestination(a.getAttribute('href'));
   if (url)
-    void window.omenflow
+    void window.bureau
       .openExternal(url)
       .catch((error) => useStore.getState().toast('error', errMsg(error)));
 }

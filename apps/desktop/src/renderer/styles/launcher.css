@@ -1,18 +1,46 @@
-/* Launcher. */
+/* Launcher: a centred question over the record's four layers, drawn as a quiet pixel horizon. */
 .launcher {
+  position: relative;
   overflow: auto;
   display: flex;
   justify-content: center;
-  padding: 7vh var(--s-6) var(--s-10);
+  padding: 7vh var(--s-6) calc(var(--s-10) + 120px);
+  background: var(--field);
+}
+/* Intent, Parts, Design, Evidence: bars, checker, dots, blocks, left to right, cause to
+ * consequence. Drawn in the faint line colour, so it never competes with the question. */
+.launcher-field {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 104px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  pointer-events: none;
+  --l: var(--line-strong);
+}
+.launcher-field > i[data-layer='intent'] {
   background:
-    radial-gradient(
-      1000px 520px at 50% -10%,
-      color-mix(in srgb, var(--text) 5%, transparent),
-      transparent 70%
-    ),
-    var(--field);
+    repeating-linear-gradient(180deg, transparent 0 8px, var(--field) 8px 10px),
+    repeating-linear-gradient(90deg, var(--l) 0 3px, transparent 3px 6px);
+}
+.launcher-field > i[data-layer='parts'] {
+  background: repeating-conic-gradient(var(--l) 0 25%, transparent 0 50%) 0 0 / 10px 10px;
+}
+.launcher-field > i[data-layer='design'] {
+  background: radial-gradient(circle, var(--l) 0 2px, transparent 2.5px) 0 0 / 10px 10px;
+}
+.launcher-field > i[data-layer='evidence'] {
+  background-color: var(--l);
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 8px, var(--field) 8px 10px),
+    repeating-linear-gradient(180deg, transparent 0 8px, var(--field) 8px 10px);
 }
 .launcher-col {
+  position: relative;
+  z-index: 1;
   width: min(640px, 100%);
   display: flex;
   flex-direction: column;
@@ -31,7 +59,7 @@
 }
 .launcher-hero h1 {
   font-size: var(--text-3xl);
-  font-weight: 500;
+  font-weight: var(--weight-strong);
   letter-spacing: var(--tracking-display);
   line-height: 1.1;
 }
@@ -43,7 +71,7 @@
 .launcher-composer {
   display: flex;
   flex-direction: column;
-  background: var(--raised);
+  background: var(--surface);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-float);
   padding: var(--s-2) var(--s-2) var(--s-2);

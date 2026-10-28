@@ -3,8 +3,8 @@ import { afterEach, expect, it } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { ChatRecord } from '@omenflow/contracts';
-import { CHAT_CONTINUE_TEXT } from '@omenflow/contracts/chat';
+import type { ChatRecord } from '@bureau/contracts';
+import { CHAT_CONTINUE_TEXT } from '@bureau/contracts/chat';
 import { RustCore } from './rust-core';
 const user = { kind: 'user' as const };
 let app: RustCore | undefined;
@@ -14,8 +14,8 @@ afterEach(async () => {
   if (root) fs.rmSync(root, { recursive: true, force: true });
 });
 it('persists validated agent cards into the actual owning turn and refuses unowned, foreign and executable props', async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-inline-'));
-  const helper = path.resolve('native/omenflow-bridge/target/release/omenflow');
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-inline-'));
+  const helper = path.resolve('native/bureau-bridge/target/release/bureau');
   app = await RustCore.start(path.join(root, 'app'), { cli: helper });
   const project = (await app.dispatch(
     'project.create',
@@ -28,7 +28,7 @@ it('persists validated agent cards into the actual owning turn and refuses unown
     {
       adapterId: 'codex',
       executablePath: path.resolve('tests/conformance/fixtures/inline-agent.py'),
-      env: { OMEN_INLINE_HELPER: helper },
+      env: { BUREAU_INLINE_HELPER: helper },
     },
     user,
   );
@@ -148,8 +148,8 @@ it('persists validated agent cards into the actual owning turn and refuses unown
 });
 
 it('sends exact attached dimensions through the CLI into a real render and human review, and refuses stale or changed replay inputs', async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-inline-render-'));
-  const helper = path.resolve('native/omenflow-bridge/target/release/omenflow');
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-inline-render-'));
+  const helper = path.resolve('native/bureau-bridge/target/release/bureau');
   app = await RustCore.start(path.join(root, 'app'), { cli: helper });
   const project = (await app.dispatch(
     'project.create',
@@ -169,7 +169,7 @@ it('sends exact attached dimensions through the CLI into a real render and human
     {
       adapterId: 'codex',
       executablePath: path.resolve('tests/conformance/fixtures/inline-agent.py'),
-      env: { OMEN_INLINE_HELPER: helper },
+      env: { BUREAU_INLINE_HELPER: helper },
     },
     user,
   );
@@ -239,7 +239,7 @@ it('sends exact attached dimensions through the CLI into a real render and human
 });
 
 it('reconciles multiple root Claude messages while excluding nested streams and aggregates', async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), 'omen-inline-claude-'));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-inline-claude-'));
   app = await RustCore.start(path.join(root, 'app'), { cli: process.execPath });
   const { projectId } = (await app.dispatch(
     'project.create',
@@ -307,7 +307,7 @@ it('reconciles multiple root Claude messages while excluding nested streams and 
 /** The inline fixture as a Codex CLI and, through a link named `claude`, as Claude Code. */
 async function gateFixture(prefix: string) {
   root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const helper = path.resolve('native/omenflow-bridge/target/release/omenflow');
+  const helper = path.resolve('native/bureau-bridge/target/release/bureau');
   app = await RustCore.start(path.join(root, 'app'), { cli: helper });
   const { projectId } = (await app.dispatch(
     'project.create',
@@ -317,7 +317,7 @@ async function gateFixture(prefix: string) {
   const fixture = path.resolve('tests/conformance/fixtures/inline-agent.py');
   const claude = path.join(root, 'claude');
   fs.symlinkSync(fixture, claude);
-  const env = { OMEN_INLINE_HELPER: helper };
+  const env = { BUREAU_INLINE_HELPER: helper };
   await app.dispatch(
     'connection.configure',
     { adapterId: 'codex', executablePath: fixture, env },
@@ -347,7 +347,7 @@ async function settled(projectId: string, conversation: string, turns: number) {
 }
 
 it('records the completion gate on each turn and continues once only when asked', async () => {
-  const projectId = await gateFixture('omen-inline-gate-');
+  const projectId = await gateFixture('bureau-inline-gate-');
   await app!.dispatch(
     'chat.send',
     {
@@ -394,7 +394,7 @@ it('records the completion gate on each turn and continues once only when asked'
 });
 
 it('resumes a Claude Code conversation for Continue instead of replaying it', async () => {
-  const projectId = await gateFixture('omen-inline-resume-');
+  const projectId = await gateFixture('bureau-inline-resume-');
   const { adapters } = (await app!.dispatch('connection.list', {}, user)) as {
     adapters: { adapterId: string; recognizedVersion: boolean; version: string | null }[];
   };

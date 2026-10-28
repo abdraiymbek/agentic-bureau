@@ -20,7 +20,7 @@ export interface Scene {
 }
 
 export const SCENES: Scene[] = [
-  { id: 'arrive', kind: 'act', title: 'Omen Flow', short: 'Omen Flow' },
+  { id: 'arrive', kind: 'act', title: 'Bureau', short: 'Bureau' },
   {
     id: 'whole',
     kind: 'act',
@@ -163,9 +163,9 @@ export function engineInstallHint(platform: Platform): { command: string | null;
 export function settingsFolder(platform: Platform): string {
   switch (platform) {
     case 'mac':
-      return '~/Library/Application Support/app.omenflow.desktop';
+      return '~/Library/Application Support/app.agenticbureau.desktop';
     case 'linux':
-      return '~/.local/share/app.omenflow.desktop';
+      return '~/.local/share/app.agenticbureau.desktop';
     default:
       return 'the app’s data folder';
   }

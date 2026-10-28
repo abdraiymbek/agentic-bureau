@@ -1,4 +1,4 @@
-import type { ProjectEvent } from '@omenflow/contracts';
+import type { ProjectEvent } from '@bureau/contracts';
 
 /** How long an object keeps the agent-touch ring after the agent last changed it. */
 export const TOUCH_WINDOW_MS = 15 * 60 * 1000;

@@ -1,12 +1,12 @@
-# Omen Flow STEP converter: an OpenSCAD CSG tree rebuilt as an exact B-rep with OpenCASCADE.
-# Copyright 2026 Omen Flow contributors. Licensed under the Apache License, Version 2.0.
+# Bureau STEP converter: an OpenSCAD CSG tree rebuilt as an exact B-rep with OpenCASCADE.
+# Copyright 2026 Bureau contributors. Licensed under the Apache License, Version 2.0.
 # SPDX-License-Identifier: Apache-2.0
 #
-# The Omen Flow core writes this file to a private temporary folder and runs
+# The Bureau core writes this file to a private temporary folder and runs
 #     <python> -E csg_to_step.py request.json
 # It needs only the Python standard library and OCP, the OpenCASCADE bindings CadQuery uses
 # (`pip install cadquery-ocp-novtk==7.9.3.1.1`, Python 3.11 to 3.14). OpenCASCADE is not part
-# of Omen Flow.
+# of Bureau.
 #
 # request.json: {"protocol": 1, "csg": path, "step": path, "answer": path, "product": name,
 #                "samples": [[x, y, z], ...],

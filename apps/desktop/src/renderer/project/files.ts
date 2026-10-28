@@ -2,7 +2,7 @@
  * The Files lens's model: working files of approved revisions and of the current drafts, file
  * previews with a size cap, and the issues a refused build export reports.
  */
-import type { ArtifactType, ArtifactView, FileRef, Revision } from '@omenflow/contracts';
+import type { ArtifactType, ArtifactView, FileRef, Revision } from '@bureau/contracts';
 import { displayedMechanicalRevision } from '../lib/mechanical-revisions';
 
 export type FileState = 'approved' | 'draft' | 'proposed';
