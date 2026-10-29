@@ -633,7 +633,7 @@ compiled and launched the native macOS application. Opened the live evaluation p
 native build and verified candidate and BOM photos, reasons, prices and total. A native seller
 link opened the exact Adafruit product URL in Safari. Native validation caught the initially
 blocked photos; the HTTPS image policy fix was verified visually. Screenshot:
-[sourced parts](screenshots/parts-sourced.png). The installed `scu` CLI still fails with its
+[sourced parts](https://github.com/abdraiymbek/agentic-bureau/blob/53ed1cb43de25a6eed8a9fe9b2a7d2d24f1b129b/design-system/screenshots/parts-sourced.png) (the pre-rename captures were removed from the tree; this is the file at the commit that recorded it). The installed `scu` CLI still fails with its
 missing Python module, so visual inspection used the available CUA connector.
 
 Checks: workspace typecheck, production renderer build, 20 Rust contracts/core tests and the

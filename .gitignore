@@ -16,3 +16,8 @@ out/
 *.tsbuildinfo
 coverage/
 .bureau-dev/
+
+# Local only: the launch film workspace and agent tooling are never published.
+videos/
+.claude/
+.codex/

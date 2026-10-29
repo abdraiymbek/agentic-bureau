@@ -161,23 +161,6 @@ const FONTS = [
     source: 'https://github.com/JetBrains/JetBrainsMono',
     licenseFile: 'design-system/fonts/jetbrains-mono-LICENSE.txt',
   },
-  // In the source repository for the films in videos/ only; the app does not bundle them.
-  {
-    ecosystem: 'font',
-    name: 'Geist and Geist Mono',
-    version: 'vendored',
-    license: 'OFL-1.1',
-    source: 'https://github.com/vercel/geist-font',
-    licenseFile: 'design-system/fonts/geist-LICENSE.txt',
-  },
-  {
-    ecosystem: 'font',
-    name: 'IBM Plex Mono',
-    version: 'vendored',
-    license: 'OFL-1.1',
-    source: 'https://github.com/IBM/plex',
-    licenseFile: 'design-system/fonts/ibm-plex-mono-LICENSE.txt',
-  },
 ];
 
 /** Copyright lines from a component's own licence and notice files. */

@@ -702,7 +702,7 @@ link terminal.
 | Catalogue                                          | `renderer/system/DesignSystemView.tsx`                                                                                     |
 | Lineage, actions, proposals, diffs, edits          | `renderer/lib/` (`graph`, `actions`, `proposals`, `diff`, `revision-draft`, `unsaved-edits`, …)                            |
 | Disposable preview                                 | `scripts/design-preview.ts` (the Rust headless host), `renderer/preview.ts`                                                |
-| Screens                                            | `design-system/index.html` (links to live screens); `design-system/screenshots/` is history                                |
+| Screens                                            | `design-system/index.html` (links to live screens)                                                                         |
 
 `renderer/styles/index.css` only imports the files below, in this order. A later file wins a tie,
 so the order is the cascade order. Responsive and reduced-motion rules sit in the file of the

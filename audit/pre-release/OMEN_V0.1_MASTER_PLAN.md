@@ -1,6 +1,6 @@
 # Omen Flow V0.1 Master Plan
 
-The current 2026-09-21 qualification is recorded in [v0.1 release evidence](audit/release-v0.1/README.md).
+The current 2026-09-21 qualification is recorded in [v0.1 release evidence](../release-v0.1/README.md).
 It supersedes the historical release decision, check counts and implementation findings
 below. Supported release scope, measured target misses and credential-dependent checks
 are explicit in that report; historical failures remain preserved here.
@@ -9,7 +9,7 @@ are explicit in that report; historical failures remain preserved here.
 
 **Release decision remains HOLD.** This run implemented substantial P0 work on top of `9305742`; it did not complete V0.1. The original audit below is retained as historical evidence. This execution record supersedes its descriptions of current implementation state. P1/P2 work remains deliberately postponed behind unfinished P0 gates; no Later work was attempted.
 
-The user requested wrap-up before the remaining native fault/performance runs. No additional implementation, model runs or release qualification are claimed after that request. Start the next run with [the continuation handoff](audit/execution/NEXT_AGENT.md).
+The user requested wrap-up before the remaining native fault/performance runs. No additional implementation, model runs or release qualification are claimed after that request. Start the next run with [the continuation handoff](../execution/NEXT_AGENT.md).
 
 ### What is implemented
 
@@ -26,11 +26,11 @@ The user requested wrap-up before the remaining native fault/performance runs. N
 
 ### Verification and evidence
 
-Final automated run: **249/249 tests passed, 32 files, no skips**, with `OMENFLOW_OPENSCAD_E2E=1`. Typecheck passed across all seven packages. Lint has no errors but retains warnings, including existing fixture/test `any` usage and the historical audit reproducer. Packaging and final smoke results, native observations and final formatting checks are recorded in [execution validation](audit/execution/validation.md). Focused batches in individual reports overlap; do not add their counts.
+Final automated run: **249/249 tests passed, 32 files, no skips**, with `OMENFLOW_OPENSCAD_E2E=1`. Typecheck passed across all seven packages. Lint has no errors but retains warnings, including existing fixture/test `any` usage and the historical audit reproducer. Packaging and final smoke results, native observations and final formatting checks are recorded in [execution validation](../execution/validation.md). Focused batches in individual reports overlap; do not add their counts.
 
-Luna High was kept throughout. The first implementation pair exposed a preservation/reference and historical-scope regression; those were fixed and covered by tests. The final pair is **1/2 readiness passes**, although both final geometries pass their independent task assertions. Sensor modification: **68.339 s, 7 tools, 23/23 evaluator checks**. Inclined foot: **248.290 s, 10 tools, 20/21 checks**, failing matching final verification because the agent removed an assertion; its final language did not clearly disclose `scope_changed`. This is a remaining capability/completion regression, not a waived pass. The earlier audit and first implementation results remain preserved in [Luna evaluation](audit/execution/luna-evaluation.md). No stronger model was substituted.
+Luna High was kept throughout. The first implementation pair exposed a preservation/reference and historical-scope regression; those were fixed and covered by tests. The final pair is **1/2 readiness passes**, although both final geometries pass their independent task assertions. Sensor modification: **68.339 s, 7 tools, 23/23 evaluator checks**. Inclined foot: **248.290 s, 10 tools, 20/21 checks**, failing matching final verification because the agent removed an assertion; its final language did not clearly disclose `scope_changed`. This is a remaining capability/completion regression, not a waived pass. The earlier audit and first implementation results remain preserved in [Luna evaluation](../execution/luna-evaluation.md). No stronger model was substituted.
 
-Measured graph impact improved from **1,432–1,662 ms** to **p50 12.881 / p95 23.856 ms** over 30 samples at 2,000 nodes, while finding every affected node. A root edit now marks all 1,999 downstream objects stale, versus one before. Its final single measurement was 427 ms. Graph response size is still 2.84 MB. Adversarial overlapping-mesh work formerly took 930 ms; the new budget rejects it in 42 ms. Supported 100k-triangle analysis still took 402 ms: resource limits do not satisfy the 100 ms core-stall target. See [execution evidence](audit/execution/README.md) for exact scope and reproducers; the planned final stationary viewport sample was not run before wrap-up.
+Measured graph impact improved from **1,432–1,662 ms** to **p50 12.881 / p95 23.856 ms** over 30 samples at 2,000 nodes, while finding every affected node. A root edit now marks all 1,999 downstream objects stale, versus one before. Its final single measurement was 427 ms. Graph response size is still 2.84 MB. Adversarial overlapping-mesh work formerly took 930 ms; the new budget rejects it in 42 ms. Supported 100k-triangle analysis still took 402 ms: resource limits do not satisfy the 100 ms core-stall target. See [execution evidence](../execution/README.md) for exact scope and reproducers; the planned final stationary viewport sample was not run before wrap-up.
 
 ### Task disposition and exact remaining work
 
@@ -109,13 +109,13 @@ These classify the **entire original criterion**, not just its passing subtests.
 2. **Keep source self-contained for now.** Reject includes/imports/surface dependencies, host-font `text()` and `rands()` until assets/seed identity can be pinned. All model coordinates are mm; supported typed length/angle/dimensionless input conversion remains available. See the tool guide for repair messages. This narrows unsupported behavior rather than silently promising portable geometry.
 3. **Bound before parallelizing.** Explicit workload refusal replaces unbounded heavy checks; it does not claim worker responsiveness. Finish worker execution and compact transport under the existing P0-10/P1-03 definitions.
 4. **Do not weaken evidence to recover a benchmark.** Use `cad.inspect` for exploratory diagnostics, commit request-bound assertions separately, and require explicit review when those assertions change. The inclined-foot failure is the next regression to solve in `cad-verification.ts`, CAD tool feedback, durable work state and the evaluator. Keep the failed run and zero-false-success gate.
-5. **Continue with remaining P0 in dependency order:** durability/reconciliation and cancellation gaps → request/work/spec identity and assertion recovery → replacement review and terminal cursors → portability/worker/transport limits → complete CI, repeated Luna suite and packaged acceptance. Only then start P1. Details and file targets remain in section 12 and [execution handoff](audit/execution/README.md).
+5. **Continue with remaining P0 in dependency order:** durability/reconciliation and cancellation gaps → request/work/spec identity and assertion recovery → replacement review and terminal cursors → portability/worker/transport limits → complete CI, repeated Luna suite and packaged acceptance. Only then start P1. Details and file targets remain in section 12 and [execution handoff](../execution/README.md).
 
 ---
 
 **Decision: hold the public release; preserve the architecture and close its trust gaps.**
 
-Audited on 2026-09-20 at commit `9305742`. This is an implementation brief, not a claim of engineering certification. The audit changed no product code. Reproduction scripts, recorded outputs, measurement caveats and native workflow observations are in [audit/pre-release](audit/pre-release/README.md).
+Audited on 2026-09-20 at commit `9305742`. This is an implementation brief, not a claim of engineering certification. The audit changed no product code. Reproduction scripts, recorded outputs, measurement caveats and native workflow observations are in [audit/pre-release](README.md).
 
 ## 1. Executive Assessment
 
@@ -183,7 +183,7 @@ flowchart LR
 
 ## 3. Critical Findings
 
-Evidence labels: **reproduced** means executed through real core/bridge/engine operations in a disposable project; **observed** means native UI use; **code evidence** identifies an implementation path but does not claim every possible failure occurred. Probe names below map directly to [recorded results](audit/pre-release/evidence/probes.json).
+Evidence labels: **reproduced** means executed through real core/bridge/engine operations in a disposable project; **observed** means native UI use; **code evidence** identifies an implementation path but does not claim every possible failure occurred. Probe names below map directly to [recorded results](evidence/probes.json).
 
 ### F01 — Source, parameters and verified geometry can describe different objects — P0
 
@@ -387,7 +387,7 @@ Malformed tools and provider failures should leave previous baselines untouched 
 
 ## 7. Performance Assessment
 
-Measurements below are local observations, not cross-machine guarantees. Environment and raw data are in [the evidence directory](audit/pre-release/evidence). Hardware: Apple M5, 16 GiB RAM; native measurements used a development build and exclude the external agent CLI/Vite.
+Measurements below are local observations, not cross-machine guarantees. Environment and raw data are in [the evidence directory](evidence). Hardware: Apple M5, 16 GiB RAM; native measurements used a development build and exclude the external agent CLI/Vite.
 
 | Measured operation                                                             | Observation                                                                                                              | Interpretation                                                                                                                                                                   |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

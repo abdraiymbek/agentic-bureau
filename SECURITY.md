@@ -2,8 +2,10 @@
 
 ## Reporting
 
-Report suspected vulnerabilities privately to the maintainers rather than in a public issue.
-There is no published security contact yet; one must exist before the first public release.
+A private channel for security reports is coming soon. Until it exists, please do not put
+vulnerability details in a public issue: open an
+[issue](https://github.com/abdraiymbek/agentic-bureau/issues) that says only that you have a
+security report, and a maintainer will arrange a private way to receive it.
 
 ## Model
 

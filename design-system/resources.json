@@ -2,7 +2,7 @@
   "name": "Bureau",
   "system": "Lens",
   "version": "3.0.0",
-  "updated": "2026-10-27",
+  "updated": "2026-10-28",
   "direction": "See the whole. Focus on one. Decide.",
   "specification": "design.md",
   "tokens": "tokens.css",
@@ -99,7 +99,7 @@
     "meshStatus": "Illustrative only; not a verified OpenSCAD render or manufacturing model",
     "agentExecution": "Disabled in browser preview; the desktop app runs the real adapter"
   },
-  "rasterAssets": "Captured application screenshots and the brand PNG exports only",
+  "rasterAssets": "The brand PNG exports and the social posts (captures of the design preview) only",
   "retired": [
     "Omen Flow name and the two-arc mark",
     "Geist and IBM Plex Mono in the interface, Phosphor icons",
@@ -121,11 +121,5 @@
   "accessibility": {
     "contrast": "Text, supporting and metadata text and state words meet WCAG AA (4.5:1) on every surface in both themes; signal strokes, focus rings and separators meet 3:1",
     "guard": "tests/frontend/ui-tokens.test.ts"
-  },
-  "screenshots": "screenshots/ holds captures of the Omen Flow interface, kept as history",
-  "filmFonts": {
-    "stylesheet": "fonts/fonts.css",
-    "families": ["Geist", "IBM Plex Mono"],
-    "note": "Kept for the launch film and trailer until they are re-cut"
   }
 }

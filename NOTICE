@@ -5,7 +5,7 @@ This product includes software developed by the Agentic Bureau contributors.
 
 It also includes third-party software and fonts, each under its own licence:
 Rust crates and JavaScript packages under MIT, Apache-2.0, BSD, ISC, Zlib,
-Unicode, MPL-2.0 and similar permissive licences, and the Geist and IBM Plex
-Mono fonts under the SIL Open Font License 1.1. THIRD_PARTY_NOTICES.md, in the
-source repository and inside each release package, lists every component with
-its licence, source and copyright, and reproduces the licence texts.
+Unicode, MPL-2.0 and similar permissive licences, and the Mona Sans and
+JetBrains Mono fonts under the SIL Open Font License 1.1. THIRD_PARTY_NOTICES.md,
+in the source repository and inside each release package, lists every component
+with its licence, source and copyright, and reproduces the licence texts.

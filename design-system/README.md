@@ -12,9 +12,7 @@ Start with [design.md](design.md). This folder is the canonical design system.
 - `brand/`: the pixel mark (two-tone, light and one-colour), the app icon (dark and light
   tiles), the favicon, and `social/` (Agentic Bureau avatars and launch posts).
 - `fonts/`: vendored Mona Sans and JetBrains Mono with licences (`bureau.css`, what the app
-  loads), plus Geist and IBM Plex Mono for the films until they move (`fonts.css`).
-- `screenshots/`: earlier reference captures. They predate the Bureau redesign and are kept as
-  history; the live catalogue and the gallery links show the current interface.
+  loads).
 - `fixtures/`: the illustrative mesh used only by the disposable preview.
 
 Run `pnpm design:preview` (set `BUREAU_PREVIEW_PORT` to use a port other than 5173), then open
