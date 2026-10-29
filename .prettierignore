@@ -9,5 +9,3 @@ crates/contracts/registry.json
 crates/core/units.json
 crates/core/calc_templates.json
 audit/rust-migration/**/*.json
-# The trailer is a standalone npm package with its own formatting (see AGENTS.md).
-videos/

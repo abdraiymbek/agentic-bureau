@@ -1,6 +1,6 @@
 # Continue the V0.1 implementation
 
-Read the execution record at the top of `OMEN_V0.1_MASTER_PLAN.md`, then its original tasks and acceptance criteria. Product code is already substantially changed in the working tree; **do not reset or redo it**. No commit was made. Final core gates passed 249 tests, typecheck and package smoke. This run stopped at the user's request. V0.1 remains on HOLD.
+Read the execution record at the top of `audit/pre-release/OMEN_V0.1_MASTER_PLAN.md`, then its original tasks and acceptance criteria. Product code is already substantially changed in the working tree; **do not reset or redo it**. No commit was made. Final core gates passed 249 tests, typecheck and package smoke. This run stopped at the user's request. V0.1 remains on HOLD.
 
 ## First concrete regression
 

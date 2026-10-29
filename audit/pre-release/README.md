@@ -1,7 +1,7 @@
 # Pre-release audit evidence — 2026-09-20
 
 Audited commit: `9305742` (`Tighten the workspace around the current object and its state.`).
-The deliverable is [OMEN_V0.1_MASTER_PLAN.md](../../OMEN_V0.1_MASTER_PLAN.md).
+The deliverable is [OMEN_V0.1_MASTER_PLAN.md](OMEN_V0.1_MASTER_PLAN.md).
 Product code was not changed by this audit.
 
 ## Reproduce
